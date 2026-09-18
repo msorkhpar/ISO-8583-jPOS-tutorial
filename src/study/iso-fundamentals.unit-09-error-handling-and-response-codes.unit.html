@@ -17,24 +17,24 @@
 <nav aria-label="Outline"><p>Contents</p><ol><li data-level="2"><a href="#prose-b0">9. Error Handling and Response Codes</a></li><li data-level="3"><a href="#prose-b1">9.1. Common response codes</a></li><li data-level="3"><a href="#prose-b9">9.2. Error scenarios and handling</a></li></ol></nav>
 <main id="content">
 <section id="s-prose" data-section="prose" data-kind="lesson" data-label="Error Handling and Response Codes">
-<h2 id="prose-b0">9. Error Handling and Response Codes</h2>
-<h3 id="prose-b1">9.1. Common response codes</h3>
-<p>Response codes are typically found in Field 39 of the ISO-8583 message. They are usually two-character codes that indicate the result of a transaction. Let's look at some common categories:</p>
-<h4 id="prose-b3">9.1.1. Approval codes</h4>
-<ul class="items"><li><code>00</code>: Approved or completed successfully</li><li><code>10</code>: Partial approval (for partial amount)</li><li><code>85</code>: No reason to decline</li></ul>
-<h4 id="prose-b5">9.1.2. Decline codes</h4>
-<ul class="items"><li><code>05</code>: Do not honor</li><li><code>14</code>: Invalid card number</li><li><code>51</code>: Insufficient funds</li><li><code>54</code>: Expired card</li><li><code>57</code>: Transaction not permitted to cardholder</li><li><code>61</code>: Exceeds withdrawal amount limit</li><li><code>65</code>: Exceeds withdrawal frequency limit</li></ul>
-<h4 id="prose-b7">9.1.3. Referral codes</h4>
-<ul class="items"><li><code>01</code>: Refer to card issuer</li><li><code>02</code>: Refer to card issuer, special condition</li></ul>
-<h3 id="prose-b9">9.2. Error scenarios and handling</h3>
-<h4 id="prose-b10">9.2.1. Network errors</h4>
-<p>These are typically issues related to connectivity or timeouts. They should be handled gracefully, often by retrying the transaction or notifying the user to try again later.</p>
-<h4 id="prose-b12">9.2.2. Format errors</h4>
-<p>These occur when the message structure is incorrect or contains invalid data. They should be logged for debugging and may require code fixes.</p>
-<h4 id="prose-b14">9.2.3. Security errors</h4>
-<p>These are related to encryption, authentication, or other security measures. They should be treated with high priority and may require immediate action.</p>
-<p>Now, let's implement a simple error handling system using jPOS and Spring. We'll create a service that processes transactions and handles various error scenarios.</p>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
+<h2 id="prose-b0" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b1-b282cd9e.mp3">9. Error Handling and Response Codes</h2>
+<h3 id="prose-b1" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b2-10a89157.mp3">9.1. Common response codes</h3>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b3-d87c07ad.mp3">Response codes are typically found in Field 39 of the ISO-8583 message. They are usually two-character codes that indicate the result of a transaction. Let's look at some common categories:</p>
+<h4 id="prose-b3" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b4-1b82a24f.mp3">9.1.1. Approval codes</h4>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b5.i1-a1e9a46c.mp3"><code>00</code>: Approved or completed successfully</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b5.i2-d22e7d62.mp3"><code>10</code>: Partial approval (for partial amount)</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b5.i3-15ad8de7.mp3"><code>85</code>: No reason to decline</li></ul>
+<h4 id="prose-b5" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b6-7f14ee08.mp3">9.1.2. Decline codes</h4>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i1-76de25c4.mp3"><code>05</code>: Do not honor</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i2-65438736.mp3"><code>14</code>: Invalid card number</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i3-4ab37d20.mp3"><code>51</code>: Insufficient funds</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i4-6ca6ab25.mp3"><code>54</code>: Expired card</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i5-3606ce23.mp3"><code>57</code>: Transaction not permitted to cardholder</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i6-9dfe61f9.mp3"><code>61</code>: Exceeds withdrawal amount limit</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b7.i7-2b4ee8f3.mp3"><code>65</code>: Exceeds withdrawal frequency limit</li></ul>
+<h4 id="prose-b7" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b8-8aaa2a53.mp3">9.1.3. Referral codes</h4>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b9.i1-bd4bf9f2.mp3"><code>01</code>: Refer to card issuer</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b9.i2-92ef7bc1.mp3"><code>02</code>: Refer to card issuer, special condition</li></ul>
+<h3 id="prose-b9" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b10-a3d82f10.mp3">9.2. Error scenarios and handling</h3>
+<h4 id="prose-b10" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b11-dd4623c6.mp3">9.2.1. Network errors</h4>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b12-9bc170af.mp3">These are typically issues related to connectivity or timeouts. They should be handled gracefully, often by retrying the transaction or notifying the user to try again later.</p>
+<h4 id="prose-b12" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b13-02c705b2.mp3">9.2.2. Format errors</h4>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b14-7c35dba6.mp3">These occur when the message structure is incorrect or contains invalid data. They should be logged for debugging and may require code fixes.</p>
+<h4 id="prose-b14" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b15-7cefac68.mp3">9.2.3. Security errors</h4>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b16-d67c083c.mp3">These are related to encryption, authentication, or other security measures. They should be treated with high priority and may require immediate action.</p>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b17-a895d2a3.mp3">Now, let's implement a simple error handling system using jPOS and Spring. We'll create a service that processes transactions and handles various error scenarios.</p>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b18-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -117,8 +117,8 @@ class NetworkException extends Exception {
         super(message);
     }
 }</code></pre></figure>
-<p>Now, let's create a simple test for our <code>TransactionService</code>:</p>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b19-b77504ad.mp3">Now, let's create a simple test for our <code>TransactionService</code>:</p>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -180,15 +180,35 @@ public class TransactionServiceTest {
         verify(logger).error(eq(&quot;Security error occurred&quot;), any(SecurityException.class));
     }
 }</code></pre></figure>
-<p>This implementation and test suite demonstrate how to handle various error scenarios in an ISO-8583 transaction processing system:</p>
-<ol class="items"><li>We've created a <code>TransactionService</code> that simulates processing an ISO message and handling different response codes.</li><li>The service also handles different types of exceptions that might occur during processing.</li><li>We've implemented logging for different scenarios to ensure proper tracking and debugging.</li><li>The test suite covers various scenarios including successful transactions, declined transactions, and different types of errors.</li></ol>
-<p>In a real-world scenario, you would expand on this basic structure to include more detailed error handling, possibly integrating with a monitoring system, implementing retry mechanisms for certain types of errors, and providing more detailed feedback to the user or calling system.</p>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b21-f47ae57f.mp3">This implementation and test suite demonstrate how to handle various error scenarios in an ISO-8583 transaction processing system:</p>
+<ol class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b22.i1-632a585e.mp3">We've created a <code>TransactionService</code> that simulates processing an ISO message and handling different response codes.</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b22.i2-ad185b76.mp3">The service also handles different types of exceptions that might occur during processing.</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b22.i3-c6599231.mp3">We've implemented logging for different scenarios to ensure proper tracking and debugging.</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b22.i4-05a62590.mp3">The test suite covers various scenarios including successful transactions, declined transactions, and different types of errors.</li></ol>
+<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b23-d358309f.mp3">In a real-world scenario, you would expand on this basic structure to include more detailed error handling, possibly integrating with a monitoring system, implementing retry mechanisms for certain types of errors, and providing more detailed feedback to the user or calling system.</p>
 </section>
 </main>
 <section data-section="read-mark" data-unit="iso-fundamentals/unit-09" hidden>
 <p><button type="button" aria-pressed="false"><span data-state="unread">Mark as read</span><span data-state="read" hidden>Marked as read &#10003;</span></button></p>
 <p>This mark is kept by this browser, on this machine, and nowhere else. It is not in the repository, it does not travel to another machine, and clearing this site&#8217;s data in your browser clears it.</p>
 </section>
+<footer id="player" hidden>
+<div id="track" role="progressbar" aria-label="Progress through this unit" aria-valuemin="0"><div id="fill"></div></div>
+<div>
+<button id="previous" type="button" aria-label="Previous passage">&#8592; Prev</button>
+<button id="play" type="button"><span data-state="paused">Play narration</span><span data-state="playing" hidden>Pause narration</span></button>
+<button id="next" type="button" aria-label="Next passage">Next &#8594;</button>
+<select id="speed" aria-label="Playback speed">
+<option value="0.75">0.75&#215;</option>
+<option value="1" selected>1&#215;</option>
+<option value="1.25">1.25&#215;</option>
+<option value="1.5">1.5&#215;</option>
+<option value="1.75">1.75&#215;</option>
+<option value="2">2&#215;</option>
+</select>
+<span><span id="where"></span><span id="counter"></span></span>
+<span id="status" role="status" aria-live="polite"><span data-state="missing" hidden>This passage has no audio on disk, so narration stops here rather than pretending to play it. Move on with Next.</span><span data-state="blocked" hidden>Your browser would not start audio on its own. Press play once and it will keep going from there.</span><span data-state="none" hidden>None of this unit's clips are on disk, so there is nothing to play. They were recorded once &#8212; re-run the narration pass and the audio comes back with them.</span></span>
+<p>Space plays and pauses. Left and right arrows move to the next passage and scroll it into view. Click any paragraph to start reading from there.</p>
+</div>
+</footer>
+<audio id="narrator" preload="none"></audio>
 <nav aria-label="Between units"><a rel="prev" href="iso-fundamentals.unit-08-security-and-encryption.unit.html">← Security and Encryption</a><a rel="up" href="../../index.html">ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a><a rel="next" href="iso-fundamentals.unit-10-testing-and-certification.unit.html">Testing and Certification →</a></nav>
 <script src="../../.studyforge/assets/page.js" defer></script>
 </body>
