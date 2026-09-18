@@ -13,15 +13,6 @@ manifest, not this file (R19).
 - graded practices: no
 - media: committed to git
 
-## Where it stands
-
-Read from the archive and the narration record, the way a build reads them:
-
-- units: 38 declared, 38 with material
-- narrated: 0 of 38 (there is no narration record yet)
-- reading-only: 38 of 38
-- container: none needed, because no unit declares a graded practice
-
 ## Running it from a fresh clone
 
 The framework is a checkout beside this repository's main checkout —
@@ -32,7 +23,7 @@ ingest with this corpus's adapter, check the archive, and say what a
 build would write before building:
 
 ```
-git -C ../../studyforge checkout --detach 7027ee6ffacaac7431062846584492992c482fb5
+git -C ../../studyforge checkout --detach aa4e2569fb856e78cb20399690a8263c1a99b5fa
 PYTHONPATH=../../studyforge/src python3 -m ingest .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli validate .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli plan .
@@ -45,6 +36,18 @@ narration service, so it is not run here; its options are:
 
 ```
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli narrate --help
+```
+
+## Where it stands
+
+How many units this corpus has, how many are narrated and whether any
+needs a container are read from the archive and the narration record,
+and they move whenever either does — narrating writes clips, ingesting
+again rewrites the archive. Nothing rewrites this file when they move,
+so it states no figure: this reads them as they are now.
+
+```
+PYTHONPATH=../../studyforge/src python3 -m studyforge.skills.onboarding .
 ```
 
 ## What you get
