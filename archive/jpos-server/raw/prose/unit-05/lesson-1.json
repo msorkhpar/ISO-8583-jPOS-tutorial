@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Visa and Mastercard Specific Processing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Visa and Mastercard Specific Processing in jPOS"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Overview"
+    },
+    {
+      "type": "para",
+      "text": "When implementing a payment processing system using jPOS, it's essential to handle Visa and Mastercard transactions differently due to their specific requirements and data elements. We'll create custom participants for both Visa and Mastercard logic, which will be part of the transaction processing flow."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Implementation"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1. Create Custom Participants"
+    },
+    {
+      "type": "para",
+      "text": "First, let's create abstract base classes for Visa and Mastercard participants:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\n\npublic abstract class AbstractCardParticipant implements TransactionParticipant, Configurable {\n    protected Configuration cfg;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n\n    @Override\n    public int prepare(long id, Context context) {\n        // Common preparation logic\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Common commit logic\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Common abort logic\n    }\n\n    protected abstract void processSpecificFields(Context context);\n}\n\npublic abstract class VisaParticipant extends AbstractCardParticipant {\n    // Visa-specific methods and fields\n}\n\npublic abstract class MastercardParticipant extends AbstractCardParticipant {\n    // Mastercard-specific methods and fields\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2. Implement Visa-specific Participant"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a concrete Visa participant:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class VisaAuthorizationParticipant extends VisaParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        int result = super.prepare(id, context);\n        processSpecificFields(context);\n        return result;\n    }\n\n    @Override\n    protected void processSpecificFields(Context context) {\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            // Process Visa-specific fields\n            String cardAcceptorId = msg.getString(42);\n            String cardAcceptorNameLocation = msg.getString(43);\n            String additionalData = msg.getString(48);\n\n            // Validate and process Visa-specific data\n            if (isValidVisaTransaction(cardAcceptorId, cardAcceptorNameLocation, additionalData)) {\n                context.put(\"VISA_TRANSACTION_VALID\", true);\n            } else {\n                context.put(\"VISA_TRANSACTION_VALID\", false);\n                context.put(\"VISA_ERROR\", \"Invalid Visa transaction data\");\n            }\n\n        } catch (ISOException e) {\n            context.put(\"VISA_TRANSACTION_VALID\", false);\n            context.put(\"VISA_ERROR\", \"Error processing Visa fields: \" + e.getMessage());\n        }\n    }\n\n    private boolean isValidVisaTransaction(String cardAcceptorId, String cardAcceptorNameLocation, String additionalData) {\n        // Implement Visa-specific validation logic\n        return cardAcceptorId != null && cardAcceptorNameLocation != null && additionalData != null;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3. Implement Mastercard-specific Participant"
+    },
+    {
+      "type": "para",
+      "text": "Similarly, let's create a concrete Mastercard participant:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class MastercardAuthorizationParticipant extends MastercardParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        int result = super.prepare(id, context);\n        processSpecificFields(context);\n        return result;\n    }\n\n    @Override\n    protected void processSpecificFields(Context context) {\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            // Process Mastercard-specific fields\n            String additionalData = msg.getString(48);\n            String posData = msg.getString(61);\n            String networkData = msg.getString(63);\n\n            // Validate and process Mastercard-specific data\n            if (isValidMastercardTransaction(additionalData, posData, networkData)) {\n                context.put(\"MASTERCARD_TRANSACTION_VALID\", true);\n            } else {\n                context.put(\"MASTERCARD_TRANSACTION_VALID\", false);\n                context.put(\"MASTERCARD_ERROR\", \"Invalid Mastercard transaction data\");\n            }\n\n        } catch (ISOException e) {\n            context.put(\"MASTERCARD_TRANSACTION_VALID\", false);\n            context.put(\"MASTERCARD_ERROR\", \"Error processing Mastercard fields: \" + e.getMessage());\n        }\n    }\n\n    private boolean isValidMastercardTransaction(String additionalData, String posData, String networkData) {\n        // Implement Mastercard-specific validation logic\n        return additionalData != null && posData != null && networkData != null;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4. Configure Transaction Manager"
+    },
+    {
+      "type": "para",
+      "text": "To use these participants in the transaction flow, configure them in the Spring context:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"queue\" value=\"txnqueue\"/>\n    <property name=\"sessions\" value=\"2\"/>\n    <property name=\"max-sessions\" value=\"128\"/>\n    <property name=\"participants\">\n        <list>\n            <ref bean=\"cardTypeIdentifier\"/>\n            <ref bean=\"visaAuthorizationParticipant\"/>\n            <ref bean=\"mastercardAuthorizationParticipant\"/>\n            <!-- Other participants -->\n        </list>\n    </property>\n</bean>\n\n<bean id=\"cardTypeIdentifier\" class=\"com.example.CardTypeIdentifierParticipant\"/>\n<bean id=\"visaAuthorizationParticipant\" class=\"com.example.VisaAuthorizationParticipant\"/>\n<bean id=\"mastercardAuthorizationParticipant\" class=\"com.example.MastercardAuthorizationParticipant\"/>"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5. Implement Card Type Identifier"
+    },
+    {
+      "type": "para",
+      "text": "To determine which participant should process the transaction, create a `CardTypeIdentifierParticipant`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class CardTypeIdentifierParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            String pan = msg.getString(2);\n            String cardType = identifyCardType(pan);\n            context.put(\"CARD_TYPE\", cardType);\n        } catch (ISOException e) {\n            context.put(\"CARD_TYPE_ERROR\", \"Error identifying card type: \" + e.getMessage());\n        }\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    private String identifyCardType(String pan) {\n        if (pan.startsWith(\"4\")) {\n            return \"VISA\";\n        } else if (pan.startsWith(\"51\") || pan.startsWith(\"52\") || pan.startsWith(\"53\") || \n                   pan.startsWith(\"54\") || pan.startsWith(\"55\")) {\n            return \"MASTERCARD\";\n        } else {\n            return \"UNKNOWN\";\n        }\n    }\n\n    @Override\n    public void commit(long id, Context context) {}\n\n    @Override\n    public void abort(long id, Context context) {}\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6. Testing"
+    },
+    {
+      "type": "para",
+      "text": "To ensure our Visa and Mastercard specific processing works correctly, let's create unit tests:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.transaction.Context;\nimport static org.assertj.core.api.Assertions.*;\n\nclass VisaAuthorizationParticipantTest {\n\n    private VisaAuthorizationParticipant participant;\n    private Context context;\n    private ISOMsg msg;\n\n    @BeforeEach\n    void setUp() throws ISOException {\n        participant = new VisaAuthorizationParticipant();\n        context = new Context();\n        msg = new ISOMsg();\n        msg.set(2, \"4111111111111111\");\n        msg.set(42, \"VISA_MERCHANT_ID\");\n        msg.set(43, \"VISA_MERCHANT_NAME_LOCATION\");\n        msg.set(48, \"ADDITIONAL_DATA\");\n        context.put(\"REQUEST\", msg);\n    }\n\n    @Test\n    void testValidVisaTransaction() {\n        participant.prepare(1L, context);\n        assertThat(context.get(\"VISA_TRANSACTION_VALID\")).isEqualTo(true);\n        assertThat(context.get(\"VISA_ERROR\")).isNull();\n    }\n\n    @Test\n    void testInvalidVisaTransaction() throws ISOException {\n        msg.unset(42);\n        participant.prepare(1L, context);\n        assertThat(context.get(\"VISA_TRANSACTION_VALID\")).isEqualTo(false);\n        assertThat(context.get(\"VISA_ERROR\")).isNotNull();\n    }\n}\n\nclass MastercardAuthorizationParticipantTest {\n\n    private MastercardAuthorizationParticipant participant;\n    private Context context;\n    private ISOMsg msg;\n\n    @BeforeEach\n    void setUp() throws ISOException {\n        participant = new MastercardAuthorizationParticipant();\n        context = new Context();\n        msg = new ISOMsg();\n        msg.set(2, \"5111111111111111\");\n        msg.set(48, \"ADDITIONAL_DATA\");\n        msg.set(61, \"POS_DATA\");\n        msg.set(63, \"NETWORK_DATA\");\n        context.put(\"REQUEST\", msg);\n    }\n\n    @Test\n    void testValidMastercardTransaction() {\n        participant.prepare(1L, context);\n        assertThat(context.get(\"MASTERCARD_TRANSACTION_VALID\")).isEqualTo(true);\n        assertThat(context.get(\"MASTERCARD_ERROR\")).isNull();\n    }\n\n    @Test\n    void testInvalidMastercardTransaction() throws ISOException {\n        msg.unset(61);\n        participant.prepare(1L, context);\n        assertThat(context.get(\"MASTERCARD_TRANSACTION_VALID\")).isEqualTo(false);\n        assertThat(context.get(\"MASTERCARD_ERROR\")).isNotNull();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation provides a solid foundation for processing Visa and Mastercard transactions in a jPOS server. The custom participants handle the specific requirements for each card network, while the `CardTypeIdentifierParticipant` ensures that the correct participant is used for each transaction."
+    },
+    {
+      "type": "para",
+      "text": "The modular design allows for easy extension and modification of the processing logic for each card network. The unit tests ensure that the participants behave correctly for both valid and invalid transactions."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 9,
+    "paras": 9,
+    "code": 6,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "92d5c5f08a81a94ac470ff28fde295144a4bbad2cfd7c3036532716f268616a8"
+}

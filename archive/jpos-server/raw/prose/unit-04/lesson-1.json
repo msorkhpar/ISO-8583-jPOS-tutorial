@@ -1,0 +1,159 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Transaction Processing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "4. Transaction Processing"
+    },
+    {
+      "type": "para",
+      "text": "Transaction processing is a crucial part of any financial system, especially when dealing with ISO-8583 messages. In jPOS, transaction processing is handled by the TransactionManager and implemented through TransactionParticipants. This approach allows for a modular and flexible way to process transactions."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.1 Transaction Manager"
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager is responsible for coordinating the execution of a series of participants for each transaction. It manages the transaction lifecycle, including commit and rollback operations."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Implementation"
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a basic TransactionManager configuration:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.q2.QBeanSupport;\nimport org.jpos.transaction.TransactionManager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class TransactionManagerConfig extends QBeanSupport {\n\n    @Bean\n    public TransactionManager transactionManager() {\n        TransactionManager txnManager = new TransactionManager();\n        txnManager.setName(\"txnManager\");\n        txnManager.setQueue(\"txnQueue\");\n        txnManager.setMaxSessions(10);\n        txnManager.setMaxActiveSessions(5);\n        txnManager.setDebug(true);\n        return txnManager;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this configuration, we're setting up a TransactionManager bean with the following properties:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Name: \"txnManager\"",
+        "Queue: \"txnQueue\" (where transactions will be queued)",
+        "MaxSessions: 10 (maximum number of concurrent sessions)",
+        "MaxActiveSessions: 5 (maximum number of active sessions)",
+        "Debug: true (for logging purposes)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.2 Transaction Participant"
+    },
+    {
+      "type": "para",
+      "text": "TransactionParticipants are the building blocks of transaction processing in jPOS. Each participant performs a specific task in the transaction flow."
+    },
+    {
+      "type": "para",
+      "text": "Let's create a simple TransactionParticipant that validates a transaction:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\npublic class TransactionValidator implements TransactionParticipant, Configurable {\n\n    private Configuration cfg;\n\n    @Override\n    public int prepare(long id, Context context) {\n        // Validate the transaction\n        if (isValidTransaction(context)) {\n            return PREPARED | READONLY;\n        }\n        return ABORTED;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Nothing to commit for this participant\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Handle abort scenario\n        context.put(\"error\", \"Transaction validation failed\");\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n\n    private boolean isValidTransaction(Context context) {\n        // Implement your validation logic here\n        // For example, check if required fields are present\n        return context.get(\"amount\") != null && context.get(\"cardNumber\") != null;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This TransactionValidator checks if the transaction has the required fields (amount and cardNumber in this example)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.3 Custom Participants for Visa/Mastercard Logic"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create specific participants for Visa and Mastercard transactions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class VisaTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        // Visa-specific validation and processing\n        if (isValidVisaTransaction(context)) {\n            context.put(\"network\", \"VISA\");\n            return PREPARED;\n        }\n        return ABORTED;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Commit Visa transaction\n        // For example, send to Visa network\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Handle Visa transaction abort\n    }\n\n    private boolean isValidVisaTransaction(Context context) {\n        // Implement Visa-specific validation\n        String pan = (String) context.get(\"pan\");\n        return pan != null && pan.startsWith(\"4\");\n    }\n}\n\npublic class MastercardTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        // Mastercard-specific validation and processing\n        if (isValidMastercardTransaction(context)) {\n            context.put(\"network\", \"MASTERCARD\");\n            return PREPARED;\n        }\n        return ABORTED;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Commit Mastercard transaction\n        // For example, send to Mastercard network\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Handle Mastercard transaction abort\n    }\n\n    private boolean isValidMastercardTransaction(Context context) {\n        // Implement Mastercard-specific validation\n        String pan = (String) context.get(\"pan\");\n        return pan != null && pan.startsWith(\"5\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "These participants handle Visa and Mastercard specific logic, such as identifying the card network based on the PAN (Primary Account Number) prefix."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.4 Configuring the Transaction Flow"
+    },
+    {
+      "type": "para",
+      "text": "To tie everything together, we need to configure the transaction flow. This is typically done in an XML configuration file for jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnQueue\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <participant class=\"com.example.TransactionValidator\" logger=\"Q2\"/>\n  <participant class=\"com.example.VisaTransactionParticipant\" logger=\"Q2\"/>\n  <participant class=\"com.example.MastercardTransactionParticipant\" logger=\"Q2\"/>\n  <!-- Add more participants as needed -->\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "This configuration sets up the TransactionManager and defines the order of participants in the transaction flow."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.5 Testing the Transaction Flow"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a test to verify our transaction flow:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.core.SimpleConfiguration;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionManager;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class TransactionFlowTest {\n\n    @Autowired\n    private TransactionManager transactionManager;\n\n    @BeforeEach\n    public void setup() throws Exception {\n        // Configure participants\n        transactionManager.setConfiguration(new SimpleConfiguration());\n        transactionManager.addParticipant(new TransactionValidator());\n        transactionManager.addParticipant(new VisaTransactionParticipant());\n        transactionManager.addParticipant(new MastercardTransactionParticipant());\n    }\n\n    @Test\n    public void testVisaTransaction() {\n        Context context = new Context();\n        context.put(\"amount\", \"100.00\");\n        context.put(\"pan\", \"4111111111111111\");\n\n        long id = transactionManager.queue(context);\n        \n        // Wait for transaction to complete\n        try {\n            Thread.sleep(1000);\n        } catch (InterruptedException e) {\n            e.printStackTrace();\n        }\n\n        assertThat(context.get(\"network\")).isEqualTo(\"VISA\");\n    }\n\n    @Test\n    public void testMastercardTransaction() {\n        Context context = new Context();\n        context.put(\"amount\", \"200.00\");\n        context.put(\"pan\", \"5555555555554444\");\n\n        long id = transactionManager.queue(context);\n        \n        // Wait for transaction to complete\n        try {\n            Thread.sleep(1000);\n        } catch (InterruptedException e) {\n            e.printStackTrace();\n        }\n\n        assertThat(context.get(\"network\")).isEqualTo(\"MASTERCARD\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test class verifies that our transaction flow correctly identifies Visa and Mastercard transactions based on the PAN."
+    },
+    {
+      "type": "para",
+      "text": "In conclusion, this implementation demonstrates how to set up transaction processing in jPOS, including the TransactionManager, custom TransactionParticipants for general validation and card network-specific processing, and how to test the transaction flow. This modular approach allows for easy extension and modification of the transaction processing logic as needed."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 7,
+    "paras": 14,
+    "code": 5,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "a0947c9109364a9a24cb18b042339ceac01800d5aea797c44d07af0c8fd0f4fe"
+}

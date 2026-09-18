@@ -1,0 +1,165 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Mastercard-specific Implementation",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6. Mastercard-specific Implementation"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.1. Mastercard transaction types"
+    },
+    {
+      "type": "para",
+      "text": "Mastercard supports various transaction types, including:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Purchase",
+        "Cash Advance",
+        "Balance Inquiry",
+        "Refund"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Each of these transaction types has specific requirements and data elements that need to be included in the ISO-8583 message."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.2. Mastercard-specific data elements"
+    },
+    {
+      "type": "para",
+      "text": "Mastercard uses several specific data elements in their ISO-8583 implementation. Here are some of the key fields:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "6.2.1. Field 48: Additional Data - Private Use"
+    },
+    {
+      "type": "para",
+      "text": "This field is used for various purposes, including additional transaction data, loyalty program information, and other Mastercard-specific data."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "6.2.2. Field 61: Point-of-Service (POS) Data"
+    },
+    {
+      "type": "para",
+      "text": "This field contains information about the point-of-sale terminal and transaction environment."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "6.2.3. Field 63: Network Data"
+    },
+    {
+      "type": "para",
+      "text": "This field is used for network-specific information and can contain various subfields."
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a Java class to handle Mastercard-specific data elements:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class MastercardDataElementHandler {\n\n    public void setAdditionalData(ISOMsg isoMsg, String additionalData) throws ISOException {\n        isoMsg.set(48, additionalData);\n    }\n\n    public void setPOSData(ISOMsg isoMsg, String posData) throws ISOException {\n        isoMsg.set(61, posData);\n    }\n\n    public void setNetworkData(ISOMsg isoMsg, String networkData) throws ISOException {\n        isoMsg.set(63, networkData);\n    }\n\n    public String getAdditionalData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(48);\n    }\n\n    public String getPOSData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(61);\n    }\n\n    public String getNetworkData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(63);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.3. Mastercard processing codes"
+    },
+    {
+      "type": "para",
+      "text": "Mastercard uses specific processing codes to identify the type of transaction. Here are some common processing codes:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Purchase: 00",
+        "Cash Advance: 01",
+        "Void: 02",
+        "Refund: 20"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a Java enum to represent these processing codes:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public enum MastercardProcessingCode {\n    PURCHASE(\"00\"),\n    CASH_ADVANCE(\"01\"),\n    VOID(\"02\"),\n    REFUND(\"20\");\n\n    private final String code;\n\n    MastercardProcessingCode(String code) {\n        this.code = code;\n    }\n\n    public String getCode() {\n        return code;\n    }\n\n    public static MastercardProcessingCode fromCode(String code) {\n        for (MastercardProcessingCode processingCode : values()) {\n            if (processingCode.getCode().equals(code)) {\n                return processingCode;\n            }\n        }\n        throw new IllegalArgumentException(\"Invalid Mastercard processing code: \" + code);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a service to handle Mastercard transactions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class MastercardTransactionService {\n\n    @Autowired\n    private MastercardDataElementHandler dataElementHandler;\n\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.PURCHASE.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for purchase\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for purchase\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for purchase\");\n\n        return isoMsg;\n    }\n\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.CASH_ADVANCE.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for cash advance\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for cash advance\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for cash advance\");\n\n        return isoMsg;\n    }\n\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalTransactionId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.REFUND.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n        isoMsg.set(37, originalTransactionId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for refund\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for refund\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for refund\");\n\n        return isoMsg;\n    }\n\n    public boolean isApproved(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        return \"00\".equals(responseCode);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a test class to verify the functionality of our Mastercard transaction service:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.verify;\n\n@ExtendWith(MockitoExtension.class)\npublic class MastercardTransactionServiceTest {\n\n    @Mock\n    private MastercardDataElementHandler dataElementHandler;\n\n    @InjectMocks\n    private MastercardTransactionService transactionService;\n\n    @Test\n    public void testCreatePurchaseRequest() throws Exception {\n        ISOMsg purchaseRequest = transactionService.createPurchaseRequest(\"1234567890123456\", \"100000\", \"MERCHANT01\");\n\n        assertThat(purchaseRequest.getMTI()).isEqualTo(\"0200\");\n        assertThat(purchaseRequest.getString(2)).isEqualTo(\"1234567890123456\");\n        assertThat(purchaseRequest.getString(3)).isEqualTo(MastercardProcessingCode.PURCHASE.getCode());\n        assertThat(purchaseRequest.getString(4)).isEqualTo(\"100000\");\n        assertThat(purchaseRequest.getString(42)).isEqualTo(\"MERCHANT01\");\n\n        verify(dataElementHandler).setAdditionalData(purchaseRequest, \"Additional data for purchase\");\n        verify(dataElementHandler).setPOSData(purchaseRequest, \"POS data for purchase\");\n        verify(dataElementHandler).setNetworkData(purchaseRequest, \"Network data for purchase\");\n    }\n\n    @Test\n    public void testCreateCashAdvanceRequest() throws Exception {\n        ISOMsg cashAdvanceRequest = transactionService.createCashAdvanceRequest(\"1234567890123456\", \"50000\", \"MERCHANT01\");\n\n        assertThat(cashAdvanceRequest.getMTI()).isEqualTo(\"0200\");\n        assertThat(cashAdvanceRequest.getString(2)).isEqualTo(\"1234567890123456\");\n        assertThat(cashAdvanceRequest.getString(3)).isEqualTo(MastercardProcessingCode.CASH_ADVANCE.getCode());\n        assertThat(cashAdvanceRequest.getString(4)).isEqualTo(\"50000\");\n        assertThat(cashAdvanceRequest.getString(42)).isEqualTo(\"MERCHANT01\");\n\n        verify(dataElementHandler).setAdditionalData(cashAdvanceRequest, \"Additional data for cash advance\");\n        verify(dataElementHandler).setPOSData(cashAdvanceRequest, \"POS data for cash advance\");\n        verify(dataElementHandler).setNetworkData(cashAdvanceRequest, \"Network data for cash advance\");\n    }\n\n    @Test\n    public void testCreateRefundRequest() throws Exception {\n        ISOMsg refundRequest = transactionService.createRefundRequest(\"1234567890123456\", \"25000\", \"MERCHANT01\", \"123456789\");\n\n        assertThat(refundRequest.getMTI()).isEqualTo(\"0200\");\n        assertThat(refundRequest.getString(2)).isEqualTo(\"1234567890123456\");\n        assertThat(refundRequest.getString(3)).isEqualTo(MastercardProcessingCode.REFUND.getCode());\n        assertThat(refundRequest.getString(4)).isEqualTo(\"25000\");\n        assertThat(refundRequest.getString(42)).isEqualTo(\"MERCHANT01\");\n        assertThat(refundRequest.getString(37)).isEqualTo(\"123456789\");\n\n        verify(dataElementHandler).setAdditionalData(refundRequest, \"Additional data for refund\");\n        verify(dataElementHandler).setPOSData(refundRequest, \"POS data for refund\");\n        verify(dataElementHandler).setNetworkData(refundRequest, \"Network data for refund\");\n    }\n\n    @Test\n    public void testIsApproved() throws Exception {\n        ISOMsg approvedResponse = new ISOMsg();\n        approvedResponse.set(39, \"00\");\n\n        ISOMsg declinedResponse = new ISOMsg();\n        declinedResponse.set(39, \"05\");\n\n        assertThat(transactionService.isApproved(approvedResponse)).isTrue();\n        assertThat(transactionService.isApproved(declinedResponse)).isFalse();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation covers the main aspects of Mastercard-specific ISO-8583 message handling, including:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Creating purchase, cash advance, and refund requests",
+        "Handling Mastercard-specific data elements (fields 48, 61, and 63)",
+        "Using the correct processing codes for different transaction types",
+        "Checking the approval status of a response message"
+      ]
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 7,
+    "paras": 12,
+    "code": 4,
+    "tables": 0,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "fc2659c35fbf1c37a96cecef3d135285024d480d8d5bfb06b8a1881d320f0b60"
+}

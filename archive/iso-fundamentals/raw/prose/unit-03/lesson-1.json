@@ -1,0 +1,498 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Data Elements",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3. Data Elements"
+    },
+    {
+      "type": "para",
+      "text": "Data elements are the building blocks of ISO-8583 messages. They contain specific pieces of information required for processing financial transactions."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.1. Mandatory vs. Optional fields"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.1.1. Identifying mandatory fields"
+    },
+    {
+      "type": "para",
+      "text": "Mandatory fields are essential for processing a transaction and must be included in every message. These fields are typically defined by the message type and the specific requirements of the card network (Visa or Mastercard)."
+    },
+    {
+      "type": "para",
+      "text": "Example of common mandatory fields:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Message Type Indicator (MTI)",
+        "Primary Account Number (PAN)",
+        "Processing Code",
+        "Transaction Amount"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.1.2. Handling optional fields"
+    },
+    {
+      "type": "para",
+      "text": "Optional fields provide additional information that may be required for specific transaction types or to support certain features. These fields can be omitted if not needed."
+    },
+    {
+      "type": "para",
+      "text": "Example of handling optional fields in Java using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class OptionalFieldHandler {\n    public void handleOptionalField(ISOMsg msg, int fieldNumber) {\n        try {\n            if (msg.hasField(fieldNumber)) {\n                String value = msg.getString(fieldNumber);\n                // Process the optional field\n                System.out.println(\"Optional field \" + fieldNumber + \" present: \" + value);\n            } else {\n                System.out.println(\"Optional field \" + fieldNumber + \" not present\");\n            }\n        } catch (ISOException e) {\n            e.printStackTrace();\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.2. Fixed-length vs. Variable-length fields"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.2.1. Length indicators for variable fields"
+    },
+    {
+      "type": "para",
+      "text": "Variable-length fields are preceded by a length indicator, which specifies the number of characters in the field. The length indicator itself can be of fixed length (e.g., 2 or 3 digits)."
+    },
+    {
+      "type": "para",
+      "text": "Example of a variable-length field structure:"
+    },
+    {
+      "type": "code",
+      "lang": "",
+      "text": "[Length Indicator][Field Value]"
+    },
+    {
+      "type": "para",
+      "text": "For instance, if field 43 (Card Acceptor Name/Location) contains \"ACME Store 123 Main St\", it might be represented as:"
+    },
+    {
+      "type": "code",
+      "lang": "",
+      "text": "019ACME Store 123 Main St"
+    },
+    {
+      "type": "para",
+      "text": "Here, \"019\" is the length indicator, showing that the field value is 19 characters long."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.2.2. Padding for fixed-length fields"
+    },
+    {
+      "type": "para",
+      "text": "Fixed-length fields always occupy the same number of characters. If the actual data is shorter than the specified length, it is padded with a filler character (often spaces or zeros)."
+    },
+    {
+      "type": "para",
+      "text": "Example of padding a fixed-length field in Java:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class FixedLengthFieldPadder {\n    public String padField(String value, int length, char paddingChar) {\n        if (value == null) {\n            value = \"\";\n        }\n        if (value.length() > length) {\n            return value.substring(0, length);\n        }\n        StringBuilder sb = new StringBuilder(length);\n        sb.append(value);\n        while (sb.length() < length) {\n            sb.append(paddingChar);\n        }\n        return sb.toString();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.3. Key data elements for Visa and Mastercard transactions"
+    },
+    {
+      "type": "para",
+      "text": "Let's go through some of the most important data elements used in Visa and Mastercard transactions:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.1. Primary Account Number (PAN)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 2",
+        "Description: The card number",
+        "Format: n..19 (variable length numeric, up to 19 digits)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.2. Processing Code"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 3",
+        "Description: Indicates the type of transaction (e.g., purchase, cash advance)",
+        "Format: n6 (fixed length, 6 digits)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.3. Transaction Amount"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 4",
+        "Description: The amount of the transaction",
+        "Format: n12 (fixed length, 12 digits)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.4. Transmission Date and Time"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 7",
+        "Description: Date and time the message was sent",
+        "Format: n10 (MMDDhhmmss)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.5. Systems Trace Audit Number (STAN)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 11",
+        "Description: Unique transaction identifier assigned by the sender",
+        "Format: n6"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.6. Time, Local Transaction"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 12",
+        "Description: Time of the transaction at the point of service",
+        "Format: n6 (hhmmss)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.7. Date, Local Transaction"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 13",
+        "Description: Date of the transaction at the point of service",
+        "Format: n4 (MMDD)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.8. Date, Expiration"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 14",
+        "Description: Expiration date of the card",
+        "Format: n4 (YYMM)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.9. Merchant Type"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 18",
+        "Description: Classifies the type of business",
+        "Format: n4"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.10. Acquiring Institution ID Code"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 32",
+        "Description: Identifies the acquirer",
+        "Format: n..11"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.11. Track 2 Data"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 35",
+        "Description: Data from the magnetic stripe",
+        "Format: z..37"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.12. Retrieval Reference Number"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 37",
+        "Description: Unique transaction identifier assigned by the acquirer",
+        "Format: an12"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.13. Authorization ID Response"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 38",
+        "Description: Approval code from the issuer",
+        "Format: an6"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.14. Response Code"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 39",
+        "Description: Indicates the result of the transaction request",
+        "Format: an2"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.15. Card Acceptor Terminal ID"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 41",
+        "Description: Identifies the specific terminal",
+        "Format: ans8"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.16. Card Acceptor ID Code"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 42",
+        "Description: Identifies the merchant",
+        "Format: ans15"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.17. Card Acceptor Name/Location"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 43",
+        "Description: Name and location of the merchant",
+        "Format: ans..40"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.3.18. Additional Data - Private"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field number: 48",
+        "Description: Used for additional data specific to the card network or acquirer",
+        "Format: ans..999"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.4. Data types and formats"
+    },
+    {
+      "type": "para",
+      "text": "ISO-8583 uses several data types to represent field values:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.1. Numeric (n)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Contains only digits (0-9)",
+        "Example: Transaction Amount (n12)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.2. Alphabetic (a)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Contains only letters (A-Z, a-z)",
+        "Rarely used alone in ISO-8583"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.3. Special (s)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Contains special characters (e.g., punctuation)",
+        "Often combined with other types"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.4. Alphanumeric (an)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Contains letters and digits",
+        "Example: Retrieval Reference Number (an12)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.5. Binary (b)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Contains binary data",
+        "Example: Bitmap (b64)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "3.4.6. Track 2 (z)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Special format for magnetic stripe data",
+        "Example: Track 2 Data (z..37)"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's a Java example demonstrating how to handle different data types in jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class DataTypeHandler {\n    public void handleDataTypes(ISOMsg msg) throws ISOException {\n        // Numeric\n        String amount = msg.getString(4);\n        long amountValue = Long.parseLong(amount);\n\n        // Alphanumeric\n        String rrn = msg.getString(37);\n\n        // Binary\n        byte[] binaryData = msg.getBytes(53);\n\n        // Track 2\n        String track2 = msg.getString(35);\n        String pan = track2.split(\"=\")[0];\n        String expirationDate = track2.split(\"=\")[1].substring(0, 4);\n\n        // Special handling for date/time fields\n        String transmissionDateTime = msg.getString(7);\n        String formattedDateTime = ISOUtil.formatDate(transmissionDateTime, \"MMddHHmmss\");\n\n        System.out.println(\"Amount: \" + amountValue);\n        System.out.println(\"RRN: \" + rrn);\n        System.out.println(\"Binary Data Length: \" + binaryData.length);\n        System.out.println(\"PAN from Track 2: \" + pan);\n        System.out.println(\"Expiration Date from Track 2: \" + expirationDate);\n        System.out.println(\"Formatted Transmission Date/Time: \" + formattedDateTime);\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 33,
+    "paras": 14,
+    "code": 5,
+    "tables": 0,
+    "lists": 25,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "8c126dc1c35104a51ebc5e290a40a49e15ed4ed3bcf4977f30596f68ab09844e"
+}

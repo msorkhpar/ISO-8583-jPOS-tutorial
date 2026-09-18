@@ -1,0 +1,192 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Visa-specific Implementation",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5. Visa-specific Implementation"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.1. Visa transaction types"
+    },
+    {
+      "type": "para",
+      "text": "Visa supports various transaction types, each serving a specific purpose in the payment ecosystem. The main transaction types are:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.1.1. Purchase"
+    },
+    {
+      "type": "para",
+      "text": "A standard transaction where a cardholder buys goods or services from a merchant."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.1.2. Cash Advance"
+    },
+    {
+      "type": "para",
+      "text": "A transaction where a cardholder obtains cash using their credit card, typically at an ATM or bank branch."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.1.3. Balance Inquiry"
+    },
+    {
+      "type": "para",
+      "text": "A non-financial transaction to check the available balance on a card."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.1.4. Refund"
+    },
+    {
+      "type": "para",
+      "text": "A transaction to return funds to a cardholder's account, typically due to a return or cancellation of a purchase."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2. Visa-specific data elements"
+    },
+    {
+      "type": "para",
+      "text": "Visa transactions use specific data elements within the ISO-8583 message structure. Here are some key Visa-specific fields:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.2.1. Field 42: Card Acceptor ID Code"
+    },
+    {
+      "type": "para",
+      "text": "This field contains a code that uniquely identifies the card acceptor (merchant) to the acquirer."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.2.2. Field 43: Card Acceptor Name/Location"
+    },
+    {
+      "type": "para",
+      "text": "This field provides the name and location of the card acceptor (merchant)."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.2.3. Field 48: Additional Data - Private Use"
+    },
+    {
+      "type": "para",
+      "text": "This field is used for various purposes, including conveying additional transaction data specific to Visa."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.3. Visa processing codes"
+    },
+    {
+      "type": "para",
+      "text": "Visa uses specific processing codes to identify the type of transaction being performed. These codes are typically found in Field 3 (Processing Code) of the ISO-8583 message. Here are the main processing codes:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.3.1. Purchase: 00"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.3.2. Cash Advance: 01"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.3.3. Void: 02"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "5.3.4. Refund: 20"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's implement a Visa-specific transaction processor using Java 21, jPOS, and Spring. This example will focus on creating and processing a Visa purchase transaction."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class VisaPurchaseProcessor implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        ISOMsg request = (ISOMsg) context.get(\"REQUEST\");\n        \n        try {\n            // Validate that this is a Visa purchase transaction\n            if (!isVisaPurchase(request)) {\n                context.put(\"RESULT\", \"Invalid transaction type\");\n                return ABORTED;\n            }\n\n            // Create a response message\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setMTI(\"0110\"); // Authorization response\n\n            // Set Visa-specific fields\n            setVisaSpecificFields(response);\n\n            // Process the transaction (simplified for this example)\n            boolean approved = processVisaPurchase(request);\n\n            if (approved) {\n                response.set(39, \"00\"); // Approval code\n            } else {\n                response.set(39, \"05\"); // Do not honor\n            }\n\n            context.put(\"RESPONSE\", response);\n            return PREPARED;\n        } catch (ISOException e) {\n            context.put(\"RESULT\", \"Error processing Visa purchase: \" + e.getMessage());\n            return ABORTED;\n        }\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Implement commit logic (e.g., logging, updating database)\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Implement abort logic\n    }\n\n    private boolean isVisaPurchase(ISOMsg msg) throws ISOException {\n        String mti = msg.getMTI();\n        String processingCode = msg.getString(3);\n        return \"0100\".equals(mti) && \"000000\".equals(processingCode);\n    }\n\n    private void setVisaSpecificFields(ISOMsg msg) throws ISOException {\n        // Field 42: Card Acceptor ID Code (simplified for example)\n        msg.set(42, ISOUtil.padright(\"VISAMERCHANT123\", 15, ' '));\n\n        // Field 43: Card Acceptor Name/Location (simplified for example)\n        msg.set(43, ISOUtil.padright(\"VISA STORE/NEW YORK\", 40, ' '));\n\n        // Field 48: Additional Data - Private Use (simplified for example)\n        msg.set(48, \"VISA1234567890\");\n    }\n\n    private boolean processVisaPurchase(ISOMsg request) {\n        // Implement actual Visa purchase processing logic here\n        // This could include fraud checks, balance verification, etc.\n        // For this example, we'll just return true (approved)\n        return true;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This `VisaPurchaseProcessor` class implements the `TransactionParticipant` interface from jPOS, which allows it to participate in the transaction processing flow. Here's a breakdown of its functionality:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The `prepare` method is called when processing a transaction. It checks if the incoming message is a Visa purchase transaction, creates a response message, sets Visa-specific fields, and processes the transaction.",
+        "The `isVisaPurchase` method verifies that the incoming message is a Visa purchase authorization request (MTI 0100) with the correct processing code (000000 for purchases).",
+        "The `setVisaSpecificFields` method populates Visa-specific fields in the response message, including the Card Acceptor ID Code (field 42), Card Acceptor Name/Location (field 43), and Additional Data - Private Use (field 48).",
+        "The `processVisaPurchase` method is a placeholder for the actual Visa purchase processing logic. In a real-world scenario, this would include checks for fraud, balance verification, and other necessary validations."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "To use this processor in a Spring-based jPOS application, you would configure it in your Spring context and add it to your transaction manager's participant list. Here's an example configuration:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"visaPurchaseProcessor\" class=\"com.example.VisaPurchaseProcessor\"/>\n\n<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"queue\" value=\"txnmgr\"/>\n    <property name=\"sessions\" value=\"2\"/>\n    <property name=\"participants\">\n        <list>\n            <ref bean=\"visaPurchaseProcessor\"/>\n            <!-- Other participants -->\n        </list>\n    </property>\n</bean>"
+    },
+    {
+      "type": "para",
+      "text": "This configuration sets up the `VisaPurchaseProcessor` as a Spring bean and adds it to the transaction manager's list of participants."
+    },
+    {
+      "type": "para",
+      "text": "To test this implementation, you can create a JUnit test using Spring Test, JUnit 5, and Mockito:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.test.context.junit.jupiter.SpringExtension;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@ExtendWith({SpringExtension.class, MockitoExtension.class})\npublic class VisaPurchaseProcessorTest {\n\n    @InjectMocks\n    private VisaPurchaseProcessor processor;\n\n    private Context context;\n    private ISOMsg request;\n\n    @BeforeEach\n    void setUp() throws Exception {\n        context = new Context();\n        request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(3, \"000000\"); // Processing code for purchase\n        request.set(4, \"000000010000\"); // Amount: 100.00\n        context.put(\"REQUEST\", request);\n    }\n\n    @Test\n    void testPrepareValidVisaPurchase() throws Exception {\n        int result = processor.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.PREPARED);\n        \n        ISOMsg response = (ISOMsg) context.get(\"RESPONSE\");\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0110\");\n        assertThat(response.getString(39)).isEqualTo(\"00\"); // Approval code\n        assertThat(response.getString(42)).isEqualTo(ISOUtil.padright(\"VISAMERCHANT123\", 15, ' '));\n        assertThat(response.getString(43)).isEqualTo(ISOUtil.padright(\"VISA STORE/NEW YORK\", 40, ' '));\n        assertThat(response.getString(48)).isEqualTo(\"VISA1234567890\");\n    }\n\n    @Test\n    void testPrepareInvalidTransactionType() throws Exception {\n        request.set(3, \"010000\"); // Cash advance instead of purchase\n\n        int result = processor.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"RESULT\")).isEqualTo(\"Invalid transaction type\");\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 15,
+    "paras": 15,
+    "code": 3,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "7d88c6a516665faab59643f5cd5ea9288e28b67fd5021571bac4828389975ddc"
+}

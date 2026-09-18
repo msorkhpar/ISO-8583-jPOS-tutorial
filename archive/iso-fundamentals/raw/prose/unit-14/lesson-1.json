@@ -1,0 +1,173 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Advanced Topics",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14. Advanced Topics"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.1. EMV and chip card transactions"
+    },
+    {
+      "type": "para",
+      "text": "EMV (Europay, Mastercard, and Visa) is a global standard for credit and debit card payments using chip card technology. When implementing ISO-8583 for EMV transactions, additional data elements and processing are required."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.1.1. EMV data in ISO-8583 messages"
+    },
+    {
+      "type": "para",
+      "text": "EMV data is typically included in ISO-8583 messages using specific fields, most commonly field 55 (ICC System Related Data). This field contains EMV-specific data in Tag-Length-Value (TLV) format."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to handle EMV data in jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.emv.EMVStandardTagType;\nimport org.jpos.emv.EMVTagSequence;\nimport org.jpos.emv.EMVTag;\n\npublic class EMVHandler {\n\n    public void processEMVData(ISOMsg msg) throws ISOException {\n        byte[] emvData = msg.getBytes(55);\n        if (emvData != null) {\n            EMVTagSequence tagSequence = new EMVTagSequence(emvData);\n            for (EMVTag tag : tagSequence) {\n                processEMVTag(tag);\n            }\n        }\n    }\n\n    private void processEMVTag(EMVTag tag) {\n        EMVStandardTagType tagType = EMVStandardTagType.forCode(tag.getTagNumber());\n        if (tagType != null) {\n            switch (tagType) {\n                case APPLICATION_INTERCHANGE_PROFILE:\n                    processAIP(tag.getValueAsHexString());\n                    break;\n                case TERMINAL_VERIFICATION_RESULTS:\n                    processTVR(tag.getValueAsHexString());\n                    break;\n                // Add more cases for other relevant EMV tags\n            }\n        }\n    }\n\n    private void processAIP(String aip) {\n        // Process Application Interchange Profile\n        System.out.println(\"AIP: \" + aip);\n    }\n\n    private void processTVR(String tvr) {\n        // Process Terminal Verification Results\n        System.out.println(\"TVR: \" + tvr);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.1.2. Chip card specific fields"
+    },
+    {
+      "type": "para",
+      "text": "In addition to field 55, other fields may be used or modified for chip card transactions:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field 22 (Point of Service Entry Mode): Indicates that the transaction was chip-based",
+        "Field 23 (Card Sequence Number): Contains the chip card's sequence number",
+        "Field 26 (Point of Service PIN Capture Code): Indicates how the PIN was captured for chip transactions"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to set these fields for a chip card transaction:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ChipCardFieldSetter {\n\n    public void setChipCardFields(ISOMsg msg) throws ISOException {\n        // Set Point of Service Entry Mode for chip card\n        msg.set(22, \"05\"); // '05' typically indicates chip card read\n\n        // Set Card Sequence Number (if available)\n        msg.set(23, \"001\"); // Example sequence number\n\n        // Set Point of Service PIN Capture Code\n        msg.set(26, \"12\"); // '12' might indicate offline PIN verification\n\n        // EMV data would be set in field 55 as shown in the previous example\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.2. Tokenization"
+    },
+    {
+      "type": "para",
+      "text": "Tokenization is a security measure that replaces sensitive data (like a PAN) with a non-sensitive equivalent (a token) that can be used in the payment ecosystem."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.2.1. Token formats"
+    },
+    {
+      "type": "para",
+      "text": "Tokens often maintain the same format as the original PAN to ensure compatibility with existing systems. Here's an example of a simple tokenization service:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.springframework.stereotype.Service;\nimport java.security.SecureRandom;\nimport java.util.HashMap;\nimport java.util.Map;\n\n@Service\npublic class TokenizationService {\n\n    private final Map<String, String> tokenToCardMap = new HashMap<>();\n    private final Map<String, String> cardToTokenMap = new HashMap<>();\n    private final SecureRandom random = new SecureRandom();\n\n    public String tokenize(String cardNumber) {\n        if (cardToTokenMap.containsKey(cardNumber)) {\n            return cardToTokenMap.get(cardNumber);\n        }\n\n        String token = generateToken(cardNumber);\n        tokenToCardMap.put(token, cardNumber);\n        cardToTokenMap.put(cardNumber, token);\n        return token;\n    }\n\n    public String detokenize(String token) {\n        return tokenToCardMap.get(token);\n    }\n\n    private String generateToken(String cardNumber) {\n        StringBuilder token = new StringBuilder();\n        for (int i = 0; i < cardNumber.length(); i++) {\n            if (i < 6 || i >= cardNumber.length() - 4) {\n                token.append(cardNumber.charAt(i));\n            } else {\n                token.append(random.nextInt(10));\n            }\n        }\n        return token.toString();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.2.2. De-tokenization process"
+    },
+    {
+      "type": "para",
+      "text": "De-tokenization is the process of retrieving the original PAN from a token. This typically happens in a secure environment. Here's how you might use the tokenization service in an ISO-8583 context:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class TokenizationHandler {\n\n    @Autowired\n    private TokenizationService tokenizationService;\n\n    public void handleTokenization(ISOMsg msg) throws ISOException {\n        String pan = msg.getString(2);\n        String token = tokenizationService.tokenize(pan);\n        msg.set(2, token);\n    }\n\n    public void handleDetokenization(ISOMsg msg) throws ISOException {\n        String token = msg.getString(2);\n        String pan = tokenizationService.detokenize(token);\n        if (pan != null) {\n            msg.set(2, pan);\n        } else {\n            throw new ISOException(\"Invalid token\");\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.3. 3-D Secure integration"
+    },
+    {
+      "type": "para",
+      "text": "3-D Secure is a protocol designed to be an additional security layer for online credit and debit card transactions."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.3.1. 3-D Secure data in ISO-8583"
+    },
+    {
+      "type": "para",
+      "text": "3-D Secure data is typically included in private-use fields of ISO-8583 messages, such as field 48 or field 124. The exact implementation can vary depending on the card network and acquirer requirements."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how you might include 3-D Secure data in an ISO-8583 message:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ThreeDSecureHandler {\n\n    public void add3DSecureData(ISOMsg msg, String eci, String cavv, String xid) throws ISOException {\n        StringBuilder sb = new StringBuilder();\n        sb.append(\"3D\");\n        sb.append(ISOUtil.padleft(eci, 2, '0'));\n        sb.append(ISOUtil.padleft(cavv.length() + \"\", 3, '0')).append(cavv);\n        sb.append(ISOUtil.padleft(xid.length() + \"\", 3, '0')).append(xid);\n\n        msg.set(48, sb.toString());\n    }\n\n    public void parse3DSecureData(ISOMsg msg) throws ISOException {\n        String data = msg.getString(48);\n        if (data != null && data.startsWith(\"3D\")) {\n            String eci = data.substring(2, 4);\n            int cavvLength = Integer.parseInt(data.substring(4, 7));\n            String cavv = data.substring(7, 7 + cavvLength);\n            int xidLength = Integer.parseInt(data.substring(7 + cavvLength, 10 + cavvLength));\n            String xid = data.substring(10 + cavvLength, 10 + cavvLength + xidLength);\n\n            System.out.println(\"ECI: \" + eci);\n            System.out.println(\"CAVV: \" + cavv);\n            System.out.println(\"XID: \" + xid);\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "14.3.2. 3-D Secure 2.0 considerations"
+    },
+    {
+      "type": "para",
+      "text": "3-D Secure 2.0 introduces new data elements and flows. While the basic principle remains the same, you may need to handle additional data elements and potentially use different fields or formats."
+    },
+    {
+      "type": "para",
+      "text": "Here's a simple example of how you might handle some 3-D Secure 2.0 specific data:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ThreeDSecure2Handler {\n\n    public void add3DS2Data(ISOMsg msg, String threeDSServerTransID, String dsTransID, String acsTransID) throws ISOException {\n        StringBuilder sb = new StringBuilder();\n        sb.append(\"3DS2\");\n        sb.append(ISOUtil.padleft(threeDSServerTransID.length() + \"\", 3, '0')).append(threeDSServerTransID);\n        sb.append(ISOUtil.padleft(dsTransID.length() + \"\", 3, '0')).append(dsTransID);\n        sb.append(ISOUtil.padleft(acsTransID.length() + \"\", 3, '0')).append(acsTransID);\n\n        msg.set(124, sb.toString());\n    }\n\n    public void parse3DS2Data(ISOMsg msg) throws ISOException {\n        String data = msg.getString(124);\n        if (data != null && data.startsWith(\"3DS2\")) {\n            int pos = 4;\n            int threeDSServerTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String threeDSServerTransID = data.substring(pos, pos + threeDSServerTransIDLength);\n            pos += threeDSServerTransIDLength;\n\n            int dsTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String dsTransID = data.substring(pos, pos + dsTransIDLength);\n            pos += dsTransIDLength;\n\n            int acsTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String acsTransID = data.substring(pos, pos + acsTransIDLength);\n\n            System.out.println(\"3DS Server Transaction ID: \" + threeDSServerTransID);\n            System.out.println(\"DS Transaction ID: \" + dsTransID);\n            System.out.println(\"ACS Transaction ID: \" + acsTransID);\n        }\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 10,
+    "paras": 13,
+    "code": 6,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "847702e2f13826572876bb4171f485eaffbadac454a5b7ed13ae30cda82d1690"
+}

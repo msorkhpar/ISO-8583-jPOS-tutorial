@@ -1,0 +1,137 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "ISO-8583 Message Handling",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "2. ISO-8583 Message Handling"
+    },
+    {
+      "type": "para",
+      "text": "ISO-8583 message handling is at the core of jPOS functionality. It involves creating, parsing, and manipulating ISO-8583 messages. The key components in this process are the ISO Factory, Message Factory, and Generic Packager."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.1 ISO Factory"
+    },
+    {
+      "type": "para",
+      "text": "The `ISOFactory` is a utility class in jPOS that helps create ISO components such as channels, packagers, and fields. While it's not directly used for message handling, it's an important part of the jPOS ecosystem."
+    },
+    {
+      "type": "para",
+      "text": "Example usage:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOFactoryExample {\n    public void demonstrateISOFactory() throws Exception {\n        // Create a channel\n        NACChannel channel = (NACChannel) ISOFactory.newChannel(\"org.jpos.iso.channel.NACChannel\", \"localhost:8000\");\n        \n        // Create a packager\n        ISO87APackager packager = (ISO87APackager) ISOFactory.newPackager(\"org.jpos.iso.packager.ISO87APackager\", \"\");\n        \n        // Create a field\n        ISOField field = (ISOField) ISOFactory.newField(2, \"4111111111111111\");\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.2 Message Factory"
+    },
+    {
+      "type": "para",
+      "text": "The `MsgFactory` is used to create ISO messages based on predefined templates. This is particularly useful when you need to create similar messages repeatedly with slight variations."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to use `MsgFactory`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MsgFactory;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class MessageFactoryExample {\n    private MsgFactory msgFactory;\n\n    public MessageFactoryExample() throws ISOException {\n        msgFactory = new MsgFactory();\n        msgFactory.setPackager(new ISO87APackager());\n        \n        // Define a template for a purchase transaction\n        ISOMsg purchaseTemplate = new ISOMsg();\n        purchaseTemplate.setMTI(\"0200\");\n        purchaseTemplate.set(3, \"000000\"); // Processing code for purchase\n        purchaseTemplate.set(25, \"00\"); // POS Condition Code\n        purchaseTemplate.set(41, \"12345678\"); // Terminal ID\n        \n        msgFactory.add(\"purchase\", purchaseTemplate);\n    }\n\n    public ISOMsg createPurchaseMessage(String pan, String amount) throws ISOException {\n        ISOMsg msg = msgFactory.newMsg(\"purchase\");\n        msg.set(2, pan); // Primary Account Number\n        msg.set(4, amount); // Transaction Amount\n        msg.set(7, ISODate.getDateTime(new Date())); // Transmission Date & Time\n        msg.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000))); // Systems Trace Audit Number\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.3 Generic Packager"
+    },
+    {
+      "type": "para",
+      "text": "The `GenericPackager` is a flexible packager that can be configured using an XML file. This allows you to define custom message formats without writing Java code."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to use `GenericPackager`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\npublic class GenericPackagerExample {\n    private GenericPackager packager;\n\n    public GenericPackagerExample() throws ISOException {\n        packager = new GenericPackager(\"config/iso87ascii.xml\");\n    }\n\n    public byte[] packageMessage(ISOMsg msg) throws ISOException {\n        return packager.pack(msg);\n    }\n\n    public ISOMsg unpackMessage(byte[] msgData) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        packager.unpack(msg, msgData);\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The XML configuration file (`iso87ascii.xml`) might look something like this:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n\n<isopackager>\n  <isofield\n      id=\"0\"\n      length=\"4\"\n      name=\"Message Type Indicator\"\n      class=\"org.jpos.iso.IFA_NUMERIC\"/>\n  <isofield\n      id=\"1\"\n      length=\"16\"\n      name=\"Bitmap\"\n      class=\"org.jpos.iso.IFB_BITMAP\"/>\n  <isofield\n      id=\"2\"\n      length=\"19\"\n      name=\"Primary Account Number\"\n      class=\"org.jpos.iso.IFA_LLNUM\"/>\n  <!-- More field definitions... -->\n</isopackager>"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.4 Putting It All Together"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a comprehensive example that uses all these components together:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MsgFactory;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\nimport java.io.IOException;\nimport java.util.Date;\n\npublic class ISO8583MessageHandler {\n    private final MsgFactory msgFactory;\n    private final GenericPackager packager;\n    private final Logger logger;\n\n    public ISO8583MessageHandler() throws ISOException, IOException {\n        // Initialize packager\n        packager = new GenericPackager(\"config/iso87ascii.xml\");\n\n        // Initialize message factory\n        msgFactory = new MsgFactory();\n        msgFactory.setPackager(packager);\n\n        // Define templates\n        defineMessageTemplates();\n\n        // Initialize logger\n        logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n    }\n\n    private void defineMessageTemplates() throws ISOException {\n        // Purchase request template\n        ISOMsg purchaseTemplate = new ISOMsg();\n        purchaseTemplate.setMTI(\"0200\");\n        purchaseTemplate.set(3, \"000000\");\n        purchaseTemplate.set(25, \"00\");\n        purchaseTemplate.set(41, \"12345678\");\n        msgFactory.add(\"purchase\", purchaseTemplate);\n\n        // Balance inquiry template\n        ISOMsg balanceTemplate = new ISOMsg();\n        balanceTemplate.setMTI(\"0100\");\n        balanceTemplate.set(3, \"310000\");\n        balanceTemplate.set(25, \"00\");\n        balanceTemplate.set(41, \"12345678\");\n        msgFactory.add(\"balance\", balanceTemplate);\n    }\n\n    public ISOMsg createPurchaseMessage(String pan, String amount) throws ISOException {\n        ISOMsg msg = msgFactory.newMsg(\"purchase\");\n        msg.set(2, pan);\n        msg.set(4, amount);\n        msg.set(7, ISODate.getDateTime(new Date()));\n        msg.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        return msg;\n    }\n\n    public ISOMsg createBalanceInquiryMessage(String pan) throws ISOException {\n        ISOMsg msg = msgFactory.newMsg(\"balance\");\n        msg.set(2, pan);\n        msg.set(7, ISODate.getDateTime(new Date()));\n        msg.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        return msg;\n    }\n\n    public byte[] packageMessage(ISOMsg msg) throws ISOException {\n        return packager.pack(msg);\n    }\n\n    public ISOMsg unpackMessage(byte[] msgData) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        packager.unpack(msg, msgData);\n        return msg;\n    }\n\n    public void logMessage(ISOMsg msg, String direction) {\n        LogEvent ev = new LogEvent(this, \"iso-message\");\n        ev.addMessage(direction);\n        ev.addMessage(msg);\n        logger.log(ev);\n    }\n\n    public static void main(String[] args) {\n        try {\n            ISO8583MessageHandler handler = new ISO8583MessageHandler();\n\n            // Create and log a purchase message\n            ISOMsg purchaseMsg = handler.createPurchaseMessage(\"4111111111111111\", \"000000010000\");\n            handler.logMessage(purchaseMsg, \"OUTGOING\");\n\n            // Package the message\n            byte[] packedMsg = handler.packageMessage(purchaseMsg);\n            System.out.println(\"Packed message: \" + ISOUtil.hexdump(packedMsg));\n\n            // Unpack the message\n            ISOMsg unpackedMsg = handler.unpackMessage(packedMsg);\n            handler.logMessage(unpackedMsg, \"INCOMING (unpacked)\");\n\n            // Create and log a balance inquiry message\n            ISOMsg balanceMsg = handler.createBalanceInquiryMessage(\"4111111111111111\");\n            handler.logMessage(balanceMsg, \"OUTGOING\");\n\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This comprehensive example demonstrates:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Initializing the `GenericPackager` with an XML configuration file.",
+        "Setting up a `MsgFactory` with predefined templates for different transaction types.",
+        "Creating purchase and balance inquiry messages using the templates.",
+        "Packaging and unpackaging messages.",
+        "Logging messages for debugging purposes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "This implementation provides a solid foundation for handling ISO-8583 messages in a jPOS-based application. It can be easily extended to handle more message types and integrated into a larger transaction processing system."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 5,
+    "paras": 11,
+    "code": 5,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "8a1fc535b754cdfb59b58f782cc590a6b3eef1dbb5abb25e831e36bdb99b5a82"
+}

@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Error Handling",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "10. Error Handling"
+    },
+    {
+      "type": "para",
+      "text": "Error handling is a crucial aspect of any robust jPOS server implementation. Proper error handling ensures that your application can gracefully manage unexpected situations, provide meaningful feedback, and maintain system stability. In a jPOS server, errors can occur at various levels, including message parsing, transaction processing, and network communication."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.1 Types of Errors"
+    },
+    {
+      "type": "para",
+      "text": "In a jPOS server, you may encounter several types of errors:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "ISO-8583 message parsing errors",
+        "Transaction processing errors",
+        "Network communication errors",
+        "Database errors",
+        "Security-related errors"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.2 Implementing Error Handling"
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a comprehensive error handling strategy for a jPOS server using Spring's `@ExceptionHandler` and custom exception classes."
+    },
+    {
+      "type": "para",
+      "text": "First, let's create some custom exception classes:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class ISO8583ParseException extends RuntimeException {\n    public ISO8583ParseException(String message) {\n        super(message);\n    }\n}\n\npublic class TransactionProcessingException extends RuntimeException {\n    public TransactionProcessingException(String message) {\n        super(message);\n    }\n}\n\npublic class NetworkCommunicationException extends RuntimeException {\n    public NetworkCommunicationException(String message) {\n        super(message);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a global exception handler using Spring's `@ControllerAdvice`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\nimport org.springframework.web.bind.annotation.ResponseStatus;\n\n@ControllerAdvice\npublic class GlobalExceptionHandler {\n\n    @ExceptionHandler(ISO8583ParseException.class)\n    @ResponseStatus(HttpStatus.BAD_REQUEST)\n    public ISOMsg handleISO8583ParseException(ISO8583ParseException ex) {\n        return createErrorResponse(\"01\", ex.getMessage());\n    }\n\n    @ExceptionHandler(TransactionProcessingException.class)\n    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)\n    public ISOMsg handleTransactionProcessingException(TransactionProcessingException ex) {\n        return createErrorResponse(\"02\", ex.getMessage());\n    }\n\n    @ExceptionHandler(NetworkCommunicationException.class)\n    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)\n    public ISOMsg handleNetworkCommunicationException(NetworkCommunicationException ex) {\n        return createErrorResponse(\"03\", ex.getMessage());\n    }\n\n    @ExceptionHandler(Exception.class)\n    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)\n    public ISOMsg handleGenericException(Exception ex) {\n        return createErrorResponse(\"99\", \"An unexpected error occurred\");\n    }\n\n    private ISOMsg createErrorResponse(String errorCode, String errorMessage) {\n        try {\n            ISOMsg response = new ISOMsg();\n            response.setMTI(\"0810\");  // Assuming 0810 is used for error responses\n            response.set(39, errorCode);  // Response code field\n            response.set(63, errorMessage);  // Additional data field for error message\n            return response;\n        } catch (ISOException e) {\n            // If we can't create an ISO message, return null and let the framework handle it\n            return null;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This global exception handler catches different types of exceptions and creates appropriate ISO-8583 error responses."
+    },
+    {
+      "type": "para",
+      "text": "Next, let's create a custom TransactionParticipant that demonstrates how to use these exceptions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class SampleTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        try {\n            ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n            if (msg == null) {\n                throw new ISO8583ParseException(\"Invalid or missing ISO message\");\n            }\n\n            // Simulate some processing that might throw exceptions\n            String processingCode = msg.getString(3);\n            if (\"999999\".equals(processingCode)) {\n                throw new TransactionProcessingException(\"Invalid processing code\");\n            }\n\n            // Simulate a network error\n            if (\"888888\".equals(processingCode)) {\n                throw new NetworkCommunicationException(\"Network is unavailable\");\n            }\n\n            // Normal processing continues...\n            return PREPARED | NO_JOIN;\n        } catch (ISOException e) {\n            context.put(\"EXCEPTION\", new ISO8583ParseException(\"Error parsing ISO message: \" + e.getMessage()));\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Commit logic here\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Abort logic here\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "To use this participant in your TransactionManager, you would configure it in your Spring context:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"space\" value=\"tspace:default\"/>\n    <property name=\"queue\" value=\"txnqueue\"/>\n    <property name=\"participants\">\n        <list>\n            <bean class=\"com.example.SampleTransactionParticipant\"/>\n            <!-- Other participants... -->\n        </list>\n    </property>\n</bean>"
+    },
+    {
+      "type": "para",
+      "text": "Finally, let's add some logging to our error handling. We'll use SLF4J with Logback for this example:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n@ControllerAdvice\npublic class GlobalExceptionHandler {\n    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);\n\n    @ExceptionHandler(ISO8583ParseException.class)\n    @ResponseStatus(HttpStatus.BAD_REQUEST)\n    public ISOMsg handleISO8583ParseException(ISO8583ParseException ex) {\n        logger.error(\"ISO-8583 Parse Error: {}\", ex.getMessage(), ex);\n        return createErrorResponse(\"01\", ex.getMessage());\n    }\n\n    // ... other exception handlers ...\n}"
+    },
+    {
+      "type": "para",
+      "text": "Make sure to configure Logback in your `logback.xml` file:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<configuration>\n    <appender name=\"STDOUT\" class=\"ch.qos.logback.core.ConsoleAppender\">\n        <encoder>\n            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n        </encoder>\n    </appender>\n\n    <appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.RollingFileAppender\">\n        <file>logs/jpos-server.log</file>\n        <rollingPolicy class=\"ch.qos.logback.core.rolling.TimeBasedRollingPolicy\">\n            <fileNamePattern>logs/jpos-server.%d{yyyy-MM-dd}.log</fileNamePattern>\n            <maxHistory>30</maxHistory>\n        </rollingPolicy>\n        <encoder>\n            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n        </encoder>\n    </appender>\n\n    <root level=\"INFO\">\n        <appender-ref ref=\"STDOUT\" />\n        <appender-ref ref=\"FILE\" />\n    </root>\n</configuration>"
+    },
+    {
+      "type": "para",
+      "text": "This configuration will log errors to both the console and a rolling file."
+    },
+    {
+      "type": "para",
+      "text": "With these implementations in place, your jPOS server will have a robust error handling mechanism that:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Catches and categorizes different types of exceptions",
+        "Creates appropriate ISO-8583 error responses",
+        "Logs detailed error information for troubleshooting",
+        "Allows for graceful degradation of the system in case of errors"
+      ]
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 12,
+    "code": 6,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "4b5e24fe42afcea760dd73c0c8abc16daa0db7ae0063ec129e79fc100c9bc5fc"
+}

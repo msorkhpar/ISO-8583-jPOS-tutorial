@@ -1,0 +1,131 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Channel Management",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "3. Channel Management"
+    },
+    {
+      "type": "para",
+      "text": "Channel management in jPOS is crucial for handling ISO-8583 message communication between different systems. The two main components we'll focus on are:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "ISO Server (`org.jpos.iso.ISOServer`)",
+        "SSL Channel (`org.jpos.iso.channel.NACChannel`)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.1 ISO Server"
+    },
+    {
+      "type": "para",
+      "text": "The `ISOServer` is responsible for listening to incoming connections and handling ISO-8583 messages. It can be configured to use different types of channels and can handle multiple connections simultaneously."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.2 SSL Channel"
+    },
+    {
+      "type": "para",
+      "text": "The `NACChannel` (Network Application Channel) is an implementation of an SSL-enabled channel in jPOS. It provides secure communication for ISO-8583 messages."
+    },
+    {
+      "type": "para",
+      "text": "Now, let's implement a jPOS server with channel management using Spring and Java 21."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.ServerChannel;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOServerConfig extends QBeanSupport {\n\n    @Autowired\n    private ServerConfiguration serverConfig;\n\n    @Bean\n    public ISOServer isoServer() throws ConfigurationException {\n        ServerChannel channel = new NACChannel(\n            serverConfig.getHost(),\n            serverConfig.getPort(),\n            serverConfig.getPackager()\n        );\n\n        ISOServer server = new ISOServer(\n            serverConfig.getPort(),\n            channel,\n            null\n        );\n\n        server.setConfiguration(createConfiguration());\n        server.addISORequestListener(new TransactionRequestListener());\n\n        NameRegistrar.register(\"iso-server\", server);\n\n        return server;\n    }\n\n    private Configuration createConfiguration() {\n        Configuration cfg = new org.jpos.core.SimpleConfiguration();\n        cfg.put(\"port\", String.valueOf(serverConfig.getPort()));\n        cfg.put(\"channel\", \"org.jpos.iso.channel.NACChannel\");\n        cfg.put(\"packager\", serverConfig.getPackager());\n        cfg.put(\"timeout\", \"300000\");\n        cfg.put(\"max-connections\", \"100\");\n        return cfg;\n    }\n\n    @Override\n    protected void startService() {\n        try {\n            ISOServer server = isoServer();\n            server.start();\n        } catch (Exception e) {\n            getLog().error(\"Error starting ISO server\", e);\n        }\n    }\n\n    @Override\n    protected void stopService() {\n        try {\n            ISOServer server = NameRegistrar.get(\"iso-server\");\n            server.shutdown();\n        } catch (NameRegistrar.NotFoundException e) {\n            getLog().error(\"ISO server not found for shutdown\", e);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This configuration class sets up an `ISOServer` using Spring's `@Configuration` and `@Bean` annotations. Let's break down the important parts:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "We create a `NACChannel` with the specified host, port, and packager.",
+        "We instantiate an `ISOServer` with the port, channel, and a null space (which can be used for shared memory between connections).",
+        "We set the configuration for the server, including timeout and max connections.",
+        "We add a `TransactionRequestListener` to handle incoming requests.",
+        "We register the server with `NameRegistrar` for easy access in other parts of the application.",
+        "The `startService` and `stopService` methods handle the lifecycle of the server."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create the `ServerConfiguration` class to hold our server settings:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOPackager;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\nimport java.io.IOException;\n\n@Configuration\npublic class ServerConfiguration {\n\n    @Value(\"${iso.server.host}\")\n    private String host;\n\n    @Value(\"${iso.server.port}\")\n    private int port;\n\n    @Value(\"${iso.server.packager}\")\n    private String packagerPath;\n\n    public String getHost() {\n        return host;\n    }\n\n    public int getPort() {\n        return port;\n    }\n\n    @Bean\n    public ISOPackager getPackager() throws IOException {\n        return new GenericPackager(packagerPath);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This class uses Spring's `@Value` annotation to inject configuration properties and creates a bean for the `ISOPackager`."
+    },
+    {
+      "type": "para",
+      "text": "Lastly, let's implement a simple `TransactionRequestListener`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\npublic class TransactionRequestListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            // Log the incoming message\n            System.out.println(\"Received message: \" + m.toString());\n\n            // Create a response message\n            ISOMsg response = (ISOMsg) m.clone();\n            response.setResponseMTI();\n            response.set(39, \"00\"); // Approval code\n\n            // Send the response\n            source.send(response);\n\n            return true;\n        } catch (Exception e) {\n            e.printStackTrace();\n            return false;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This listener simply logs the incoming message, creates a basic response, and sends it back."
+    },
+    {
+      "type": "para",
+      "text": "To use this setup, you would need to add the following properties to your `application.properties` file:"
+    },
+    {
+      "type": "code",
+      "lang": "",
+      "text": "iso.server.host=localhost\niso.server.port=8000\niso.server.packager=path/to/your/packager.xml"
+    },
+    {
+      "type": "para",
+      "text": "This implementation provides a solid foundation for a jPOS server with channel management. It uses SSL for secure communication, handles multiple connections, and can be easily extended to include more complex business logic in the `TransactionRequestListener`."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 11,
+    "code": 4,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "fa29624e75884a8160b34f182b6a6a360a1e52d5aa2082a062063b267cebe9f4"
+}

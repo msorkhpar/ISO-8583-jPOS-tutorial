@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Database Integration",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "9. Database Integration"
+    },
+    {
+      "type": "para",
+      "text": "Database integration is crucial for storing and retrieving transaction data, user information, and other relevant details in a payment processing system. In this section, we'll implement custom Spring Data JPA repositories to handle database operations for our jPOS server."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.1 Setting up the Database Configuration"
+    },
+    {
+      "type": "para",
+      "text": "First, let's set up the database configuration using Spring Boot. We'll use PostgreSQL as our database."
+    },
+    {
+      "type": "para",
+      "text": "Add the following dependencies to your `pom.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<dependencies>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-data-jpa</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.postgresql</groupId>\n        <artifactId>postgresql</artifactId>\n        <scope>runtime</scope>\n    </dependency>\n</dependencies>"
+    },
+    {
+      "type": "para",
+      "text": "Now, configure the database connection in your `application.properties` file:"
+    },
+    {
+      "type": "code",
+      "lang": "properties",
+      "text": "spring.datasource.url=jdbc:postgresql://localhost:5432/jpos_db\nspring.datasource.username=your_username\nspring.datasource.password=your_password\nspring.jpa.hibernate.ddl-auto=update\nspring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.2 Creating Entity Classes"
+    },
+    {
+      "type": "para",
+      "text": "Let's create some entity classes to represent our data models. We'll start with a `Transaction` entity:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.entity;\n\nimport jakarta.persistence.*;\nimport java.math.BigDecimal;\nimport java.time.LocalDateTime;\n\n@Entity\n@Table(name = \"transactions\")\npublic class Transaction {\n\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    @Column(name = \"transaction_id\", nullable = false, unique = true)\n    private String transactionId;\n\n    @Column(name = \"amount\", nullable = false)\n    private BigDecimal amount;\n\n    @Column(name = \"currency\", nullable = false)\n    private String currency;\n\n    @Column(name = \"card_number\", nullable = false)\n    private String cardNumber;\n\n    @Column(name = \"transaction_type\", nullable = false)\n    private String transactionType;\n\n    @Column(name = \"status\", nullable = false)\n    private String status;\n\n    @Column(name = \"created_at\", nullable = false)\n    private LocalDateTime createdAt;\n\n    // Getters and setters\n    // ...\n\n    @PrePersist\n    protected void onCreate() {\n        createdAt = LocalDateTime.now();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.3 Creating Repository Interfaces"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a repository interface for our `Transaction` entity using Spring Data JPA:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.repository;\n\nimport com.example.jposserver.entity.Transaction;\nimport org.springframework.data.jpa.repository.JpaRepository;\nimport org.springframework.stereotype.Repository;\n\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\n@Repository\npublic interface TransactionRepository extends JpaRepository<Transaction, Long> {\n\n    Optional<Transaction> findByTransactionId(String transactionId);\n\n    List<Transaction> findByCardNumber(String cardNumber);\n\n    List<Transaction> findByStatus(String status);\n\n    List<Transaction> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.4 Creating a Service Layer"
+    },
+    {
+      "type": "para",
+      "text": "To encapsulate the business logic and database operations, let's create a service layer:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.service;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.repository.TransactionRepository;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\n@Service\npublic class TransactionService {\n\n    private final TransactionRepository transactionRepository;\n\n    @Autowired\n    public TransactionService(TransactionRepository transactionRepository) {\n        this.transactionRepository = transactionRepository;\n    }\n\n    public Transaction saveTransaction(Transaction transaction) {\n        return transactionRepository.save(transaction);\n    }\n\n    public Optional<Transaction> getTransactionById(String transactionId) {\n        return transactionRepository.findByTransactionId(transactionId);\n    }\n\n    public List<Transaction> getTransactionsByCardNumber(String cardNumber) {\n        return transactionRepository.findByCardNumber(cardNumber);\n    }\n\n    public List<Transaction> getTransactionsByStatus(String status) {\n        return transactionRepository.findByStatus(status);\n    }\n\n    public List<Transaction> getTransactionsBetweenDates(LocalDateTime start, LocalDateTime end) {\n        return transactionRepository.findByCreatedAtBetween(start, end);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.5 Integrating with jPOS"
+    },
+    {
+      "type": "para",
+      "text": "Now that we have our database integration set up, let's create a custom `TransactionParticipant` that uses our `TransactionService` to store transaction data:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.participant;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.service.TransactionService;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\n\n@Component\npublic class TransactionStorageParticipant implements TransactionParticipant, Configurable {\n\n    private final TransactionService transactionService;\n    private Configuration cfg;\n\n    @Autowired\n    public TransactionStorageParticipant(TransactionService transactionService) {\n        this.transactionService = transactionService;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Transaction transaction = createTransactionFromContext(ctx);\n        transactionService.saveTransaction(transaction);\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // No action needed, as the transaction is already saved in the prepare phase\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // No action needed, as we're not modifying any data in this participant\n    }\n\n    private Transaction createTransactionFromContext(Context ctx) {\n        Transaction transaction = new Transaction();\n        transaction.setTransactionId(ctx.getString(\"transactionId\"));\n        transaction.setAmount(new BigDecimal(ctx.getString(\"amount\")));\n        transaction.setCurrency(ctx.getString(\"currency\"));\n        transaction.setCardNumber(ctx.getString(\"cardNumber\"));\n        transaction.setTransactionType(ctx.getString(\"transactionType\"));\n        transaction.setStatus(ctx.getString(\"status\"));\n        return transaction;\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.6 Configuring the TransactionStorageParticipant"
+    },
+    {
+      "type": "para",
+      "text": "To use the `TransactionStorageParticipant` in your jPOS transaction manager, add it to your `deploy/05_spring_context.xml` file:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"transactionStorageParticipant\" class=\"com.example.jposserver.participant.TransactionStorageParticipant\" />\n\n<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"space\" value=\"tspace:default\" />\n    <property name=\"queue\" value=\"txnmgr\" />\n    <property name=\"participants\">\n        <list>\n            <!-- Other participants -->\n            <ref bean=\"transactionStorageParticipant\" />\n        </list>\n    </property>\n</bean>"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.7 Testing the Database Integration"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a test class to ensure our database integration is working correctly:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.service;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.repository.TransactionRepository;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.transaction.annotation.Transactional;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\n@Transactional\nclass TransactionServiceTest {\n\n    @Autowired\n    private TransactionService transactionService;\n\n    @Autowired\n    private TransactionRepository transactionRepository;\n\n    private Transaction testTransaction;\n\n    @BeforeEach\n    void setUp() {\n        testTransaction = new Transaction();\n        testTransaction.setTransactionId(\"TEST123\");\n        testTransaction.setAmount(new BigDecimal(\"100.00\"));\n        testTransaction.setCurrency(\"USD\");\n        testTransaction.setCardNumber(\"1234567890123456\");\n        testTransaction.setTransactionType(\"PURCHASE\");\n        testTransaction.setStatus(\"APPROVED\");\n    }\n\n    @Test\n    void testSaveTransaction() {\n        Transaction savedTransaction = transactionService.saveTransaction(testTransaction);\n        assertThat(savedTransaction.getId()).isNotNull();\n        assertThat(savedTransaction.getTransactionId()).isEqualTo(\"TEST123\");\n    }\n\n    @Test\n    void testGetTransactionById() {\n        transactionRepository.save(testTransaction);\n        Optional<Transaction> foundTransaction = transactionService.getTransactionById(\"TEST123\");\n        assertThat(foundTransaction).isPresent();\n        assertThat(foundTransaction.get().getTransactionId()).isEqualTo(\"TEST123\");\n    }\n\n    @Test\n    void testGetTransactionsByCardNumber() {\n        transactionRepository.save(testTransaction);\n        List<Transaction> transactions = transactionService.getTransactionsByCardNumber(\"1234567890123456\");\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getCardNumber()).isEqualTo(\"1234567890123456\");\n    }\n\n    @Test\n    void testGetTransactionsByStatus() {\n        transactionRepository.save(testTransaction);\n        List<Transaction> transactions = transactionService.getTransactionsByStatus(\"APPROVED\");\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getStatus()).isEqualTo(\"APPROVED\");\n    }\n\n    @Test\n    void testGetTransactionsBetweenDates() {\n        transactionRepository.save(testTransaction);\n        LocalDateTime start = LocalDateTime.now().minusDays(1);\n        LocalDateTime end = LocalDateTime.now().plusDays(1);\n        List<Transaction> transactions = transactionService.getTransactionsBetweenDates(start, end);\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getCreatedAt()).isBetween(start, end);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This completes the coverage of section 9 for the jPOS server implementation, focusing on Database Integration. We've set up the database configuration, created entity classes and repositories, implemented a service layer, integrated it with jPOS using a custom `TransactionParticipant`, and provided tests to ensure everything is working correctly."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 8,
+    "paras": 11,
+    "code": 8,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "4472c99731c204d9b8bbbf8ab62e323d43af5a4537a3c54e02c364f9b2dbfe22"
+}

@@ -1,0 +1,126 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "ISO-8583 Message Creation",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "2. ISO-8583 Message Creation"
+    },
+    {
+      "type": "para",
+      "text": "ISO-8583 message creation is a crucial part of implementing a jPOS client. This process involves constructing properly formatted messages to communicate with financial institutions or payment processors. Let's dive into the details of creating ISO-8583 messages using jPOS."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.1 ISOMsg"
+    },
+    {
+      "type": "para",
+      "text": "The `ISOMsg` class is the core component for creating and manipulating ISO-8583 messages in jPOS. It represents a single ISO-8583 message and provides methods to set and get field values."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to create a basic `ISOMsg`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ISOMessageCreator {\n\n    public ISOMsg createBasicMessage() throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0200\");  // Set Message Type Indicator\n        message.set(2, \"4111111111111111\");  // Primary Account Number\n        message.set(3, \"000000\");  // Processing Code\n        message.set(4, \"000000010000\");  // Transaction Amount\n        message.set(7, \"0701104321\");  // Transmission Date and Time\n        message.set(11, \"123456\");  // System Trace Audit Number\n        message.set(41, \"12345678\");  // Card Acceptor Terminal ID\n        message.set(49, \"840\");  // Transaction Currency Code (USD)\n        return message;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this example, we create a new `ISOMsg` object and set various fields using the `set` method. The first argument is the field number, and the second is the field value."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.2 Message Factory"
+    },
+    {
+      "type": "para",
+      "text": "While creating messages manually is possible, it's often more efficient and less error-prone to use a `MsgFactory`. The `MsgFactory` allows you to create predefined message templates and reuse them."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to implement a `MsgFactory`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.MsgFactory;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class CustomMsgFactory implements MsgFactory {\n\n    @Override\n    public ISOMsg create(String mti) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(mti);\n        \n        // Set common fields for all messages\n        msg.set(7, getCurrentDateTime());\n        msg.set(11, generateSystemTraceAuditNumber());\n        msg.set(41, \"12345678\");  // Card Acceptor Terminal ID\n        \n        return msg;\n    }\n\n    private String getCurrentDateTime() {\n        // Implementation to get current date and time in MMDDhhmmss format\n        return \"0701104321\";  // Example static value\n    }\n\n    private String generateSystemTraceAuditNumber() {\n        // Implementation to generate a unique STAN\n        return \"123456\";  // Example static value\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, you can use this factory to create messages:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class TransactionService {\n\n    private final CustomMsgFactory msgFactory;\n\n    @Autowired\n    public TransactionService(CustomMsgFactory msgFactory) {\n        this.msgFactory = msgFactory;\n    }\n\n    public ISOMsg createPurchaseRequest(String pan, String amount) throws ISOException {\n        ISOMsg msg = msgFactory.create(\"0200\");\n        msg.set(2, pan);\n        msg.set(3, \"000000\");  // Processing Code for Purchase\n        msg.set(4, amount);\n        msg.set(49, \"840\");  // Transaction Currency Code (USD)\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.3 Handling Different Message Types"
+    },
+    {
+      "type": "para",
+      "text": "In a real-world scenario, you'll need to handle different types of messages (e.g., authorization, financial, reversal). Here's an example of how you might structure this:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class MessageCreationService {\n\n    private final CustomMsgFactory msgFactory;\n\n    @Autowired\n    public MessageCreationService(CustomMsgFactory msgFactory) {\n        this.msgFactory = msgFactory;\n    }\n\n    public ISOMsg createAuthorizationRequest(String pan, String amount) throws ISOException {\n        ISOMsg msg = msgFactory.create(\"0100\");\n        msg.set(2, pan);\n        msg.set(3, \"000000\");  // Processing Code for Authorization\n        msg.set(4, amount);\n        msg.set(49, \"840\");  // Transaction Currency Code (USD)\n        return msg;\n    }\n\n    public ISOMsg createFinancialRequest(String pan, String amount) throws ISOException {\n        ISOMsg msg = msgFactory.create(\"0200\");\n        msg.set(2, pan);\n        msg.set(3, \"000000\");  // Processing Code for Financial\n        msg.set(4, amount);\n        msg.set(49, \"840\");  // Transaction Currency Code (USD)\n        return msg;\n    }\n\n    public ISOMsg createReversalRequest(String pan, String amount, String originalData) throws ISOException {\n        ISOMsg msg = msgFactory.create(\"0400\");\n        msg.set(2, pan);\n        msg.set(3, \"000000\");  // Processing Code for Reversal\n        msg.set(4, amount);\n        msg.set(49, \"840\");  // Transaction Currency Code (USD)\n        msg.set(90, originalData);  // Original Data Elements\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.4 Testing Message Creation"
+    },
+    {
+      "type": "para",
+      "text": "It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5, Mockito, and AssertJ:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.mockito.Mock;\nimport org.mockito.MockitoAnnotations;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.when;\n\nclass MessageCreationServiceTest {\n\n    @Mock\n    private CustomMsgFactory msgFactory;\n\n    private MessageCreationService messageCreationService;\n\n    @BeforeEach\n    void setUp() {\n        MockitoAnnotations.openMocks(this);\n        messageCreationService = new MessageCreationService(msgFactory);\n    }\n\n    @Test\n    void testCreateAuthorizationRequest() throws ISOException {\n        // Arrange\n        ISOMsg mockMsg = new ISOMsg();\n        when(msgFactory.create(\"0100\")).thenReturn(mockMsg);\n\n        // Act\n        ISOMsg result = messageCreationService.createAuthorizationRequest(\"4111111111111111\", \"000000010000\");\n\n        // Assert\n        assertThat(result.getMTI()).isEqualTo(\"0100\");\n        assertThat(result.getString(2)).isEqualTo(\"4111111111111111\");\n        assertThat(result.getString(3)).isEqualTo(\"000000\");\n        assertThat(result.getString(4)).isEqualTo(\"000000010000\");\n        assertThat(result.getString(49)).isEqualTo(\"840\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test verifies that the `createAuthorizationRequest` method correctly sets the MTI and required fields for an authorization request."
+    },
+    {
+      "type": "para",
+      "text": "In conclusion, creating ISO-8583 messages using jPOS involves using the `ISOMsg` class, potentially implementing a custom `MsgFactory`, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 5,
+    "paras": 11,
+    "code": 5,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "eabe287dbc8b21a11d4ab844968818f1effff6ca9f1572c1853d8f14e9ffa40e"
+}

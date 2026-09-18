@@ -1,0 +1,204 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Logging and Debugging",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "8. Logging and Debugging in jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "Logging and debugging are essential components of any robust jPOS client implementation. They help developers track the flow of transactions, identify issues, and maintain the system effectively. jPOS provides powerful logging capabilities through its built-in logging framework."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.1 jPOS Logging Framework"
+    },
+    {
+      "type": "para",
+      "text": "jPOS uses its own logging framework, which is flexible and can be integrated with other logging systems like Log4j or java.util.logging. The main classes involved in jPOS logging are:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`org.jpos.util.Logger`",
+        "`org.jpos.util.LogEvent`",
+        "`org.jpos.util.LogListener`"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.1 Logger"
+    },
+    {
+      "type": "para",
+      "text": "The `Logger` class is the central component of the jPOS logging system. It manages a collection of `LogListener` instances and dispatches `LogEvent` objects to them."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to create and use a Logger:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.Logger;\nimport org.jpos.util.LogEvent;\n\npublic class ClientLogger {\n    private static final Logger logger = new Logger();\n    \n    public static void logMessage(String message) {\n        LogEvent ev = new LogEvent();\n        ev.addMessage(message);\n        logger.log(ev);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.2 LogEvent"
+    },
+    {
+      "type": "para",
+      "text": "`LogEvent` represents a loggable event in jPOS. It can contain multiple messages, tagged fields, and even nested events."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of creating a more complex LogEvent:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.LogEvent;\n\npublic class ComplexLogEventExample {\n    public static LogEvent createComplexLogEvent() {\n        LogEvent ev = new LogEvent(\"ClientTransaction\");\n        ev.addMessage(\"Processing transaction\");\n        ev.addMessage(\"Transaction ID: 12345\");\n        ev.addMessage(\"Amount: $100.00\");\n        \n        // Adding a tagged field\n        ev.tag(\"status\", \"approved\");\n        \n        // Adding a nested event\n        LogEvent nestedEvent = new LogEvent(\"CardDetails\");\n        nestedEvent.addMessage(\"Card type: Visa\");\n        nestedEvent.addMessage(\"Last 4 digits: 1234\");\n        ev.addEvent(nestedEvent);\n        \n        return ev;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.3 LogListener"
+    },
+    {
+      "type": "para",
+      "text": "`LogListener` is an interface that defines how log events are handled. jPOS provides several implementations, such as `SimpleLogListener` for console output and `RotateLogListener` for file-based logging with rotation."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of adding a SimpleLogListener to our Logger:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class LoggerSetup {\n    public static void configureLogger(Logger logger) {\n        SimpleLogListener listener = new SimpleLogListener(System.out);\n        logger.addListener(listener);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.2 Implementing Logging in jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's implement logging in a jPOS client application using Spring Boot. We'll create a custom `LogListener` and configure it using Spring."
+    },
+    {
+      "type": "para",
+      "text": "First, let's create a custom `LogListener`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\nimport org.slf4j.LoggerFactory;\n\npublic class SpringLogListener implements LogListener {\n    private static final org.slf4j.Logger log = LoggerFactory.getLogger(SpringLogListener.class);\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        StringBuilder sb = new StringBuilder();\n        sb.append(ev.getTag()).append(\": \");\n        for (Object msg : ev.getPayLoad()) {\n            sb.append(msg).append(\" \");\n        }\n        log.info(sb.toString());\n        return ev;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's configure this listener in our Spring configuration:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.Logger;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class LoggingConfig {\n\n    @Bean\n    public Logger jposLogger() {\n        Logger logger = new Logger();\n        logger.addListener(new SpringLogListener());\n        return logger;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "With this configuration in place, we can now inject and use the jPOS Logger in our client components:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\nimport org.jpos.util.LogEvent;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class TransactionLogger {\n    private final Logger logger;\n\n    public TransactionLogger(Logger logger) {\n        this.logger = logger;\n    }\n\n    public void logTransaction(ISOMsg msg) {\n        LogEvent ev = new LogEvent(\"Transaction\");\n        ev.addMessage(\"MTI: \" + msg.getMTI());\n        ev.addMessage(\"PAN: \" + msg.getString(2));\n        ev.addMessage(\"Amount: \" + msg.getString(4));\n        logger.log(ev);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.3 Debugging Techniques"
+    },
+    {
+      "type": "para",
+      "text": "When debugging jPOS applications, consider the following techniques:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "**Use detailed logging**: Log important steps in your transaction processing, including input data, processing steps, and output data.",
+        "**Enable wire logging**: jPOS channels can log the raw data sent and received. This is crucial for diagnosing communication issues.",
+        "**Use jPOS profiler**: jPOS includes a profiler that can help identify performance bottlenecks.",
+        "**Implement health checks**: Create endpoints that report the status of your application components."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of enabling wire logging for a channel:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.channel.NACChannel;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class ChannelConfig {\n    public static NACChannel createDebugChannel(String host, int port) {\n        NACChannel channel = new NACChannel(host, port, new ISO87APackager());\n        \n        Logger wireLogger = new Logger();\n        wireLogger.addListener(new SimpleLogListener(System.out));\n        \n        channel.setLogger(wireLogger, \"wire\");\n        channel.setPackager(new ISO87APackager());\n        \n        return channel;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.4 Testing Logging"
+    },
+    {
+      "type": "para",
+      "text": "To ensure our logging is working correctly, we can write a test:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.boot.test.mock.mockito.SpyBean;\n\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.times;\nimport static org.mockito.Mockito.verify;\n\n@SpringBootTest\npublic class TransactionLoggerTest {\n\n    @Autowired\n    private TransactionLogger transactionLogger;\n\n    @SpyBean\n    private Logger jposLogger;\n\n    @Test\n    public void testLogTransaction() throws Exception {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        msg.set(2, \"4111111111111111\");\n        msg.set(4, \"000000010000\");\n\n        transactionLogger.logTransaction(msg);\n\n        verify(jposLogger, times(1)).log(any());\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test verifies that when we log a transaction, the jPOS Logger is called once."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Conclusion"
+    },
+    {
+      "type": "para",
+      "text": "Proper logging and debugging are crucial for maintaining and troubleshooting jPOS client applications. By leveraging jPOS's flexible logging framework and integrating it with Spring Boot, we can create a robust logging system that helps us track transactions, identify issues, and maintain our application effectively."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 9,
+    "paras": 17,
+    "code": 8,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "b629eb5d42e4bca6a91947157f8bca691af728bda790bed7739f1e0be3cefb4e"
+}

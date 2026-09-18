@@ -1,0 +1,151 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Integration with Payment Gateways",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "12. Integration with Payment Gateways"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.1. Common gateway interfaces"
+    },
+    {
+      "type": "para",
+      "text": "Payment gateways often provide modern API interfaces that differ from the traditional ISO-8583 format. The two most common types of interfaces are:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "12.1.1. RESTful APIs"
+    },
+    {
+      "type": "para",
+      "text": "RESTful APIs use HTTP methods (GET, POST, PUT, DELETE) to perform operations on resources. They typically use JSON for data exchange."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "12.1.2. SOAP web services"
+    },
+    {
+      "type": "para",
+      "text": "SOAP (Simple Object Access Protocol) web services use XML for message formatting and can be more complex but offer strong typing and built-in error handling."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.2. Mapping ISO-8583 to API calls"
+    },
+    {
+      "type": "para",
+      "text": "To integrate ISO-8583 messages with modern payment gateways, we need to map the ISO-8583 fields to the corresponding API request parameters."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "12.2.1. Field mapping strategies"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a service that maps ISO-8583 messages to a RESTful API call for a fictional payment gateway."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\nimport org.springframework.web.client.RestTemplate;\n\n@Service\npublic class PaymentGatewayService {\n\n    private final RestTemplate restTemplate;\n\n    public PaymentGatewayService(RestTemplate restTemplate) {\n        this.restTemplate = restTemplate;\n    }\n\n    public GatewayResponse processPayment(ISOMsg isoMsg) {\n        PaymentRequest paymentRequest = mapIsoMsgToPaymentRequest(isoMsg);\n        return restTemplate.postForObject(\"https://api.paymentgateway.com/process\", paymentRequest, GatewayResponse.class);\n    }\n\n    private PaymentRequest mapIsoMsgToPaymentRequest(ISOMsg isoMsg) {\n        PaymentRequest request = new PaymentRequest();\n        request.setAmount(isoMsg.getString(4));\n        request.setCardNumber(isoMsg.getString(2));\n        request.setExpirationDate(isoMsg.getString(14));\n        request.setCvv(isoMsg.getString(52));\n        request.setTransactionType(mapTransactionType(isoMsg.getString(3)));\n        return request;\n    }\n\n    private String mapTransactionType(String processingCode) {\n        switch (processingCode) {\n            case \"000000\":\n                return \"PURCHASE\";\n            case \"200000\":\n                return \"REFUND\";\n            default:\n                throw new UnsupportedOperationException(\"Unsupported processing code: \" + processingCode);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this example, we're mapping key ISO-8583 fields to a `PaymentRequest` object that can be sent to the RESTful API."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "12.2.2. Data transformation"
+    },
+    {
+      "type": "para",
+      "text": "Sometimes, data formats in ISO-8583 messages don't match the expected format of the payment gateway API. Let's create a utility class to handle these transformations:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import java.time.LocalDate;\nimport java.time.format.DateTimeFormatter;\n\npublic class DataTransformationUtil {\n\n    public static String transformExpirationDate(String isoDate) {\n        // ISO-8583 format: YYMM\n        // API expected format: MM/YY\n        return isoDate.substring(2, 4) + \"/\" + isoDate.substring(0, 2);\n    }\n\n    public static String transformAmount(String isoAmount) {\n        // ISO-8583 format: Amount in cents without decimal point\n        // API expected format: Amount with decimal point\n        long amountInCents = Long.parseLong(isoAmount);\n        return String.format(\"%.2f\", amountInCents / 100.0);\n    }\n\n    public static String transformDate(String isoDate) {\n        // ISO-8583 format: MMDD\n        // API expected format: YYYY-MM-DD\n        LocalDate currentDate = LocalDate.now();\n        int currentYear = currentDate.getYear();\n        int month = Integer.parseInt(isoDate.substring(0, 2));\n        int day = Integer.parseInt(isoDate.substring(2, 4));\n        \n        LocalDate transactionDate = LocalDate.of(currentYear, month, day);\n        if (transactionDate.isAfter(currentDate)) {\n            transactionDate = transactionDate.minusYears(1);\n        }\n        \n        return transactionDate.format(DateTimeFormatter.ISO_DATE);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's update our `PaymentGatewayService` to use these transformations:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "private PaymentRequest mapIsoMsgToPaymentRequest(ISOMsg isoMsg) {\n    PaymentRequest request = new PaymentRequest();\n    request.setAmount(DataTransformationUtil.transformAmount(isoMsg.getString(4)));\n    request.setCardNumber(isoMsg.getString(2));\n    request.setExpirationDate(DataTransformationUtil.transformExpirationDate(isoMsg.getString(14)));\n    request.setCvv(isoMsg.getString(52));\n    request.setTransactionType(mapTransactionType(isoMsg.getString(3)));\n    request.setTransactionDate(DataTransformationUtil.transformDate(isoMsg.getString(13)));\n    return request;\n}"
+    },
+    {
+      "type": "para",
+      "text": "To ensure our integration works correctly, let's create a test class:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.web.client.RestTemplate;\n\nimport static org.mockito.Mockito.*;\nimport static org.assertj.core.api.Assertions.*;\n\n@ExtendWith(MockitoExtension.class)\nclass PaymentGatewayServiceTest {\n\n    @Mock\n    private RestTemplate restTemplate;\n\n    private PaymentGatewayService paymentGatewayService;\n\n    @BeforeEach\n    void setUp() {\n        paymentGatewayService = new PaymentGatewayService(restTemplate);\n    }\n\n    @Test\n    void testProcessPayment() throws Exception {\n        // Arrange\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.set(2, \"4111111111111111\");\n        isoMsg.set(3, \"000000\");\n        isoMsg.set(4, \"100000\"); // $1000.00\n        isoMsg.set(13, \"0531\"); // May 31st\n        isoMsg.set(14, \"2405\"); // Expires May 2024\n        isoMsg.set(52, \"123\"); // CVV\n\n        GatewayResponse mockResponse = new GatewayResponse();\n        mockResponse.setStatus(\"SUCCESS\");\n        mockResponse.setTransactionId(\"123456\");\n\n        when(restTemplate.postForObject(eq(\"https://api.paymentgateway.com/process\"), any(PaymentRequest.class), eq(GatewayResponse.class)))\n                .thenReturn(mockResponse);\n\n        // Act\n        GatewayResponse result = paymentGatewayService.processPayment(isoMsg);\n\n        // Assert\n        assertThat(result).isNotNull();\n        assertThat(result.getStatus()).isEqualTo(\"SUCCESS\");\n        assertThat(result.getTransactionId()).isEqualTo(\"123456\");\n\n        verify(restTemplate).postForObject(eq(\"https://api.paymentgateway.com/process\"), argThat(request -> {\n            assertThat(request.getAmount()).isEqualTo(\"1000.00\");\n            assertThat(request.getCardNumber()).isEqualTo(\"4111111111111111\");\n            assertThat(request.getExpirationDate()).isEqualTo(\"05/24\");\n            assertThat(request.getCvv()).isEqualTo(\"123\");\n            assertThat(request.getTransactionType()).isEqualTo(\"PURCHASE\");\n            assertThat(request.getTransactionDate()).isEqualTo(LocalDate.now().withMonth(5).withDayOfMonth(31).toString());\n            return true;\n        }), eq(GatewayResponse.class));\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test ensures that our `PaymentGatewayService` correctly maps ISO-8583 fields to the expected API request format and handles the response properly."
+    },
+    {
+      "type": "para",
+      "text": "To complete the integration, we need to handle the API response and map it back to an ISO-8583 response message. Let's add this functionality to our `PaymentGatewayService`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public ISOMsg processPaymentAndCreateResponse(ISOMsg requestMsg) throws ISOException {\n    GatewayResponse gatewayResponse = processPayment(requestMsg);\n    return mapGatewayResponseToISOMsg(requestMsg, gatewayResponse);\n}\n\nprivate ISOMsg mapGatewayResponseToISOMsg(ISOMsg requestMsg, GatewayResponse gatewayResponse) throws ISOException {\n    ISOMsg responseMsg = (ISOMsg) requestMsg.clone();\n    responseMsg.setResponseMTI();\n\n    if (\"SUCCESS\".equals(gatewayResponse.getStatus())) {\n        responseMsg.set(39, \"00\"); // Approval code\n        responseMsg.set(38, gatewayResponse.getTransactionId());\n    } else {\n        responseMsg.set(39, \"05\"); // Do not honor\n        responseMsg.set(63, gatewayResponse.getErrorMessage());\n    }\n\n    return responseMsg;\n}"
+    },
+    {
+      "type": "para",
+      "text": "This completes our basic integration between ISO-8583 messages and a RESTful payment gateway API. The service now can:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Receive an ISO-8583 message",
+        "Map and transform the data to the API's expected format",
+        "Send the request to the payment gateway",
+        "Receive the response from the payment gateway",
+        "Map the response back to an ISO-8583 message"
+      ]
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 7,
+    "paras": 12,
+    "code": 5,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "187c72e20d6d1e5f02ffbf831105827752b2a82bb60bbfc3baacbe206b3e661d"
+}

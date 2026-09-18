@@ -1,0 +1,177 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Error Handling",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "9. Error Handling in jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "Error handling is a crucial aspect of any robust application, especially in financial transaction processing where accuracy and reliability are paramount. In a jPOS client implementation, we need to handle various types of exceptions that may occur during message creation, sending, and processing."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.1 Types of Exceptions"
+    },
+    {
+      "type": "para",
+      "text": "In a jPOS client application, you may encounter several types of exceptions:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "`ISOException`: Thrown for ISO-8583 specific errors.",
+        "`IOException`: For network-related issues.",
+        "`NullPointerException`: For unexpected null values.",
+        "`TimeoutException`: When a transaction takes too long to complete.",
+        "Custom exceptions: For application-specific error scenarios."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.2 Implementing Exception Handlers"
+    },
+    {
+      "type": "para",
+      "text": "We'll use Spring's `@ExceptionHandler` annotation to create centralized exception handling for our jPOS client. This approach allows us to define how different types of exceptions should be handled across the application."
+    },
+    {
+      "type": "para",
+      "text": "Let's create an `ErrorHandler` class:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\n\nimport java.io.IOException;\nimport java.util.concurrent.TimeoutException;\n\n@ControllerAdvice\npublic class ErrorHandler {\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<ErrorResponse> handleISOException(ISOException ex) {\n        ErrorResponse error = new ErrorResponse(\"ISO-8583 Error\", ex.getMessage());\n        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);\n    }\n\n    @ExceptionHandler(IOException.class)\n    public ResponseEntity<ErrorResponse> handleIOException(IOException ex) {\n        ErrorResponse error = new ErrorResponse(\"Network Error\", \"Failed to communicate with the server\");\n        return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);\n    }\n\n    @ExceptionHandler(TimeoutException.class)\n    public ResponseEntity<ErrorResponse> handleTimeoutException(TimeoutException ex) {\n        ErrorResponse error = new ErrorResponse(\"Timeout Error\", \"The operation timed out\");\n        return new ResponseEntity<>(error, HttpStatus.REQUEST_TIMEOUT);\n    }\n\n    @ExceptionHandler(Exception.class)\n    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {\n        ErrorResponse error = new ErrorResponse(\"Internal Server Error\", \"An unexpected error occurred\");\n        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "And the `ErrorResponse` class:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class ErrorResponse {\n    private String errorType;\n    private String errorMessage;\n\n    public ErrorResponse(String errorType, String errorMessage) {\n        this.errorType = errorType;\n        this.errorMessage = errorMessage;\n    }\n\n    // Getters and setters\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.3 Logging Exceptions"
+    },
+    {
+      "type": "para",
+      "text": "It's important to log exceptions for debugging and monitoring purposes. We can enhance our error handler to include logging:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\n\n@ControllerAdvice\npublic class ErrorHandler {\n    private static final Logger logger = LoggerFactory.getLogger(ErrorHandler.class);\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<ErrorResponse> handleISOException(ISOException ex) {\n        logger.error(\"ISO-8583 Error: \", ex);\n        ErrorResponse error = new ErrorResponse(\"ISO-8583 Error\", ex.getMessage());\n        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);\n    }\n\n    // Other exception handlers...\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.4 Custom Exceptions"
+    },
+    {
+      "type": "para",
+      "text": "For application-specific error scenarios, it's often useful to create custom exceptions. Here's an example:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class TransactionDeclinedException extends RuntimeException {\n    private String responseCode;\n\n    public TransactionDeclinedException(String message, String responseCode) {\n        super(message);\n        this.responseCode = responseCode;\n    }\n\n    public String getResponseCode() {\n        return responseCode;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "And its corresponding exception handler:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@ExceptionHandler(TransactionDeclinedException.class)\npublic ResponseEntity<ErrorResponse> handleTransactionDeclinedException(TransactionDeclinedException ex) {\n    logger.warn(\"Transaction declined: {}\", ex.getMessage());\n    ErrorResponse error = new ErrorResponse(\"Transaction Declined\", \n        \"Transaction was declined with response code: \" + ex.getResponseCode());\n    return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.5 Testing Exception Handlers"
+    },
+    {
+      "type": "para",
+      "text": "To ensure our exception handlers work as expected, we should write unit tests. Here's an example using JUnit, Mockito, and Spring's testing support:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@ExtendWith(MockitoExtension.class)\npublic class ErrorHandlerTest {\n\n    @InjectMocks\n    private ErrorHandler errorHandler;\n\n    @Test\n    public void testHandleISOException() {\n        ISOException ex = new ISOException(\"Invalid message format\");\n        ResponseEntity<ErrorResponse> response = errorHandler.handleISOException(ex);\n\n        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);\n        assertThat(response.getBody().getErrorType()).isEqualTo(\"ISO-8583 Error\");\n        assertThat(response.getBody().getErrorMessage()).isEqualTo(\"Invalid message format\");\n    }\n\n    @Test\n    public void testHandleTransactionDeclinedException() {\n        TransactionDeclinedException ex = new TransactionDeclinedException(\"Insufficient funds\", \"51\");\n        ResponseEntity<ErrorResponse> response = errorHandler.handleTransactionDeclinedException(ex);\n\n        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);\n        assertThat(response.getBody().getErrorType()).isEqualTo(\"Transaction Declined\");\n        assertThat(response.getBody().getErrorMessage()).contains(\"51\");\n    }\n\n    // More tests for other exception handlers...\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.6 Integration with jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "To integrate this error handling mechanism with your jPOS client, you need to ensure that your client code throws these exceptions when appropriate. For example:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class TransactionService {\n\n    private final MUX mux;\n\n    public TransactionService(MUX mux) {\n        this.mux = mux;\n    }\n\n    public ISOMsg sendTransaction(ISOMsg request) throws ISOException, IOException {\n        try {\n            ISOMsg response = mux.request(request, 30000); // 30 seconds timeout\n            if (response == null) {\n                throw new TimeoutException(\"Transaction timed out\");\n            }\n            \n            String responseCode = response.getString(39);\n            if (!\"00\".equals(responseCode)) {\n                throw new TransactionDeclinedException(\"Transaction declined\", responseCode);\n            }\n            \n            return response;\n        } catch (ISOException | IOException e) {\n            throw e;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This service method will now throw appropriate exceptions that our `ErrorHandler` can catch and process."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Conclusion"
+    },
+    {
+      "type": "para",
+      "text": "Implementing robust error handling in a jPOS client application involves:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Creating a centralized `ErrorHandler` using Spring's `@ControllerAdvice` and `@ExceptionHandler`.",
+        "Defining custom exceptions for application-specific scenarios.",
+        "Properly logging exceptions for debugging and monitoring.",
+        "Writing unit tests to ensure exception handlers work correctly.",
+        "Integrating the error handling mechanism with the jPOS client code."
+      ]
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 8,
+    "paras": 12,
+    "code": 7,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "c3efa5561156415ca4e0b80ae499c60b20b434531a303edca99c22b801304225"
+}

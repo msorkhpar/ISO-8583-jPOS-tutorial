@@ -1,0 +1,180 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Best Practices for ISO-8583 Development",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11. Best Practices for ISO-8583 Development"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.1. Code Organization"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.1.1. Modular Design"
+    },
+    {
+      "type": "para",
+      "text": "When developing ISO-8583 applications, it's crucial to maintain a modular design. This approach enhances maintainability, reusability, and testability of your code. Here's an example of how you can structure your project:"
+    },
+    {
+      "type": "code",
+      "lang": "",
+      "text": "src/\n├── main/\n│   ├── java/\n│   │   └── com/\n│   │       └── example/\n│   │           ├── config/\n│   │           ├── channel/\n│   │           ├── packager/\n│   │           ├── participant/\n│   │           ├── service/\n│   │           ├── util/\n│   │           └── Application.java\n│   └── resources/\n│       ├── packager/\n│       └── application.yml\n├── test/\n│   └── java/\n│       └── com/\n│           └── example/\n│               ├── channel/\n│               ├── participant/\n│               └── service/\n└── pom.xml"
+    },
+    {
+      "type": "para",
+      "text": "In this structure:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`config/`: Contains Spring configuration classes",
+        "`channel/`: Custom channel implementations",
+        "`packager/`: Custom packager implementations",
+        "`participant/`: Transaction participants",
+        "`service/`: Business logic services",
+        "`util/`: Utility classes"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.1.2. Separation of Concerns"
+    },
+    {
+      "type": "para",
+      "text": "Implement separation of concerns by creating distinct classes for different responsibilities. Here's an example of how you can separate concerns in your ISO-8583 application:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class TransactionService {\n    private final ISOPackager packager;\n    private final ChannelManager channelManager;\n\n    @Autowired\n    public TransactionService(ISOPackager packager, ChannelManager channelManager) {\n        this.packager = packager;\n        this.channelManager = channelManager;\n    }\n\n    public ISOMsg processTransaction(ISOMsg request) {\n        // Process the transaction\n        // ...\n    }\n}\n\n@Service\npublic class ChannelManager {\n    private final ISOServer isoServer;\n\n    @Autowired\n    public ChannelManager(ISOServer isoServer) {\n        this.isoServer = isoServer;\n    }\n\n    public void startServer() {\n        isoServer.run();\n    }\n\n    public void stopServer() {\n        isoServer.shutdown();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.2. Logging and Debugging"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.2.1. Transaction Logging"
+    },
+    {
+      "type": "para",
+      "text": "Implement comprehensive transaction logging to track all incoming and outgoing messages. jPOS provides built-in logging capabilities that you can leverage:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Component\npublic class TransactionLogger implements LogListener {\n    private static final Logger logger = LoggerFactory.getLogger(TransactionLogger.class);\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        if (ev.getTag().equals(\"TX\")) {\n            ISOMsg msg = (ISOMsg) ev.getPayload();\n            logger.info(\"Transaction: {}\", msg);\n        }\n        return ev;\n    }\n}\n\n@Configuration\npublic class LoggingConfig {\n    @Bean\n    public Logger logger() {\n        Logger logger = new Logger();\n        logger.addListener(new TransactionLogger());\n        return logger;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.2.2. Error Logging"
+    },
+    {
+      "type": "para",
+      "text": "Implement error logging to capture and analyze issues:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@ControllerAdvice\npublic class GlobalExceptionHandler {\n    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<String> handleISOException(ISOException ex) {\n        logger.error(\"ISO Exception occurred: \", ex);\n        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(\"An error occurred processing the ISO message\");\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.2.3. Debugging Techniques"
+    },
+    {
+      "type": "para",
+      "text": "Use jPOS's built-in debugging capabilities:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class DebugParticipant implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Prepare called for transaction \" + id);\n        return PREPARED;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Commit called for transaction \" + id);\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Abort called for transaction \" + id);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.3. Performance Optimization"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.3.1. Message Parsing Efficiency"
+    },
+    {
+      "type": "para",
+      "text": "Use efficient message parsing techniques:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Component\npublic class EfficientPackager extends GenericPackager {\n    public EfficientPackager() throws ISOException {\n        super(\"packager/efficient-packager.xml\");\n    }\n\n    @Override\n    public byte[] pack(ISOComponent m) throws ISOException {\n        // Implement more efficient packing logic\n    }\n\n    @Override\n    public int unpack(ISOComponent m, byte[] b) throws ISOException {\n        // Implement more efficient unpacking logic\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.3.2. Connection Pooling"
+    },
+    {
+      "type": "para",
+      "text": "Implement connection pooling to reuse connections:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Configuration\npublic class ConnectionPoolConfig {\n    @Bean\n    public PooledConnectionFactory pooledConnectionFactory() {\n        PooledConnectionFactory factory = new PooledConnectionFactory();\n        factory.setChannelName(\"myChannel\");\n        factory.setPackager(new ISO87APackager());\n        factory.setHost(\"localhost\");\n        factory.setPort(1234);\n        factory.setPoolSize(10);\n        return factory;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "11.3.3. Caching Strategies"
+    },
+    {
+      "type": "para",
+      "text": "Implement caching for frequently accessed data:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Configuration\n@EnableCaching\npublic class CacheConfig {\n    @Bean\n    public CacheManager cacheManager() {\n        SimpleCacheManager cacheManager = new SimpleCacheManager();\n        cacheManager.setCaches(Arrays.asList(\n            new ConcurrentMapCache(\"isoMessages\"),\n            new ConcurrentMapCache(\"transactionResults\")\n        ));\n        return cacheManager;\n    }\n}\n\n@Service\npublic class CachedTransactionService {\n    @Cacheable(\"transactionResults\")\n    public TransactionResult getTransactionResult(String transactionId) {\n        // Fetch transaction result from database or external service\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 9,
+    "code": 8,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "42f70973ba3e72b98d5aa71c7455ada826a1f4983cb545a6a9a427086bff384e"
+}

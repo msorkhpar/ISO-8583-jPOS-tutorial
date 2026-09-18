@@ -1,0 +1,140 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Security and Encryption",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "7. Security and Encryption in jPOS Server"
+    },
+    {
+      "type": "para",
+      "text": "Security is paramount when dealing with financial transactions. jPOS provides robust security features through its `org.jpos.security` package. We'll focus on two main components: the Security Module (SMAdapter) and the JCE Security Module."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.1 Security Module (SMAdapter)"
+    },
+    {
+      "type": "para",
+      "text": "The `SMAdapter` interface defines methods for various security operations. Here's an overview of its key features:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\n\npublic class CustomSMAdapter implements SMAdapter {\n    private SecureKeyStore keyStore;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        // Initialize the key store\n        this.keyStore = new SecureKeyStore(cfg.get(\"keystore.path\"), cfg.get(\"keystore.password\"));\n    }\n\n    @Override\n    public byte[] generateKey(short keyLength, String keyType) throws SMException {\n        // Implementation for key generation\n        // This is just a placeholder, actual implementation would use secure random number generation\n        return new byte[keyLength / 8];\n    }\n\n    @Override\n    public SecureDESKey generateKey(short keyLength, String keyType, SecureDESKey kek) throws SMException {\n        byte[] keyBytes = generateKey(keyLength, keyType);\n        return encryptToLMK(keyBytes, keyType, kek);\n    }\n\n    @Override\n    public SecureDESKey encryptToLMK(byte[] clearKeyBytes, String keyType, SecureDESKey kek) throws SMException {\n        // Implementation for encrypting a key under the Local Master Key (LMK)\n        // This is a simplified version, real implementation would use actual encryption\n        return new SecureDESKey(keyType, clearKeyBytes, \"Encrypted\" + new String(clearKeyBytes));\n    }\n\n    // Other methods from SMAdapter interface...\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.2 JCE Security Module"
+    },
+    {
+      "type": "para",
+      "text": "The JCE (Java Cryptography Extension) Security Module provides a concrete implementation of the `SMAdapter` interface using Java's built-in cryptography features."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SecurityConfig {\n\n    @Bean\n    public JCESecurityModule jceSecurityModule() throws ConfigurationException {\n        JCESecurityModule module = new JCESecurityModule();\n        org.jpos.core.Configuration cfg = new SimpleConfiguration();\n        cfg.put(\"provider\", \"SunJCE\");\n        cfg.put(\"lmk\", \"src/main/resources/lmk.key\");\n        module.setConfiguration(cfg);\n        return module;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.3 Implementing PIN Encryption"
+    },
+    {
+      "type": "para",
+      "text": "One of the most critical security operations in payment systems is PIN encryption. Here's an example of how to use the JCE Security Module to encrypt a PIN:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class PINEncryptionService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPIN) throws SMException {\n        String pan = msg.getString(2);  // Primary Account Number\n        String pinBlockFormat = \"01\";   // ISO Format 1\n\n        EncryptedPIN encryptedPIN = securityModule.encryptPIN(clearPIN, pan, pinBlockFormat);\n        msg.set(52, encryptedPIN.getEncoded());\n\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.4 Key Management"
+    },
+    {
+      "type": "para",
+      "text": "Proper key management is crucial for maintaining the security of the system. Here's an example of how to implement key rotation:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.security.SecureDESKey;\nimport org.jpos.security.SMException;\nimport org.springframework.scheduling.annotation.Scheduled;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class KeyRotationService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    @Autowired\n    private KeyRepository keyRepository;\n\n    @Scheduled(cron = \"0 0 0 1 * ?\")  // Run at midnight on the first day of every month\n    public void rotateKeys() throws SMException {\n        // Generate a new key\n        SecureDESKey newKey = securityModule.generateKey(128, \"ZPK\");\n\n        // Encrypt the new key for storage\n        SecureDESKey encryptedKey = securityModule.encryptToLMK(newKey.getKeyBytes(), \"ZPK\", null);\n\n        // Store the new key\n        keyRepository.storeKey(\"ZPK\", encryptedKey);\n\n        // Optionally, you might want to keep the old key for a period to handle in-flight transactions\n        keyRepository.archiveKey(\"ZPK\", keyRepository.getKey(\"ZPK\"));\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.5 Secure Communication Channel"
+    },
+    {
+      "type": "para",
+      "text": "To ensure secure communication between the client and server, we can use SSL/TLS. jPOS provides the `NACChannel` for this purpose:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ChannelConfig {\n\n    @Bean\n    public NACChannel secureChannel() throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager());\n        channel.setSocketFactory(new SSLSocketFactory());\n        return channel;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.6 Testing Security Features"
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to test the PIN encryption service using JUnit, Mockito, and AssertJ:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMException;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.jpos.security.jceadapter.JCESecurityModule;\n\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass PINEncryptionServiceTest {\n\n    @Mock\n    private JCESecurityModule securityModule;\n\n    @InjectMocks\n    private PINEncryptionService pinEncryptionService;\n\n    @Test\n    void testEncryptPIN() throws SMException {\n        // Arrange\n        ISOMsg msg = new ISOMsg();\n        msg.set(2, \"1234567890123456\");\n        String clearPIN = \"1234\";\n        byte[] encryptedPINBlock = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};\n\n        when(securityModule.encryptPIN(any(), any(), any())).thenReturn(new EncryptedPIN(encryptedPINBlock, \"01\"));\n\n        // Act\n        ISOMsg result = pinEncryptionService.encryptPIN(msg, clearPIN);\n\n        // Assert\n        assertThat(result.getBytes(52)).isEqualTo(encryptedPINBlock);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This covers the main aspects of security and encryption in a jPOS server implementation. Remember that in a real-world scenario, you would need to implement additional security measures, such as:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Proper key storage and management",
+        "Regular security audits",
+        "Compliance with PCI DSS and other relevant standards",
+        "Implementing additional encryption for sensitive data fields",
+        "Secure coding practices to prevent common vulnerabilities"
+      ]
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 7,
+    "paras": 8,
+    "code": 6,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "24f3f1d603c86e1317684fbe6b078281b8280ef02b252fdfb386f209dc997d68"
+}

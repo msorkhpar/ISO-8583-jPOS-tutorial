@@ -1,0 +1,170 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Basic Setup",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "jPOS Server: Basic Setup"
+    },
+    {
+      "type": "para",
+      "text": "The basic setup for a jPOS server involves configuring Spring and Q2, which is jPOS's runtime environment. This setup provides a foundation for building a robust ISO-8583 message processing server."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1. Spring Configuration"
+    },
+    {
+      "type": "para",
+      "text": "Spring is used to manage dependencies and configure the application context. We'll use the `SpringContainer` provided by jPOS to integrate Spring with Q2."
+    },
+    {
+      "type": "para",
+      "text": "First, let's create a Spring configuration class:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver.config;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.transaction.TransactionManager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class JposConfig {\n\n    @Bean\n    public TransactionManager transactionManager() {\n        TransactionManager tm = new TransactionManager();\n        tm.setName(\"txnmgr\");\n        tm.setQueue(\"txnmgr\");\n        return tm;\n    }\n\n    @Bean\n    public QMUX qmux() {\n        QMUX qmux = new QMUX();\n        qmux.setName(\"mux\");\n        qmux.setLogger(\"Q2\");\n        qmux.setRealm(\"mux\");\n        return qmux;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This configuration class sets up two important beans:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "`TransactionManager`: Manages the transaction processing flow.",
+        "`QMUX`: Multiplexer for ISO message routing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2. Q2 Configuration"
+    },
+    {
+      "type": "para",
+      "text": "Next, we need to configure Q2 to use our Spring context. Create a file named `05_spring_context.xml` in the `deploy` directory:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<spring-context class=\"org.jpos.q2.spring.SpringContainer\">\n    <property name=\"config\" value=\"classpath:applicationContext.xml\" />\n</spring-context>"
+    },
+    {
+      "type": "para",
+      "text": "This XML file tells Q2 to use the `SpringContainer` and load the Spring application context from `applicationContext.xml`."
+    },
+    {
+      "type": "para",
+      "text": "Now, create the `applicationContext.xml` file in the `src/main/resources` directory:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<beans xmlns=\"http://www.springframework.org/schema/beans\"\n       xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n       xmlns:context=\"http://www.springframework.org/schema/context\"\n       xsi:schemaLocation=\"http://www.springframework.org/schema/beans\n                           http://www.springframework.org/schema/beans/spring-beans.xsd\n                           http://www.springframework.org/schema/context\n                           http://www.springframework.org/schema/context/spring-context.xsd\">\n\n    <context:component-scan base-package=\"com.example.jposserver\"/>\n    <context:annotation-config/>\n\n</beans>"
+    },
+    {
+      "type": "para",
+      "text": "This XML file enables component scanning and annotation-based configuration for our application."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3. Main Application Class"
+    },
+    {
+      "type": "para",
+      "text": "Create a main application class to start the Q2 server:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver;\n\nimport org.jpos.q2.Q2;\n\npublic class JposServerApplication {\n    public static void main(String[] args) {\n        Q2 q2 = new Q2();\n        q2.start();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This class initializes and starts the Q2 server."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4. Project Structure"
+    },
+    {
+      "type": "para",
+      "text": "Ensure your project structure looks like this:"
+    },
+    {
+      "type": "code",
+      "lang": "",
+      "text": "src\n├── main\n│   ├── java\n│   │   └── com\n│   │       └── example\n│   │           └── jposserver\n│   │               ├── config\n│   │               │   └── JposConfig.java\n│   │               └── JposServerApplication.java\n│   └── resources\n│       └── applicationContext.xml\n└── test\n    └── java\ndeploy\n└── 05_spring_context.xml"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5. Dependencies"
+    },
+    {
+      "type": "para",
+      "text": "Make sure you have the following dependencies in your `pom.xml` or `build.gradle` file:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<dependencies>\n    <dependency>\n        <groupId>org.jpos</groupId>\n        <artifactId>jpos</artifactId>\n        <version>2.1.7</version>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework</groupId>\n        <artifactId>spring-context</artifactId>\n        <version>5.3.20</version>\n    </dependency>\n</dependencies>"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6. Testing the Setup"
+    },
+    {
+      "type": "para",
+      "text": "To test this basic setup, you can create a simple JUnit test:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jposserver;\n\nimport org.jpos.q2.Q2;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.context.ApplicationContext;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\nclass JposServerApplicationTests {\n\n    @Autowired\n    private ApplicationContext applicationContext;\n\n    @Test\n    void contextLoads() {\n        assertThat(applicationContext).isNotNull();\n        assertThat(applicationContext.getBean(Q2.class)).isNotNull();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test ensures that the Spring context is loaded correctly and that the Q2 instance is available in the application context."
+    },
+    {
+      "type": "para",
+      "text": "With this basic setup, you have a foundation for building a jPOS server integrated with Spring. The next steps would involve adding ISO-8583 message handling, channel management, and transaction processing logic."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 7,
+    "paras": 15,
+    "code": 7,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "7f2bc53cc26c7bdbdfccef1f6b28125d764fa6cbd40aa4ef109ffff4e27fd2f4"
+}

@@ -1,0 +1,161 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Transaction Sending",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "4. Transaction Sending"
+    },
+    {
+      "type": "para",
+      "text": "Transaction sending in jPOS is primarily handled by two key components: QMUX and MUX. These components provide a high-level abstraction for sending and receiving ISO-8583 messages."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.1 QMUX (org.jpos.q2.iso.QMUX)"
+    },
+    {
+      "type": "para",
+      "text": "QMUX is a Q2 adaptor that implements the MUX interface. It's designed to multiplex messages over a single connection or multiple connections."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.1.1 Configuration"
+    },
+    {
+      "type": "para",
+      "text": "To set up QMUX in your jPOS client, you need to add a configuration in your `deploy/05_spring_client_context.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"clientQMUX\" class=\"org.jpos.q2.iso.QMUX\" init-method=\"start\" destroy-method=\"stop\">\n    <property name=\"name\" value=\"client-mux\"/>\n    <property name=\"space\" ref=\"tspace\"/>\n    <property name=\"in\" value=\"send\"/>\n    <property name=\"out\" value=\"receive\"/>\n    <property name=\"unhandled\" value=\"unhandled\"/>\n    <property name=\"ready\" value=\"ready\"/>\n</bean>"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.1.2 Usage"
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to use QMUX to send a transaction:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionSender {\n\n    private final MUX mux;\n\n    public TransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public ISOMsg sendTransaction(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        return mux.request(message, timeout);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.2 MUX (org.jpos.iso.MUX)"
+    },
+    {
+      "type": "para",
+      "text": "MUX is an interface that defines methods for sending ISO messages and receiving responses. QMUX is an implementation of this interface."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.2.1 Key Methods"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`request(ISOMsg m, long timeout)`: Sends a message and waits for a response.",
+        "`request(ISOMsg m, long timeout, ISOResponseListener rl)`: Sends a message and registers a listener for the response.",
+        "`send(ISOMsg m)`: Sends a message without expecting a response."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.2.2 Example: Asynchronous Transaction Sending"
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to send a transaction asynchronously using MUX:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class AsyncTransactionSender {\n\n    private final MUX mux;\n\n    public AsyncTransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public void sendTransactionAsync(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        mux.request(message, timeout, new ISOResponseListener() {\n            @Override\n            public void expired(long id) {\n                System.out.println(\"Request \" + id + \" expired\");\n            }\n\n            @Override\n            public void response(ISOMsg response, long id) {\n                System.out.println(\"Received response for \" + id + \": \" + response);\n            }\n        });\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.3 Creating ISO-8583 Messages"
+    },
+    {
+      "type": "para",
+      "text": "Before sending transactions, you need to create ISO-8583 messages. Here's an example of creating a simple authorization request:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class MessageCreator {\n\n    public ISOMsg createAuthorizationRequest(String pan, String amount) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        message.set(2, pan);\n        message.set(3, \"000000\");\n        message.set(4, amount);\n        message.set(7, String.format(\"%010d\", System.currentTimeMillis() / 1000));\n        message.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        message.set(41, \"12345678\");\n        message.set(42, \"MERCHANT_ID_123\");\n        return message;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.4 Putting It All Together"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a service that combines message creation and sending:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionService {\n\n    private final TransactionSender sender;\n    private final MessageCreator creator;\n\n    @Autowired\n    public TransactionService(TransactionSender sender, MessageCreator creator) {\n        this.sender = sender;\n        this.creator = creator;\n    }\n\n    public ISOMsg performAuthorization(String pan, String amount) throws Exception {\n        ISOMsg request = creator.createAuthorizationRequest(pan, amount);\n        return sender.sendTransaction(request);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.5 Testing"
+    },
+    {
+      "type": "para",
+      "text": "Here's a JUnit test for the `TransactionService`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass TransactionServiceTest {\n\n    @Mock\n    private TransactionSender sender;\n\n    @Mock\n    private MessageCreator creator;\n\n    private TransactionService service;\n\n    @BeforeEach\n    void setUp() {\n        service = new TransactionService(sender, creator);\n    }\n\n    @Test\n    void testPerformAuthorization() throws Exception {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        \n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");\n\n        when(creator.createAuthorizationRequest(\"1234567890123456\", \"100000\")).thenReturn(request);\n        when(sender.sendTransaction(any(ISOMsg.class))).thenReturn(response);\n\n        // Act\n        ISOMsg result = service.performAuthorization(\"1234567890123456\", \"100000\");\n\n        // Assert\n        assertThat(result.getMTI()).isEqualTo(\"0110\");\n        assertThat(result.getString(39)).isEqualTo(\"00\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This covers the essential aspects of transaction sending in a jPOS client implementation. The combination of QMUX, MUX, and proper message creation allows for efficient and reliable ISO-8583 message transmission."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 10,
+    "paras": 10,
+    "code": 6,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "76f4167953c3c81e748b2cbd061c92a5d9564adcecacb93d6e3eccda7c0480a4"
+}

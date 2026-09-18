@@ -1,0 +1,202 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Logging and Debugging",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "8. Logging and Debugging in jPOS Server"
+    },
+    {
+      "type": "para",
+      "text": "Logging and debugging are essential components of any robust jPOS server implementation. jPOS provides powerful logging capabilities through its built-in logging framework. Let's dive into the details and see how to implement effective logging and debugging in a jPOS server."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.1 jPOS Logging Framework"
+    },
+    {
+      "type": "para",
+      "text": "jPOS uses its own logging framework, which is flexible and can be integrated with other logging systems like Log4j or SLF4J. The main classes involved in jPOS logging are:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`org.jpos.util.Logger`",
+        "`org.jpos.util.LogEvent`",
+        "`org.jpos.util.LogListener`"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.1 Setting up the Logger"
+    },
+    {
+      "type": "para",
+      "text": "First, let's set up a basic logger in our jPOS server:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class JposServer {\n    private Logger logger;\n\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n    }\n\n    // Other server methods...\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.2 Creating Log Events"
+    },
+    {
+      "type": "para",
+      "text": "Now that we have a logger, we can create and log events:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.LogEvent;\n\npublic class JposServer {\n    // ... previous code ...\n\n    public void processTransaction(ISOMsg msg) {\n        LogEvent ev = new LogEvent(this, \"transaction.process\");\n        try {\n            ev.addMessage(\"Processing transaction: \" + msg.getMTI());\n            // Process the transaction\n            // ...\n            ev.addMessage(\"Transaction processed successfully\");\n        } catch (Exception e) {\n            ev.addMessage(e);\n        } finally {\n            logger.log(ev);\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.2 Implementing Custom LogListener"
+    },
+    {
+      "type": "para",
+      "text": "While the `SimpleLogListener` is useful for basic logging, you might want to create a custom `LogListener` for more advanced logging needs:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\npublic class CustomLogListener implements LogListener {\n    @Override\n    public LogEvent log(LogEvent ev) {\n        StringBuilder sb = new StringBuilder();\n        sb.append(new Date()).append(\" - \");\n        sb.append(ev.getSource()).append(\" - \");\n        sb.append(ev.getTag()).append(\": \");\n        \n        for (Object msg : ev.getPayLoad()) {\n            sb.append(msg.toString()).append(\"\\n\");\n        }\n        \n        System.out.println(sb.toString());\n        return ev;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's use this custom log listener in our server:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class JposServer {\n    private Logger logger;\n\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new CustomLogListener());\n    }\n\n    // Other server methods...\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.3 Integration with Spring Framework"
+    },
+    {
+      "type": "para",
+      "text": "If you're using Spring Framework with jPOS, you can configure logging through Spring configuration:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"logger\" class=\"org.jpos.util.Logger\" init-method=\"addListener\">\n    <constructor-arg>\n        <bean class=\"org.jpos.util.SimpleLogListener\">\n            <constructor-arg value=\"System.out\"/>\n        </bean>\n    </constructor-arg>\n</bean>"
+    },
+    {
+      "type": "para",
+      "text": "Then, you can inject this logger into your Spring-managed beans:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class TransactionService {\n    @Autowired\n    private Logger logger;\n\n    public void processTransaction(ISOMsg msg) {\n        LogEvent ev = new LogEvent(this, \"transaction.process\");\n        // ... logging logic ...\n        logger.log(ev);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.4 Debugging Techniques"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.4.1 Using LogEvent for Debugging"
+    },
+    {
+      "type": "para",
+      "text": "You can use `LogEvent` to add debug information:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public void debugTransaction(ISOMsg msg) {\n    LogEvent ev = new LogEvent(this, \"transaction.debug\");\n    ev.addMessage(\"Transaction details:\");\n    ev.addMessage(\"MTI: \" + msg.getMTI());\n    ev.addMessage(\"PAN: \" + msg.getString(2));\n    ev.addMessage(\"Amount: \" + msg.getString(4));\n    logger.log(ev);\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.4.2 Implementing a Debug Mode"
+    },
+    {
+      "type": "para",
+      "text": "You can implement a debug mode in your server:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class JposServer {\n    private boolean debugMode = false;\n\n    public void setDebugMode(boolean debug) {\n        this.debugMode = debug;\n        if (debug) {\n            logger.addListener(new VerboseLogListener());\n        } else {\n            logger.removeListener(\"org.jpos.util.VerboseLogListener\");\n        }\n    }\n\n    public void processTransaction(ISOMsg msg) {\n        if (debugMode) {\n            debugTransaction(msg);\n        }\n        // Normal processing...\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.5 Log Rotation and Management"
+    },
+    {
+      "type": "para",
+      "text": "For production environments, it's crucial to manage log files effectively. jPOS provides a `RotateLogListener` for this purpose:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.util.RotateLogListener;\n\npublic class JposServer {\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new RotateLogListener(\"logs/server.log\"));\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This will create log files like `server.log`, `server.log.1`, `server.log.2`, etc., rotating them based on size or time."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.6 Unit Testing with Logging"
+    },
+    {
+      "type": "para",
+      "text": "When unit testing your jPOS server components, you can use a special log listener to capture log events for assertions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.junit.jupiter.api.Test;\nimport org.jpos.util.Logger;\nimport org.jpos.util.LogEvent;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class JposServerTest {\n\n    private static class TestLogListener implements LogListener {\n        private List<LogEvent> events = new ArrayList<>();\n\n        @Override\n        public LogEvent log(LogEvent ev) {\n            events.add(ev);\n            return ev;\n        }\n\n        public List<LogEvent> getEvents() {\n            return events;\n        }\n    }\n\n    @Test\n    public void testTransactionLogging() {\n        JposServer server = new JposServer();\n        TestLogListener testListener = new TestLogListener();\n        server.getLogger().addListener(testListener);\n\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        server.processTransaction(msg);\n\n        assertThat(testListener.getEvents())\n            .hasSize(1)\n            .allSatisfy(event -> {\n                assertThat(event.getTag()).isEqualTo(\"transaction.process\");\n                assertThat(event.getPayLoad().toString()).contains(\"Processing transaction: 0200\");\n            });\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This concludes the coverage of section 8 on Logging and Debugging in jPOS Server implementation. Effective logging and debugging are crucial for maintaining and troubleshooting jPOS applications, especially in production environments where quick issue resolution is essential."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 11,
+    "paras": 14,
+    "code": 10,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "ec5cd5abcb538ed11b042afd1349798f2ea3746ee27e9ffb56ae061b8f08d7ed"
+}

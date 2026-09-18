@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Connection Management",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "11. Connection Management"
+    },
+    {
+      "type": "para",
+      "text": "Connection management is crucial for maintaining efficient and reliable communication between the client and server in ISO-8583 message processing. In jPOS, connection management is primarily handled through the `ISOClientSocketFactory` interface and its implementations."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.1 Overview of ISOClientSocketFactory"
+    },
+    {
+      "type": "para",
+      "text": "The `ISOClientSocketFactory` is an interface in jPOS that defines methods for creating and managing socket connections. It allows for customization of socket creation, including setting up SSL/TLS connections, connection pooling, and handling reconnection attempts."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.2 Key Features of Connection Management"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Connection Pooling: Reuse existing connections to reduce overhead.",
+        "Reconnection Strategies: Automatically attempt to reconnect in case of network failures.",
+        "SSL/TLS Support: Secure communication between client and server.",
+        "Timeout Handling: Manage connection and read timeouts."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.3 Implementing Connection Management"
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a custom `ISOClientSocketFactory` that includes connection pooling and reconnection strategies. We'll use Apache Commons Pool for connection pooling."
+    },
+    {
+      "type": "para",
+      "text": "First, add the necessary dependencies to your `pom.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<dependency>\n    <groupId>org.apache.commons</groupId>\n    <artifactId>commons-pool2</artifactId>\n    <version>2.11.1</version>\n</dependency>"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create our custom `PooledISOClientSocketFactory`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.isoclient.connection;\n\nimport org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.apache.commons.pool2.impl.GenericObjectPoolConfig;\nimport org.jpos.iso.ISOClientSocketFactory;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\nimport java.io.IOException;\nimport java.net.Socket;\n\n@Component\npublic class PooledISOClientSocketFactory implements ISOClientSocketFactory {\n\n    private final GenericObjectPool<Socket> socketPool;\n\n    public PooledISOClientSocketFactory() {\n        GenericObjectPoolConfig<Socket> config = new GenericObjectPoolConfig<>();\n        config.setMaxTotal(10);\n        config.setMaxIdle(5);\n        config.setMinIdle(2);\n        config.setTestOnBorrow(true);\n        config.setTestOnReturn(true);\n        config.setTestWhileIdle(true);\n        config.setMinEvictableIdleTimeMillis(60000);\n        config.setTimeBetweenEvictionRunsMillis(30000);\n\n        socketPool = new GenericObjectPool<>(new SocketFactory(), config);\n    }\n\n    @Override\n    public Socket createSocket(String host, int port) throws IOException {\n        try {\n            return socketPool.borrowObject();\n        } catch (Exception e) {\n            throw new IOException(\"Failed to create socket\", e);\n        }\n    }\n\n    @Override\n    public void setLogger(org.jpos.util.Logger logger, String realm) {\n        // Implementation for logging if needed\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        // Implementation for configuration if needed\n    }\n\n    private class SocketFactory extends BasePooledObjectFactory<Socket> {\n\n        @Override\n        public Socket create() throws Exception {\n            // Replace with actual host and port\n            return new Socket(\"iso.example.com\", 8583);\n        }\n\n        @Override\n        public PooledObject<Socket> wrap(Socket socket) {\n            return new DefaultPooledObject<>(socket);\n        }\n\n        @Override\n        public boolean validateObject(PooledObject<Socket> p) {\n            Socket socket = p.getObject();\n            return socket.isConnected() && !socket.isClosed();\n        }\n\n        @Override\n        public void destroyObject(PooledObject<Socket> p) throws Exception {\n            Socket socket = p.getObject();\n            if (!socket.isClosed()) {\n                socket.close();\n            }\n        }\n    }\n\n    // Method to close the pool when shutting down the application\n    public void closePool() {\n        socketPool.close();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation uses Apache Commons Pool to manage a pool of Socket objects. It includes features like:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Connection pooling with configurable pool size and idle connections.",
+        "Validation of connections before borrowing and after returning to the pool.",
+        "Periodic eviction of idle connections."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "To use this `PooledISOClientSocketFactory` in your jPOS client configuration, you can create a Spring configuration class:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.isoclient.config;\n\nimport com.example.isoclient.connection.PooledISOClientSocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.iso.QMUX;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOClientConfig {\n\n    @Bean\n    public NACChannel nacChannel(PooledISOClientSocketFactory socketFactory) {\n        NACChannel channel = new NACChannel();\n        channel.setSocketFactory(socketFactory);\n        channel.setHost(\"iso.example.com\");\n        channel.setPort(8583);\n        return channel;\n    }\n\n    @Bean\n    public QMUX qmux(NACChannel channel) {\n        QMUX qmux = new QMUX();\n        qmux.setInQueue(\"tx-request\");\n        qmux.setOutQueue(\"tx-response\");\n        qmux.addChannel(channel);\n        return qmux;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This configuration sets up a `NACChannel` using our custom `PooledISOClientSocketFactory` and configures a `QMUX` for handling ISO messages."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.4 Testing the Connection Management"
+    },
+    {
+      "type": "para",
+      "text": "To test our connection management implementation, we can create a JUnit test:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.isoclient.connection;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.iso.QMUX;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.test.context.junit.jupiter.SpringExtension;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@ExtendWith(SpringExtension.class)\n@SpringBootTest\npublic class ConnectionManagementTest {\n\n    @Autowired\n    private QMUX qmux;\n\n    @Autowired\n    private NACChannel channel;\n\n    @Autowired\n    private PooledISOClientSocketFactory socketFactory;\n\n    @BeforeEach\n    public void setup() throws Exception {\n        channel.connect();\n    }\n\n    @Test\n    public void testConnectionPooling() throws Exception {\n        // Simulate multiple requests\n        for (int i = 0; i < 5; i++) {\n            ISOMsg request = new ISOMsg();\n            request.setMTI(\"0800\");\n            request.set(11, String.format(\"%06d\", i));  // Stan\n\n            ISOMsg response = qmux.request(request, 30000);  // 30 seconds timeout\n\n            assertThat(response).isNotNull();\n            assertThat(response.getMTI()).isEqualTo(\"0810\");\n            assertThat(response.getString(39)).isEqualTo(\"00\");  // Assuming \"00\" is a successful response\n        }\n    }\n\n    // Add more tests as needed\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test simulates multiple requests to verify that the connection pooling is working correctly. You may need to adjust the test based on your specific ISO-8583 message format and expected responses."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.5 Considerations and Best Practices"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Error Handling: Implement robust error handling for network issues, timeouts, and other potential problems.",
+        "Monitoring: Add logging and metrics to monitor the health and performance of your connection pool.",
+        "Configuration: Make pool settings configurable through external configuration files.",
+        "SSL/TLS: If using secure connections, implement proper SSL/TLS handling in the socket factory.",
+        "Reconnection Strategy: Implement a reconnection strategy for handling network failures."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "By implementing effective connection management, you can improve the reliability and efficiency of your ISO-8583 client application. The pooled connection approach helps in reusing connections, reducing the overhead of creating new connections for each request, and managing the number of open connections to the server."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 6,
+    "paras": 11,
+    "code": 4,
+    "tables": 0,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "c9858fa76ce2b0e7d58082e928c340b122267c1d6fabd7a92faf704df6b2c86f"
+}

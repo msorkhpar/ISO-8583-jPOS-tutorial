@@ -1,0 +1,109 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Visa and Mastercard Specific Requests",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "5. Visa and Mastercard Specific Requests"
+    },
+    {
+      "type": "para",
+      "text": "When implementing a jPOS client for processing Visa and Mastercard transactions, it's crucial to create custom services that handle the specific requirements of each card network. These services will encapsulate the logic for creating and sending ISO-8583 messages tailored to Visa and Mastercard specifications."
+    },
+    {
+      "type": "para",
+      "text": "Let's create two services: one for Visa and one for Mastercard. Each service will handle common transaction types such as purchases, cash advances, refunds, and balance inquiries."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.1 Visa Transaction Service"
+    },
+    {
+      "type": "para",
+      "text": "First, let's create an interface for our Visa transaction service:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic interface VisaTransactionService {\n    ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException;\n    ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException;\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's implement this interface:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.service.impl;\n\nimport com.example.jpos.service.VisaTransactionService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\n@Service\npublic class VisaTransactionServiceImpl implements VisaTransactionService {\n\n    private static final String VISA_MTI_REQUEST = \"0100\";\n    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    @Override\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"000000\"); // Processing code for purchase\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"010000\"); // Processing code for cash advance\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"200000\"); // Processing code for refund\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(37, originalRrn); // Retrieval Reference Number of the original transaction\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"300000\"); // Processing code for balance inquiry\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    private String generateStan() {\n        // Generate a unique 6-digit STAN (System Trace Audit Number)\n        return String.format(\"%06d\", (int) (Math.random() * 999999));\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.2 Mastercard Transaction Service"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a similar service for Mastercard transactions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic interface MastercardTransactionService {\n    ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException;\n    ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException;\n}"
+    },
+    {
+      "type": "para",
+      "text": "And its implementation:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.service.impl;\n\nimport com.example.jpos.service.MastercardTransactionService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\n@Service\npublic class MastercardTransactionServiceImpl implements MastercardTransactionService {\n\n    private static final String MASTERCARD_MTI_REQUEST = \"0100\";\n    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    @Override\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"000000\"); // Processing code for purchase\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000001\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"010000\"); // Processing code for cash advance\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000002\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"200000\"); // Processing code for refund\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(37, originalRrn); // Retrieval Reference Number of the original transaction\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000003\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"300000\"); // Processing code for balance inquiry\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000004\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    private String generateStan() {\n        // Generate a unique 6-digit STAN (System Trace Audit Number)\n        return String.format(\"%06d\", (int) (Math.random() * 999999));\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.3 Using the Transaction Services"
+    },
+    {
+      "type": "para",
+      "text": "To use these services in your application, you can inject them into your controllers or other services. Here's an example of how you might use them in a transaction processing service:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionProcessingService {\n\n    @Autowired\n    private VisaTransactionService visaService;\n\n    @Autowired\n    private MastercardTransactionService mastercardService;\n\n    @Autowired\n    private MUX mux;\n\n    public ISOMsg processPurchase(String pan, String amount, String merchantId, String cardNetwork) throws ISOException {\n        ISOMsg request;\n        if (\"visa\".equalsIgnoreCase(cardNetwork)) {\n            request = visaService.createPurchaseRequest(pan, amount, merchantId);\n        } else if (\"mastercard\".equalsIgnoreCase(cardNetwork)) {\n            request = mastercardService.createPurchaseRequest(pan, amount, merchantId);\n        } else {\n            throw new IllegalArgumentException(\"Unsupported card network: \" + cardNetwork);\n        }\n\n        return mux.request(request, 30000); // 30 seconds timeout\n    }\n\n    // Similar methods for cash advance, refund, and balance inquiry\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation provides a clean separation of concerns, making it easy to handle the specific requirements of each card network while providing a unified interface for transaction processing."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 4,
+    "paras": 8,
+    "code": 5,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "472881c6d9f6a699870e678507a2405973154cce76c3a2b40970978bc7bb1d31"
+}

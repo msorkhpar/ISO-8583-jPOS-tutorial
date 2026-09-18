@@ -1,0 +1,159 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Error Handling and Response Codes",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9. Error Handling and Response Codes"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "9.1. Common response codes"
+    },
+    {
+      "type": "para",
+      "text": "Response codes are typically found in Field 39 of the ISO-8583 message. They are usually two-character codes that indicate the result of a transaction. Let's look at some common categories:"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.1.1. Approval codes"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`00`: Approved or completed successfully",
+        "`10`: Partial approval (for partial amount)",
+        "`85`: No reason to decline"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.1.2. Decline codes"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`05`: Do not honor",
+        "`14`: Invalid card number",
+        "`51`: Insufficient funds",
+        "`54`: Expired card",
+        "`57`: Transaction not permitted to cardholder",
+        "`61`: Exceeds withdrawal amount limit",
+        "`65`: Exceeds withdrawal frequency limit"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.1.3. Referral codes"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`01`: Refer to card issuer",
+        "`02`: Refer to card issuer, special condition"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "9.2. Error scenarios and handling"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.2.1. Network errors"
+    },
+    {
+      "type": "para",
+      "text": "These are typically issues related to connectivity or timeouts. They should be handled gracefully, often by retrying the transaction or notifying the user to try again later."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.2.2. Format errors"
+    },
+    {
+      "type": "para",
+      "text": "These occur when the message structure is incorrect or contains invalid data. They should be logged for debugging and may require code fixes."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "9.2.3. Security errors"
+    },
+    {
+      "type": "para",
+      "text": "These are related to encryption, authentication, or other security measures. They should be treated with high priority and may require immediate action."
+    },
+    {
+      "type": "para",
+      "text": "Now, let's implement a simple error handling system using jPOS and Spring. We'll create a service that processes transactions and handles various error scenarios."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n@Service\npublic class TransactionService {\n\n    private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);\n\n    public void processTransaction(ISOMsg msg) {\n        try {\n            // Simulate processing\n            String responseCode = processISOMessage(msg);\n            handleResponseCode(responseCode);\n        } catch (ISOException e) {\n            logger.error(\"ISO Exception occurred\", e);\n            handleFormatError(e);\n        } catch (NetworkException e) {\n            logger.error(\"Network error occurred\", e);\n            handleNetworkError(e);\n        } catch (SecurityException e) {\n            logger.error(\"Security error occurred\", e);\n            handleSecurityError(e);\n        }\n    }\n\n    private String processISOMessage(ISOMsg msg) throws ISOException, NetworkException, SecurityException {\n        // Simulated processing logic\n        String mti = msg.getMTI();\n        if (\"0100\".equals(mti) || \"0200\".equals(mti)) {\n            // Simulate a random response\n            return generateRandomResponseCode();\n        }\n        throw new ISOException(\"Unsupported MTI: \" + mti);\n    }\n\n    private String generateRandomResponseCode() {\n        String[] codes = {\"00\", \"05\", \"51\", \"54\", \"91\"};\n        return codes[(int) (Math.random() * codes.length)];\n    }\n\n    private void handleResponseCode(String responseCode) {\n        switch (responseCode) {\n            case \"00\":\n                logger.info(\"Transaction approved\");\n                break;\n            case \"05\":\n                logger.warn(\"Transaction declined: Do not honor\");\n                break;\n            case \"51\":\n                logger.warn(\"Transaction declined: Insufficient funds\");\n                break;\n            case \"54\":\n                logger.warn(\"Transaction declined: Expired card\");\n                break;\n            default:\n                logger.warn(\"Transaction declined: Unknown reason\");\n        }\n    }\n\n    private void handleFormatError(ISOException e) {\n        logger.error(\"Format error in ISO message\", e);\n        // Implement logic to notify developers or log for debugging\n    }\n\n    private void handleNetworkError(NetworkException e) {\n        logger.error(\"Network error occurred\", e);\n        // Implement retry logic or notify user to try again later\n    }\n\n    private void handleSecurityError(SecurityException e) {\n        logger.error(\"Security error occurred\", e);\n        // Implement logic to notify security team and possibly halt transactions\n    }\n}\n\nclass NetworkException extends Exception {\n    public NetworkException(String message) {\n        super(message);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a simple test for our `TransactionService`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.slf4j.Logger;\n\nimport static org.mockito.Mockito.*;\n\n@ExtendWith(MockitoExtension.class)\npublic class TransactionServiceTest {\n\n    @InjectMocks\n    private TransactionService transactionService;\n\n    @Mock\n    private Logger logger;\n\n    private ISOMsg mockMsg;\n\n    @BeforeEach\n    void setUp() throws ISOException {\n        mockMsg = mock(ISOMsg.class);\n        when(mockMsg.getMTI()).thenReturn(\"0100\");\n    }\n\n    @Test\n    void testProcessTransaction_Approved() throws ISOException {\n        transactionService.processTransaction(mockMsg);\n        verify(logger, atLeastOnce()).info(contains(\"Transaction approved\"));\n    }\n\n    @Test\n    void testProcessTransaction_Declined() throws ISOException {\n        transactionService.processTransaction(mockMsg);\n        verify(logger, atLeastOnce()).warn(contains(\"Transaction declined\"));\n    }\n\n    @Test\n    void testProcessTransaction_FormatError() throws ISOException {\n        when(mockMsg.getMTI()).thenThrow(new ISOException(\"Invalid MTI\"));\n        transactionService.processTransaction(mockMsg);\n        verify(logger).error(eq(\"Format error in ISO message\"), any(ISOException.class));\n    }\n\n    @Test\n    void testProcessTransaction_NetworkError() throws ISOException {\n        when(mockMsg.getMTI()).thenThrow(new NetworkException(\"Connection timeout\"));\n        transactionService.processTransaction(mockMsg);\n        verify(logger).error(eq(\"Network error occurred\"), any(NetworkException.class));\n    }\n\n    @Test\n    void testProcessTransaction_SecurityError() throws ISOException {\n        when(mockMsg.getMTI()).thenThrow(new SecurityException(\"Invalid encryption\"));\n        transactionService.processTransaction(mockMsg);\n        verify(logger).error(eq(\"Security error occurred\"), any(SecurityException.class));\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation and test suite demonstrate how to handle various error scenarios in an ISO-8583 transaction processing system:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "We've created a `TransactionService` that simulates processing an ISO message and handling different response codes.",
+        "The service also handles different types of exceptions that might occur during processing.",
+        "We've implemented logging for different scenarios to ensure proper tracking and debugging.",
+        "The test suite covers various scenarios including successful transactions, declined transactions, and different types of errors."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "In a real-world scenario, you would expand on this basic structure to include more detailed error handling, possibly integrating with a monitoring system, implementing retry mechanisms for certain types of errors, and providing more detailed feedback to the user or calling system."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 9,
+    "paras": 8,
+    "code": 2,
+    "tables": 0,
+    "lists": 4,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "775b6511ea065ff6833eaa4563ea8c843479ca37ea0598772ca3bbe997e64848"
+}

@@ -1,0 +1,230 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Message Type Indicators (MTIs)",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4. Message Type Indicators (MTIs)"
+    },
+    {
+      "type": "para",
+      "text": "Message Type Indicators (MTIs) are four-digit codes that define the purpose and overall function of an ISO-8583 message. They are crucial in determining how a message should be processed."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.1. Authorization messages"
+    },
+    {
+      "type": "para",
+      "text": "Authorization messages are used to request and respond to transaction authorizations."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.1.1. 0100: Authorization Request"
+    },
+    {
+      "type": "para",
+      "text": "This message is sent from the acquirer to the issuer to request authorization for a transaction."
+    },
+    {
+      "type": "para",
+      "text": "Example of creating an authorization request using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class AuthorizationRequestCreator {\n    public ISOMsg createAuthorizationRequest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"4111111111111111\"); // PAN\n        msg.set(3, \"000000\"); // Processing Code (Purchase)\n        msg.set(4, \"000000012345\"); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, \"123456\"); // STAN\n        msg.set(22, \"051\"); // POS Entry Mode\n        msg.set(25, \"00\"); // POS Condition Code\n        msg.set(41, \"12345678\"); // Card Acceptor Terminal ID\n        msg.set(42, \"MERCHANT123456\"); // Card Acceptor ID Code\n        msg.set(49, \"840\"); // Currency Code (USD)\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.1.2. 0110: Authorization Response"
+    },
+    {
+      "type": "para",
+      "text": "This message is the issuer's response to an authorization request."
+    },
+    {
+      "type": "para",
+      "text": "Example of handling an authorization response:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class AuthorizationResponseHandler {\n    public void handleAuthorizationResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Authorization approved\");\n            String authCode = response.getString(38);\n            System.out.println(\"Authorization code: \" + authCode);\n        } else {\n            System.out.println(\"Authorization declined\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.2. Financial messages"
+    },
+    {
+      "type": "para",
+      "text": "Financial messages are used for actual monetary transactions."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.2.1. 0200: Financial Request"
+    },
+    {
+      "type": "para",
+      "text": "This message is used to request a financial transaction, such as a purchase or cash withdrawal."
+    },
+    {
+      "type": "para",
+      "text": "Example of creating a financial request:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class FinancialRequestCreator {\n    public ISOMsg createFinancialRequest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        msg.set(2, \"4111111111111111\"); // PAN\n        msg.set(3, \"000000\"); // Processing Code (Purchase)\n        msg.set(4, \"000000012345\"); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, \"123456\"); // STAN\n        msg.set(22, \"051\"); // POS Entry Mode\n        msg.set(25, \"00\"); // POS Condition Code\n        msg.set(41, \"12345678\"); // Card Acceptor Terminal ID\n        msg.set(42, \"MERCHANT123456\"); // Card Acceptor ID Code\n        msg.set(49, \"840\"); // Currency Code (USD)\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.2.2. 0210: Financial Response"
+    },
+    {
+      "type": "para",
+      "text": "This message is the response to a financial request, indicating whether the transaction was successful."
+    },
+    {
+      "type": "para",
+      "text": "Example of handling a financial response:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class FinancialResponseHandler {\n    public void handleFinancialResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Transaction approved\");\n            String authCode = response.getString(38);\n            System.out.println(\"Authorization code: \" + authCode);\n        } else {\n            System.out.println(\"Transaction declined\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.3. Reversal messages"
+    },
+    {
+      "type": "para",
+      "text": "Reversal messages are used to undo or correct previous transactions."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.3.1. 0400: Reversal Request"
+    },
+    {
+      "type": "para",
+      "text": "This message is sent to request the reversal of a previous transaction."
+    },
+    {
+      "type": "para",
+      "text": "Example of creating a reversal request:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ReversalRequestCreator {\n    public ISOMsg createReversalRequest(ISOMsg originalMsg) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0400\");\n        msg.set(2, originalMsg.getString(2)); // PAN\n        msg.set(3, originalMsg.getString(3)); // Processing Code\n        msg.set(4, originalMsg.getString(4)); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, originalMsg.getString(11)); // STAN\n        msg.set(37, originalMsg.getString(37)); // Retrieval Reference Number\n        msg.set(41, originalMsg.getString(41)); // Card Acceptor Terminal ID\n        msg.set(42, originalMsg.getString(42)); // Card Acceptor ID Code\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.3.2. 0410: Reversal Response"
+    },
+    {
+      "type": "para",
+      "text": "This message is the response to a reversal request."
+    },
+    {
+      "type": "para",
+      "text": "Example of handling a reversal response:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ReversalResponseHandler {\n    public void handleReversalResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Reversal approved\");\n        } else {\n            System.out.println(\"Reversal failed\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.4. Network management messages"
+    },
+    {
+      "type": "para",
+      "text": "Network management messages are used for administrative purposes between systems."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.4.1. 0800: Network Management Request"
+    },
+    {
+      "type": "para",
+      "text": "This message is used for various network management functions, such as echo tests or sign-on requests."
+    },
+    {
+      "type": "para",
+      "text": "Example of creating a network management request (echo test):"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class NetworkManagementRequestCreator {\n    public ISOMsg createEchoTest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0800\");\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, ISOUtil.zeropad(String.valueOf(System.currentTimeMillis() % 1000000), 6)); // STAN\n        msg.set(70, \"301\"); // Network Management Information Code (Echo Test)\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "4.4.2. 0810: Network Management Response"
+    },
+    {
+      "type": "para",
+      "text": "This message is the response to a network management request."
+    },
+    {
+      "type": "para",
+      "text": "Example of handling a network management response:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class NetworkManagementResponseHandler {\n    public void handleNetworkManagementResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Network management request successful\");\n            String networkManagementCode = response.getString(70);\n            System.out.println(\"Network Management Code: \" + networkManagementCode);\n        } else {\n            System.out.println(\"Network management request failed\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "To tie all of these concepts together, here's an example of a simple ISO-8583 message processor that can handle different MTIs:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ISO8583MessageProcessor {\n    public void processMessage(ISOMsg msg) throws ISOException {\n        String mti = msg.getMTI();\n        switch (mti) {\n            case \"0100\":\n                processAuthorizationRequest(msg);\n                break;\n            case \"0110\":\n                processAuthorizationResponse(msg);\n                break;\n            case \"0200\":\n                processFinancialRequest(msg);\n                break;\n            case \"0210\":\n                processFinancialResponse(msg);\n                break;\n            case \"0400\":\n                processReversalRequest(msg);\n                break;\n            case \"0410\":\n                processReversalResponse(msg);\n                break;\n            case \"0800\":\n                processNetworkManagementRequest(msg);\n                break;\n            case \"0810\":\n                processNetworkManagementResponse(msg);\n                break;\n            default:\n                System.out.println(\"Unsupported MTI: \" + mti);\n        }\n    }\n\n    private void processAuthorizationRequest(ISOMsg msg) throws ISOException {\n        // Process authorization request\n    }\n\n    private void processAuthorizationResponse(ISOMsg msg) throws ISOException {\n        // Process authorization response\n    }\n\n    private void processFinancialRequest(ISOMsg msg) throws ISOException {\n        // Process financial request\n    }\n\n    private void processFinancialResponse(ISOMsg msg) throws ISOException {\n        // Process financial response\n    }\n\n    private void processReversalRequest(ISOMsg msg) throws ISOException {\n        // Process reversal request\n    }\n\n    private void processReversalResponse(ISOMsg msg) throws ISOException {\n        // Process reversal response\n    }\n\n    private void processNetworkManagementRequest(ISOMsg msg) throws ISOException {\n        // Process network management request\n    }\n\n    private void processNetworkManagementResponse(ISOMsg msg) throws ISOException {\n        // Process network management response\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 13,
+    "paras": 22,
+    "code": 9,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "119fec812ae12b52363c9fe65d5f067dbf13a817996502fab7f19331ff43fc08"
+}

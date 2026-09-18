@@ -1,0 +1,221 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Security and Encryption",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "8. Security and Encryption"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.1. PIN block formats"
+    },
+    {
+      "type": "para",
+      "text": "PIN (Personal Identification Number) encryption is a critical security measure in financial transactions. PIN blocks are used to securely transmit PINs across networks. There are several PIN block formats, but we'll focus on the most common ones:"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.1. ISO Format 0 (Zero)"
+    },
+    {
+      "type": "para",
+      "text": "This is the most widely used format."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Structure: `0 || PIN length || PIN || Padding`",
+        "The PIN is left-justified and padded with 'F'",
+        "Example: For PIN \"1234\", the block would be \"041234FFFFFFFFFF\""
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.2. ISO Format 1"
+    },
+    {
+      "type": "para",
+      "text": "This format incorporates the PAN (Primary Account Number) for added security."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Structure: `1 || PIN length || PIN ⊕ PAN || Padding`",
+        "The PIN is XORed with the rightmost 12 digits of the PAN",
+        "Example: For PIN \"1234\" and PAN \"1234567890123456\", the block might be \"141234567890FFFF\""
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.1.3. ISO Format 3"
+    },
+    {
+      "type": "para",
+      "text": "This format is similar to Format 0 but uses a different padding method."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Structure: `3 || PIN length || PIN || Random padding`",
+        "The PIN is left-justified and padded with random digits",
+        "Example: For PIN \"1234\", the block could be \"341234987654321\""
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a PIN block generator for these formats using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOUtil;\nimport org.jpos.security.SMException;\n\npublic class PINBlockGenerator {\n\n    public static String generateFormat0(String pin) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"0\");\n        block.append(String.format(\"%01d\", pin.length()));\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(\"F\");\n        }\n        return block.toString();\n    }\n\n    public static String generateFormat1(String pin, String pan) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        if (pan.length() < 13 || pan.length() > 19) {\n            throw new SMException(\"PAN must be between 13 and 19 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"1\");\n        block.append(String.format(\"%01d\", pin.length()));\n        \n        String panPart = pan.substring(pan.length() - 13, pan.length() - 1);\n        String pinPadded = String.format(\"%-12s\", pin).replace(' ', 'F');\n        \n        byte[] xoredPart = ISOUtil.xor(pinPadded.getBytes(), panPart.getBytes());\n        block.append(ISOUtil.hexString(xoredPart));\n        \n        return block.toString();\n    }\n\n    public static String generateFormat3(String pin) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"3\");\n        block.append(String.format(\"%01d\", pin.length()));\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(String.valueOf((int) (Math.random() * 10)));\n        }\n        return block.toString();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.2. Key management"
+    },
+    {
+      "type": "para",
+      "text": "Key management is crucial for maintaining the security of encrypted communications. There are typically three types of keys used in ISO-8583 implementations:"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.2.1. Master keys"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Also known as Key Encryption Keys (KEKs)",
+        "Used to encrypt other keys",
+        "Typically distributed manually or through a secure out-of-band method"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.2.2. Session keys"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Temporary keys used for a single session or a limited time",
+        "Generated and exchanged using the master key",
+        "Provide forward secrecy, as compromising one session key doesn't compromise past or future sessions"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.2.3. Working keys"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Used for actual data encryption (e.g., PIN encryption)",
+        "Often derived from session keys"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a basic key management system using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.security.SimpleKeyFile;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\nimport javax.crypto.KeyGenerator;\nimport javax.crypto.SecretKey;\nimport java.security.NoSuchAlgorithmException;\n\npublic class KeyManager {\n    private final SMAdapter sm;\n    private final SecureKeyStore ks;\n\n    public KeyManager() throws Exception {\n        Logger logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n\n        ks = new SimpleKeyFile(\"keystore.ks\");\n        sm = new JCESecurityModule(\"jce\", logger);\n    }\n\n    public SecretKey generateMasterKey() throws NoSuchAlgorithmException {\n        KeyGenerator keyGen = KeyGenerator.getInstance(\"DES\");\n        keyGen.init(168); // Use Triple DES (112-bit) key\n        return keyGen.generateKey();\n    }\n\n    public SecretKey generateSessionKey() throws NoSuchAlgorithmException {\n        KeyGenerator keyGen = KeyGenerator.getInstance(\"DES\");\n        keyGen.init(56); // Use single DES key for session\n        return keyGen.generateKey();\n    }\n\n    public byte[] encryptSessionKey(SecretKey masterKey, SecretKey sessionKey) throws Exception {\n        return sm.encryptKey(masterKey, sessionKey);\n    }\n\n    public SecretKey decryptSessionKey(SecretKey masterKey, byte[] encryptedSessionKey) throws Exception {\n        return sm.decryptKey(masterKey, encryptedSessionKey, \"DES\");\n    }\n\n    public void storeMasterKey(String alias, SecretKey masterKey) throws Exception {\n        ks.setKey(alias, masterKey);\n    }\n\n    public SecretKey retrieveMasterKey(String alias) throws Exception {\n        return (SecretKey) ks.getKey(alias);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.3. Secure messaging"
+    },
+    {
+      "type": "para",
+      "text": "Secure messaging ensures the integrity and confidentiality of ISO-8583 messages."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.3.1. MAC (Message Authentication Code)"
+    },
+    {
+      "type": "para",
+      "text": "MAC is used to verify the integrity of the message and authenticate the sender."
+    },
+    {
+      "type": "para",
+      "text": "Let's implement MAC generation and verification:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOUtil;\n\nimport javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\nimport java.security.InvalidKeyException;\nimport java.security.NoSuchAlgorithmException;\n\npublic class MACGenerator {\n\n    public static byte[] generateMAC(byte[] message, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        Mac mac = Mac.getInstance(\"HmacSHA256\");\n        mac.init(key);\n        return mac.doFinal(message);\n    }\n\n    public static boolean verifyMAC(byte[] message, byte[] receivedMAC, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        byte[] calculatedMAC = generateMAC(message, key);\n        return ISOUtil.equals(calculatedMAC, receivedMAC);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "8.3.2. DUKPT (Derived Unique Key Per Transaction)"
+    },
+    {
+      "type": "para",
+      "text": "DUKPT is a key management scheme that generates a unique key for each transaction, enhancing security."
+    },
+    {
+      "type": "para",
+      "text": "Here's a basic implementation of DUKPT key derivation:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCEHandler;\n\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\nimport java.security.InvalidKeyException;\nimport java.security.NoSuchAlgorithmException;\n\npublic class DUKPTKeyDerivation {\n    private static final byte[] KSN_MASK = ISOUtil.hex2byte(\"FFFFFFFFFFFFFFE00000\");\n    private static final byte[] DATA_MASK = ISOUtil.hex2byte(\"0000000000FF00000000000000000000\");\n\n    public static SecretKey deriveKey(SecretKey bdk, byte[] ksn) throws SMException, NoSuchAlgorithmException, InvalidKeyException {\n        JCEHandler jceHandler = new JCEHandler();\n        \n        // Initial PIN Encryption Key (IPEK)\n        byte[] ipek = jceHandler.encryptDES(bdk, ksn);\n        \n        byte[] derivedKey = ipek;\n        byte[] counter = new byte[3];\n        System.arraycopy(ksn, 7, counter, 0, 3);\n        \n        for (int i = 0; i < 21; i++) {\n            if ((counter[i / 8] & (1 << (i % 8))) != 0) {\n                byte[] ksnRegister = ISOUtil.xor(ksn, KSN_MASK);\n                ksnRegister[7] &= 0xE0;\n                ksnRegister[8] = 0x00;\n                ksnRegister[9] = 0x00;\n                \n                byte[] data = ISOUtil.xor(derivedKey, DATA_MASK);\n                byte[] leftKey = new byte[8];\n                byte[] rightKey = new byte[8];\n                System.arraycopy(derivedKey, 0, leftKey, 0, 8);\n                System.arraycopy(derivedKey, 8, rightKey, 0, 8);\n                \n                byte[] leftData = jceHandler.encryptDES(new SecretKeySpec(leftKey, \"DES\"), data);\n                byte[] rightData = ISOUtil.xor(leftData, rightKey);\n                \n                System.arraycopy(leftData, 0, derivedKey, 0, 8);\n                System.arraycopy(rightData, 0, derivedKey, 8, 8);\n                \n                ksnRegister[i / 8] |= (1 << (i % 8));\n            }\n        }\n        \n        return new SecretKeySpec(derivedKey, \"DES\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This implementation covers the basics of security and encryption in ISO-8583 using jPOS. In a real-world scenario, you would need to integrate these components into your larger application architecture, ensuring proper key storage, rotation, and management practices."
+    },
+    {
+      "type": "para",
+      "text": "Remember that security is critical in financial applications, and it's always recommended to have security experts review your implementation and conduct thorough security audits."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 14,
+    "code": 4,
+    "tables": 0,
+    "lists": 6,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "3481823d83486cc07d47cbd678d2ee2e6ed646bd55fb484d43e9d6973309daac"
+}

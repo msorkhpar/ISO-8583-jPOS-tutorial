@@ -1,0 +1,172 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Testing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "11. Testing in jPOS Server Implementation"
+    },
+    {
+      "type": "para",
+      "text": "Testing is a crucial part of developing a robust jPOS server implementation. It ensures that your ISO-8583 message processing, transaction handling, and integration with other components work as expected. Let's dive into the various aspects of testing a jPOS server."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.1 Unit Testing"
+    },
+    {
+      "type": "para",
+      "text": "Unit tests focus on testing individual components or classes in isolation. For a jPOS server, you'll want to test individual participants, message handlers, and utility classes."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Example: Testing a TransactionParticipant"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a simple TransactionParticipant and test it:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\npublic class AmountValidationParticipant implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Context context) {\n        String amount = (String) context.get(\"amount\");\n        if (amount == null || amount.isEmpty()) {\n            context.put(\"error\", \"Amount is missing\");\n            return ABORTED;\n        }\n        try {\n            double amountValue = Double.parseDouble(amount);\n            if (amountValue <= 0) {\n                context.put(\"error\", \"Amount must be positive\");\n                return ABORTED;\n            }\n        } catch (NumberFormatException e) {\n            context.put(\"error\", \"Invalid amount format\");\n            return ABORTED;\n        }\n        return PREPARED;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // No action needed for this participant\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // No action needed for this participant\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's write a unit test for this participant:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.Context;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport static org.assertj.core.api.Assertions.*;\n\nclass AmountValidationParticipantTest {\n\n    private AmountValidationParticipant participant;\n    private Context context;\n\n    @BeforeEach\n    void setUp() {\n        participant = new AmountValidationParticipant();\n        context = new Context();\n    }\n\n    @Test\n    void testValidAmount() {\n        context.put(\"amount\", \"100.00\");\n        int result = participant.prepare(1L, context);\n        assertThat(result).isEqualTo(TransactionParticipant.PREPARED);\n        assertThat(context.get(\"error\")).isNull();\n    }\n\n    @Test\n    void testMissingAmount() {\n        int result = participant.prepare(1L, context);\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"error\")).isEqualTo(\"Amount is missing\");\n    }\n\n    @Test\n    void testNegativeAmount() {\n        context.put(\"amount\", \"-50.00\");\n        int result = participant.prepare(1L, context);\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"error\")).isEqualTo(\"Amount must be positive\");\n    }\n\n    @Test\n    void testInvalidAmountFormat() {\n        context.put(\"amount\", \"not-a-number\");\n        int result = participant.prepare(1L, context);\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"error\")).isEqualTo(\"Invalid amount format\");\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.2 Integration Testing"
+    },
+    {
+      "type": "para",
+      "text": "Integration tests verify that different components of your jPOS server work together correctly. This includes testing the interaction between participants, channels, and other server components."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Example: Testing a Transaction Flow"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a simple integration test that simulates a transaction flow:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionManager;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport static org.assertj.core.api.Assertions.*;\n\n@SpringBootTest\nclass TransactionFlowIntegrationTest {\n\n    @Autowired\n    private TransactionManager txnManager;\n\n    @Autowired\n    private QMUX mux;\n\n    private Space space;\n\n    @BeforeEach\n    void setUp() throws Exception {\n        space = SpaceFactory.getSpace(\"tspace:default\");\n        \n        // Configure and start QMUX\n        mux.setConfiguration(new SimpleConfiguration());\n        mux.addChannel(\"test-channel\", new NACChannel(\"localhost\", 10000, new GenericPackager(\"packager/iso87ascii.xml\")));\n        mux.start();\n    }\n\n    @Test\n    void testSuccessfulTransaction() throws Exception {\n        // Create a sample ISO message\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000012345\");\n        msg.set(11, \"000001\");\n        msg.set(41, \"12345678\");\n        msg.set(42, \"000000000000001\");\n\n        // Send the message through QMUX\n        ISOMsg response = mux.request(msg, 30000);\n\n        // Verify the response\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0210\");\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n\n        // Check the transaction manager's space for the processed transaction\n        Context ctx = (Context) space.inp(\"$\" + response.getString(11));\n        assertThat(ctx).isNotNull();\n        assertThat(ctx.get(\"txnResult\")).isEqualTo(\"SUCCESS\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This integration test sets up a QMUX, sends a transaction message, and verifies both the response and the transaction manager's processing of the message."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.3 Mock Testing"
+    },
+    {
+      "type": "para",
+      "text": "Mock testing is useful when you want to isolate your tests from external dependencies or simulate specific scenarios. We'll use Mockito for mocking and Wiremock for simulating external services."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Example: Mocking an External Service Call"
+    },
+    {
+      "type": "para",
+      "text": "Let's say we have a participant that calls an external fraud check service. We'll mock this service call:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.springframework.web.client.RestTemplate;\n\npublic class FraudCheckParticipant implements TransactionParticipant {\n    private final RestTemplate restTemplate;\n    private final String fraudCheckUrl;\n\n    public FraudCheckParticipant(RestTemplate restTemplate, String fraudCheckUrl) {\n        this.restTemplate = restTemplate;\n        this.fraudCheckUrl = fraudCheckUrl;\n    }\n\n    @Override\n    public int prepare(long id, Context context) {\n        String cardNumber = (String) context.get(\"cardNumber\");\n        String amount = (String) context.get(\"amount\");\n\n        FraudCheckRequest request = new FraudCheckRequest(cardNumber, amount);\n        FraudCheckResponse response = restTemplate.postForObject(fraudCheckUrl, request, FraudCheckResponse.class);\n\n        if (response.isFraudulent()) {\n            context.put(\"fraudDetected\", true);\n            return ABORTED;\n        }\n\n        return PREPARED;\n    }\n\n    // ... commit and abort methods\n}\n\nclass FraudCheckRequest {\n    private String cardNumber;\n    private String amount;\n\n    // constructor, getters, setters\n}\n\nclass FraudCheckResponse {\n    private boolean fraudulent;\n\n    // constructor, getters, setters\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's write a test using Mockito to mock the RestTemplate:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.transaction.Context;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.mockito.Mock;\nimport org.mockito.MockitoAnnotations;\nimport org.springframework.web.client.RestTemplate;\n\nimport static org.assertj.core.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.*;\nimport static org.mockito.Mockito.*;\n\nclass FraudCheckParticipantTest {\n\n    @Mock\n    private RestTemplate restTemplate;\n\n    private FraudCheckParticipant participant;\n\n    @BeforeEach\n    void setUp() {\n        MockitoAnnotations.openMocks(this);\n        participant = new FraudCheckParticipant(restTemplate, \"http://fraud-check-service.com/check\");\n    }\n\n    @Test\n    void testNonFraudulentTransaction() {\n        Context context = new Context();\n        context.put(\"cardNumber\", \"1234567890123456\");\n        context.put(\"amount\", \"100.00\");\n\n        FraudCheckResponse mockResponse = new FraudCheckResponse();\n        mockResponse.setFraudulent(false);\n\n        when(restTemplate.postForObject(anyString(), any(), eq(FraudCheckResponse.class)))\n            .thenReturn(mockResponse);\n\n        int result = participant.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.PREPARED);\n        assertThat(context.get(\"fraudDetected\")).isNull();\n    }\n\n    @Test\n    void testFraudulentTransaction() {\n        Context context = new Context();\n        context.put(\"cardNumber\", \"9876543210987654\");\n        context.put(\"amount\", \"5000.00\");\n\n        FraudCheckResponse mockResponse = new FraudCheckResponse();\n        mockResponse.setFraudulent(true);\n\n        when(restTemplate.postForObject(anyString(), any(), eq(FraudCheckResponse.class)))\n            .thenReturn(mockResponse);\n\n        int result = participant.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"fraudDetected\")).isEqualTo(true);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.4 Wiremock for External Service Simulation"
+    },
+    {
+      "type": "para",
+      "text": "For more complex scenarios or when you want to test the actual HTTP calls, you can use Wiremock to simulate the external fraud check service:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.github.tomakehurst.wiremock.WireMockServer;\nimport com.github.tomakehurst.wiremock.client.WireMock;\nimport org.jpos.transaction.Context;\nimport org.junit.jupiter.api.AfterEach;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.web.client.RestTemplate;\n\nimport static com.github.tomakehurst.wiremock.client.WireMock.*;\nimport static org.assertj.core.api.Assertions.*;\n\nclass FraudCheckParticipantWiremockTest {\n\n    private WireMockServer wireMockServer;\n    private FraudCheckParticipant participant;\n\n    @BeforeEach\n    void setUp() {\n        wireMockServer = new WireMockServer(8089);\n        wireMockServer.start();\n        WireMock.configureFor(\"localhost\", 8089);\n\n        RestTemplate restTemplate = new RestTemplate();\n        participant = new FraudCheckParticipant(restTemplate, \"http://localhost:8089/fraud-check\");\n    }\n\n    @AfterEach\n    void tearDown() {\n        wireMockServer.stop();\n    }\n\n    @Test\n    void testNonFraudulentTransaction() {\n        stubFor(post(urlEqualTo(\"/fraud-check\"))\n            .willReturn(aResponse()\n                .withHeader(\"Content-Type\", \"application/json\")\n                .withBody(\"{\\\"fraudulent\\\": false}\")\n            ));\n\n        Context context = new Context();\n        context.put(\"cardNumber\", \"1234567890123456\");\n        context.put(\"amount\", \"100.00\");\n\n        int result = participant.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.PREPARED);\n        assertThat(context.get(\"fraudDetected\")).isNull();\n\n        verify(postRequestedFor(urlEqualTo(\"/fraud-check\"))\n            .withRequestBody(matchingJsonPath(\"$.cardNumber\", equalTo(\"1234567890123456\")))\n            .withRequestBody(matchingJsonPath(\"$.amount\", equalTo(\"100.00\")))\n        );\n    }\n\n    @Test\n    void testFraudulentTransaction() {\n        stubFor(post(urlEqualTo(\"/fraud-check\"))\n            .willReturn(aResponse()\n                .withHeader(\"Content-Type\", \"application/json\")\n                .withBody(\"{\\\"fraudulent\\\": true}\")\n            ));\n\n        Context context = new Context();\n        context.put(\"cardNumber\", \"9876543210987654\");\n        context.put(\"amount\", \"5000.00\");\n\n        int result = participant.prepare(1L, context);\n\n        assertThat(result).isEqualTo(TransactionParticipant.ABORTED);\n        assertThat(context.get(\"fraudDetected\")).isEqualTo(true);\n\n        verify(postRequestedFor(urlEqualTo(\"/fraud-check\"))\n            .withRequestBody(matchingJsonPath(\"$.cardNumber\", equalTo(\"9876543210987654\")))\n            .withRequestBody(matchingJsonPath(\"$.amount\", equalTo(\"5000.00\")))\n        );\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This Wiremock test actually simulates the HTTP calls to the fraud check service, allowing you to test the full flow of your participant, including the network communication."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.5 Performance Testing"
+    },
+    {
+      "type": "para",
+      "text": "For a jPOS server, performance testing is crucial to ensure it can handle the expected transaction load. You can use tools like JMeter or Gatling to simulate high transaction volumes and measure the server's performance."
+    },
+    {
+      "type": "para",
+      "text": "Here's a simple JUnit test that measures the performance of processing multiple transactions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport java.util.concurrent.CountDownLatch;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\n\nimport static org.assertj.core.api.Assertions.*;\n\n@SpringBootTest\nclass PerformanceTest {\n\n    @Autowired\n    private QMUX mux;\n\n    @Test\n    void testConcurrentTransactions() throws InterruptedException {\n        int numTransactions = 1000;\n        int numThreads = 10;\n        ExecutorService executorService = Executors.newFixedThreadPool(numThreads);\n        CountDownLatch latch = new CountDownLatch(numTransactions);\n\n        long startTime = System.currentTimeMillis();\n\n        for (int i = 0; i < numTransactions; i++) {\n            executorService.submit(() -> {\n                try {\n                    ISOMsg msg = createSampleISOMsg();\n                    ISOMsg response = mux.request(msg, 30000);\n                    assertThat(response).isNotNull();\n                    assertThat(response.getString(39)).isEqualTo(\"00\");\n                } catch (Exception e) {\n                    fail(\"Transaction failed\", e);\n                } finally {\n                    latch.countDown();\n                }\n            });\n        }\n\n        boolean completed = latch.await(5, TimeUnit.MINUTES);\n        long endTime = System.currentTimeMillis();\n\n        assertThat(completed).isTrue();\n\n        long totalTime = endTime - startTime;\n        double tps = (double) numTransactions / (totalTime / 1000.0);\n\n        System.out.printf(\"Processed %d transactions in %d ms (%.2f TPS)%n\", numTransactions, totalTime, tps);\n\n        executorService.shutdown();\n    }\n\n    private ISOMsg createSampleISOMsg() throws Exception {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000012345\");\n        msg.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        msg.set(41, \"12345678\");\n        msg.set(42, \"000000000000001\");\n        return msg;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test simulates processing 1000 transactions concurrently using 10 threads and measures the overall throughput in transactions per second (TPS)."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 9,
+    "paras": 15,
+    "code": 7,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "4a594da0f98d7db959f89c3eb017849aaa343d89b88b39de7bef1b0ec750ab96"
+}

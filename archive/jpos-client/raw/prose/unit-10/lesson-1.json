@@ -1,0 +1,131 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Testing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "10. Testing in jPOS Client Implementation"
+    },
+    {
+      "type": "para",
+      "text": "Testing is a crucial part of developing a robust jPOS client. It ensures that your ISO-8583 message creation, sending, and processing work correctly. We'll cover various aspects of testing, including unit tests, integration tests, and simulating server responses."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.1 Unit Testing"
+    },
+    {
+      "type": "para",
+      "text": "Unit tests are essential for testing individual components of your jPOS client. Let's start with a simple example of testing a message creation service."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\npublic class MessageCreationServiceTest {\n\n    @Mock\n    private ISOFactory isoFactory;\n\n    @InjectMocks\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testCreateAuthorizationRequest() throws Exception {\n        // Arrange\n        ISOMsg mockMsg = new ISOMsg();\n        when(isoFactory.createMsg(\"0100\")).thenReturn(mockMsg);\n\n        // Act\n        ISOMsg result = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n\n        // Assert\n        assertThat(result).isNotNull();\n        assertThat(result.getMTI()).isEqualTo(\"0100\");\n        assertThat(result.getString(2)).isEqualTo(\"1234567890123456\");\n        assertThat(result.getString(4)).isEqualTo(\"000000010000\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this example, we're testing the `MessageCreationService` class, which is responsible for creating ISO-8583 messages. We use Mockito to mock the `ISOFactory` and AssertJ for fluent assertions."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.2 Integration Testing"
+    },
+    {
+      "type": "para",
+      "text": "Integration tests ensure that different components of your jPOS client work together correctly. Here's an example of an integration test that sends a message and verifies the response:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class TransactionSenderIntegrationTest {\n\n    @Autowired\n    private MUX mux;\n\n    @Autowired\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testSendAuthorizationRequest() throws Exception {\n        // Arrange\n        ISOMsg request = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n\n        // Act\n        ISOMsg response = mux.request(request, 30000);\n\n        // Assert\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0110\");\n        assertThat(response.getString(39)).isEqualTo(\"00\"); // Assuming '00' is approval code\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This integration test creates an authorization request, sends it through the MUX, and verifies the response. It uses the actual Spring context, so it's closer to real-world scenarios."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.3 Simulating Server Responses"
+    },
+    {
+      "type": "para",
+      "text": "To test various scenarios without relying on an actual server, we can use Wiremock to simulate server responses. Here's an example of how to set up a Wiremock server to simulate ISO-8583 responses:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.github.tomakehurst.wiremock.WireMockServer;\nimport com.github.tomakehurst.wiremock.core.WireMockConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.junit.jupiter.api.AfterEach;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport static com.github.tomakehurst.wiremock.client.WireMock.*;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class ISOClientWiremockTest {\n\n    private WireMockServer wireMockServer;\n    private NACChannel channel;\n\n    @BeforeEach\n    void setup() throws Exception {\n        wireMockServer = new WireMockServer(WireMockConfiguration.options().port(8888));\n        wireMockServer.start();\n\n        GenericPackager packager = new GenericPackager(\"packager/iso87ascii.xml\");\n        channel = new NACChannel(\"localhost\", 8888, packager);\n        channel.connect();\n    }\n\n    @AfterEach\n    void teardown() {\n        channel.disconnect();\n        wireMockServer.stop();\n    }\n\n    @Test\n    void testAuthorizationRequest() throws Exception {\n        // Arrange\n        String responseHex = \"30313130F23C46D129E09180000000000000001000000000000010000301000000301000012345678901234560000\";\n        wireMockServer.stubFor(any(urlEqualTo(\"/\"))\n                .willReturn(aResponse()\n                        .withStatus(200)\n                        .withBody(hexStringToByteArray(responseHex))));\n\n        // Act\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"1234567890123456\");\n        request.set(4, \"000000010000\");\n        \n        ISOMsg response = channel.send(request);\n\n        // Assert\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0110\");\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n    }\n\n    private byte[] hexStringToByteArray(String s) {\n        int len = s.length();\n        byte[] data = new byte[len / 2];\n        for (int i = 0; i < len; i += 2) {\n            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)\n                    + Character.digit(s.charAt(i+1), 16));\n        }\n        return data;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test sets up a Wiremock server to simulate an ISO-8583 server. It stubs a response for any incoming request and then sends a request using the NACChannel. The test verifies that the response is correctly parsed and contains the expected data."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.4 Testing with Q2"
+    },
+    {
+      "type": "para",
+      "text": "jPOS provides a Q2 container that can be useful for testing. Here's an example of how to set up a test using Q2:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.q2.Q2;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.junit.jupiter.api.AfterAll;\nimport org.junit.jupiter.api.BeforeAll;\nimport org.junit.jupiter.api.Test;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class Q2Test {\n\n    private static Q2 q2;\n\n    @BeforeAll\n    static void setup() throws Exception {\n        q2 = new Q2();\n        q2.start();\n        Thread.sleep(2000); // Wait for Q2 to start\n    }\n\n    @AfterAll\n    static void teardown() {\n        q2.stop();\n    }\n\n    @Test\n    void testQMUX() throws Exception {\n        QMUX qmux = (QMUX) NameRegistrar.get(\"mux.mymux\");\n        assertThat(qmux).isNotNull();\n        assertThat(qmux.isConnected()).isTrue();\n\n        ISOMsg msg = new ISOMsg(\"0800\");\n        msg.set(11, \"000001\");\n        msg.set(70, \"301\");\n\n        ISOMsg response = qmux.request(msg, 30000);\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0810\");\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test starts a Q2 instance, retrieves a QMUX from the NameRegistrar, and sends a network management request. It then verifies the response."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.5 Performance Testing"
+    },
+    {
+      "type": "para",
+      "text": "For performance testing, you might want to simulate multiple concurrent requests. Here's a simple example using Java's ExecutorService:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.Future;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class PerformanceTest {\n\n    @Autowired\n    private MUX mux;\n\n    @Autowired\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testConcurrentRequests() throws Exception {\n        int numRequests = 100;\n        ExecutorService executor = Executors.newFixedThreadPool(10);\n        List<Future<ISOMsg>> futures = new ArrayList<>();\n\n        for (int i = 0; i < numRequests; i++) {\n            futures.add(executor.submit(() -> {\n                ISOMsg request = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n                return mux.request(request, 30000);\n            }));\n        }\n\n        for (Future<ISOMsg> future : futures) {\n            ISOMsg response = future.get();\n            assertThat(response).isNotNull();\n            assertThat(response.getMTI()).isEqualTo(\"0110\");\n            assertThat(response.getString(39)).isEqualTo(\"00\");\n        }\n\n        executor.shutdown();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test simulates 100 concurrent authorization requests and verifies that all responses are successful."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 6,
+    "paras": 11,
+    "code": 5,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "c5c25906de8dad702272a7b54b0ea519c61af7db7d0e861adf7cd4652ba451a3"
+}

@@ -1,0 +1,140 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Security and Encryption",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "7. Security and Encryption in jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "Security and encryption are paramount in financial transactions to protect sensitive data such as PINs, card numbers, and other confidential information. jPOS provides robust security features through its `SMAdapter` (Security Module Adapter) interface and the `JCESecurityModule` implementation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.1 Overview of jPOS Security Features"
+    },
+    {
+      "type": "para",
+      "text": "jPOS offers several security features:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "PIN encryption and verification",
+        "Message Authentication Code (MAC) generation and verification",
+        "Key management (including key exchange and derivation)",
+        "Secure key storage"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.2 Implementing Security in a jPOS Client"
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a secure client that can encrypt PINs and generate MACs for ISO-8583 messages."
+    },
+    {
+      "type": "para",
+      "text": "First, we'll set up the necessary dependencies in our `pom.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<dependencies>\n    <dependency>\n        <groupId>org.jpos</groupId>\n        <artifactId>jpos</artifactId>\n        <version>2.1.7</version>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter</artifactId>\n        <version>2.6.3</version>\n    </dependency>\n    <!-- Other dependencies... -->\n</dependencies>"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a `SecurityService` that will handle our security operations:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.stereotype.Service;\n\nimport javax.annotation.PostConstruct;\nimport java.security.SecureRandom;\n\n@Service\npublic class SecurityService {\n\n    private SMAdapter smAdapter;\n    private SecureKeyStore keyStore;\n\n    @PostConstruct\n    public void init() throws ConfigurationException {\n        // Initialize the JCESecurityModule\n        this.smAdapter = new JCESecurityModule();\n        Configuration cfg = new org.jpos.core.SimpleConfiguration();\n        cfg.put(\"provider\", \"SunJCE\");\n        smAdapter.setConfiguration(cfg);\n\n        // Initialize a secure key store (you'd typically load this from a secure location)\n        this.keyStore = new SecureKeyStore();\n        // Load keys into the keyStore...\n    }\n\n    public String encryptPIN(String pin, String pan) throws ISOException {\n        return smAdapter.encryptPIN(pin, pan);\n    }\n\n    public byte[] generateMAC(ISOMsg isoMsg) throws ISOException {\n        byte[] macKey = keyStore.getKey(\"MAC_KEY\");\n        return smAdapter.generateMAC(isoMsg.pack(), macKey);\n    }\n\n    public boolean verifyMAC(ISOMsg isoMsg, byte[] receivedMAC) throws ISOException {\n        byte[] macKey = keyStore.getKey(\"MAC_KEY\");\n        byte[] calculatedMAC = smAdapter.generateMAC(isoMsg.pack(), macKey);\n        return java.util.Arrays.equals(calculatedMAC, receivedMAC);\n    }\n\n    // Other security-related methods...\n}"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's create a `SecureISOClient` that uses this `SecurityService`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class SecureISOClient {\n\n    @Autowired\n    private SecurityService securityService;\n\n    private NACChannel channel;\n\n    public SecureISOClient() throws ISOException {\n        GenericPackager packager = new GenericPackager(\"packager/iso87ascii.xml\");\n        this.channel = new NACChannel(\"localhost\", 8000, packager);\n    }\n\n    public ISOMsg sendSecureMessage(ISOMsg msg) throws ISOException {\n        // Encrypt sensitive fields\n        String pan = msg.getString(2);\n        String pin = msg.getString(52);\n        String encryptedPIN = securityService.encryptPIN(pin, pan);\n        msg.set(52, encryptedPIN);\n\n        // Generate and set MAC\n        byte[] mac = securityService.generateMAC(msg);\n        msg.set(64, mac);\n\n        // Send the message\n        channel.connect();\n        channel.send(msg);\n        ISOMsg response = channel.receive();\n        channel.disconnect();\n\n        // Verify MAC of the response\n        byte[] responseMAC = response.getBytes(64);\n        if (!securityService.verifyMAC(response, responseMAC)) {\n            throw new SecurityException(\"Invalid MAC in response\");\n        }\n\n        return response;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This `SecureISOClient` encrypts the PIN, generates a MAC for outgoing messages, and verifies the MAC of incoming messages."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.3 Testing the Secure Client"
+    },
+    {
+      "type": "para",
+      "text": "Let's create a test for our `SecureISOClient`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.assertj.core.api.Assertions.*;\nimport static org.mockito.Mockito.*;\n\n@ExtendWith(MockitoExtension.class)\npublic class SecureISOClientTest {\n\n    @Mock\n    private SecurityService securityService;\n\n    @InjectMocks\n    private SecureISOClient secureISOClient;\n\n    private ISOMsg testMsg;\n\n    @BeforeEach\n    void setUp() throws Exception {\n        testMsg = new ISOMsg();\n        testMsg.setMTI(\"0200\");\n        testMsg.set(2, \"4111111111111111\");\n        testMsg.set(3, \"000000\");\n        testMsg.set(4, \"000000012345\");\n        testMsg.set(52, \"1234\");\n    }\n\n    @Test\n    void testSendSecureMessage() throws Exception {\n        // Mock security service methods\n        when(securityService.encryptPIN(anyString(), anyString())).thenReturn(\"ENCRYPTED_PIN\");\n        when(securityService.generateMAC(any(ISOMsg.class))).thenReturn(\"MAC\".getBytes());\n        when(securityService.verifyMAC(any(ISOMsg.class), any(byte[].class))).thenReturn(true);\n\n        // Mock channel behavior (you might need to use PowerMockito for this)\n        // ...\n\n        ISOMsg response = secureISOClient.sendSecureMessage(testMsg);\n\n        assertThat(response).isNotNull();\n        verify(securityService).encryptPIN(\"1234\", \"4111111111111111\");\n        verify(securityService).generateMAC(any(ISOMsg.class));\n        verify(securityService).verifyMAC(any(ISOMsg.class), any(byte[].class));\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test verifies that our `SecureISOClient` correctly interacts with the `SecurityService` to encrypt the PIN, generate a MAC, and verify the response MAC."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.4 Best Practices for Security in jPOS"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "**Key Management**: Implement a robust key management system. Regularly rotate keys and securely store them.",
+        "**Use Strong Encryption**: Ensure you're using strong encryption algorithms for PIN encryption and MAC generation.",
+        "**Secure Communication**: Always use secure channels (like SSL/TLS) for network communication.",
+        "**Audit Logging**: Implement comprehensive audit logging for all security-related operations.",
+        "**Input Validation**: Validate all input data to prevent injection attacks.",
+        "**Error Handling**: Implement proper error handling without revealing sensitive information in error messages.",
+        "**Regular Security Audits**: Conduct regular security audits and penetration testing of your jPOS implementation."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "By implementing these security measures, you can significantly enhance the security of your jPOS client implementation, protecting sensitive financial data and ensuring the integrity of your transactions."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 5,
+    "paras": 10,
+    "code": 4,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "23926e1f146f80a964413a4ac77aa2c6616ef2e32dac4d7d20e0bb82a0cd2fa2"
+}

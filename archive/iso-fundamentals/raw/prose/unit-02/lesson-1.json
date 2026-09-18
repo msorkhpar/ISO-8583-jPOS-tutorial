@@ -1,0 +1,236 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "ISO-8583 Message Structure",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2. ISO-8583 Message Structure"
+    },
+    {
+      "type": "para",
+      "text": "ISO-8583 messages are structured in a specific way to ensure standardized communication between financial systems. The message structure consists of three main parts: the Message Type Indicator (MTI), Bitmaps, and Data Elements."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.1. Message Type Indicator (MTI)"
+    },
+    {
+      "type": "para",
+      "text": "The Message Type Indicator (MTI) is a four-digit code that defines the overall purpose and characteristics of the ISO-8583 message."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.1.1. Four-digit structure"
+    },
+    {
+      "type": "para",
+      "text": "The MTI is always a four-digit numeric value. Each digit has a specific meaning:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "First digit: Version",
+        "Second digit: Message Class",
+        "Third digit: Message Function",
+        "Fourth digit: Message Origin"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.1.2. Version, Message Class, Message Function, Message Origin"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        [
+          "Version (1st digit):",
+          {
+            "type": "list",
+            "ordered": false,
+            "items": [
+              "0: ISO 8583-1:1987",
+              "1: ISO 8583-2:1993",
+              "2: ISO 8583-3:2003",
+              "3-9: Reserved for future use"
+            ]
+          }
+        ],
+        [
+          "Message Class (2nd digit):",
+          {
+            "type": "list",
+            "ordered": false,
+            "items": [
+              "0: Reserved",
+              "1: Authorization",
+              "2: Financial",
+              "3: File actions",
+              "4: Reversal and chargeback",
+              "5: Reconciliation",
+              "6: Administrative",
+              "7: Fee collection",
+              "8: Network management",
+              "9: Reserved for ISO use"
+            ]
+          }
+        ],
+        [
+          "Message Function (3rd digit):",
+          {
+            "type": "list",
+            "ordered": false,
+            "items": [
+              "0: Request",
+              "1: Response",
+              "2: Advice",
+              "3: Advice response",
+              "4-9: Reserved for ISO use"
+            ]
+          }
+        ],
+        [
+          "Message Origin (4th digit):",
+          {
+            "type": "list",
+            "ordered": false,
+            "items": [
+              "0: Acquirer",
+              "1: Acquirer repeat",
+              "2: Issuer",
+              "3: Issuer repeat",
+              "4: Other",
+              "5: Other repeat"
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to create an ISO-8583 message with a specific MTI using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class MTIExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\"); // Authorization request\n        \n        System.out.println(\"MTI: \" + message.getMTI());\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.2. Bitmaps"
+    },
+    {
+      "type": "para",
+      "text": "Bitmaps are used to indicate which data elements are present in the message. Each bit in the bitmap represents a specific data element."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.2.1. Primary bitmap"
+    },
+    {
+      "type": "para",
+      "text": "The primary bitmap is always present and indicates the presence of data elements 1 to 64."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.2.2. Secondary bitmap"
+    },
+    {
+      "type": "para",
+      "text": "If bit 1 of the primary bitmap is set (1), it indicates the presence of a secondary bitmap. The secondary bitmap indicates the presence of data elements 65 to 128."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.2.3. Tertiary bitmap (if applicable)"
+    },
+    {
+      "type": "para",
+      "text": "Some implementations may use a tertiary bitmap for data elements 129 to 192, although this is less common."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to set and check bitmaps using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class BitmapExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        \n        // Set some fields\n        message.set(2, \"1234567890123456\"); // Primary Account Number\n        message.set(3, \"000000\"); // Processing Code\n        message.set(4, \"000000010000\"); // Transaction Amount\n        message.set(65, \"1234567890\"); // Extended Primary Account Number\n        \n        // Print bitmap information\n        System.out.println(\"Primary Bitmap: \" + message.getBitmap());\n        System.out.println(\"Has Secondary Bitmap: \" + message.hasSecondaryBitmap());\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.3. Data Elements"
+    },
+    {
+      "type": "para",
+      "text": "Data elements are the actual fields that contain the transaction data."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.3.1. Field numbering (1-128 for primary, 129-192 for secondary)"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Fields 1-64 are represented by the primary bitmap",
+        "Fields 65-128 are represented by the secondary bitmap",
+        "Fields 129-192 are represented by the tertiary bitmap (if used)"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "2.3.2. Data element presence indication"
+    },
+    {
+      "type": "para",
+      "text": "The presence of a data element is indicated by setting the corresponding bit in the bitmap to 1. If the bit is 0, the data element is not present in the message."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of how to work with data elements using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class DataElementExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        \n        // Set some fields\n        message.set(2, \"1234567890123456\"); // Primary Account Number\n        message.set(3, \"000000\"); // Processing Code\n        message.set(4, \"000000010000\"); // Transaction Amount\n        \n        // Check if a field is present\n        System.out.println(\"Field 2 present: \" + message.hasField(2));\n        System.out.println(\"Field 5 present: \" + message.hasField(5));\n        \n        // Get field value\n        System.out.println(\"Field 2 value: \" + message.getString(2));\n        \n        // Print all fields\n        for (int i = 0; i <= 128; i++) {\n            if (message.hasField(i)) {\n                System.out.println(\"Field \" + i + \": \" + message.getString(i));\n            }\n        }\n    }\n}"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 11,
+    "paras": 12,
+    "code": 3,
+    "tables": 0,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "81e8be2469c9ca9b233f93e2af1142c3d118fc4979296b6d7eec9f9704188e8f"
+}

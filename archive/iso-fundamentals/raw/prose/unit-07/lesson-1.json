@@ -1,0 +1,144 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Transaction Flow",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7. Transaction Flow"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.1. Authorization Flow"
+    },
+    {
+      "type": "para",
+      "text": "The authorization flow is the process of approving or declining a transaction. Here's a step-by-step breakdown:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Card presented at merchant",
+        "Terminal sends authorization request",
+        "Acquirer processes and forwards request",
+        "Card network routes to issuer",
+        "Issuer approves or declines",
+        "Response sent back through the chain"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a simple authorization flow using jPOS and Spring:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class AuthorizationService {\n\n    private final QMUX qmux;\n\n    @Autowired\n    public AuthorizationService(QMUX qmux) {\n        this.qmux = qmux;\n    }\n\n    public ISOMsg processAuthorization(ISOMsg request) throws ISOException, IOException {\n        // Step 2: Terminal sends authorization request\n        ISOMsg response = qmux.request(request, 30000); // 30 seconds timeout\n\n        // Step 5 & 6: Issuer approves or declines, and response is sent back\n        if (response == null) {\n            throw new IOException(\"No response from issuer\");\n        }\n\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            // Approved\n            System.out.println(\"Transaction approved\");\n        } else {\n            // Declined\n            System.out.println(\"Transaction declined: \" + responseCode);\n        }\n\n        return response;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This service simulates the acquirer's role in processing and forwarding the request. The `QMUX` component in jPOS handles the routing of the message to the issuer (or a simulator in a test environment)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.2. Clearing and Settlement"
+    },
+    {
+      "type": "para",
+      "text": "After the authorization, the clearing and settlement process ensures that funds are transferred between the involved parties. This typically happens in batches at the end of each day."
+    },
+    {
+      "type": "para",
+      "text": "7.2.1. Batch processing 7.2.2. Clearing files 7.2.3. Settlement between acquirers and issuers"
+    },
+    {
+      "type": "para",
+      "text": "Here's a simple implementation of a batch processor:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class BatchProcessingService {\n\n    private final TransactionRepository transactionRepository;\n    private final ClearingFileGenerator clearingFileGenerator;\n    private final SettlementService settlementService;\n\n    @Autowired\n    public BatchProcessingService(TransactionRepository transactionRepository,\n                                  ClearingFileGenerator clearingFileGenerator,\n                                  SettlementService settlementService) {\n        this.transactionRepository = transactionRepository;\n        this.clearingFileGenerator = clearingFileGenerator;\n        this.settlementService = settlementService;\n    }\n\n    @Scheduled(cron = \"0 0 0 * * *\") // Run at midnight every day\n    public void processDailyBatch() {\n        LocalDate yesterday = LocalDate.now().minusDays(1);\n        List<Transaction> transactions = transactionRepository.findByDateBetween(\n            yesterday.atStartOfDay(),\n            yesterday.atTime(LocalTime.MAX)\n        );\n\n        // Generate clearing file\n        File clearingFile = clearingFileGenerator.generateClearingFile(transactions);\n\n        // Process settlement\n        settlementService.processSettlement(clearingFile);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This service runs a daily batch job to process transactions, generate a clearing file, and initiate the settlement process."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.3. Chargebacks and Disputes"
+    },
+    {
+      "type": "para",
+      "text": "Chargebacks occur when a cardholder disputes a transaction. The process typically involves:"
+    },
+    {
+      "type": "para",
+      "text": "7.3.1. Chargeback initiation 7.3.2. Representment 7.3.3. Arbitration"
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a basic chargeback initiation process:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Service\npublic class ChargebackService {\n\n    private final TransactionRepository transactionRepository;\n    private final QMUX qmux;\n\n    @Autowired\n    public ChargebackService(TransactionRepository transactionRepository, QMUX qmux) {\n        this.transactionRepository = transactionRepository;\n        this.qmux = qmux;\n    }\n\n    public void initiateChargeback(String transactionId, String reason) throws ISOException, IOException {\n        Transaction transaction = transactionRepository.findById(transactionId)\n            .orElseThrow(() -> new IllegalArgumentException(\"Transaction not found\"));\n\n        ISOMsg chargebackRequest = new ISOMsg();\n        chargebackRequest.setMTI(\"0400\");  // Reversal message type\n        chargebackRequest.set(2, transaction.getCardNumber());\n        chargebackRequest.set(4, transaction.getAmount().toString());\n        chargebackRequest.set(11, transaction.getSystemTraceAuditNumber());\n        chargebackRequest.set(37, transaction.getRetrievalReferenceNumber());\n        chargebackRequest.set(38, transaction.getAuthorizationIdResponse());\n        chargebackRequest.set(39, \"05\");  // Chargeback reason code\n        chargebackRequest.set(56, reason);  // Additional chargeback information\n\n        ISOMsg response = qmux.request(chargebackRequest, 30000);\n\n        if (response != null && \"00\".equals(response.getString(39))) {\n            transaction.setStatus(TransactionStatus.CHARGEBACK_INITIATED);\n            transactionRepository.save(transaction);\n        } else {\n            throw new RuntimeException(\"Chargeback initiation failed\");\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This service initiates a chargeback by creating a reversal message (MTI 0400) with the original transaction details and the chargeback reason."
+    },
+    {
+      "type": "para",
+      "text": "To test these implementations, we can use JUnit, Mockito, and AssertJ:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@RunWith(SpringRunner.class)\n@SpringBootTest\npublic class AuthorizationServiceTest {\n\n    @MockBean\n    private QMUX qmux;\n\n    @Autowired\n    private AuthorizationService authorizationService;\n\n    @Test\n    public void testSuccessfulAuthorization() throws ISOException, IOException {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"4111111111111111\");\n        request.set(4, \"100000\");  // $1000.00\n\n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");  // Approval code\n\n        when(qmux.request(any(ISOMsg.class), anyLong())).thenReturn(response);\n\n        // Act\n        ISOMsg result = authorizationService.processAuthorization(request);\n\n        // Assert\n        assertThat(result).isNotNull();\n        assertThat(result.getString(39)).isEqualTo(\"00\");\n    }\n\n    @Test\n    public void testDeclinedAuthorization() throws ISOException, IOException {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"4111111111111111\");\n        request.set(4, \"100000\");  // $1000.00\n\n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"05\");  // Do not honor\n\n        when(qmux.request(any(ISOMsg.class), anyLong())).thenReturn(response);\n\n        // Act\n        ISOMsg result = authorizationService.processAuthorization(request);\n\n        // Assert\n        assertThat(result).isNotNull();\n        assertThat(result.getString(39)).isEqualTo(\"05\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This test class demonstrates how to unit test the `AuthorizationService` using Mockito to mock the `QMUX` component and AssertJ for fluent assertions."
+    },
+    {
+      "type": "para",
+      "text": "In a real-world scenario, you would need to implement more comprehensive error handling, logging, and security measures. Additionally, you'd need to integrate with actual payment networks and comply with PCI-DSS requirements for handling sensitive card data."
+    },
+    {
+      "type": "para",
+      "text": "The transaction flow in ISO-8583 is complex and involves multiple parties. The examples provided here are simplified for illustration purposes. In a production environment, you would need to handle various edge cases, implement retry mechanisms, and ensure proper security measures are in place."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 4,
+    "paras": 15,
+    "code": 4,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "4e2fcf4f025f221ef315648bf58237ef7e2444fb99ec54ce3fcfb3611d4bc8c5"
+}

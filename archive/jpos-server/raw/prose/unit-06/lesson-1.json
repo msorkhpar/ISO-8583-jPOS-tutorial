@@ -1,0 +1,163 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Data Elements Handling",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "6. Data Elements Handling in jPOS Server"
+    },
+    {
+      "type": "para",
+      "text": "Data elements are the building blocks of ISO-8583 messages. In jPOS, we primarily work with two main classes for handling data elements: `ISOMsg` and `ISOField`. Let's explore how to use these classes effectively in a jPOS server implementation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6.1 ISOMsg"
+    },
+    {
+      "type": "para",
+      "text": "`ISOMsg` represents an ISO-8583 message. It's a container for all the fields (data elements) in the message."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Key features of ISOMsg:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Creating a new message",
+        "Setting and getting fields",
+        "Cloning messages",
+        "Merging messages",
+        "Packing and unpacking messages"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's look at some code examples:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ISOMessageHandler {\n\n    public ISOMsg createSampleMessage() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");  // Set Message Type Indicator\n        msg.set(2, \"4111111111111111\");  // Primary Account Number\n        msg.set(3, \"000000\");  // Processing Code\n        msg.set(4, \"000000012345\");  // Transaction Amount\n        msg.set(7, \"0701234567\");  // Transmission Date and Time\n        msg.set(11, \"123456\");  // System Trace Audit Number\n        msg.set(41, \"12345678\");  // Card Acceptor Terminal ID\n        msg.set(42, \"MERCHANT123456789\");  // Card Acceptor ID Code\n        return msg;\n    }\n\n    public void printMessageFields(ISOMsg msg) throws ISOException {\n        System.out.println(\"MTI: \" + msg.getMTI());\n        for (int i = 1; i <= msg.getMaxField(); i++) {\n            if (msg.hasField(i)) {\n                System.out.println(\"Field \" + i + \": \" + msg.getString(i));\n            }\n        }\n    }\n\n    public ISOMsg cloneAndModifyMessage(ISOMsg original) throws ISOException {\n        ISOMsg cloned = (ISOMsg) original.clone();\n        cloned.set(4, \"000000054321\");  // Modify the transaction amount\n        return cloned;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this example, we've created methods to:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Create a sample ISO-8583 message",
+        "Print all fields in a message",
+        "Clone and modify a message"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6.2 ISOField"
+    },
+    {
+      "type": "para",
+      "text": "`ISOField` represents a single field within an ISO-8583 message. While you often work with fields through the `ISOMsg` class, understanding `ISOField` is important for more advanced operations."
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of working directly with `ISOField`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOField;\nimport org.jpos.iso.ISOException;\n\npublic class ISOFieldHandler {\n\n    public ISOField createCustomField() throws ISOException {\n        ISOField field = new ISOField(48);  // Field 48: Additional Data - Private Use\n        field.setValue(\"CUSTOM DATA|MORE INFO|EXTRA\");\n        return field;\n    }\n\n    public void parseCustomField(ISOField field) throws ISOException {\n        String fieldValue = (String) field.getValue();\n        String[] parts = fieldValue.split(\"\\\\|\");\n        System.out.println(\"Field number: \" + field.getFieldNumber());\n        for (int i = 0; i < parts.length; i++) {\n            System.out.println(\"Part \" + (i + 1) + \": \" + parts[i]);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this example, we:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Create a custom field (Field 48) with pipe-separated values",
+        "Parse the custom field and print its components"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6.3 Integrating Data Element Handling in a jPOS Server"
+    },
+    {
+      "type": "para",
+      "text": "Now, let's see how we can integrate these concepts into a jPOS server implementation. We'll create a `TransactionParticipant` that handles data elements:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        try {\n            ISOMsg request = (ISOMsg) context.get(\"REQUEST\");\n            if (request != null) {\n                // Process the incoming message\n                processIncomingMessage(request);\n                \n                // Prepare the response\n                ISOMsg response = prepareResponse(request);\n                context.put(\"RESPONSE\", response);\n            }\n            return PREPARED | NO_JOIN | READONLY;\n        } catch (ISOException e) {\n            context.put(\"EXCEPTION\", e);\n            return ABORTED | NO_JOIN | READONLY;\n        }\n    }\n\n    private void processIncomingMessage(ISOMsg msg) throws ISOException {\n        System.out.println(\"Processing incoming message:\");\n        System.out.println(\"MTI: \" + msg.getMTI());\n        System.out.println(\"PAN: \" + msg.getString(2));\n        System.out.println(\"Amount: \" + msg.getString(4));\n        // Process other fields as needed\n    }\n\n    private ISOMsg prepareResponse(ISOMsg request) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        response.set(39, \"00\");  // Approval code\n        response.set(38, \"123456\");  // Authorization code\n        return response;\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Nothing to commit in this example\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Handle abort scenario if needed\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "In this `DataElementHandler`:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "We implement the `TransactionParticipant` interface, which is part of jPOS's transaction framework.",
+        "In the `prepare` method, we extract the incoming `ISOMsg` from the context, process it, and prepare a response.",
+        "The `processIncomingMessage` method demonstrates how to access and log specific fields from the incoming message.",
+        "The `prepareResponse` method shows how to create a response message by cloning the request, setting it as a response MTI, and adding necessary fields."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "To use this `DataElementHandler` in your jPOS server, you would configure it as part of your transaction manager in your Spring configuration:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"queue\" value=\"txnqueue\"/>\n    <property name=\"sessions\" value=\"2\"/>\n    <property name=\"participants\">\n        <list>\n            <bean class=\"com.yourcompany.iso.DataElementHandler\"/>\n            <!-- Other participants -->\n        </list>\n    </property>\n</bean>"
+    },
+    {
+      "type": "para",
+      "text": "This configuration ensures that your `DataElementHandler` is part of the transaction processing flow in your jPOS server."
+    },
+    {
+      "type": "para",
+      "text": "By implementing these concepts, you can effectively handle ISO-8583 data elements in your jPOS server, allowing you to process incoming messages, prepare responses, and manage the flow of financial transactions."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 5,
+    "paras": 12,
+    "code": 4,
+    "tables": 0,
+    "lists": 4,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "7db806b32cd37409b181ad9153cabb5d894b69cd0395c1f1d7db692c0a5b43cd"
+}

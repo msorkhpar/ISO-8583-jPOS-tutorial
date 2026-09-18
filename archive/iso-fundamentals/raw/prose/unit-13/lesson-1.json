@@ -1,0 +1,238 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Compliance and Regulations",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "13. Compliance and Regulations"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.1. PCI-DSS Requirements"
+    },
+    {
+      "type": "para",
+      "text": "Payment Card Industry Data Security Standard (PCI-DSS) is a set of security standards designed to ensure that all companies that accept, process, store, or transmit credit card information maintain a secure environment. When implementing ISO-8583 systems, adherence to PCI-DSS is mandatory."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.1.1. Data Protection"
+    },
+    {
+      "type": "para",
+      "text": "Data protection is a cornerstone of PCI-DSS compliance. Here are key points to consider:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Encryption of sensitive data: All sensitive data, including Primary Account Numbers (PANs), must be encrypted during transmission and storage.",
+        "Masking of PANs: When displaying PANs, only the first six and last four digits should be visible.",
+        "Key management: Implement strong cryptographic key management processes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a simple example of PAN masking using jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOUtil;\n\npublic class PANMasker {\n    public static String maskPAN(String pan) {\n        if (pan == null || pan.length() < 13) {\n            return pan;\n        }\n        return ISOUtil.protect(pan);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Test for the PANMasker:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.junit.jupiter.api.Test;\nimport static org.assertj.core.api.Assertions.assertThat;\n\nclass PANMaskerTest {\n    @Test\n    void testMaskPAN() {\n        String pan = \"1234567890123456\";\n        String maskedPan = PANMasker.maskPAN(pan);\n        assertThat(maskedPan).isEqualTo(\"123456******3456\");\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.1.2. Network Security"
+    },
+    {
+      "type": "para",
+      "text": "Network security is crucial for protecting cardholder data. Key aspects include:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Firewalls: Implement and maintain firewalls to protect cardholder data.",
+        "Secure protocols: Use strong cryptography and security protocols (e.g., TLS 1.2 or higher) for transmitting cardholder data.",
+        "Regular vulnerability scans and penetration testing."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of configuring a secure SSL channel in jPOS:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name='secure-channel' class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n <channel class=\"org.jpos.iso.channel.NACChannel\" packager=\"org.jpos.iso.packager.GenericPackager\">\n   <property name=\"host\" value=\"secure-host.com\" />\n   <property name=\"port\" value=\"1234\" />\n   <property name=\"socket-factory\" value=\"org.jpos.iso.SunJSSESocketFactory\" />\n   <property name=\"timeout\" value=\"30000\" />\n </channel>\n <in>secure-channel-send</in>\n <out>secure-channel-receive</out>\n <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.1.3. Access Control"
+    },
+    {
+      "type": "para",
+      "text": "Implementing strong access control measures is essential:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Unique user IDs: Assign a unique ID to each person with computer access.",
+        "Restrict access: Limit access to cardholder data by business need-to-know.",
+        "Strong authentication: Use multi-factor authentication for all remote network access."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's a simple example of implementing access control using Spring Security:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.security.config.annotation.web.builders.HttpSecurity;\nimport org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;\nimport org.springframework.security.web.SecurityFilterChain;\n\n@Configuration\n@EnableWebSecurity\npublic class SecurityConfig {\n\n    @Bean\n    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {\n        http\n            .authorizeHttpRequests((requests) -> requests\n                .requestMatchers(\"/public/**\").permitAll()\n                .requestMatchers(\"/api/**\").authenticated()\n            )\n            .formLogin((form) -> form\n                .loginPage(\"/login\")\n                .permitAll()\n            )\n            .logout((logout) -> logout.permitAll());\n\n        return http.build();\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.2. Regional Regulations"
+    },
+    {
+      "type": "para",
+      "text": "In addition to PCI-DSS, various regions have their own data protection regulations that may impact ISO-8583 implementations."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.2.1. GDPR (Europe)"
+    },
+    {
+      "type": "para",
+      "text": "The General Data Protection Regulation (GDPR) applies to all companies processing the personal data of EU residents. Key considerations for ISO-8583 systems:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Data minimization: Only collect and process necessary data.",
+        "Right to erasure: Implement mechanisms to delete personal data upon request.",
+        "Data portability: Allow users to receive their personal data in a machine-readable format."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's an example of a service that handles GDPR-related requests:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.springframework.stereotype.Service;\n\n@Service\npublic class GDPRService {\n\n    public void eraseUserData(String userId) {\n        // Implementation to erase user data\n    }\n\n    public String exportUserData(String userId) {\n        // Implementation to export user data in a machine-readable format\n        return \"exported data\";\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.2.2. CCPA (California)"
+    },
+    {
+      "type": "para",
+      "text": "The California Consumer Privacy Act (CCPA) provides California residents with rights regarding their personal information. Key points:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Right to know: Inform consumers about the personal information collected and its use.",
+        "Right to delete: Provide a way for consumers to request deletion of their personal information.",
+        "Right to opt-out: Allow consumers to opt-out of the sale of their personal information."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Here's a simple example of a controller handling CCPA-related requests:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.springframework.web.bind.annotation.*;\n\n@RestController\n@RequestMapping(\"/ccpa\")\npublic class CCPAController {\n\n    @GetMapping(\"/data/{userId}\")\n    public String getUserData(@PathVariable String userId) {\n        // Implementation to retrieve user data\n        return \"User data for \" + userId;\n    }\n\n    @DeleteMapping(\"/data/{userId}\")\n    public String deleteUserData(@PathVariable String userId) {\n        // Implementation to delete user data\n        return \"Data deleted for \" + userId;\n    }\n\n    @PostMapping(\"/opt-out/{userId}\")\n    public String optOut(@PathVariable String userId) {\n        // Implementation to handle opt-out\n        return \"Opt-out processed for \" + userId;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.2.3. Other Regional Data Protection Laws"
+    },
+    {
+      "type": "para",
+      "text": "Many other regions have their own data protection laws, such as:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "LGPD (Brazil)",
+        "PIPEDA (Canada)",
+        "PDPA (Singapore)"
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When implementing ISO-8583 systems, it's crucial to be aware of and comply with the specific regulations of the regions in which you operate."
+    },
+    {
+      "type": "para",
+      "text": "To handle various regional requirements, you might implement a strategy pattern:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public interface DataProtectionStrategy {\n    void handleDataRequest(String userId);\n    void handleDataDeletion(String userId);\n    void handleDataExport(String userId);\n}\n\npublic class GDPRStrategy implements DataProtectionStrategy {\n    // GDPR-specific implementations\n}\n\npublic class CCPAStrategy implements DataProtectionStrategy {\n    // CCPA-specific implementations\n}\n\npublic class DataProtectionService {\n    private final Map<String, DataProtectionStrategy> strategies;\n\n    public DataProtectionService() {\n        strategies = new HashMap<>();\n        strategies.put(\"EU\", new GDPRStrategy());\n        strategies.put(\"CA\", new CCPAStrategy());\n        // Add more strategies as needed\n    }\n\n    public void handleRequest(String region, String requestType, String userId) {\n        DataProtectionStrategy strategy = strategies.get(region);\n        if (strategy == null) {\n            throw new UnsupportedOperationException(\"No strategy for region: \" + region);\n        }\n\n        switch (requestType) {\n            case \"DELETE\" -> strategy.handleDataDeletion(userId);\n            case \"EXPORT\" -> strategy.handleDataExport(userId);\n            default -> strategy.handleDataRequest(userId);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "This approach allows you to easily add new regional strategies as needed and handle requests according to the specific requirements of each region."
+    },
+    {
+      "type": "para",
+      "text": "In conclusion, compliance with PCI-DSS and regional data protection regulations is crucial when implementing ISO-8583 systems. It requires careful consideration of data protection, network security, access control, and specific regional requirements. By implementing these measures, you can ensure that your ISO-8583 system is secure, compliant, and respectful of user privacy rights."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 9,
+    "paras": 18,
+    "code": 7,
+    "tables": 0,
+    "lists": 6,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "98c78097bb883fe8f2bbdbd141426687179ce70822c602ee92c01c30032f7578"
+}

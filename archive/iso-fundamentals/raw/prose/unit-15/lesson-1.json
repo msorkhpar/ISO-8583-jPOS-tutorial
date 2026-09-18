@@ -1,0 +1,215 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-09-17",
+  "title": "Troubleshooting and Common Issues",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "15. Troubleshooting and Common Issues"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "15.1. Message parsing errors"
+    },
+    {
+      "type": "para",
+      "text": "Message parsing errors are common when working with ISO-8583 messages. These errors can occur due to various reasons, such as incorrect message format, mismatched field lengths, or bitmap inconsistencies."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.1.1. Bitmap inconsistencies"
+    },
+    {
+      "type": "para",
+      "text": "Bitmap inconsistencies occur when the bitmap doesn't accurately represent the fields present in the message. This can lead to parsing errors and incorrect interpretation of the message."
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a bitmap validator to check for inconsistencies:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\npublic class BitmapValidator {\n\n    public static void validateBitmap(ISOMsg isoMsg) throws ISOException {\n        byte[] bitmap = isoMsg.getHeader();\n        if (bitmap == null || bitmap.length < 8) {\n            throw new ISOException(\"Invalid bitmap length\");\n        }\n\n        for (int i = 1; i <= 64; i++) {\n            if (ISOUtil.isBitSet(bitmap, i) && isoMsg.getValue(i) == null) {\n                throw new ISOException(\"Bitmap indicates field \" + i + \" is present, but it's missing in the message\");\n            }\n            if (!ISOUtil.isBitSet(bitmap, i) && isoMsg.getValue(i) != null) {\n                throw new ISOException(\"Bitmap indicates field \" + i + \" is absent, but it's present in the message\");\n            }\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "You can use this validator in your message processing logic:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class MessageProcessor {\n\n    public void processMessage(ISOMsg isoMsg) {\n        try {\n            BitmapValidator.validateBitmap(isoMsg);\n            // Continue processing the message\n        } catch (ISOException e) {\n            // Handle the bitmap inconsistency\n            logger.error(\"Bitmap validation failed: \" + e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.1.2. Field length mismatches"
+    },
+    {
+      "type": "para",
+      "text": "Field length mismatches occur when the actual length of a field doesn't match its expected length. This can happen with both fixed-length and variable-length fields."
+    },
+    {
+      "type": "para",
+      "text": "Let's implement a field length validator:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\npublic class FieldLengthValidator {\n\n    public static void validateFieldLengths(ISOMsg isoMsg) throws ISOException {\n        ISOPackager packager = isoMsg.getPackager();\n        if (packager == null) {\n            throw new ISOException(\"Message has no packager\");\n        }\n\n        for (int i = 0; i <= 128; i++) {\n            if (isoMsg.hasField(i)) {\n                int expectedLength = packager.getFieldPackager(i).getLength();\n                int actualLength = isoMsg.getString(i).length();\n                if (expectedLength != actualLength) {\n                    throw new ISOException(\"Field \" + i + \" length mismatch. Expected: \" + expectedLength + \", Actual: \" + actualLength);\n                }\n            }\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Integrate this validator into your message processing:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class MessageProcessor {\n\n    public void processMessage(ISOMsg isoMsg) {\n        try {\n            BitmapValidator.validateBitmap(isoMsg);\n            FieldLengthValidator.validateFieldLengths(isoMsg);\n            // Continue processing the message\n        } catch (ISOException e) {\n            // Handle the validation error\n            logger.error(\"Message validation failed: \" + e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "15.2. Network connectivity issues"
+    },
+    {
+      "type": "para",
+      "text": "Network connectivity issues can cause transaction failures and timeouts. It's crucial to implement proper error handling and retry mechanisms to ensure robust communication."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.2.1. Timeout handling"
+    },
+    {
+      "type": "para",
+      "text": "Implement a timeout handler to deal with slow or unresponsive connections:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\npublic class TimeoutHandler {\n\n    private static final int MAX_RETRIES = 3;\n    private static final int TIMEOUT_MS = 30000; // 30 seconds\n\n    private final NACChannel channel;\n    private final Logger logger;\n\n    public TimeoutHandler(NACChannel channel, Logger logger) {\n        this.channel = channel;\n        this.logger = logger;\n    }\n\n    public ISOMsg sendWithTimeout(ISOMsg request) throws ISOException {\n        int retries = 0;\n        while (retries < MAX_RETRIES) {\n            try {\n                channel.setTimeout(TIMEOUT_MS);\n                return channel.send(request);\n            } catch (ISOException e) {\n                retries++;\n                LogEvent ev = new LogEvent(this, \"timeout\");\n                ev.addMessage(\"Timeout occurred. Retry \" + retries + \" of \" + MAX_RETRIES);\n                logger.log(ev);\n                if (retries >= MAX_RETRIES) {\n                    throw new ISOException(\"Max retries reached\", e);\n                }\n            }\n        }\n        throw new ISOException(\"Unexpected error in timeout handling\");\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.2.2. Retry mechanisms"
+    },
+    {
+      "type": "para",
+      "text": "Implement a retry mechanism for handling transient network issues:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\npublic class RetryMechanism {\n\n    private static final int MAX_RETRIES = 3;\n    private static final long RETRY_DELAY_MS = 5000; // 5 seconds\n\n    private final TimeoutHandler timeoutHandler;\n    private final Logger logger;\n\n    public RetryMechanism(TimeoutHandler timeoutHandler, Logger logger) {\n        this.timeoutHandler = timeoutHandler;\n        this.logger = logger;\n    }\n\n    public ISOMsg sendWithRetry(ISOMsg request) throws ISOException {\n        int retries = 0;\n        while (retries < MAX_RETRIES) {\n            try {\n                return timeoutHandler.sendWithTimeout(request);\n            } catch (ISOException e) {\n                retries++;\n                LogEvent ev = new LogEvent(this, \"retry\");\n                ev.addMessage(\"Send failed. Retry \" + retries + \" of \" + MAX_RETRIES);\n                logger.log(ev);\n                if (retries >= MAX_RETRIES) {\n                    throw new ISOException(\"Max retries reached\", e);\n                }\n                try {\n                    Thread.sleep(RETRY_DELAY_MS);\n                } catch (InterruptedException ie) {\n                    Thread.currentThread().interrupt();\n                    throw new ISOException(\"Retry interrupted\", ie);\n                }\n            }\n        }\n        throw new ISOException(\"Unexpected error in retry mechanism\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Use these classes in your transaction processing:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class TransactionProcessor {\n\n    private final RetryMechanism retryMechanism;\n\n    public TransactionProcessor(RetryMechanism retryMechanism) {\n        this.retryMechanism = retryMechanism;\n    }\n\n    public void processTransaction(ISOMsg transactionRequest) {\n        try {\n            ISOMsg response = retryMechanism.sendWithRetry(transactionRequest);\n            // Process the response\n        } catch (ISOException e) {\n            // Handle the failure after all retries\n            logger.error(\"Transaction processing failed: \" + e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "15.3. Reconciliation problems"
+    },
+    {
+      "type": "para",
+      "text": "Reconciliation problems occur when there are discrepancies between the transactions processed and the financial records. These issues can lead to financial losses and compliance problems."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.3.1. Out-of-balance scenarios"
+    },
+    {
+      "type": "para",
+      "text": "Implement a reconciliation checker to identify out-of-balance scenarios:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import java.math.BigDecimal;\nimport java.util.List;\n\npublic class ReconciliationChecker {\n\n    public static class Transaction {\n        private String id;\n        private BigDecimal amount;\n        // Other fields and methods\n    }\n\n    public static class ReconciliationResult {\n        private boolean balanced;\n        private BigDecimal difference;\n        // Other fields and methods\n    }\n\n    public ReconciliationResult checkBalance(List<Transaction> processedTransactions, BigDecimal expectedTotal) {\n        BigDecimal actualTotal = processedTransactions.stream()\n                .map(Transaction::getAmount)\n                .reduce(BigDecimal.ZERO, BigDecimal::add);\n\n        BigDecimal difference = expectedTotal.subtract(actualTotal);\n        boolean balanced = difference.compareTo(BigDecimal.ZERO) == 0;\n\n        return new ReconciliationResult(balanced, difference);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.3.2. Missing transactions"
+    },
+    {
+      "type": "para",
+      "text": "Implement a transaction tracker to identify missing transactions:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\npublic class TransactionTracker {\n\n    public static class MissingTransactionsResult {\n        private Set<String> missingTransactionIds;\n        // Other fields and methods\n    }\n\n    public MissingTransactionsResult findMissingTransactions(List<String> expectedTransactionIds, List<Transaction> processedTransactions) {\n        Set<String> processedIds = new HashSet<>();\n        for (Transaction transaction : processedTransactions) {\n            processedIds.add(transaction.getId());\n        }\n\n        Set<String> missingIds = new HashSet<>(expectedTransactionIds);\n        missingIds.removeAll(processedIds);\n\n        return new MissingTransactionsResult(missingIds);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Use these classes in your reconciliation process:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public class ReconciliationService {\n\n    private final ReconciliationChecker reconciliationChecker;\n    private final TransactionTracker transactionTracker;\n\n    public ReconciliationService(ReconciliationChecker reconciliationChecker, TransactionTracker transactionTracker) {\n        this.reconciliationChecker = reconciliationChecker;\n        this.transactionTracker = transactionTracker;\n    }\n\n    public void performReconciliation(List<Transaction> processedTransactions, BigDecimal expectedTotal, List<String> expectedTransactionIds) {\n        ReconciliationChecker.ReconciliationResult balanceResult = reconciliationChecker.checkBalance(processedTransactions, expectedTotal);\n        if (!balanceResult.isBalanced()) {\n            logger.warn(\"Reconciliation out of balance. Difference: \" + balanceResult.getDifference());\n        }\n\n        TransactionTracker.MissingTransactionsResult missingResult = transactionTracker.findMissingTransactions(expectedTransactionIds, processedTransactions);\n        if (!missingResult.getMissingTransactionIds().isEmpty()) {\n            logger.warn(\"Missing transactions detected: \" + missingResult.getMissingTransactionIds());\n        }\n\n        // Perform additional reconciliation actions based on the results\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "These implementations provide a foundation for handling common troubleshooting scenarios in ISO-8583 and jPOS development. Remember to adapt these examples to your specific use case and integrate them with your existing error handling and logging mechanisms."
+    },
+    {
+      "type": "para",
+      "text": "To further improve your troubleshooting capabilities, consider implementing the following:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Comprehensive logging: Use jPOS's logging capabilities to track all incoming and outgoing messages, as well as internal processing steps.",
+        "Monitoring and alerting: Implement a monitoring system that can detect and alert on issues such as high error rates, unusual transaction patterns, or reconciliation discrepancies.",
+        "Transaction tracing: Implement a unique identifier for each transaction that can be traced through all systems involved in processing.",
+        "Regular audits: Perform regular audits of your transaction processing and reconciliation processes to identify any systemic issues.",
+        "Automated testing: Develop a comprehensive suite of automated tests that cover various error scenarios and edge cases to catch issues before they reach production."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "By implementing these troubleshooting and error handling mechanisms, you'll be better equipped to identify and resolve issues in your ISO-8583 and jPOS-based systems, ensuring more reliable and accurate transaction processing."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 10,
+    "paras": 18,
+    "code": 10,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "1441044581449c3bc0bdbbcf2eccf4f0c9d8950db8dc5d7c4836970cec78059f"
+}

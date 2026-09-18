@@ -1,0 +1,1381 @@
+/* The whole reset. Three declarations, and each earns its place.
+
+   ⛔ Not a normalising library. A study page is prose, a few figures and a
+   table; the browser's own defaults are already right for almost all of it,
+   and a 10 KB reset shipped to every page would be nine of those kilobytes
+   undoing things this page never does. */
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+/* Every colour, measure and font the reading surface uses, defined once.
+
+   ⭐ THIS FILE IS THE SHARED VOCABULARY. Every other stylesheet in this
+   repository paints with `var(--token)` and defines no colour of its own, so
+   changing the page's look is editing this file and nothing else — which is
+   the whole of what R13 bought. `test_palette` asserts the second half of
+   that: no other asset may contain a raw colour.
+
+   ⛔ EVERY COLOUR TOKEN IS DEFINED IN BOTH THEMES. The page declares
+   `color-scheme: light dark`, so a token defined once is a token that is
+   wrong in one of them — invisible to whoever authored it, because they only
+   ever looked at the theme they use.
+
+   ⚠️ The syntax colours are tuned against `--code-bg`, not lifted from a
+   generic theme. Measured rather than asserted: in light every one clears
+   5.02:1 and in dark 5.10:1, both against the code background they actually
+   sit on, and `test_palette` recomputes the numbers rather than trusting this
+   comment. */
+
+:root {
+  color-scheme: light dark;
+
+  /* ⛔ System stacks only. A web font is a network fetch, and the floor is a
+     page opened from a file with no network at all (R8). */
+  --font-prose: "Iowan Old Style", "Palatino Linotype", Palatino, Charter,
+                "Bitstream Charter", Georgia, Cambria, "Times New Roman", serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "DejaVu Sans Mono", "Liberation Mono", monospace;
+
+  --measure: 80ch;
+  --rail: 17rem;
+  --page-max: 96rem;
+  --gutter: 1.25rem;
+  --player-height: 8.75rem;
+
+  --bg: #f6f3ee;
+  --surface: #fffdf9;
+  --surface-2: #efe9df;
+  --fg: #1b1a17;
+  --fg-soft: #3d3a35;
+  --muted: #6d675d;
+  --rule: #e2dbcf;
+  --rule-strong: #cbc2b1;
+
+  --accent: #8f3f16;
+  --accent-soft: #f2e2d5;
+  --practice: #1c5f6b;
+  --practice-soft: #dceaed;
+
+  --code-bg: #f3eee5;
+  --code-fg: #23211d;
+
+  /* Syntax highlighting. Prism's token classes map onto these in
+     code-highlight.css, and the ORDER of the groups there is the mapping. */
+  --tok-comment: #6b6555;
+  --tok-string: #2f6b3a;
+  --tok-keyword: #9a2f6f;
+  --tok-number: #8f4f0e;
+  --tok-type: #1f5f8b;
+  --tok-function: #5b3fa8;
+  --tok-punct: #6b6357;
+
+  --hl-bg: #fbeeca;
+  --hl-bar: #c8912a;
+  --hl-fg: #13120f;
+  --hl-code: rgba(19, 18, 15, .10);
+
+  --panel: #fffdf9;
+  --shadow: 0 -1px 0 rgba(27, 26, 23, .07), 0 -12px 32px rgba(27, 26, 23, .10);
+  --focus: #8f3f16;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141519;
+    --surface: #1b1d22;
+    --surface-2: #23262d;
+    --fg: #e9e5dc;
+    --fg-soft: #cfcbc2;
+    --muted: #9b958b;
+    --rule: #2c3038;
+    --rule-strong: #3d434e;
+
+    --accent: #e79a63;
+    --accent-soft: #33261c;
+    --practice: #78c8d3;
+    --practice-soft: #16272c;
+
+    --code-bg: #101218;
+    --code-fg: #dfe3ea;
+
+    /* The same seven, re-tuned for #101218. */
+    --tok-comment: #7c8698;
+    --tok-string: #8fd48a;
+    --tok-keyword: #ff7ab2;
+    --tok-number: #f2ae5c;
+    --tok-type: #6cc6e8;
+    --tok-function: #c4a5ff;
+    --tok-punct: #98a0b3;
+
+    --hl-bg: #3a3220;
+    --hl-bar: #dfa945;
+    --hl-fg: #fcf7ec;
+    --hl-code: rgba(252, 247, 236, .13);
+
+    --panel: #1b1d22;
+    --shadow: 0 -1px 0 rgba(0, 0, 0, .55), 0 -12px 32px rgba(0, 0, 0, .45);
+    --focus: #e79a63;
+  }
+}
+
+/* The focus ring, defined once, in the accent colour of whichever theme is
+   showing.
+
+   ⛔ `:focus-visible`, never `:focus`: the ring must follow the keyboard and
+   stay out of the way of the mouse. And it is never removed — the reading
+   floor is a page navigated by keyboard as readily as by pointer, and an
+   invisible focus ring is the fastest way to make that impossible. */
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 3px; }
+
+/* The reading column: one rule for every block type the archive vocabulary
+   names, and nothing about page chrome.
+
+   ⭐ THE SCOPE IS THE BLOCK VOCABULARY, not one renderer's page. Eleven block
+   types reach a page — heading, para, code, list, table, image, video, rule,
+   quote, html and disclosure — and every one of them is styled here, so a
+   renderer that emits a type nobody thought about renders as prose rather
+   than as nothing. ⛔ Masthead, navigation rail, narration player, progress
+   controls and practice panels are NOT here: they belong to the tasks that
+   render them, and each adds its own part beside this one.
+
+   ⚠️ Every selector here names a class this package publishes in
+   `pageassets.surface`. A renderer that invents its own class names gets an
+   unstyled page and no error, so the two are checked against each other. */
+
+body {
+  margin: 0;
+  padding: 0 var(--gutter);
+  background: var(--bg);
+  color: var(--fg);
+  font: 1.1875rem/1.72 var(--font-prose);
+  text-rendering: optimizeLegibility;
+}
+
+/* --- prose ------------------------------------------------------------- */
+
+h1 { font-family: var(--font-ui); font-size: 1.9rem; line-height: 1.22; margin: 0 0 .75rem; }
+h2, h3, h4, h5, h6 {
+  font-family: var(--font-ui);
+  line-height: 1.28;
+  margin: 2rem 0 .6rem;
+}
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.12rem; }
+h4, h5, h6 { font-size: 1rem; }
+
+p { margin: 0 0 1.15rem; }
+
+/* Running text alone keeps a measure the eye can track back from. A figure,
+   a table or a code block is scanned rather than read and takes the full
+   column. */
+main p, main li { max-width: var(--measure); }
+
+a { color: var(--accent); text-underline-offset: .18em; }
+
+ul.items, ol.items { margin: 0 0 1.15rem; padding-left: 1.5rem; }
+ul.items li, ol.items li { margin: .35rem 0; padding-left: .2rem; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .1em .32em;
+}
+
+/* A thematic break, which the Java corpus uses ten times. Thin, and it takes
+   the rule colour rather than the browser's bevelled default. */
+hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 2rem 0;
+  max-width: var(--measure);
+}
+
+/* A quote holds arbitrary blocks, so it is a container and not a paragraph
+   with italics: a list or a code block inside one must still read as itself. */
+blockquote {
+  margin: 1.6rem 0;
+  padding: .1rem 0 .1rem 1.15rem;
+  border-left: 3px solid var(--rule-strong);
+  color: var(--fg-soft);
+  max-width: var(--measure);
+}
+blockquote > :last-child { margin-bottom: 0; }
+
+/* --- present but withheld ---------------------------------------------- */
+
+/* ⭐ A real `<details>`, which opens, closes and takes keyboard focus with
+   scripting off entirely. The third state between shown and absent: the body
+   is on the page and is not shown, and nothing here may make it visible by
+   default — `open` is the author's, delivered from the archive. */
+details.disclosure {
+  margin: 1.6rem 0;
+  padding: .1rem .95rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  max-width: var(--measure);
+}
+details.disclosure > summary {
+  font-family: var(--font-ui);
+  font-size: .95rem;
+  cursor: pointer;
+  padding: .7rem 0;
+  color: var(--fg-soft);
+}
+details.disclosure[open] > summary { color: var(--fg); border-bottom: 1px solid var(--rule); }
+details.disclosure > :last-child { margin-bottom: .8rem; }
+
+/* --- figures ----------------------------------------------------------- */
+
+figure { margin: 1.6rem 0; }
+
+figure.code {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+figure.code figcaption {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  font-family: var(--font-ui);
+  font-size: .78rem;
+  color: var(--muted);
+  padding: .5rem .9rem;
+  border-bottom: 1px solid var(--rule);
+}
+figure.code figcaption .what { flex: 1 1 auto; }
+/* A language the vendored highlighter does not cover renders plain, and the
+   caption says so, so a plain block never looks like a broken highlighter. */
+figure.code figcaption .unhighlighted { flex: 0 0 auto; font-style: italic; }
+figure.code pre { margin: 0; padding: 1rem 1.1rem; overflow-x: auto; }
+figure.code code {
+  background: none;
+  padding: 0;
+  font-size: .84rem;
+  line-height: 1.62;
+  color: var(--code-fg);
+}
+
+button.copy {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--rule-strong);
+  border-radius: 5px;
+  padding: .15rem .5rem;
+  cursor: pointer;
+}
+button.copy:hover { color: var(--fg); border-color: var(--fg-soft); }
+
+figure.image img { display: block; max-width: 100%; height: auto; border-radius: 10px; }
+figure.image figcaption {
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  color: var(--muted);
+  margin-top: .5rem;
+}
+
+figure.video { margin: 1.6rem 0; border-radius: 10px; }
+/* ⛔ Capped so a video cannot dominate the reading column — and `70vh` is why
+   `video-player.css` has to undo it in fullscreen, where `vh` resolves against
+   the whole screen and would leave a black band across the bottom third. */
+figure.video video {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  display: block;
+  border-radius: 10px;
+}
+
+/* --- tables ------------------------------------------------------------ */
+
+/* ⛔ The wrapper is not decoration. A table wider than the column must scroll
+   inside its own box; without this the page itself scrolls sideways and every
+   paragraph goes with it. */
+.scroll { overflow-x: auto; margin: 0 0 1.6rem; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td {
+  border: 1px solid var(--rule);
+  padding: .45rem .6rem;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: var(--surface); font-family: var(--font-ui); font-size: .82rem; }
+
+/* --- what the reader asked for ----------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+/* The page's chrome: the regions around the reading surface, and the column
+   that bounds both.
+
+   ⭐ THE SCOPE IS THE LIST `reading.css` DISOWNS, minus the regions whose
+   markup does not exist yet. `reading.css` says of itself: "Masthead,
+   navigation rail, narration player, progress controls and practice panels are
+   NOT here: they belong to the tasks that render them, and each adds its own
+   part beside this one." ⛔ This is that part, for the regions a page already
+   emits — the masthead, the in-page outline, the between-pages bar, the
+   practice panel, a container's unit listing, the root index's tree, a unit
+   page's trail and the rail that reaches the other containers (W324). The
+   narration player and the progress controls stay out, because their markup is
+   not here yet and a rule for an element nobody emits is the same defect one
+   layer along (SF-11's finding 3).
+
+   ⛔ NOT ONE COLOUR AND NOT ONE MEASURE IS DEFINED HERE. Every value is a
+   `palette.css` token, and the palette defines every colour token in both
+   themes — so "rules in both themes" is a property of the vocabulary rather
+   than a second block of declarations to keep in step. A raw hex here would be
+   a colour that cannot follow the reader's theme, and `test_palette` fails it.
+
+   ⛔ NOT ONE CLASS NAME IS TARGETED HERE EITHER, and that is the whole reason
+   this part could be written a milestone after the markup it styles. Every
+   region is reached by element, `aria-label` or `data-*` attribute — exactly
+   what the three renderers emit — so no page changes, nothing is re-rendered,
+   and no class joins the published markup contract. The attribute spellings
+   come from `pageassets.SURFACE_HOOKS`, which is the one place they are
+   written down.
+
+   ⚠️ `data-kind` IS OVERLOADED AND THE SELECTORS ARE SCOPED FOR IT.
+   `section.html` carries `data-kind="<the section's kind>"`, whose value comes
+   out of a corpus, and the numbering and level hooks are values of the same
+   attribute on a `<span>`. So every rule for a hook names the element too —
+   `span[data-kind="numbering"]`, never `[data-kind="numbering"]` — because a
+   corpus is free to call a section kind whatever it likes, including one of
+   these words.
+
+   ⚠️ Loaded after `reading.css` and before `code-highlight.css`: two rules of
+   equal specificity mean the last one wins, and the page column below
+   deliberately refines what `reading.css` already sets on `body`. */
+
+/* --- the column (PO-22/6) ------------------------------------------------ */
+
+/* ⛔ The missing half of `reading.css:38-41`, which rules that "a figure, a
+   table or a code block is scanned rather than read and takes the full
+   column." That decision is right and is not reopened here. What was missing
+   is THE COLUMN: `body` carries a gutter and no `max-width`, so on a 1280px
+   viewport "the full column" was the full viewport, and the page read as a
+   narrow measure with full-bleed islands beside it.
+
+   ⛔ ONE BOUND, COMPUTED ONCE, ON `body` — and that is a measurement rather
+   than a preference. `--measure` is `80ch`, and `ch` resolves against the
+   ELEMENT's own font, so the same `max-width` written on each region gave three
+   different columns: measured in Chrome 149 at a 1280px viewport, the masthead
+   came out 800px, the outline 715.7px and the between-pages bar 680.3px,
+   because each of them sets its own face and size. ⚠️ A page whose regions
+   disagree about where the column ends is the full-bleed-islands defect wearing
+   the other face. `body` carries the prose font, which is the font the measure
+   was chosen in, so the number is right there and nowhere else.
+
+   ⭐ The arithmetic: `reset.css` sets `box-sizing: border-box`, so `body`'s own
+   two gutters are INSIDE this number. Four gutters therefore leave a content
+   box of `--measure` plus one gutter of air either side — a figure a little
+   wider than the running text, which is what "takes the full column" was always
+   meant to mean. ⚠️ The prose measure itself is untouched: `reading.css` still
+   caps `main p, main li` at `--measure`, and that decision is not reopened.
+
+   ⛔ THIS IS THE NARROW SHAPE, AND SINCE `W325` IT IS ONE OF TWO. The rule
+   below is what every viewport gets; a viewport wide enough for a rail AND this
+   measure beside it gets the two-column refinement at the foot of region 10,
+   which is written on `body` as well and bounds the SAME element. ⚠️ The bound
+   is still computed once and still on the element that carries the prose face —
+   that is `PO-22/6`'s decision and it is not reopened, only widened where there
+   is room for the rail.
+
+   ⭐ `--page-max` and `--rail` WERE UNPAINTED HERE AND ARE PAINTED NOW, both at
+   the foot of region 10 and nowhere else. The paragraph this replaces said
+   `--page-max` "is an outer edge for a rail-and-content layout; against a
+   bounded single column it would never bite at any viewport" — ⛔ **that reading
+   was right and it is DATED: there is a rail-and-content layout in this file
+   now.** ⚠️ What still holds of it is recorded where the declaration is, with
+   `W325/2`: the ceiling does not bite under the face this image pins.
+
+   ⛔ `footer` is absent for the same kind of reason. The narration player is the
+   only `<footer>` a page carries, it is `SF-18`'s at M3, and `--player-height`,
+   `--panel` and `--shadow` are defined and waiting for it. Laying out a region
+   whose design has not been decided would be deciding it. */
+
+body {
+  max-width: calc(var(--measure) + 4 * var(--gutter));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* --- region 1: the masthead --------------------------------------------- */
+
+/* Every page kind carries this: the unit page, the container page and the root
+   index all fill the skeleton's `heading` and all but the index fill `meta`. */
+
+body > header {
+  padding: 2.25rem 0 1rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+body > header h1 {
+  margin: 0 0 0.3rem;
+}
+
+/* The quieter second line: where the unit sits, in which variant. ⚠️ It is a
+   `<p>`, so it inherits the prose face and the prose size from `reading.css`
+   and would otherwise read as the page's first sentence. */
+body > header p {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* --- region 2: the in-page outline -------------------------------------- */
+
+/* ⚠️ A card above the content rather than a rail beside it. A sticky side rail
+   is a layout this part cannot verify — `tests/visual/` has no browser in the
+   pinned image (QA-03/1) — and an unverifiable layout is a worse answer than a
+   plain one. `--rail` is still defined for whoever builds it. */
+
+nav[aria-label="Outline"] {
+  margin: 0 0 2rem;
+  padding: 0.9rem 1.15rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+nav[aria-label="Outline"] > p {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+nav[aria-label="Outline"] ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+nav[aria-label="Outline"] li {
+  margin: 0.15rem 0;
+}
+
+/* ⭐ The nesting is the `data-level` the renderer already emits, so the rail
+   needs no nested lists and the outline cannot disagree with the headings it
+   was derived from. `navigation.OUTLINE_MAX_LEVEL` is 3. */
+nav[aria-label="Outline"] li[data-level="2"] {
+  padding-left: 1rem;
+}
+
+nav[aria-label="Outline"] li[data-level="3"] {
+  padding-left: 2rem;
+  font-size: 0.9rem;
+}
+
+/* --- region 3: the between-pages bar ----------------------------------- */
+
+/* ⛔ M1's close condition 8, re-homed here: the bar must be distinguishable
+   from body text WITHOUT REFERENCE TO COLOUR ALONE. So it is told apart by a
+   rule above it, a different face, a smaller size, a heavier weight, tracking
+   and a row layout — six cues, none of them a colour. A reader who cannot
+   tell accent from body text still sees a bar. */
+
+nav[aria-label="Between units"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 3rem 0 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule-strong);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ⚠️ The slot that points up at the index is the quietest of the three: it is
+   where the reader came from, not where they are going. */
+nav[aria-label="Between units"] a[rel="up"] {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* --- region 4: the practice panel -------------------------------------- */
+
+/* ⛔ This panel exists because without it the page lies by omission: a unit
+   whose practices were never ingested renders exactly like a unit that has
+   none. So it must not read as more prose — it is a panel, with its own ground
+   and its own edge, and the edge is heavier on one side so it is still a panel
+   with colour off. */
+
+body > section[data-section="practices-pending"] {
+  margin: 2.5rem 0;
+  padding: 1rem 1.15rem;
+  background: var(--practice-soft);
+  border: 1px solid var(--practice);
+  border-left-width: 4px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+}
+
+body > section[data-section="practices-pending"] h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  color: var(--practice);
+}
+
+/* ⚠️ No `max-width` here, and the absence is deliberate: `reading.css` caps
+   `main p`, and this panel sits OUTSIDE `<main>`, so there is nothing to undo.
+   A `max-width: none` would have read as a bound on the column it is not. */
+body > section[data-section="practices-pending"] p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--fg-soft);
+}
+
+/* --- region 9: the trail (SF-15) ---------------------------------------- */
+
+/* ⛔ Authored since `SF-15` and painted by nothing, so a trail shipped as a
+   numbered `<ol>` — and the census could not say so, because no golden emits
+   it (`SF-15/3`, `W105`). It reads as one quiet line under the masthead: the UI
+   face, a smaller size, no list markers. The page the reader is on is told
+   apart by WEIGHT as well as colour, because `aria-current` is the statement
+   and this is the reinforcement. ⚠️ The `›` between crumbs is markup
+   (`crumb-separator.html`), so a page with no stylesheet still reads as a
+   trail and nothing here draws one. */
+
+nav[aria-label="Breadcrumb"] {
+  margin: 0 0 1.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+nav[aria-label="Breadcrumb"] ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+nav[aria-label="Breadcrumb"] li[aria-current="page"] {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* --- regions 5 and 6: the two lists that ARE their pages --------------- */
+
+/* ⛔ Ruling 164's content side. A container page is its unit list and the root
+   index is its tree: these are not chrome the reader can do without, so they
+   are laid out as rows to be scanned and clicked rather than as prose. */
+
+nav[aria-label="Units"],
+nav[aria-label="Contents"] {
+  margin: 1.5rem 0 0;
+  font-family: var(--font-ui);
+  font-size: 0.98rem;
+}
+
+nav[aria-label="Units"] ol,
+nav[aria-label="Contents"] ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+nav[aria-label="Units"] li > a,
+nav[aria-label="Contents"] li > a {
+  display: block;
+  padding: 0.6rem 0.3rem;
+  text-decoration: none;
+  border-radius: 5px;
+}
+
+nav[aria-label="Units"] li > a:hover,
+nav[aria-label="Contents"] li > a:hover {
+  background: var(--surface-2);
+  text-decoration: underline;
+}
+
+/* ⛔ `data-readable="false"` is §7's third state — a unit this build has no
+   page for — and it must be legible as "listed, not openable" without colour:
+   no pointer affordance, an italic face and a leading mark. ⚠️ The mark is
+   `content`, so it is decoration a screen reader skips; the state itself is
+   already in the attribute, which is what assistive technology reads. */
+nav[aria-label="Units"] li[data-readable="false"],
+nav[aria-label="Contents"] li[data-readable="false"] {
+  padding: 0.6rem 0.3rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+nav[aria-label="Units"] li[data-readable="false"]::before,
+nav[aria-label="Contents"] li[data-readable="false"]::before {
+  content: "— ";
+}
+
+/* The unit listing is a stack of rows, so each row gets a hairline. */
+nav[aria-label="Units"] li {
+  border-top: 1px solid var(--rule);
+}
+
+nav[aria-label="Units"] li:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* The index's tree is nested, so the depth carries the rule instead. ⚠️ The
+   `<details>` here carry NO class, so `reading.css`'s `details.disclosure`
+   never reaches them and the two disclosure looks stay separate on purpose. */
+nav[aria-label="Contents"] ol ol {
+  margin-left: 0.4rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--rule);
+}
+
+nav[aria-label="Contents"] details {
+  margin: 0.2rem 0;
+}
+
+nav[aria-label="Contents"] summary {
+  padding: 0.45rem 0.3rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--fg);
+}
+
+/* --- the two hooks both lists spell --------------------------------- */
+
+/* ⭐ `data-kind="numbering"` is the unit's reader-facing ordinal and
+   `data-kind="level"` is the corpus's own word for a depth. Both are the
+   corpus's text, both sit beside a title, and both have to be findable without
+   being glued to it — so they are set as a chip: tabular figures so ordinals
+   line up down a column, and a ground of their own so the title still reads as
+   the title. ⚠️ Scoped to `span`, because `data-kind` is also on `<section>`
+   with a corpus-supplied value. */
+
+span[data-kind="numbering"],
+span[data-kind="level"] {
+  display: inline-block;
+  padding: 0.05em 0.4em;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.82em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+span[data-kind="level"] {
+  text-transform: lowercase;
+  letter-spacing: 0.03em;
+}
+
+/* --- region 10: the rail across containers (W324) ---------------------- */
+
+/* ⛔ The region that reaches the OTHER containers, on every unit page and every
+   container page. ⭐ THE RULES BELOW ARE THE CARD IN THE ONE COLUMN, which is
+   what a viewport with no room for a rail gets; the block after them moves the
+   same markup to the LEFT of the reading column where there is room (`W325`).
+   ⚠️ The card is not a fallback nobody looks at — it is the shape a phone and a
+   narrow window both get, and it is asserted at a named width.
+
+   ⭐ ONE SET OF BYTES, TWO LAYOUTS. Nothing below this line is conditional on
+   anything the renderer emits: the page is identical at both widths, `<details>`
+   is the disclosure at both, and the tab order is document order at both. ⛔ A
+   second markup for the wide case would be a second navigation, which is what
+   this row was told not to build.
+
+   ⛔ NOT ONE CLASS AND NOT ONE COLOUR, as everywhere else in this part: the
+   region is reached by its `aria-label` and its two `data-*` hooks, and every
+   value is a `palette.css` token.
+
+   ⚠️ The current container and the current unit are told apart by WEIGHT as
+   well as by colour, because `aria-current` is the statement and this is the
+   reinforcement — the trail's rule one region along says the same. */
+
+nav[aria-label="Containers"] {
+  margin: 0 0 2rem;
+  padding: 0.9rem 1.15rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+nav[aria-label="Containers"] ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The units of one container are nested, so the depth carries the rule — the
+   root index's tree is drawn the same way and for the same reason. */
+nav[aria-label="Containers"] ol ol {
+  margin-left: 0.4rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--rule);
+}
+
+nav[aria-label="Containers"] summary {
+  padding: 0.35rem 0.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--fg);
+}
+
+nav[aria-label="Containers"] a {
+  display: block;
+  padding: 0.3rem 0.2rem;
+  text-decoration: none;
+  border-radius: 5px;
+}
+
+nav[aria-label="Containers"] a:hover {
+  background: var(--surface);
+  text-decoration: underline;
+}
+
+/* ⛔ The current container's mark reaches its OWN summary and never the rows
+   nested under it: `li[aria-current="true"]` encloses every unit of that
+   container, so an unscoped rule would print the whole open course in bold and
+   say "you are here" about eight rows at once. ⚠️ `--fg` rather than `--accent`,
+   as the trail's own current rule uses, so the contrast is the card's ordinary
+   text contrast and not a second ratio to keep in step. */
+nav[aria-label="Containers"] li[aria-current="true"] > details > summary,
+nav[aria-label="Containers"] li[aria-current="page"] {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* ⛔ `data-readable="false"` is §7's third state — a unit this build has no page
+   for — and it must be legible as "listed, not openable" without colour: an
+   italic face and a leading mark. ⚠️ The mark is `content`, so it is decoration
+   a screen reader skips; the state itself is already in the attribute. */
+nav[aria-label="Containers"] li[data-readable="false"] {
+  padding: 0.3rem 0.2rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+nav[aria-label="Containers"] li[data-readable="false"]::before {
+  content: "\2014 ";
+}
+
+/* --- region 10 beside the column: the left rail (W325) ------------------ */
+
+/* ⛔ THE USER'S WORDS WERE "there is no left navigation bar between courses".
+   `W324` built the navigation and left it in the column; this is the placement,
+   and it is the whole of what this block does.
+
+   ⛔ NO SCRIPT AND NO SECOND MARKUP. R8's floor is a file opened with no server
+   and no scripting, so a rail that needed either would not be one for this
+   product. This is three rules of CSS over the bytes `W324` already emits.
+
+   ⛔ `:has()` IS THE CONDITION, AND IT IS NOT A CONVENIENCE. The root index
+   carries no rail at all — `render.index.document` lists it in its table of
+   absences, because the index's own body already IS the tree — so a grid
+   declared unconditionally would give that page an empty `17rem` column down its
+   left and shift its contents off centre. ⭐ The two-column page is therefore
+   asked for by the page that HAS the region. ⚠️ And a browser that does not
+   understand `:has()` gets the card, which is the shape this file ships at a
+   narrow viewport anyway: the degradation is the same one, reached twice.
+
+   ⭐ THE READING COLUMN IS NOT TOUCHED, and the arithmetic is the column
+   section's own. `reset.css` sets `box-sizing: border-box`, so `body`'s two
+   gutters are inside its bound; the content TRACK is therefore written as the
+   measure plus the two gutters that were already inside it, and the rail plus
+   one gutter is added OUTSIDE that. ⛔ So `main` resolves the same width here as
+   it does in the one-column page, which is what keeps
+   `test_every_chrome_region_resolves_the_same_column_as_the_reading_surface` a
+   true statement about every region except the rail itself.
+
+   ⛔ `--page-max` IS PAINTED AND DOES NOT BITE UNDER THE FACE THIS IMAGE PINS —
+   said here rather than left for a reader to discover. ⭐ It is a real ceiling
+   rather than decoration because `--measure` is `80ch` and `ch` resolves against
+   the prose face, so the sum below is NOT a constant and a wide enough face
+   pushes it past `96rem`. ⚠️ Whether a ceiling no shipped face reaches earns its
+   declaration is the palette owner's question and is recorded as `W325/2`.
+
+   ⚠️ THE RAIL IS NOT STICKY, and that is a property of grid rather than a
+   preference: a grid item's containing block is its grid AREA, so `position:
+   sticky` on a one-row item sticks within that row and does nothing at all, and
+   an item spanning every row would have to know how many rows a page has.
+   Recorded as `W325/3` — a rail that scrolls with the page is still a rail.
+
+   ⚠️ `72rem` IS THE ONE THRESHOLD IN THIS FILE and the browser arm reads it back
+   rather than repeating it: a media query resolves `rem` against the initial
+   font size, so it is 1152px, and rail + measure + gutters is 1172px under this
+   image's face — the track shrinks the few pixels at the threshold itself and
+   nothing overflows, which is what `minmax(0, …)` is for. */
+
+@media (min-width: 72rem) {
+  body:has(nav[aria-label="Containers"]) {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, calc(var(--measure) + 2 * var(--gutter)));
+    column-gap: var(--gutter);
+    max-width: min(var(--page-max), calc(var(--rail) + var(--measure) + 5 * var(--gutter)));
+  }
+
+  /* ⛔ Everything that is not the rail is the reading column, whatever arrives
+     next: a slot added to `page.html` lands in the right track with no rule of
+     its own, which is the half of this a per-region list would get wrong. */
+  body:has(nav[aria-label="Containers"]) > * {
+    grid-column: 2;
+  }
+
+  /* ⚠️ EQUAL SPECIFICITY WITH THE RULE ABOVE, so ORDER decides it and this one
+     is second deliberately — the same argument this file's own loading note
+     makes about `reading.css`. ⭐ `align-self: start` because the row this item
+     sits in is the masthead's: a stretched card would draw its border at the
+     masthead's height with the course list spilling out below it. */
+  body > nav[aria-label="Containers"] {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+    margin: 0;
+  }
+}
+
+/* --- region 7: the read control, and the mark it sets ------------------ */
+
+/* ⛔ The reader's own record (`SF-30`), set to read as an ACT and not as more
+   prose: a panel with the page's UI face, a button that looks like one, and the
+   sentence about where the mark lives quiet underneath. ⚠️ The region ships
+   `hidden` and `read-mark.js` unhides it only once it has a working store, so
+   nothing here rules the scriptless case — `[hidden]` is the user agent's, and a
+   control that cannot work is not shown rather than shown greyed out. ⛔ `body >`
+   scopes every selector, as the practice panel's do, because `data-section` is
+   OVERLOADED: `section.html` carries a corpus's own key in it (R1). */
+
+body > section[data-section="read-mark"] {
+  margin: 2.5rem 0 1.5rem;
+  padding: 1rem 1.15rem;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  border-radius: 8px;
+  font-family: var(--font-ui);
+}
+
+body > section[data-section="read-mark"] button {
+  font: inherit;
+  padding: 0.4em 0.95em;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ⚠️ The state is told apart by its border and its weight as well as by its
+   colour, because the two labels are the authoritative statement and this is the
+   reinforcement — not the other way round. */
+body > section[data-section="read-mark"][data-marked="true"] button {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+body > section[data-section="read-mark"] p {
+  margin: 0.7rem 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+body > section[data-section="read-mark"] p:first-child {
+  margin: 0;
+}
+
+/* ⛔ The mark, surfaced on the two lists that ARE their pages. ⭐ A GLYPH and not
+   a colour: a row nobody can tell apart without seeing colour is a row that is
+   not marked for everybody. ⚠️ `data-marked` is set at read time and emitted by
+   no renderer — the mark is the reader's own, and the generated page is
+   byte-identical whoever opens it (R10). */
+nav[aria-label="Contents"] li[data-marked="true"]::after,
+nav[aria-label="Units"] li[data-marked="true"]::after {
+  content: " \2713";
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* --- what the reader asked for ---------------------------------------- */
+
+/* ⚠️ `reading.css` already flattens animation under `prefers-reduced-motion`.
+   The one thing it cannot know about is the smooth scroll `reset.css` sets,
+   which it also already undoes. Nothing here adds motion, so nothing here
+   needs undoing — stated rather than left as an absence somebody has to
+   re-derive. */
+
+/* Syntax highlighting for the lesson's code blocks.
+
+   Prism (vendored, `prism.js`) tokenises in the browser and writes
+   `<span class="token …">` inside the `<code>` the page already shipped, so
+   NO generated page changes and the archive stays clean text. With JS off,
+   every block falls back to the single `--code-fg` it had before.
+
+   ⛔ A LANGUAGE WITH NO PRISM GRAMMAR RENDERS AS THE DECLARED `plain`
+   FALLBACK, and so is `text` left uncoloured, whose grammar is empty by
+   design. A corpus in a language nobody vendored a grammar for must render,
+   not fail, and its caption says it is plain text. ⚠️ The framework knows no
+   corpus's languages (R1): what is highlightable is the `Languages:` line of
+   the vendored bundle's header, checked against the grammars it carries.
+
+   ⛔ ONE ELEMENT OFTEN CARRIES SEVERAL TOKEN CLASSES, and they can want
+   different colours: Java's `@Override` is `annotation punctuation`,
+   JavaScript's backtick is `template-punctuation string`, Kotlin's `"…"` is
+   `string-literal singleline`. Every selector here has the same specificity,
+   so **the last group to match wins** -- which makes the ORDER OF THE GROUPS
+   BELOW the actual mapping, not decoration. It runs from weakest to
+   strongest: container, punctuation, type, function, number, string,
+   keyword, comment, and finally interpolation in the body colour. Moving a
+   group changes what colour a combined token takes;
+   `tests/studyforge/render/pageassets/test_highlight.py` runs the real
+   grammars and checks the winner for every combination they emit.
+
+   ⚠️ Kotlin's `singleline` and `multiline` are STRING-LITERAL variants, not
+   comment variants. Filing them under comment italicised every string in one
+   language and the tests still passed; only a screenshot caught it, which is
+   how this rule came to be written down. */
+
+/* Containers Prism nests other tokens inside. They must not paint, or they
+   would override the child that carries the meaning. Weakest, deliberately.
+
+   ⚠️ Gherkin's `feature` and `scenario` wrap a keyword and a title, and its
+   two table halves wrap their cells, so all four are containers of exactly
+   that kind. `important` is the title text itself, which reads as prose and
+   not as a painted token. `script` and `language-javascript` wrap the
+   JavaScript inside an HTML `<script>` element -- the same shape as
+   `language-regex`, which was already here. */
+figure.code .token.expression,
+figure.code .token.parameter,
+figure.code .token.decorator,
+figure.code .token.language-regex,
+figure.code .token.language-javascript,
+figure.code .token.script,
+figure.code .token.feature,
+figure.code .token.scenario,
+figure.code .token.important,
+figure.code .token.table-head,
+figure.code .token.table-body { color: inherit; }
+
+/* ⛔ A prolog, a doctype and a CDATA marker are STRUCTURAL NOISE, and they
+   are filed here rather than under comment on purpose: Prism's own themes
+   colour them as comments, and this file's standing rule is that nothing
+   takes the comment colour and its italics unless it IS a comment. */
+figure.code .token.punctuation,
+figure.code .token.operator,
+figure.code .token.template-punctuation,
+figure.code .token.interpolation-punctuation,
+figure.code .token.regex-delimiter,
+figure.code .token.regex-flags,
+figure.code .token.prolog,
+figure.code .token.doctype,
+figure.code .token.cdata { color: var(--tok-punct); }
+
+/* ⭐ The names a document DECLARES read as types: an element name, an
+   attribute name, a JSON property, a properties key, a Gherkin placeholder
+   or table heading. Their VALUES are filed under string, below. */
+figure.code .token.class-name,
+figure.code .token.builtin,
+figure.code .token.annotation,
+figure.code .token.generics,
+figure.code .token.namespace,
+figure.code .token.tag,
+figure.code .token.attr-name,
+figure.code .token.doctype-tag,
+figure.code .token.name,
+figure.code .token.property,
+figure.code .token.key,
+figure.code .token.variable { color: var(--tok-type); }
+
+figure.code .token.function,
+figure.code .token.function-variable { color: var(--tok-function); }
+
+figure.code .token.number { color: var(--tok-number); }
+
+figure.code .token.string,
+figure.code .token.string-literal,
+figure.code .token.string-interpolation,
+figure.code .token.triple-quoted-string,
+figure.code .token.template-string,
+figure.code .token.singleline,
+figure.code .token.multiline,
+figure.code .token.char,
+figure.code .token.regex,
+figure.code .token.regex-source,
+figure.code .token.attr-value,
+figure.code .token.value,
+figure.code .token.entity { color: var(--tok-string); }
+
+/* ⭐ A Gherkin step keyword -- Given, When, Then -- is Prism's `atrule`, and
+   it is a keyword in every sense the reader cares about. */
+figure.code .token.keyword,
+figure.code .token.boolean,
+figure.code .token.import,
+figure.code .token.atrule { color: var(--tok-keyword); font-weight: 600; }
+
+figure.code .token.comment { color: var(--tok-comment); font-style: italic; }
+
+/* An interpolated expression is code, not string: `"Hi $n"` reads with `$n`
+   in the body colour, the way an IDE shows it, so the reader can see what is
+   substituted. It is a CHILD of the string element, so it wins on being the
+   inner element rather than on order. */
+figure.code .token.interpolation { color: var(--code-fg); font-style: normal; }
+
+/* The narration transport, and the highlight that tracks what is being spoken.
+
+   ⭐ THE SCOPE IS THE ONE REGION `chrome.css` DEFERRED. It says of itself:
+   "`footer` is absent … The narration player is the only `<footer>` a page
+   carries, it is `SF-18`'s at M3, and `--player-height`, `--panel` and
+   `--shadow` are defined and waiting for it." ⛔ This is that part. Five palette
+   tokens were `UNPAINTED` in `tests/visual/palette.py`'s ledger with `SF-18`
+   named against each; painting them is what forces the ledger to say which
+   ground each one's contrast is taken against.
+
+   ⛔ NOT ONE COLOUR AND NOT ONE MEASURE IS DEFINED HERE. Every value is a
+   `palette.css` token, so the transport follows the reader's theme and
+   `test_palette` fails a raw hex.
+
+   ⛔ NOT ONE CLASS NAME IS TARGETED HERE EITHER, for the reason `chrome.css`
+   gives: every hook is an element, an id from `templates/player.html`, or a
+   `data-*` attribute, so nothing here joins the published class contract and no
+   page has to be re-rendered for a style change.
+
+   ⚠️ `data-speaking` is this part's and `narration.js`'s, and it is deliberately
+   NOT in `pageassets.SURFACE_HOOKS`. `data-marked` is published because
+   `chrome.css` paints a state `read-mark.js` writes — two offices, two ends of
+   one spelling. Here both ends are one task's, and publishing a hook nobody else
+   may reach would oblige a contract that has no second side.
+
+   ⚠️ Loaded after `code-highlight.css` and before the vendored `plyr.css`: the
+   highlight refines the inside of a code block, which the highlighter has just
+   painted, and at equal specificity the last rule wins. The vendored player
+   theme stays last so a video control keeps its own look. */
+
+/* --- the transport ------------------------------------------------------- */
+
+/* ⛔ STICKY, NOT FIXED, and that is the reason there is no rule on `body` here.
+   A fixed footer overlaps the last paragraph of every unit and has to be paid
+   for with a `padding-bottom` on `body` — a second rule answering the question
+   `chrome.css` already answers once, on one element (`PO-22/6`). The footer is
+   the last child of `body`, so sticking it to the bottom pins it while the
+   reader scrolls and lets the page end underneath it.
+
+   ⚠️ It ships `hidden` and `narration.js` unhides it, so every rule here is for
+   a transport a reader can actually use. */
+
+footer#player {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  min-height: var(--player-height);
+  box-sizing: border-box;
+  margin-top: 2.5rem;
+  padding: 0 0 1rem;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+
+footer#player > div:last-of-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding-top: 0.85rem;
+}
+
+/* The keyboard sentence: a full-width line under the controls rather than one
+   more thing competing with them for the row. */
+footer#player p {
+  flex-basis: 100%;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* --- progress through the unit ------------------------------------------- */
+
+/* ⛔ The width comes from `--progress`, which `narration.js` sets and nothing
+   else reads, so the script states a number and this file draws it. The
+   fallback is `0%`: a page whose script never ran shows an empty bar rather
+   than a full one. */
+
+#track {
+  height: 0.3rem;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+#fill {
+  width: var(--progress, 0%);
+  height: 100%;
+  background: var(--hl-bar);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #fill {
+    transition: width 0.2s linear;
+  }
+}
+
+/* --- the controls -------------------------------------------------------- */
+
+footer#player button,
+footer#player select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+footer#player button:hover:enabled,
+footer#player select:hover:enabled {
+  background: var(--surface-2);
+}
+
+/* ⛔ A disabled control is dimmed AND says so through the attribute, never
+   through colour alone: a reader who cannot tell the two greys apart still gets
+   the cursor and the button's own disabled semantics from the browser. */
+footer#player button:disabled,
+footer#player select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#play {
+  font-weight: 600;
+}
+
+/* --- what is playing, and what is wrong ---------------------------------- */
+
+#where {
+  color: var(--muted);
+}
+
+#where:not(:empty) + #counter::before {
+  content: " · ";
+}
+
+#counter {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ⛔ Every sentence in here is markup (`templates/player.html`) and the script
+   only unhides one. ⚠️ The region itself is hidden when there is nothing to
+   say — by the script, because "all my children are hidden" is not a state CSS
+   can ask about without `:has`, and a transport with nothing to say must not
+   reserve a gap that reads as a message that failed to appear. */
+#status {
+  flex-basis: 100%;
+  color: var(--accent);
+}
+
+/* --- the promise the record made and the disk did not keep ---------------- */
+
+/* ⛔ THE ONE NOTICE THIS PART PAINTS, AND IT IS NOT ON EVERY PAGE. A corpus that
+   was never narrated is COMPLETE rather than short (spec §7 C5, §11.0), so it
+   carries nothing at all; this region exists only when the narration record
+   PROMISED a clip that is not on disk — which used to render identically to
+   never having been narrated (`W202` Q4).
+
+   ⚠️ It is `chrome.css`'s eighth region and is DEFERRED there for the reason
+   `footer#player` is: both are the transport's, both are painted here, and that
+   file still reaches none of these tokens.
+
+   ⭐ It takes the transport's own ground rather than the page's, because it is
+   the transport speaking — and because `--fg` and `--accent` are already
+   measured against `--panel` by the footer above. ⛔ NOT hidden: the footer
+   ships `hidden` and needs a script to come back, and a reader with scripting
+   off must still be told that audio this unit was promised is missing. */
+
+section[data-section="narration-gap"] {
+  margin-top: 2.5rem;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  border-left: 0.2rem solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+
+section[data-section="narration-gap"] h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: var(--accent);
+}
+
+section[data-section="narration-gap"] p {
+  margin: 0.35rem 0 0;
+  color: var(--fg);
+}
+
+/* --- the highlight ------------------------------------------------------- */
+
+/* ⛔ Speech-unit granularity, which is the whole of why this needs no timing
+   data: the lit passage is the passage whose clip is loaded. The wash is drawn
+   with `box-shadow` rather than padding so lighting a paragraph does not move
+   the paragraph — a highlight that reflowed the page would make the text jump
+   away from the reader on every advance. */
+
+[data-speaking] {
+  background: var(--hl-bg);
+  color: var(--hl-fg);
+  box-shadow: 0 0 0 0.3rem var(--hl-bg);
+  border-radius: 0.15rem;
+}
+
+/* ⚠️ A code block inside a lit passage keeps its own ground AND its own text
+   colours — the seven syntax tokens were measured against `--code-bg`, and
+   repainting either half would invalidate every one of those ratios. It takes a
+   wash over the top instead, which is exactly what `--hl-code` is for. ⛔ So no
+   `color` is set here, and the wash is a `background-image` so the ground
+   underneath it is still the one the numbers were taken against. */
+[data-speaking] pre,
+[data-speaking] code {
+  background-image: linear-gradient(var(--hl-code), var(--hl-code));
+}
+
+[data-speaking] pre code {
+  background-image: none;
+}
+
+/* Plyr 3.8.4 -- plyr.io -- MIT, see plyr.LICENSE beside this file.
+   VENDORED, UNMODIFIED apart from this header. Do not edit: re-vendor with
+   `npm pack plyr` and take dist/plyr.css.
+   It carries no external reference of any kind -- no remote font, no
+   background image -- which is why it works on file:// with nothing to fetch.
+   Themed against this page's palette in video-player.css, which follows it
+   and never forks it.
+   ⚠️ The `@charset` below is inert once this file is concatenated after
+   another: `@charset` is only honoured as the very first bytes of a
+   stylesheet. Harmless -- the page declares UTF-8 and that is the CSS default
+   -- and left in place because editing it would be editing vendored code. */
+@charset "UTF-8";@keyframes plyr-progress{to{background-position:25px 0;background-position:var(--plyr-progress-loading-size,25px) 0}}@keyframes plyr-popup{0%{opacity:.5;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes plyr-fade-in{0%{opacity:0}to{opacity:1}}.plyr{-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;align-items:center;direction:ltr;display:flex;flex-direction:column;font-family:inherit;font-family:var(--plyr-font-family,inherit);font-variant-numeric:tabular-nums;font-weight:400;font-weight:var(--plyr-font-weight-regular,400);line-height:1.7;line-height:var(--plyr-line-height,1.7);max-width:100%;min-width:200px;position:relative;text-shadow:none;transition:box-shadow .3s ease;z-index:0}.plyr audio,.plyr iframe,.plyr video{display:block;height:100%;width:100%}.plyr button{font:inherit;line-height:inherit;width:auto}.plyr:focus{outline:0}.plyr--full-ui{box-sizing:border-box}.plyr--full-ui *,.plyr--full-ui :after,.plyr--full-ui :before{box-sizing:inherit}.plyr--full-ui a,.plyr--full-ui button,.plyr--full-ui input,.plyr--full-ui label{touch-action:manipulation}.plyr__badge{background:#4a5464;background:var(--plyr-badge-background,#4a5464);border-radius:2px;border-radius:var(--plyr-badge-border-radius,2px);color:#fff;color:var(--plyr-badge-text-color,#fff);font-size:9px;font-size:var(--plyr-font-size-badge,9px);line-height:1;padding:3px 4px}.plyr--full-ui ::-webkit-media-text-track-container{display:none}.plyr__captions{animation:plyr-fade-in .3s ease;bottom:0;display:none;font-size:13px;font-size:var(--plyr-font-size-small,13px);left:0;padding:10px;padding:var(--plyr-control-spacing,10px);position:absolute;text-align:center;transition:transform .4s ease-in-out;width:100%}.plyr__captions span:empty{display:none}@media (min-width:480px){.plyr__captions{font-size:15px;font-size:var(--plyr-font-size-base,15px);padding:20px;padding:calc(var(--plyr-control-spacing, 10px)*2)}}@media (min-width:768px){.plyr__captions{font-size:18px;font-size:var(--plyr-font-size-large,18px)}}.plyr--captions-active .plyr__captions{display:block}.plyr:not(.plyr--hide-controls) .plyr__controls:not(:empty)~.plyr__captions{transform:translateY(-40px);transform:translateY(calc(var(--plyr-control-spacing, 10px)*-4))}.plyr__caption{background:#000c;background:var(--plyr-captions-background,#000c);border-radius:4px;-webkit-box-decoration-break:clone;box-decoration-break:clone;color:#fff;color:var(--plyr-captions-text-color,#fff);line-height:185%;padding:.2em .5em;white-space:pre-wrap}.plyr__caption div{display:inline}.plyr__control{background:#0000;border:0;border-radius:4px;border-radius:var(--plyr-control-radius,4px);color:inherit;cursor:pointer;flex-shrink:0;overflow:visible;padding:7px;padding:calc(var(--plyr-control-spacing, 10px)*.7);position:relative;transition:all .1s ease-in-out}.plyr__control svg{display:block;fill:currentColor;height:18px;height:var(--plyr-control-icon-size,18px);pointer-events:none;width:18px;width:var(--plyr-control-icon-size,18px)}.plyr__control:focus{outline:0}.plyr__control:focus-visible{outline:2px dashed #00b2ff;outline:2px dashed var(--plyr-focus-visible-color,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));outline-offset:2px}a.plyr__control{text-decoration:none}.plyr__control.plyr__control--pressed .icon--not-pressed,.plyr__control.plyr__control--pressed .label--not-pressed,.plyr__control:not(.plyr__control--pressed) .icon--pressed,.plyr__control:not(.plyr__control--pressed) .label--pressed,a.plyr__control:after,a.plyr__control:before{display:none}.plyr--full-ui ::-webkit-media-controls{display:none}.plyr__controls{align-items:center;display:flex;justify-content:flex-end;text-align:center}.plyr__controls .plyr__progress__container{flex:1;min-width:0}.plyr__controls .plyr__controls__item{margin-left:2.5px;margin-left:calc(var(--plyr-control-spacing, 10px)/4)}.plyr__controls .plyr__controls__item:first-child{margin-left:0;margin-right:auto}.plyr__controls .plyr__controls__item.plyr__progress__container{padding-left:2.5px;padding-left:calc(var(--plyr-control-spacing, 10px)/4)}.plyr__controls .plyr__controls__item.plyr__time{padding:0 5px;padding:0 calc(var(--plyr-control-spacing, 10px)/2)}.plyr__controls .plyr__controls__item.plyr__progress__container:first-child,.plyr__controls .plyr__controls__item.plyr__time+.plyr__time,.plyr__controls .plyr__controls__item.plyr__time:first-child{padding-left:0}.plyr [data-plyr=airplay],.plyr [data-plyr=captions],.plyr [data-plyr=fullscreen],.plyr [data-plyr=pip],.plyr__controls:empty{display:none}.plyr--airplay-supported [data-plyr=airplay],.plyr--captions-enabled [data-plyr=captions],.plyr--fullscreen-enabled [data-plyr=fullscreen],.plyr--pip-supported [data-plyr=pip]{display:inline-block}.plyr__menu{display:flex;position:relative}.plyr__menu .plyr__control svg{transition:transform .3s ease}.plyr__menu .plyr__control[aria-expanded=true] svg{transform:rotate(90deg)}.plyr__menu .plyr__control[aria-expanded=true] .plyr__tooltip{display:none}.plyr__menu__container{animation:plyr-popup .2s ease;background:#ffffffe6;background:var(--plyr-menu-background,#ffffffe6);border-radius:8px;border-radius:var(--plyr-menu-radius,8px);bottom:100%;box-shadow:0 1px 2px #00000026;box-shadow:var(--plyr-menu-shadow,0 1px 2px #00000026);color:#4a5464;color:var(--plyr-menu-color,#4a5464);font-size:15px;font-size:var(--plyr-font-size-base,15px);margin-bottom:10px;position:absolute;right:-3px;text-align:left;white-space:nowrap;z-index:3}.plyr__menu__container>div{overflow:hidden;transition:height .35s cubic-bezier(.4,0,.2,1),width .35s cubic-bezier(.4,0,.2,1)}.plyr__menu__container:after{border:4px solid #0000;border-top-color:#ffffffe6;border:var(--plyr-menu-arrow-size,4px) solid #0000;border-top-color:var(--plyr-menu-background,#ffffffe6);content:"";height:0;position:absolute;right:14px;right:calc(var(--plyr-control-icon-size, 18px)/2 + var(--plyr-control-spacing, 10px)*.7 - var(--plyr-menu-arrow-size, 4px)/2);top:100%;width:0}.plyr__menu__container [role=menu]{padding:7px;padding:calc(var(--plyr-control-spacing, 10px)*.7)}.plyr__menu__container [role=menuitem],.plyr__menu__container [role=menuitemradio]{margin-top:2px}.plyr__menu__container [role=menuitem]:first-child,.plyr__menu__container [role=menuitemradio]:first-child{margin-top:0}.plyr__menu__container .plyr__control{align-items:center;color:#4a5464;color:var(--plyr-menu-color,#4a5464);display:flex;font-size:13px;font-size:var(--plyr-font-size-menu,var(--plyr-font-size-small,13px));padding:4.66667px 10.5px;padding:calc(var(--plyr-control-spacing, 10px)*.7/1.5) calc(var(--plyr-control-spacing, 10px)*.7*1.5);-webkit-user-select:none;user-select:none;width:100%}.plyr__menu__container .plyr__control>span{align-items:inherit;display:flex;width:100%}.plyr__menu__container .plyr__control:after{border:4px solid #0000;border:var(--plyr-menu-item-arrow-size,4px) solid #0000;content:"";position:absolute;top:50%;transform:translateY(-50%)}.plyr__menu__container .plyr__control--forward{padding-right:28px;padding-right:calc(var(--plyr-control-spacing, 10px)*.7*4)}.plyr__menu__container .plyr__control--forward:after{border-left-color:#728197;border-left-color:var(--plyr-menu-arrow-color,#728197);right:6.5px;right:calc(var(--plyr-control-spacing, 10px)*.7*1.5 - var(--plyr-menu-item-arrow-size, 4px))}.plyr__menu__container .plyr__control--forward:focus-visible:after,.plyr__menu__container .plyr__control--forward:hover:after{border-left-color:initial}.plyr__menu__container .plyr__control--back{font-weight:400;font-weight:var(--plyr-font-weight-regular,400);margin:7px;margin:calc(var(--plyr-control-spacing, 10px)*.7);margin-bottom:3.5px;margin-bottom:calc(var(--plyr-control-spacing, 10px)*.7/2);padding-left:28px;padding-left:calc(var(--plyr-control-spacing, 10px)*.7*4);position:relative;width:calc(100% - 14px);width:calc(100% - var(--plyr-control-spacing, 10px)*.7*2)}.plyr__menu__container .plyr__control--back:after{border-right-color:#728197;border-right-color:var(--plyr-menu-arrow-color,#728197);left:6.5px;left:calc(var(--plyr-control-spacing, 10px)*.7*1.5 - var(--plyr-menu-item-arrow-size, 4px))}.plyr__menu__container .plyr__control--back:before{background:#dcdfe5;background:var(--plyr-menu-back-border-color,#dcdfe5);box-shadow:0 1px 0 #fff;box-shadow:0 1px 0 var(--plyr-menu-back-border-shadow-color,#fff);content:"";height:1px;left:0;margin-top:3.5px;margin-top:calc(var(--plyr-control-spacing, 10px)*.7/2);overflow:hidden;position:absolute;right:0;top:100%}.plyr__menu__container .plyr__control--back:focus-visible:after,.plyr__menu__container .plyr__control--back:hover:after{border-right-color:initial}.plyr__menu__container .plyr__control[role=menuitemradio]{padding-left:7px;padding-left:calc(var(--plyr-control-spacing, 10px)*.7)}.plyr__menu__container .plyr__control[role=menuitemradio]:after,.plyr__menu__container .plyr__control[role=menuitemradio]:before{border-radius:100%}.plyr__menu__container .plyr__control[role=menuitemradio]:before{background:#0000001a;content:"";display:block;flex-shrink:0;height:16px;margin-right:10px;margin-right:var(--plyr-control-spacing,10px);transition:all .3s ease;width:16px}.plyr__menu__container .plyr__control[role=menuitemradio]:after{background:#fff;border:0;height:6px;left:12px;opacity:0;top:50%;transform:translateY(-50%) scale(0);transition:transform .3s ease,opacity .3s ease;width:6px}.plyr__menu__container .plyr__control[role=menuitemradio][aria-checked=true]:before{background:#00b2ff;background:var(--plyr-control-toggle-checked-background,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)))}.plyr__menu__container .plyr__control[role=menuitemradio][aria-checked=true]:after{opacity:1;transform:translateY(-50%) scale(1)}.plyr__menu__container .plyr__control[role=menuitemradio]:focus-visible:before,.plyr__menu__container .plyr__control[role=menuitemradio]:hover:before{background:#23282f1a}.plyr__menu__container .plyr__menu__value{align-items:center;display:flex;margin-left:auto;margin-right:-5px;margin-right:calc(var(--plyr-control-spacing, 10px)*.7*-1 - -2px);overflow:hidden;padding-left:24.5px;padding-left:calc(var(--plyr-control-spacing, 10px)*.7*3.5);pointer-events:none}.plyr--full-ui input[type=range]{appearance:none;background:#0000;border:0;border-radius:26px;border-radius:calc(var(--plyr-range-thumb-height, 13px)*2);color:#00b2ff;color:var(--plyr-range-fill-background,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));display:block;height:19px;height:calc(var(--plyr-range-thumb-active-shadow-width, 3px)*2 + var(--plyr-range-thumb-height, 13px));margin:0;min-width:0;padding:0;transition:box-shadow .3s ease;width:100%}.plyr--full-ui input[type=range]::-webkit-slider-runnable-track{background:#0000;background-image:linear-gradient(90deg,currentColor 0,#0000 0);background-image:linear-gradient(to right,currentColor var(--value,0),#0000 var(--value,0));border:0;border-radius:2.5px;border-radius:calc(var(--plyr-range-track-height, 5px)/2);height:5px;height:var(--plyr-range-track-height,5px);-webkit-transition:box-shadow .3s ease;transition:box-shadow .3s ease;-webkit-user-select:none;user-select:none}.plyr--full-ui input[type=range]::-webkit-slider-thumb{appearance:none;background:#fff;background:var(--plyr-range-thumb-background,#fff);border:0;border-radius:100%;box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33);height:13px;height:var(--plyr-range-thumb-height,13px);margin-top:-4px;margin-top:calc((var(--plyr-range-thumb-height, 13px) - var(--plyr-range-track-height, 5px))/2*-1);position:relative;-webkit-transition:all .2s ease;transition:all .2s ease;width:13px;width:var(--plyr-range-thumb-height,13px)}.plyr--full-ui input[type=range]::-moz-range-track{background:#0000;border:0;border-radius:2.5px;border-radius:calc(var(--plyr-range-track-height, 5px)/2);height:5px;height:var(--plyr-range-track-height,5px);-moz-transition:box-shadow .3s ease;transition:box-shadow .3s ease;user-select:none}.plyr--full-ui input[type=range]::-moz-range-thumb{background:#fff;background:var(--plyr-range-thumb-background,#fff);border:0;border-radius:100%;box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33);height:13px;height:var(--plyr-range-thumb-height,13px);position:relative;-moz-transition:all .2s ease;transition:all .2s ease;width:13px;width:var(--plyr-range-thumb-height,13px)}.plyr--full-ui input[type=range]::-moz-range-progress{background:currentColor;border-radius:2.5px;border-radius:calc(var(--plyr-range-track-height, 5px)/2);height:5px;height:var(--plyr-range-track-height,5px)}.plyr--full-ui input[type=range]::-ms-track{color:#0000}.plyr--full-ui input[type=range]::-ms-fill-upper,.plyr--full-ui input[type=range]::-ms-track{background:#0000;border:0;border-radius:2.5px;border-radius:calc(var(--plyr-range-track-height, 5px)/2);height:5px;height:var(--plyr-range-track-height,5px);-ms-transition:box-shadow .3s ease;transition:box-shadow .3s ease;user-select:none}.plyr--full-ui input[type=range]::-ms-fill-lower{background:#0000;background:currentColor;border:0;border-radius:2.5px;border-radius:calc(var(--plyr-range-track-height, 5px)/2);height:5px;height:var(--plyr-range-track-height,5px);-ms-transition:box-shadow .3s ease;transition:box-shadow .3s ease;user-select:none}.plyr--full-ui input[type=range]::-ms-thumb{background:#fff;background:var(--plyr-range-thumb-background,#fff);border:0;border-radius:100%;box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33);height:13px;height:var(--plyr-range-thumb-height,13px);margin-top:0;position:relative;-ms-transition:all .2s ease;transition:all .2s ease;width:13px;width:var(--plyr-range-thumb-height,13px)}.plyr--full-ui input[type=range]::-ms-tooltip{display:none}.plyr--full-ui input[type=range]::-moz-focus-outer{border:0}.plyr--full-ui input[type=range]:focus{outline:0}.plyr--full-ui input[type=range]:focus-visible::-webkit-slider-runnable-track{outline:2px dashed #00b2ff;outline:2px dashed var(--plyr-focus-visible-color,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));outline-offset:2px}.plyr--full-ui input[type=range]:focus-visible::-moz-range-track{outline:2px dashed #00b2ff;outline:2px dashed var(--plyr-focus-visible-color,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));outline-offset:2px}.plyr--full-ui input[type=range]:focus-visible::-ms-track{outline:2px dashed #00b2ff;outline:2px dashed var(--plyr-focus-visible-color,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));outline-offset:2px}.plyr__poster{background-color:#000;background-color:var(--plyr-video-background,var(--plyr-video-background,#000));background-position:50% 50%;background-repeat:no-repeat;background-size:contain;height:100%;left:0;opacity:0;position:absolute;top:0;transition:opacity .2s ease;width:100%;z-index:1}.plyr--stopped.plyr__poster-enabled .plyr__poster{opacity:1}.plyr--youtube.plyr--paused.plyr__poster-enabled:not(.plyr--stopped) .plyr__poster{display:none}.plyr__time{font-size:13px;font-size:var(--plyr-font-size-time,var(--plyr-font-size-small,13px))}.plyr__time+.plyr__time:before{content:"⁄";margin-right:10px;margin-right:var(--plyr-control-spacing,10px)}@media (max-width:767px){.plyr__time+.plyr__time{display:none}}.plyr__tooltip{background:#fff;background:var(--plyr-tooltip-background,#fff);border-radius:5px;border-radius:var(--plyr-tooltip-radius,5px);bottom:100%;box-shadow:0 1px 2px #00000026;box-shadow:var(--plyr-tooltip-shadow,0 1px 2px #00000026);color:#4a5464;color:var(--plyr-tooltip-color,#4a5464);font-size:13px;font-size:var(--plyr-font-size-small,13px);font-weight:400;font-weight:var(--plyr-font-weight-regular,400);left:50%;line-height:1.3;margin-bottom:10px;margin-bottom:calc(var(--plyr-control-spacing, 10px)/2*2);opacity:0;padding:5px 7.5px;padding:calc(var(--plyr-control-spacing, 10px)/2) calc(var(--plyr-control-spacing, 10px)/2*1.5);pointer-events:none;position:absolute;transform:translate(-50%,10px) scale(.8);transform-origin:50% 100%;transition:transform .2s ease .1s,opacity .2s ease .1s;white-space:nowrap;z-index:2}.plyr__tooltip:before{border-left:4px solid #0000;border-left:var(--plyr-tooltip-arrow-size,4px) solid #0000;border-right:4px solid #0000;border-right:var(--plyr-tooltip-arrow-size,4px) solid #0000;border-top:4px solid #fff;border-top:var(--plyr-tooltip-arrow-size,4px) solid var(--plyr-tooltip-background,#fff);bottom:-4px;bottom:calc(var(--plyr-tooltip-arrow-size, 4px)*-1);content:"";height:0;left:50%;position:absolute;transform:translateX(-50%);width:0;z-index:2}.plyr .plyr__control:focus-visible .plyr__tooltip,.plyr .plyr__control:hover .plyr__tooltip,.plyr__tooltip--visible{opacity:1;transform:translate(-50%) scale(1)}.plyr .plyr__control:hover .plyr__tooltip{z-index:3}.plyr__controls>.plyr__control:first-child .plyr__tooltip,.plyr__controls>.plyr__control:first-child+.plyr__control .plyr__tooltip{left:0;transform:translateY(10px) scale(.8);transform-origin:0 100%}.plyr__controls>.plyr__control:first-child .plyr__tooltip:before,.plyr__controls>.plyr__control:first-child+.plyr__control .plyr__tooltip:before{left:16px;left:calc(var(--plyr-control-icon-size, 18px)/2 + var(--plyr-control-spacing, 10px)*.7)}.plyr__controls>.plyr__control:last-child .plyr__tooltip{left:auto;right:0;transform:translateY(10px) scale(.8);transform-origin:100% 100%}.plyr__controls>.plyr__control:last-child .plyr__tooltip:before{left:auto;right:16px;right:calc(var(--plyr-control-icon-size, 18px)/2 + var(--plyr-control-spacing, 10px)*.7);transform:translateX(50%)}.plyr__controls>.plyr__control:first-child .plyr__tooltip--visible,.plyr__controls>.plyr__control:first-child+.plyr__control .plyr__tooltip--visible,.plyr__controls>.plyr__control:first-child+.plyr__control:focus-visible .plyr__tooltip,.plyr__controls>.plyr__control:first-child+.plyr__control:hover .plyr__tooltip,.plyr__controls>.plyr__control:first-child:focus-visible .plyr__tooltip,.plyr__controls>.plyr__control:first-child:hover .plyr__tooltip,.plyr__controls>.plyr__control:last-child .plyr__tooltip--visible,.plyr__controls>.plyr__control:last-child:focus-visible .plyr__tooltip,.plyr__controls>.plyr__control:last-child:hover .plyr__tooltip{transform:translate(0) scale(1)}.plyr__progress{left:6.5px;left:calc(var(--plyr-range-thumb-height, 13px)*.5);margin-right:13px;margin-right:var(--plyr-range-thumb-height,13px);position:relative}.plyr__progress input[type=range],.plyr__progress__buffer{margin-left:-6.5px;margin-left:calc(var(--plyr-range-thumb-height, 13px)*-.5);margin-right:-6.5px;margin-right:calc(var(--plyr-range-thumb-height, 13px)*-.5);width:calc(100% + 13px);width:calc(100% + var(--plyr-range-thumb-height, 13px))}.plyr__progress input[type=range]{position:relative;z-index:2}.plyr__progress .plyr__tooltip{left:0;max-width:120px;overflow-wrap:break-word}.plyr__progress__buffer{-webkit-appearance:none;background:#0000;border:0;border-radius:100px;height:5px;height:var(--plyr-range-track-height,5px);left:0;margin-top:-2.5px;margin-top:calc(var(--plyr-range-track-height, 5px)/2*-1);padding:0;position:absolute;top:50%}.plyr__progress__buffer::-webkit-progress-bar{background:#0000}.plyr__progress__buffer::-webkit-progress-value{background:currentColor;border-radius:100px;min-width:5px;min-width:var(--plyr-range-track-height,5px);-webkit-transition:width .2s ease;transition:width .2s ease}.plyr__progress__buffer::-moz-progress-bar{background:currentColor;border-radius:100px;min-width:5px;min-width:var(--plyr-range-track-height,5px);-moz-transition:width .2s ease;transition:width .2s ease}.plyr__progress__buffer::-ms-fill{border-radius:100px;-ms-transition:width .2s ease;transition:width .2s ease}.plyr--loading .plyr__progress__buffer{animation:plyr-progress 1s linear infinite;background-image:linear-gradient(-45deg,#23282f99 25%,#0000 0,#0000 50%,#23282f99 0,#23282f99 75%,#0000 0,#0000);background-image:linear-gradient(-45deg,var(--plyr-progress-loading-background,#23282f99) 25%,#0000 25%,#0000 50%,var(--plyr-progress-loading-background,#23282f99) 50%,var(--plyr-progress-loading-background,#23282f99) 75%,#0000 75%,#0000);background-repeat:repeat-x;background-size:25px 25px;background-size:var(--plyr-progress-loading-size,25px) var(--plyr-progress-loading-size,25px);color:#0000}.plyr--video.plyr--loading .plyr__progress__buffer{background-color:#ffffff40;background-color:var(--plyr-video-progress-buffered-background,#ffffff40)}.plyr--audio.plyr--loading .plyr__progress__buffer{background-color:#c1c8d199;background-color:var(--plyr-audio-progress-buffered-background,#c1c8d199)}.plyr__progress__marker{background-color:#fff;background-color:var(--plyr-progress-marker-background,#fff);border-radius:1px;height:5px;height:var(--plyr-range-track-height,5px);position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;width:var(--plyr-progress-marker-width,3px);z-index:3}.plyr__volume{align-items:center;display:flex;position:relative}.plyr__volume input[type=range]{margin-left:5px;margin-left:calc(var(--plyr-control-spacing, 10px)/2);margin-right:5px;margin-right:calc(var(--plyr-control-spacing, 10px)/2);max-width:90px;min-width:60px;position:relative;z-index:2}.plyr--audio{display:block}.plyr--audio .plyr__controls{background:#fff;background:var(--plyr-audio-controls-background,#fff);border-radius:inherit;color:#4a5464;color:var(--plyr-audio-control-color,#4a5464);padding:10px;padding:var(--plyr-control-spacing,10px)}.plyr--audio .plyr__control:focus-visible,.plyr--audio .plyr__control:hover,.plyr--audio .plyr__control[aria-expanded=true]{background:#00b2ff;background:var(--plyr-audio-control-background-hover,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));color:#fff;color:var(--plyr-audio-control-color-hover,#fff)}.plyr--full-ui.plyr--audio input[type=range]::-webkit-slider-runnable-track{background-color:#c1c8d199;background-color:var(--plyr-audio-range-track-background,var(--plyr-audio-progress-buffered-background,#c1c8d199))}.plyr--full-ui.plyr--audio input[type=range]::-moz-range-track{background-color:#c1c8d199;background-color:var(--plyr-audio-range-track-background,var(--plyr-audio-progress-buffered-background,#c1c8d199))}.plyr--full-ui.plyr--audio input[type=range]::-ms-track{background-color:#c1c8d199;background-color:var(--plyr-audio-range-track-background,var(--plyr-audio-progress-buffered-background,#c1c8d199))}.plyr--full-ui.plyr--audio input[type=range]:active::-webkit-slider-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #23282f1a;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#23282f1a)}.plyr--full-ui.plyr--audio input[type=range]:active::-moz-range-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #23282f1a;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#23282f1a)}.plyr--full-ui.plyr--audio input[type=range]:active::-ms-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #23282f1a;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#23282f1a)}.plyr--audio .plyr__progress__buffer{color:#c1c8d199;color:var(--plyr-audio-progress-buffered-background,#c1c8d199)}.plyr--video{overflow:hidden}.plyr--video.plyr--menu-open{overflow:visible}.plyr__video-wrapper{background:#000;background:var(--plyr-video-background,var(--plyr-video-background,#000));border-radius:inherit;height:100%;margin:auto;overflow:hidden;position:relative;width:100%}.plyr__video-embed,.plyr__video-wrapper--fixed-ratio{aspect-ratio:16/9}@supports not (aspect-ratio:16/9){.plyr__video-embed,.plyr__video-wrapper--fixed-ratio{height:0;padding-bottom:56.25%;position:relative}}.plyr__video-embed iframe,.plyr__video-wrapper--fixed-ratio video{border:0;height:100%;left:0;position:absolute;top:0;width:100%}.plyr--full-ui .plyr__video-embed>.plyr__video-embed__container{padding-bottom:240%;position:relative;transform:translateY(-38.28125%)}.plyr--video .plyr__controls{background:linear-gradient(#0000,#000000bf);background:var(--plyr-video-controls-background,linear-gradient(#0000,#000000bf));border-bottom-left-radius:inherit;border-bottom-right-radius:inherit;bottom:0;color:#fff;color:var(--plyr-video-control-color,#fff);left:0;padding:5px;padding:calc(var(--plyr-control-spacing, 10px)/2);padding-top:20px;padding-top:calc(var(--plyr-control-spacing, 10px)*2);position:absolute;right:0;transition:opacity .4s ease-in-out,transform .4s ease-in-out;z-index:3}@media (min-width:480px){.plyr--video .plyr__controls{padding:10px;padding:var(--plyr-control-spacing,10px);padding-top:35px;padding-top:calc(var(--plyr-control-spacing, 10px)*3.5)}}.plyr--video.plyr--hide-controls .plyr__controls{opacity:0;pointer-events:none;transform:translateY(100%)}.plyr--video .plyr__control:focus-visible,.plyr--video .plyr__control:hover,.plyr--video .plyr__control[aria-expanded=true]{background:#00b2ff;background:var(--plyr-video-control-background-hover,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));color:#fff;color:var(--plyr-video-control-color-hover,#fff)}.plyr__control--overlaid{background:#00b2ff;background:var(--plyr-video-control-background-hover,var(--plyr-color-main,var(--plyr-color-main,#00b2ff)));border:0;border-radius:100%;color:#fff;color:var(--plyr-video-control-color,#fff);display:none;left:50%;opacity:.9;padding:15px;padding:calc(var(--plyr-control-spacing, 10px)*1.5);position:absolute;top:50%;transform:translate(-50%,-50%);transition:.3s;z-index:2}.plyr__control--overlaid svg{left:2px;position:relative}.plyr__control--overlaid:focus,.plyr__control--overlaid:hover{opacity:1}.plyr--playing .plyr__control--overlaid{opacity:0;visibility:hidden}.plyr--full-ui.plyr--video .plyr__control--overlaid{display:block}.plyr--full-ui.plyr--video input[type=range]::-webkit-slider-runnable-track{background-color:#ffffff40;background-color:var(--plyr-video-range-track-background,var(--plyr-video-progress-buffered-background,#ffffff40))}.plyr--full-ui.plyr--video input[type=range]::-moz-range-track{background-color:#ffffff40;background-color:var(--plyr-video-range-track-background,var(--plyr-video-progress-buffered-background,#ffffff40))}.plyr--full-ui.plyr--video input[type=range]::-ms-track{background-color:#ffffff40;background-color:var(--plyr-video-range-track-background,var(--plyr-video-progress-buffered-background,#ffffff40))}.plyr--full-ui.plyr--video input[type=range]:active::-webkit-slider-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #ffffff80;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#ffffff80)}.plyr--full-ui.plyr--video input[type=range]:active::-moz-range-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #ffffff80;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#ffffff80)}.plyr--full-ui.plyr--video input[type=range]:active::-ms-thumb{box-shadow:0 1px 1px #23282f26,0 0 0 1px #23282f33,0 0 0 3px #ffffff80;box-shadow:var(--plyr-range-thumb-shadow,0 1px 1px #23282f26,0 0 0 1px #23282f33),0 0 0 var(--plyr-range-thumb-active-shadow-width,3px) var(--plyr-audio-range-thumb-active-shadow-color,#ffffff80)}.plyr--video .plyr__progress__buffer{color:#ffffff40;color:var(--plyr-video-progress-buffered-background,#ffffff40)}.plyr:fullscreen{background:#000;border-radius:0!important;height:100%;margin:0;width:100%}.plyr:fullscreen video{height:100%}.plyr:fullscreen .plyr__control .icon--exit-fullscreen{display:block}.plyr:fullscreen .plyr__control .icon--exit-fullscreen+svg{display:none}.plyr:fullscreen.plyr--hide-controls{cursor:none}@media (min-width:1024px){.plyr:fullscreen .plyr__captions{font-size:21px;font-size:var(--plyr-font-size-xlarge,21px)}}.plyr--fullscreen-fallback{background:#000;border-radius:0!important;height:100%;inset:0;margin:0;position:fixed;width:100%;z-index:10000000}.plyr--fullscreen-fallback video{height:100%}.plyr--fullscreen-fallback .plyr__control .icon--exit-fullscreen{display:block}.plyr--fullscreen-fallback .plyr__control .icon--exit-fullscreen+svg{display:none}.plyr--fullscreen-fallback.plyr--hide-controls{cursor:none}@media (min-width:1024px){.plyr--fullscreen-fallback .plyr__captions{font-size:21px;font-size:var(--plyr-font-size-xlarge,21px)}}.plyr__ads{border-radius:inherit;cursor:pointer;inset:0;overflow:hidden;position:absolute;z-index:-1}.plyr__ads>div,.plyr__ads>div iframe{height:100%;position:absolute;width:100%}.plyr__ads:after{background:#23282f;border-radius:2px;bottom:10px;bottom:var(--plyr-control-spacing,10px);color:#fff;content:attr(data-badge-text);font-size:11px;padding:2px 6px;pointer-events:none;position:absolute;right:10px;right:var(--plyr-control-spacing,10px);z-index:3}.plyr__ads:empty:after{display:none}.plyr__cues{background:currentColor;display:block;height:5px;height:var(--plyr-range-track-height,5px);left:0;opacity:.8;position:absolute;top:50%;transform:translateY(-50%);width:3px;z-index:3}.plyr__preview-thumb{background-color:#fff;background-color:var(--plyr-tooltip-background,#fff);border-radius:8px;border-radius:var(--plyr-menu-radius,8px);bottom:100%;box-shadow:0 1px 2px #00000026;box-shadow:var(--plyr-tooltip-shadow,0 1px 2px #00000026);margin-bottom:10px;margin-bottom:calc(var(--plyr-control-spacing, 10px)/2*2);opacity:0;padding:3px;pointer-events:none;position:absolute;transform:translateY(10px) scale(.8);transform-origin:50% 100%;transition:transform .2s ease .1s,opacity .2s ease .1s;z-index:2}.plyr__preview-thumb--is-shown{opacity:1;transform:translate(0) scale(1)}.plyr__preview-thumb:before{border-left:4px solid #0000;border-left:var(--plyr-tooltip-arrow-size,4px) solid #0000;border-right:4px solid #0000;border-right:var(--plyr-tooltip-arrow-size,4px) solid #0000;border-top:4px solid #fff;border-top:var(--plyr-tooltip-arrow-size,4px) solid var(--plyr-tooltip-background,#fff);bottom:-4px;bottom:calc(var(--plyr-tooltip-arrow-size, 4px)*-1);content:"";height:0;left:calc(50% + var(--preview-arrow-offset));position:absolute;transform:translateX(-50%);width:0;z-index:2}.plyr__preview-thumb__image-container{background:#c1c8d1;border-radius:7px;border-radius:calc(var(--plyr-menu-radius, 8px) - 1px);overflow:hidden;position:relative;z-index:0}.plyr__preview-thumb__image-container img,.plyr__preview-thumb__image-container:after{height:100%;left:0;position:absolute;top:0;width:100%}.plyr__preview-thumb__image-container:after{border-radius:inherit;box-shadow:inset 0 0 0 1px #00000026;content:"";pointer-events:none}.plyr__preview-thumb__image-container img{max-height:none;max-width:none}.plyr__preview-thumb__time-container{background:linear-gradient(#0000,#000000bf);background:var(--plyr-video-controls-background,linear-gradient(#0000,#000000bf));border-bottom-left-radius:7px;border-bottom-left-radius:calc(var(--plyr-menu-radius, 8px) - 1px);border-bottom-right-radius:7px;border-bottom-right-radius:calc(var(--plyr-menu-radius, 8px) - 1px);bottom:0;left:0;line-height:1.1;padding:20px 6px 6px;position:absolute;right:0;z-index:3}.plyr__preview-thumb__time-container span{color:#fff;font-size:13px;font-size:var(--plyr-font-size-time,var(--plyr-font-size-small,13px))}.plyr__preview-scrubbing{filter:blur(1px);height:100%;inset:0;margin:auto;opacity:0;overflow:hidden;pointer-events:none;position:absolute;transition:opacity .3s ease;width:100%;z-index:1}.plyr__preview-scrubbing--is-shown{opacity:1}.plyr__preview-scrubbing img{height:100%;left:0;max-height:none;max-width:none;object-fit:contain;position:absolute;top:0;width:100%}.plyr--no-transition{transition:none!important}.plyr__sr-only{clip:rect(1px,1px,1px,1px);border:0!important;height:1px!important;overflow:hidden;padding:0!important;position:absolute!important;width:1px!important}.plyr [hidden]{display:none!important}
+
+/* Plyr, wearing this page's palette.
+
+   Loaded AFTER the vendored `plyr.css`, never forking it — the standing rule
+   for a view that needs something different. Plyr exposes its own custom
+   properties, so this is a handful of token assignments rather than a
+   restyle, and re-vendoring Plyr does not strand it.
+
+   ⚠️ `#000` and `#fff` here are the two raw colours the palette rule allows,
+   and they are not theme colours: black behind a video is the absence of
+   picture, and a control drawn on it stays white in both themes because the
+   thing underneath it does. */
+
+figure.video .plyr {
+  --plyr-color-main: var(--accent);
+  --plyr-video-background: #000;
+  --plyr-video-control-color: #fff;
+  --plyr-menu-background: var(--surface);
+  --plyr-menu-color: var(--fg);
+  --plyr-menu-border-color: var(--rule);
+  --plyr-font-family: var(--font-ui);
+  --plyr-font-size-small: .8rem;
+  --plyr-font-size-base: .875rem;
+  --plyr-range-thumb-background: #fff;
+  --plyr-tooltip-background: var(--surface);
+  --plyr-tooltip-color: var(--fg);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Black behind the deck, so a poster that has not arrived reads as a player
+   and not as a hole — and it must hold with scripting off, where Plyr never
+   runs and the figure is a bare `<video>`. Plyr must not round over it. */
+figure.video { background: #000; }
+figure.video .plyr__poster { background-color: #000; }
+
+/* The one visible-focus ring the rest of the page uses, so a keyboard reader
+   is not handed a second convention inside the player. */
+figure.video .plyr__control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ⛔ FULLSCREEN MUST UNDO `max-height: 70vh`.
+
+   `reading.css` caps the deck at 70vh so a video cannot dominate the reading
+   column. In fullscreen, `vh` resolves against the FULLSCREEN viewport, so
+   the same rule caps the video at 70% of the screen and leaves a black band
+   across the bottom third. Plyr sets `height: 100%` but never touches
+   `max-height`, so the cap survives and wins.
+
+   ⛔ THERE ARE THREE DIFFERENT HOOKS AND THEY ARE NOT INTERCHANGEABLE.
+   Measured against Plyr 3.8.4's own stylesheet and bundle:
+
+     1. NATIVE, the path a reader actually takes — Plyr fullscreens the
+        `.plyr` CONTAINER and styles it `.plyr:fullscreen`. There is no
+        "active" class: the bundle only ever sets `fullscreen-enabled` and
+        `fullscreen-fallback`. ⚠️ Because the container goes fullscreen and
+        not the media element, `video:fullscreen` DOES NOT MATCH here.
+     2. FALLBACK, when the browser has no fullscreen API — class-based,
+        `.plyr--fullscreen-fallback`.
+     3. NO JS AT ALL — the native controls fullscreen the `<video>` itself,
+        which is the only case `video:fullscreen` matches.
+
+   ⚠️ An earlier fix targeted `.plyr--fullscreen-active`, a class that does
+   not exist, and was "verified" by simulating the FALLBACK class — the one
+   path that already worked. It shipped with the real bug untouched. Check a
+   selector against the vendored stylesheet, not against memory.
+
+   Separate rules, never one list: an unknown selector invalidates the WHOLE
+   list, so the class-based hooks must not share a list with the pseudo-class
+   ones. `object-fit: contain` so a video whose aspect ratio differs from the
+   screen is letterboxed rather than stretched. */
+figure.video .plyr:fullscreen video {
+  max-height: none; height: 100%; width: 100%;
+  object-fit: contain; border: 0; border-radius: 0;
+}
+
+figure.video .plyr:-webkit-full-screen video {
+  max-height: none; height: 100%; width: 100%;
+  object-fit: contain; border: 0; border-radius: 0;
+}
+
+figure.video .plyr--fullscreen-fallback { border-radius: 0; }
+
+figure.video .plyr--fullscreen-fallback video {
+  max-height: none; height: 100%; width: 100%;
+  object-fit: contain; border: 0; border-radius: 0;
+}
+
+figure.video video:fullscreen {
+  max-height: none; height: 100%; width: 100%;
+  object-fit: contain; border: 0; border-radius: 0;
+}
+
+figure.video video:-webkit-full-screen {
+  max-height: none; height: 100%; width: 100%;
+  object-fit: contain; border: 0; border-radius: 0;
+}
