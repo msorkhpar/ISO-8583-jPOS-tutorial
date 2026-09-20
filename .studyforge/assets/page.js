@@ -84,6 +84,26 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var MARKS_KEY = 'studyforge.read.v1';
   var DISPLAY_KEY = 'studyforge.display.v1';
 
+  /* ⛔ THE BOOT CACHE, AND IT IS A DIFFERENT STORAGE AREA ON PURPOSE — `W388`
+     stage 5. ⚠️ `page.html` carries a synchronous boot in the `<head>` so a
+     reader who chose a theme is not shown the other one for a frame. That boot
+     ran against `localStorage`, and it is the EARLIEST a document can touch
+     that area: a document that binds it before the previous page's write has
+     been committed keeps a snapshot WITHOUT that write, for its whole life.
+     ⛔ Measured on one host at `-n 16`: a mark written on one page was missing
+     on the next in 14 of 35 runs; with the boot not touching `localStorage`,
+     0 of 10. ⛔ And it is not cosmetic — the reader then marks the page they
+     are on, `writeMarks` composes the record from the stale set, and the
+     earlier mark is gone.
+
+     ⭐ So what the boot reads is a CACHE in `sessionStorage`, whose area is
+     separate: touching it binds nothing the marks live in. ⛔ It is never an
+     authority — the display record above is — and nothing here reads it back.
+     ⚠️ The key is composed rather than written whole, so a caller names a
+     preference and never a key. */
+  var BOOT_PREFIX = 'studyforge.boot.';
+  var BOOT_SUFFIX = '.v1';
+
   /* The shape inside a record. ⚠️ Versioned in the body as well, because a
      browser can hold a key this build wrote and a key a later build wrote,
      and a reader whose two machines disagree is the normal case. */
@@ -114,6 +134,41 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   }
 
   var backed = backing();
+
+  /* The same probe against the session area. ⚠️ Probed separately: a browser
+     can refuse one and allow the other, and a refused cache costs a frame of
+     flash while a refused store costs the reader their marks. */
+  function sessioned() {
+    try {
+      var store = window.sessionStorage;
+      var probe = BOOT_PREFIX + 'probe';
+      store.setItem(probe, '1');
+      store.removeItem(probe);
+      return store;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  var cached = sessioned();
+
+  /* ⛔ What the head boot may act on, kept for one preference. A value of
+     `null` REMOVES it, because an absent cache and a cached word must not be
+     two answers to one question: the boot acts on what it finds or on nothing.
+     ⭐ Returns whether it took, the way `keep` does. */
+  function cache(name, value) {
+    if (!cached) { return false; }
+    try {
+      if (value === null) {
+        cached.removeItem(BOOT_PREFIX + name + BOOT_SUFFIX);
+      } else {
+        cached.setItem(BOOT_PREFIX + name + BOOT_SUFFIX, value);
+      }
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
 
   /* One record, or null when there is nothing this can use. ⛔ Every way of
      being unusable lands here and returns the same thing, so a caller never
@@ -240,8 +295,181 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     unmark: unmark,
     preferences: preferences,
     preference: preference,
-    prefer: prefer
+    prefer: prefer,
+    cache: cache
   };
+}());
+
+/* The reader's choice of theme: light, dark, or whatever their system says.
+
+   ⛔ **The user asked for BOTH THEMES to be reachable from the page**
+   (`W388` stage 2, 2026-09-19: *"have the both dark and light themes in
+   studyforge as well"*). `palette.css` has carried both since `W362` and the
+   guards `[data-theme="light"]` and `[data-theme="dark"]` since then; until now
+   nothing wrote either, so a reader whose system said light could not read the
+   dark page at all.
+
+   ⛔ **THREE STATES, AND THE THIRD IS THE DEFAULT.** *System* is not the same
+   answer as *light*: a reader whose machine turns dark at sunset wants the page
+   to follow, and a two-state control can only record "dark" or "not dark" —
+   which freezes the page at whatever it was when they pressed it. So *system*
+   is a stored value like the others, and it is also what an absent record
+   means, so the two can never disagree.
+
+   ⛔ **The store is `study-progress.js`'s display record, not a second one.**
+   That file owns every read and every write; this one asks it questions, the
+   way `read-mark.js` does. ⚠️ Its docstring already ruled the display record
+   independent of the read marks *"because a preference that fails to parse
+   cannot take every mark with it"* — this is that record's first consumer.
+   ⛔ Read through the published name with NO existence guard, and this part
+   sits after `study-progress.js` in `bundle.SCRIPT_PARTS` for that reason.
+
+   ⛔ **The control is NOT gated on storage working.** `read-mark.js` hides its
+   control when nothing can be stored, because a mark that is not kept is a lie.
+   A theme that is not kept is still a theme: the reader sees the page they
+   asked for, for as long as they are on it. ⚠️ So this shows the control
+   whenever scripting is on, and `prefer()` returning false costs the page
+   nothing it was showing.
+
+   ⛔ **THE FLASH IS PREVENTED IN THE HEAD, NOT HERE.** This part is deferred,
+   so it runs after the first paint — applying the stored theme here would show
+   every reader the wrong page for a frame. `page.html` carries a tiny
+   synchronous boot in `<head>` that sets `data-theme` before anything is
+   painted.
+
+   ⛔ **AND THAT BOOT READS `sessionStorage`, NEVER `localStorage`, WHICH IS
+   `W388` STAGE 5 AND IS A MEASURED DEFECT RATHER THAN A PREFERENCE.** The boot
+   as stage 2 shipped it read the display record out of `localStorage` in the
+   `<head>` — the document's FIRST touch of that area, far earlier than any
+   build before it. ⚠️ Measured on this host at `-n 16`: with that boot, a mark
+   written on one page and read on the next was MISSING in 14 of 35 runs; with
+   the same branch and the boot not touching `localStorage`, 0 of 10; on the
+   release tip, which carries no boot at all, 0 of 10. ⛔ A document that binds
+   the area before the previous document's write has been committed gets a
+   snapshot WITHOUT it, and that snapshot is what it keeps: the value was still
+   missing a second later. ⛔ **The harm is not cosmetic** — the reader then
+   presses *Mark as read* on that page, `writeMarks` composes the new record
+   from the stale set, and the earlier mark is destroyed. A record reading
+   `{"version":1,"read":[]}` after two marks is what the measurement caught.
+
+   ⭐ **So the boot reads a CACHE in `sessionStorage`, which is a different
+   storage area and binds nothing in `localStorage`.** ⛔ The cache is the
+   STORE's — `progress.cache(name, value)` — because one part touches the
+   browser's storage and that does not stop being true because the area is a
+   different one. This part asks for it from its own paint, by which time the
+   bundle has long since bound the durable area. ⚠️ `sessionStorage` is per tab,
+   so the FIRST page opened in a new tab has no cache and paints the system
+   scheme for one frame before this part corrects it; every navigation after it
+   is flash-free. ⛔ That one frame is the price of not losing a reader's marks,
+   and it is stated rather than hidden. ⭐ The durable answer is still the
+   display record, which this part alone reads; the cache is never an authority
+   and nothing reads it back. ⚠️ The boot spells the cache's key a second time,
+   because it must run before any bundle exists; `test_theme` holds the two
+   spellings equal, both ways, and refuses a boot that names `localStorage`.
+
+   ⭐ **The words a reader sees are in `page.html`** (R13): this file toggles
+   `hidden` and `aria-pressed` and types nothing.
+
+   ⛔ **`theme-color` is kept honest.** The page ships two of them, one per
+   system scheme. A reader who has CHOSEN a theme has made those media queries
+   wrong, so the chosen one is widened to `all` and the other is switched off;
+   choosing *system* puts both media queries back exactly as the skeleton wrote
+   them. */
+
+(function () {
+  'use strict';
+
+  /* The name the choice is filed under inside the display record, and the three
+     values it may take. ⚠️ `SYSTEM` is stored like the others and is also what
+     an absent record means. */
+  var PREFERENCE = 'theme';
+  var LIGHT = 'light';
+  var DARK = 'dark';
+  var SYSTEM = 'system';
+
+  /* The attribute `palette.css` guards on, and the control's own hooks. ⚠️
+     Spelled here and in `render/templates/page.html`, the two-sided spelling
+     every hook on this page has: markup and script cannot import one another. */
+  var THEME = 'data-theme';
+  var CONTROL = '[data-section="theme"]';
+  var CHOICE = 'data-theme-choice';
+
+  /* The browser-chrome colour, one per system scheme, and what switches one
+     off. ⚠️ `not all` rather than removing the element: the skeleton's own two
+     media queries are what *system* restores, so nothing is thrown away. */
+  var COLOUR = 'meta[name="theme-color"]';
+  var EVERY = 'all';
+  var NONE = 'not all';
+
+
+  var store = window.studyforge.progress;
+  var root = document.documentElement;
+
+  var control = document.querySelector(CONTROL);
+  if (!control) { return; }
+  var buttons = [].slice.call(control.querySelectorAll('[' + CHOICE + ']'));
+  if (!buttons.length) { return; }
+
+  /* Each theme-colour element with the media query the skeleton gave it, read
+     once, before anything here has had a chance to change one. */
+  var colours = [].slice.call(document.querySelectorAll(COLOUR)).map(function (meta) {
+    return { meta: meta, media: meta.getAttribute('media') || EVERY };
+  });
+
+  /* A stored value this cannot apply is treated as no choice at all — the same
+     ruling the store itself makes about a record it cannot display. */
+  function chosen() {
+    var held = store.preference(PREFERENCE);
+    return held === LIGHT || held === DARK ? held : SYSTEM;
+  }
+
+  /* ⛔ The cache the head boot reads, kept in step with every paint and kept by
+     the STORE rather than by this part. ⚠️ One part touches the browser's
+     storage (`test_progress` asserts it), and that does not stop being true
+     because the area is a different one. ⭐ *System* caches NOTHING: an absent
+     cache and a cached word must not be two answers to one question. */
+  function remember(choice) {
+    store.cache(PREFERENCE, choice === SYSTEM ? null : choice);
+  }
+
+  function paint(choice) {
+    if (choice === SYSTEM) {
+      root.removeAttribute(THEME);
+    } else {
+      root.setAttribute(THEME, choice);
+    }
+    remember(choice);
+    colours.forEach(function (carried) {
+      if (choice === SYSTEM) {
+        carried.meta.setAttribute('media', carried.media);
+      } else {
+        carried.meta.setAttribute(
+          'media',
+          carried.media.indexOf(choice) === -1 ? NONE : EVERY
+        );
+      }
+    });
+    buttons.forEach(function (button) {
+      var mine = button.getAttribute(CHOICE) === choice;
+      button.setAttribute('aria-pressed', mine ? 'true' : 'false');
+    });
+  }
+
+  /* ⛔ Shown from the STORE's answer, never from what was just pressed: a write
+     the browser refused must not leave the page claiming it was remembered. */
+  function choose(choice) {
+    store.prefer(PREFERENCE, choice);
+    paint(chosen());
+  }
+
+  paint(chosen());
+  control.hidden = false;
+
+  buttons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      choose(button.getAttribute(CHOICE));
+    });
+  });
 }());
 
 /* The copy button on a code block.
@@ -258,6 +486,14 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    nothing. */
 
 (function () {
+  /* ⛔ The fallback names the key THIS machine uses (`W362`, K4): it said
+     "Press ⌘C" to every reader, which is wrong everywhere but a Mac. */
+  function copyKey() {
+    var platform = (navigator.userAgentData && navigator.userAgentData.platform) ||
+      navigator.platform || '';
+    return /mac|iphone|ipad/i.test(platform) ? '\u2318C' : 'Ctrl+C';
+  }
+
   var figures = [].slice.call(document.querySelectorAll('figure.code'));
   if (!figures.length) { return; }
 
@@ -288,16 +524,16 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'copy';
-    button.textContent = 'Copy';
+    button.textContent = 'Copy code';
     caption.appendChild(button);
 
     button.addEventListener('click', function () {
       copy(code.textContent).then(function () {
         button.textContent = 'Copied';
       }, function () {
-        button.textContent = 'Press ⌘C';
+        button.textContent = 'Select it and press ' + copyKey();
       });
-      window.setTimeout(function () { button.textContent = 'Copy'; }, 2000);
+      window.setTimeout(function () { button.textContent = 'Copy code'; }, 2000);
     });
   });
 }());
@@ -451,7 +687,6 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      page has: markup and script cannot import one another. */
   var PLAYER = 'player';
   var NARRATOR = 'narrator';
-  var CONTENT = 'content';
 
   /* What a narrated passage carries. ⛔ `data-audio` is `render/page/assets.py`'s
      `AUDIO_ATTRIBUTE`, named there one milestone before its writer so the two
@@ -489,8 +724,17 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var audio = document.getElementById(NARRATOR);
   if (!player || !audio) { return; }
 
-  var scope = document.getElementById(CONTENT) || document;
-  var passages = [].slice.call(scope.querySelectorAll('[' + SOURCE + ']'));
+  /* ⛔ THE WHOLE DOCUMENT, NOT `#content` (`W407`). A unit page is headed by its
+     material's own opening heading, and that heading sits in the `<header>`
+     above the content — it is a narrated passage like every other one. Scoped to
+     `#content` the transport skipped the first passage of every page while the
+     page still carried its attribute and `speakable` still minted its clip: a
+     clip on disk that nothing could ever play. ⭐ `querySelectorAll` answers in
+     document order, so the heading is still passage one. ⚠️ Nothing outside the
+     heading and the content carries `data-audio` — `render/page/document.py` is
+     the one composer of this skeleton and fills the attribute in exactly those
+     two places. */
+  var passages = [].slice.call(document.querySelectorAll('[' + SOURCE + ']'));
   if (!passages.length) { return; }
 
   var track = document.getElementById('track');
@@ -769,8 +1013,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      three buttons that do nothing. */
   showFace(PAUSED);
   if (anyPlayable()) {
+    /* ⛔ `W369`: the first passage is where narration WILL start, and the
+       transport's own line says so; nothing on the page is lit until the
+       reader starts it. `load` lights a passage, and only a press reaches it. */
     at = firstPlayable();
-    highlight();
     label();
     progress();
     say(null);
@@ -782,6 +1028,425 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     disable();
   }
   player.hidden = false;
+}());
+
+/* The practice panel: Run, Submit, and the result, over the served run client.
+
+   ⛔ **This file draws; it never talks to the API.** Everything it sends goes
+   through `window.studyforge.run` — `available()`, `start(corpus, practice,
+   mode, onLine)`, `stop()` — which the SERVING PROCESS adds to the page it
+   answers (`E05` § how a served page loads the run client). ⭐ That is the whole
+   reason this part can live in a built site at all: a built text that named the
+   API, the serving origin or the client file is a defect R8's floor reads
+   (`tests/studyforge/cli/serving.py`), and there is no such name below.
+
+   ⛔ **Over `file://` there is no origin to ask, so the controls stay HIDDEN**
+   and the panel shows the sentence that says why. ⚠️ Nothing is disabled: a
+   dead button is a promise the page cannot keep, which is this panel's own
+   rule about the editor and about Submit.
+
+   ⛔ **The practice key and the two mode words are read off the markup,
+   verbatim.** `data-practice` carries the string `progress.practice_key` minted
+   in Python and `data-practice-act` carries one of `exercise.COMMANDS`. Nothing
+   here composes a key, splits one, encodes one or invents a mode — the client
+   refuses a malformed key before any request, and a key spelled twice would
+   simply never match anything with nothing failing anywhere.
+
+   ⛔ **The editor is NOT started from here, and that is deliberate.** It is a
+   development environment with a shell, and opening a reading page is not
+   consent to run one. The slot carries the sentence saying it is not running
+   and how to start it, so a reader sees a statement rather than a blank frame
+   — ⚠️ and until something publishes where a running editor is, that sentence
+   is the only state this part can reach (`SF-24/1`).
+
+   ⛔ **Nothing is written to browser storage.** A run's outcome is the SERVER's
+   record (`SF-21`), written where it was established; a page that also
+   remembered would be a second answer to *did this pass?*. ⭐ So nothing here
+   has to be namespaced against the one storage origin every `file://` page
+   shares. */
+
+(function () {
+  'use strict';
+
+  /* The panel, and the attributes it carries. ⚠️ Spelled here and in
+     `render/page/practice.py`, which is the same two-sided spelling every hook
+     on this page has: markup and script cannot import one another, and the
+     Python side is the single source for what is EMITTED. */
+  var PANEL = 'section[data-practice]';
+  var KEY = 'data-practice';
+  var CORPUS = 'data-corpus';
+  var PART = 'data-practice-part';
+  var ACT = 'data-practice-act';
+  var STOP = 'stop';
+
+  function part(panel, name) {
+    return panel.querySelector('[' + PART + '="' + name + '"]');
+  }
+
+  function show(element, visible) {
+    if (element) { element.hidden = !visible; }
+  }
+
+  /* One line of output, appended as it arrives. ⚠️ `textContent`, never
+     `innerHTML`: a program's own output is not markup, and a grader that
+     printed a tag would otherwise be parsed as one. */
+  function append(output, line) {
+    output.appendChild(document.createTextNode(line + '\n'));
+    output.scrollTop = output.scrollHeight;
+  }
+
+  /* What a finished run is called, from the verdict the client resolves with:
+     a status number, 'timeout' or 'stopped'. ⛔ The server decides what a run
+     MEANT and records it; this only says what the reader just watched. */
+  function verdict(answer, mode) {
+    if (answer === 'stopped') { return 'Stopped.'; }
+    if (answer === 'timeout') { return 'Timed out.'; }
+    if (answer !== 0) { return 'Finished with errors.'; }
+    return mode === 'run' ? 'Finished.' : 'Passed.';
+  }
+
+  function refusal(answer) {
+    if (answer && answer.refused === 409) {
+      return 'Something is already running. Stop it first.';
+    }
+    return 'That could not be started.';
+  }
+
+  function wire(panel, run) {
+    var key = panel.getAttribute(KEY);
+    var corpus = panel.getAttribute(CORPUS);
+    var controls = part(panel, 'controls');
+    var status = part(panel, 'status');
+    var output = part(panel, 'output');
+    var acts = [].slice.call(panel.querySelectorAll('[' + ACT + ']'));
+    if (!key || !corpus || !controls || !status || !output || !acts.length) { return; }
+
+    /* ⭐ The editor slot is shown, and what it shows is the sentence saying the
+       editor is not running. Hiding it instead would be the blank panel this
+       row exists to refuse. */
+    show(part(panel, 'offline'), false);
+    show(part(panel, 'editor'), true);
+    show(controls, true);
+
+    var stop = null;
+    var starters = [];
+    acts.forEach(function (button) {
+      if (button.getAttribute(ACT) === STOP) { stop = button; } else { starters.push(button); }
+    });
+
+    /* ⛔ **Focus follows the control that goes away, and that is keyboard
+       correctness rather than polish.** A button that is disabled or hidden
+       while it holds focus drops focus to the document, and a keyboard reader
+       is returned to the top of the page mid-run. So the start moves focus to
+       Stop and the end gives it back to the button that was pressed — and only
+       ever when this panel already had it. */
+    var pressed = null;
+
+    /* ⚠️ Asked BEFORE the control is disabled or hidden, never after: a
+       disabled element drops focus to the document immediately, so a check
+       taken afterwards always answers no and the reader is left at the top of
+       the page. */
+    function holdsFocus() {
+      return panel.contains(document.activeElement);
+    }
+
+    function live(running) {
+      starters.forEach(function (button) { button.disabled = running; });
+      show(stop, running);
+    }
+
+    function settle(text) {
+      var keyboard = holdsFocus();
+      status.textContent = text;
+      live(false);
+      if (keyboard && pressed) { pressed.focus(); }
+    }
+
+    starters.forEach(function (button) {
+      button.addEventListener('click', function () {
+        var mode = button.getAttribute(ACT);
+        var keyboard = holdsFocus();
+        pressed = button;
+        output.textContent = '';
+        show(output, true);
+        status.textContent = 'Running…';
+        live(true);
+        if (keyboard && stop) { stop.focus(); }
+        run.start(corpus, key, mode, function (line) { append(output, line); }).then(
+          function (answer) { settle(verdict(answer, mode)); },
+          function (answer) { settle(refusal(answer)); }
+        );
+      });
+    });
+
+    if (stop) {
+      stop.addEventListener('click', function () {
+        stop.disabled = true;
+        run.stop().then(
+          function () { stop.disabled = false; },
+          function () { stop.disabled = false; }
+        );
+      });
+    }
+  }
+
+  var panels = [].slice.call(document.querySelectorAll(PANEL));
+  if (!panels.length) { return; }
+  var run = window.studyforge && window.studyforge.run;
+  if (!run || !run.available()) { return; }
+  panels.forEach(function (panel) { wire(panel, run); });
+}());
+
+/* Where the reader is: the Up next slip, the progress line and strip, the tick
+   of the unit up next, the filter and the two expand controls, and the rail's
+   fold on a narrow screen (`W362`, the plan's §6).
+
+   ⛔ **Every word a reader sees is markup.** The index and container renderers
+   write each sentence with its numbers at zero and its alternatives hidden;
+   this file only writes numbers into `<b>`/`<strong>`, moves an href, and
+   hides or shows what is already there. Nothing here composes a sentence.
+
+   ⛔ **Joined by the unit key and nothing else**, as `read-mark.js` is: a row
+   on the index or a container page carries its key as its `id`, a rail row
+   carries it as `data-unit` (`W368`), and the store holds keys. Nothing here
+   derives a key from an href or a position.
+
+   ⭐ **Progressive enhancement.** With no script the slip names the first unit
+   (the renderer wrote that), the progress region and the filter stay hidden,
+   and the rail stays open. With no working store the filter still works and
+   the progress stays hidden, because the marks are the store's.
+
+   ⚠️ Composed before `read-mark.js`, which stays LAST, and it reads the store
+   through the same published name, guarded here because this file has work to
+   do without it. */
+
+(function () {
+  'use strict';
+
+  var WIDE = '(min-width: 72rem)';
+  var STEP = 'aria-current';
+  var LISTS = 'nav[aria-label="Contents"] li[id], nav[aria-label="Units"] li[id]';
+  var RAIL_UNITS = 'nav[aria-label="Containers"] li[data-unit]';
+  var MARKED = 'data-marked';
+  /* The hidden words a read row speaks (`W383`): markup, shown or hidden here
+     from the store's answer, so a screen reader hears what the tick shows. */
+  var SAID = 'span[data-kind="read-state"]';
+
+  function say(row, read) {
+    var words = row.querySelector(SAID);
+    if (words) { words.hidden = !read; }
+  }
+
+  var store = window.studyforge && window.studyforge.progress;
+  var usable = !!(store && store.supported());
+
+  /* --- the rail folds on a narrow screen ---------------------------------- */
+
+  var fold = document.querySelector('nav[aria-label="Containers"] > details');
+  if (fold && window.matchMedia) {
+    var wide = window.matchMedia(WIDE);
+    var place = function () { fold.open = wide.matches; };
+    place();
+    if (wide.addEventListener) { wide.addEventListener('change', place); }
+  }
+
+  /* --- moving the reader on (the brief's §3) ------------------------------ */
+
+  /* ⭐ Marking a unit read brings its Up next slip into view. Focus stays on
+     the button: moving it would take the reader somewhere they did not ask to
+     go. ⚠️ Here and not in `read-mark.js`, which must never reach for scrolling
+     (a mark is an explicit act and nothing about scrolling may infer one). */
+  /* --- the rail shows what the reader marked (`W368`) --------------------- */
+
+  /* ⭐ On every page that carries a rail, a row whose key the store holds is
+     marked, and one it does not hold is cleared — so an unmark shows too.
+     ⛔ `data-marked` is set here at read time and emitted by no renderer (R10);
+     with no working store the rail shows no marks rather than wrong ones. */
+  var railed = [].slice.call(document.querySelectorAll(RAIL_UNITS));
+  function paintRail() {
+    if (!usable) { return; }
+    var held = store.marks();
+    railed.forEach(function (row) {
+      var holds = held.indexOf(row.getAttribute('data-unit')) !== -1;
+      if (holds) { row.setAttribute(MARKED, 'true'); } else { row.removeAttribute(MARKED); }
+      say(row, holds);
+    });
+  }
+  paintRail();
+
+  var control = document.querySelector('section[data-section="read-mark"] button');
+  var onward = document.querySelector('nav[aria-label="Between units"] a[rel="next"]');
+  if (control && railed.length) {
+    /* ⚠️ After the turn, for the reason given below: the store's answer is
+       written by `read-mark.js`'s listener, which runs after this one. */
+    control.addEventListener('click', function () { window.setTimeout(paintRail, 0); });
+  }
+  if (control && onward && onward.scrollIntoView) {
+    /* ⚠️ Read after the turn: `read-mark.js` is composed after this file, so
+       its own listener — the one that asks the store and sets `aria-pressed` —
+       runs after this one. The state is the store's answer, never the click. */
+    control.addEventListener('click', function () {
+      window.setTimeout(function () {
+        if (control.getAttribute('aria-pressed') !== 'true') { return; }
+        var still = window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        onward.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+      }, 0);
+    });
+  }
+
+  var rows = [].slice.call(document.querySelectorAll(LISTS));
+  if (!rows.length) { return; }
+
+  var marks = usable ? store.marks() : [];
+  rows.forEach(function (row) { say(row, read(row)); });
+
+  function readable(row) { return row.getAttribute('data-readable') === 'true'; }
+  function read(row) { return marks.indexOf(row.id) !== -1; }
+  function within(root) {
+    return rows.filter(function (row) { return root.contains(row) && readable(row); });
+  }
+  function count(list) { return list.filter(read).length; }
+  function fill(holder, value) {
+    var slot = holder && holder.querySelector('b, strong');
+    if (slot) { slot.textContent = String(value); }
+  }
+
+  var units = rows.filter(readable);
+  var next = usable ? units.filter(function (row) { return !read(row); })[0] || null : null;
+  if (next) { next.setAttribute(STEP, 'step'); }
+
+  /* --- the slip ------------------------------------------------------------ */
+
+  var slip = document.querySelector('nav[aria-label="Up next"]');
+  if (slip && usable) {
+    var lead = slip.querySelector('a');
+    var finished = slip.querySelector('p');
+    if (next && lead) {
+      var source = next.querySelector('a');
+      var title = source ? source.cloneNode(true) : null;
+      if (title) {
+        [].slice.call(title.querySelectorAll('span')).forEach(function (span) {
+          span.parentNode.removeChild(span);
+        });
+        lead.setAttribute('href', source.getAttribute('href'));
+        lead.lastChild.textContent = ' ' + title.textContent.trim();
+      }
+    } else if (!next && finished && lead && units.length) {
+      lead.hidden = true;
+      finished.hidden = false;
+    }
+  }
+
+  /* --- the progress line, the strip, and each group's own count ----------- */
+
+  var region = document.querySelector('section[aria-label="Progress"]');
+  if (region && usable) {
+    var line = region.querySelector('p');
+    var done = count(units);
+    fill(line, done);
+    fill(line && line.querySelector('span'), units.length - done);
+    [].slice.call(region.querySelectorAll('li > a[href^="#"]')).forEach(function (link) {
+      var group = document.getElementById(link.getAttribute('href').slice(1));
+      if (!group) { return; }
+      var members = within(group);
+      var share = members.length ? Math.round((100 * count(members)) / members.length) : 0;
+      link.style.setProperty('--read', share + '%');
+      if (next && group.contains(next)) { link.parentNode.setAttribute(STEP, 'step'); }
+      link.addEventListener('click', function () { reveal(group); });
+    });
+    region.hidden = false;
+  }
+
+  [].slice.call(document.querySelectorAll('nav[aria-label="Contents"] summary > small')).forEach(
+    function (tally) {
+      if (!usable) { return; }
+      var members = within(tally.parentNode.parentNode);
+      fill(tally, count(members));
+      tally.hidden = false;
+    }
+  );
+
+  /* --- open the group the reader is in ------------------------------------ */
+
+  var groups = [].slice.call(document.querySelectorAll('nav[aria-label="Contents"] details'));
+
+  function reveal(target) {
+    for (var node = target; node; node = node.parentNode) {
+      if (node.tagName === 'DETAILS') { node.open = true; }
+    }
+  }
+
+  if (next && groups.length && !window.location.hash) {
+    groups.forEach(function (group) { group.open = group.contains(next); });
+  }
+
+  /* --- the filter, and expand all / collapse all -------------------------- */
+
+  var search = document.querySelector('form[role="search"]');
+  if (!search) { return; }
+  var field = search.querySelector('input');
+  var status = search.querySelector('[role="status"]');
+  var before = null;
+
+  function remember() {
+    if (before === null) { before = groups.map(function (group) { return group.open; }); }
+  }
+
+  function restore() {
+    rows.forEach(function (row) { row.hidden = false; });
+    groups.forEach(function (group, at) {
+      group.parentNode.hidden = false;
+      if (before !== null) { group.open = before[at]; }
+    });
+    before = null;
+    if (status) { status.hidden = true; }
+  }
+
+  /* ⚠️ A row's text without its read words: filtering for "read" must not
+     match every row the reader finished (`W383`). */
+  function searchable(row) {
+    var copy = row.cloneNode(true);
+    [].slice.call(copy.querySelectorAll(SAID)).forEach(function (words) {
+      words.parentNode.removeChild(words);
+    });
+    return copy.textContent;
+  }
+
+  function narrow(query) {
+    var wanted = query.trim().toLowerCase();
+    if (!wanted) { restore(); return; }
+    remember();
+    var shown = 0;
+    rows.forEach(function (row) {
+      var hit = searchable(row).toLowerCase().indexOf(wanted) !== -1;
+      row.hidden = !hit;
+      if (hit) { shown += 1; }
+    });
+    groups.forEach(function (group) {
+      var any = rows.some(function (row) { return !row.hidden && group.contains(row); });
+      group.parentNode.hidden = !any;
+      group.open = any;
+    });
+    if (status) { fill(status, shown); status.hidden = false; }
+  }
+
+  search.addEventListener('submit', function (event) { event.preventDefault(); });
+  if (field) {
+    field.addEventListener('input', function () { narrow(field.value); });
+    field.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') { field.value = ''; restore(); }
+    });
+  }
+
+  [].slice.call(search.querySelectorAll('button[value]')).forEach(function (button) {
+    button.addEventListener('click', function () {
+      var opening = button.value === 'expand';
+      groups.forEach(function (group) { group.open = opening; });
+    });
+  });
+
+  search.hidden = false;
 }());
 
 /* The mark-as-read control, and the marks surfaced on the two lists.
