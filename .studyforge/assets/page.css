@@ -1577,9 +1577,22 @@ section[data-practice] {
 }
 
 section[data-practice] h2 {
-  margin: 0 0 .4rem;
+  margin: 0;
   font-size: 1rem;
   color: var(--practice);
+}
+
+/* ⭐ The panel's own heading, and the one control that is ABOUT the panel
+   rather than about the work: what it is called on the left, Maximise on the
+   right. ⚠️ `baseline` and not `center`, so the button's word sits on the
+   heading's line rather than floating beside a box. */
+section[data-practice] div[data-practice-part="head"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 .4rem;
 }
 
 /* ⛔ The measure is NOT reopened here. `reading.css` caps `main p` at
@@ -1650,6 +1663,88 @@ section[data-practice] div[data-practice-part="editor"] iframe {
   border: 0;
   border-radius: var(--radius-tight);
   background: var(--surface-2);
+}
+
+/* ⭐ **MAXIMISED — THE PANEL'S OWN GEOMETRY, AND NOTHING MOVES** (`W431`).
+   The reader asked for room for the code, the tests and the two acts, and the
+   panel already holds every one of them — so the whole expansion is this rule
+   and the one attribute `practice.js` sets on the section.
+
+   ⛔ **This is why the maximise is a STYLESHEET and not a script that builds a
+   full-screen container.** The two windows are `iframe`s, and an `iframe` MOVED
+   TO ANOTHER PARENT RELOADS — taking the reader's unsaved buffer and the
+   code-server session with it. A rule cannot reparent anything, so the one
+   shape that could throw the work away is not reachable from here.
+
+   ⚠️ **`position: fixed` answers to the VIEWPORT only while no ancestor makes a
+   containing block for it** — a `transform`, `filter`, `will-change`,
+   `perspective` or `contain` anywhere above the panel pins it to that box
+   instead, and the panel would expand to the width of the reading column with
+   nothing failing. ⛔ No authored part of this bundle declares one, and
+   `tests/studyforge/render/page/test_practice.py` reads the bundle for it
+   rather than leaving the property to a comment.
+
+   ⛔ **AND THE RULE BELOW MOVES THE READER'S PAGE, WHICH IS WHY `practice.js`
+   REMEMBERS WHERE IT WAS** (`W431/1` — a merge gate found it, and it was then
+   measured deterministically here rather than guessed at twice more).
+
+   ⛔ **Two causes, one symptom, and the second is the one that hid.**
+   ⚠️ **First:** `position: fixed` takes the panel OUT OF FLOW, so the document
+   loses exactly the panel's own height — **MEASURED on the fixture unit page:
+   2390px becomes 2084px and the furthest a reader can scroll drops from 1490 to
+   1184** — the browser CLAMPS a scroll that no longer fits, and restoring the
+   height does not undo a clamp. ⚠️ **Second:** `reset.css` sets
+   `scroll-behavior: smooth` on `html`, so EVERY scroll animates, including the
+   one a `focus()` starts by bringing its target into view. ⛔ **A reading taken
+   during that glide sees somewhere the reader is only passing through** — which
+   is why the merge gate reported a drift of **2px** and this office, measuring
+   the same mechanism deterministically, saw **306px**.
+
+   ⭐ **So the restore both `preventScroll`s the focus and sets the position
+   `behavior: 'instant'`**: exactly one thing decides where the page is, and it
+   decides it in one frame. ⭐ **And the check for it is taken at the END of the
+   page** — at the top of a page this defect is invisible, and the first reading
+   of it was taken there and passed.
+
+   ⭐ **Nothing is done to `body`, and no scroll lock is taken.** The usual
+   companion to a full-viewport surface is `overflow: hidden` on `body`; it is
+   refused because it is a SECOND thing deciding where the page is, and the
+   restore already decides it. The panel covers the viewport and scrolls inside
+   itself. */
+section[data-practice][data-practice-expanded] {
+  position: fixed;
+  inset: 0;
+  /* ⛔ Above BOTH of the page's other raised layers — the skip link at 2 and
+     the narration transport at 1 — or the maximised practice is covered by
+     the bar it was supposed to make room over. */
+  z-index: 3;
+  margin: 0;
+  padding: 1rem 1.25rem 1.25rem;
+  border: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ⭐ The editor slot is the one region that takes the room the expansion made:
+   the note, the controls, the status line and the output are all the size they
+   already were, and the reader asked for more of the CODE. ⚠️ `min-height: 0`
+   on both, because a flex item's floor is its content and an editor frame
+   would otherwise refuse to shrink below its own 30rem. */
+section[data-practice][data-practice-expanded] div[data-practice-part="editor"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+section[data-practice][data-practice-expanded] div[data-practice-frame] {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+section[data-practice][data-practice-expanded] div[data-practice-part="editor"] iframe {
+  height: 100%;
 }
 
 /* The two acts and the stop. ⚠️ Real buttons, so they are in the tab order, take

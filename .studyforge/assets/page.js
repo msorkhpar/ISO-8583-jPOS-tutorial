@@ -1115,6 +1115,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var FRAME = 'data-practice-frame';
   var STOP = 'stop';
 
+  /* The maximised panel's own mark, and where the control's OTHER word is kept
+     — ⭐ both of its words are the template's, never this file's. */
+  var EXPANDED = 'data-practice-expanded';
+  var LABEL = 'data-practice-label';
+  var ESCAPE = 'Escape';
+
   /* The two windows, and what each frame is called to a screen reader. ⚠️ These
      are the framework's own words for its own controls, not the material's
      (R1) — the same status the panel's 'Running…' and 'Passed.' already have. */
@@ -1264,6 +1270,46 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'no-editor'), false);
   }
 
+  /* ⭐ **MAXIMISE: the PANEL'S OWN GEOMETRY, never a reparent** (`W431`) — the
+     panel already holds all of it, so the move is one attribute on the section.
+
+     ⛔ **A frame is never moved to another parent.** An `iframe` REPARENTED IN
+     THE DOM RELOADS, so nothing below appends, removes or replaces a node.
+
+     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (`W431/1`,
+     measured and argued where the rule is, in `practice.css`).
+
+     ⛔ **No keyboard exit would make this a trap.** A real button, focus into
+     the expanded practice and back on restore, Escape on the DOCUMENT (focus
+     may rest on `<body>`, and inside the editor frame Escape is the editor's). */
+  function maximise(panel) {
+    var button = part(panel, 'expand');
+    if (!button) { return; }
+    var words = [button.textContent, button.getAttribute(LABEL) || button.textContent];
+    var wide = false;
+    var was = 0;
+
+    function set(open) {
+      if (open) { was = window.pageYOffset || 0; }
+      wide = open;
+      if (open) { panel.setAttribute(EXPANDED, ''); } else { panel.removeAttribute(EXPANDED); }
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      button.textContent = words[open ? 1 : 0];
+      (open ? panel : button).focus({ preventScroll: true });
+      /* ⛔ **`'instant'` is the repair, not a flourish**: `reset.css` sets
+         `scroll-behavior: smooth`, so a plain `scrollTo` ANIMATES and the page
+         is still gliding when whatever looks at it next does. ⚠️ **The glide IS
+         the defect** — measured at 2px by a merge gate and at 306px here. */
+      if (!open) { window.scrollTo({ top: was, left: 0, behavior: 'instant' }); }
+    }
+
+    show(button, true);
+    button.addEventListener('click', function () { set(!wide); });
+    document.addEventListener('keydown', function (event) {
+      if (wide && event.key === ESCAPE) { set(false); }
+    });
+  }
+
   function wire(panel, run) {
     var key = panel.getAttribute(KEY);
     var corpus = panel.getAttribute(CORPUS);
@@ -1279,6 +1325,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'offline'), false);
     show(part(panel, 'editor'), true);
     show(controls, true);
+    /* ⚠️ Offered where there is something to maximise: over `file://` the panel
+       is one sentence, and making a sentence full-screen is a dead button. */
+    maximise(panel);
 
     /* ⭐ Fill the editor slot when the server says where THIS PRACTICE's two
        windows are, and leave the sentence standing when it does not. ⛔ Frames
