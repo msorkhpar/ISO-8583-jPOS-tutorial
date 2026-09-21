@@ -1071,7 +1071,33 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    record (`SF-21`), written where it was established; a page that also
    remembered would be a second answer to *did this pass?*. ⭐ So nothing here
    has to be namespaced against the one storage origin every `file://` page
-   shares. */
+   shares. ⚠️ **The reload below keeps that rule** — its whole state is the
+   browser's own navigation type, which is why it needs nowhere to remember.
+
+   ## ⛔ ONE reload, and only a genuinely COLD instance can ever need it (`W430`)
+
+   ⭐ **What a served page may frame is composed from the editor origins the
+   SERVING INSTANCE has discovered**, and a cold instance has discovered none
+   until a reader's own client asks — which this panel does, exactly one
+   document too late: the policy governing THIS document was sent before the
+   ask. ⛔ **The serving process may not ask earlier.** Discovering an editor
+   forks `docker`, and putting that on the path of an ordinary page response is
+   refused outright (spec §8.3), so the remaining move is the client's.
+
+   ⭐ **The browser is ASKED rather than guessed at.** A
+   `securitypolicyviolation` naming `frame-src` and this editor's own host is
+   the browser stating that the frame was blocked; the reload then gets a
+   document composed from the record that ask has just filled. ⛔ **Nothing is
+   reloaded on a hunch** — no violation, no reload.
+
+   ⛔ **Three guards, and each one closes a real loop.** The blocked URI must be
+   the editor's host, so an unrelated violation reloads nothing. The editor's
+   host must be the host THIS page was reached at, because a server withholds an
+   editor from another spelling of the same machine on purpose and no number of
+   reloads would change that. And this navigation must not itself be a reload,
+   which caps the whole remedy at one. ⚠️ **A browser with no navigation timing
+   is not reloaded at all**: failing closed is a frame that does not load, and
+   failing open is a page that reloads for ever. */
 
 (function () {
   'use strict';
@@ -1094,6 +1120,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      (R1) — the same status the panel's 'Running…' and 'Passed.' already have. */
   var WINDOWS = ['main', 'test'];
   var TITLES = { main: 'Your code', test: 'Tests' };
+
+  /* The directive a blocked editor frame is refused by, in the browser's own
+     spelling. ⚠️ Compared as a PREFIX rather than for equality, because the
+     older `violatedDirective` reports the whole directive — `frame-src 'none'`
+     — where `effectiveDirective` reports only its name. */
+  var FRAME_SRC = 'frame-src';
 
   function part(panel, name) {
     return panel.querySelector('[' + PART + '="' + name + '"]');
@@ -1133,6 +1165,33 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     built.src = url;
     built.title = title;
     slot.appendChild(built);
+  }
+
+  /* A URL's host, without its port and without its scheme. ⚠️ An IPv6 literal
+     keeps its brackets, which is the spelling `location.hostname` uses too. */
+  function hostOf(url) {
+    var found = /^[a-z]+:\/\/([^/?#]*)/i.exec(String(url || ''));
+    return found ? found[1].replace(/:\d+$/, '').toLowerCase() : '';
+  }
+
+  /* Reload once if, and only if, the browser says this document's policy
+     blocked the editor's frame. ⛔ The three guards are argued at the top of
+     this file, and each of them closes a loop rather than tidying one. */
+  function reloadWhenBlocked(url) {
+    var editor = hostOf(url);
+    var timing = window.performance && window.performance.getEntriesByType
+      ? window.performance.getEntriesByType('navigation')
+      : [];
+    if (!editor || editor !== String(location.hostname || '').toLowerCase()) { return; }
+    if (!timing.length || timing[0].type === 'reload') { return; }
+    var reloaded = false;
+    document.addEventListener('securitypolicyviolation', function (event) {
+      var directive = event.effectiveDirective || event.violatedDirective || '';
+      if (reloaded || directive.indexOf(FRAME_SRC) !== 0) { return; }
+      if (hostOf(event.blockedURI) !== editor) { return; }
+      reloaded = true;
+      location.reload();
+    });
   }
 
   /* ⭐ **Two frames of ONE editor, one visible at a time — never a split pane.**
@@ -1180,6 +1239,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       }
     }
 
+    /* ⛔ BEFORE the frame is added, because the violation it listens for is
+       raised by adding it. */
+    reloadWhenBlocked(where.main.url);
     frame(slots.main, where.main.url, TITLES.main);
     buttons.forEach(function (button) {
       button.addEventListener('click', function () { select(button.getAttribute(TAB)); });
