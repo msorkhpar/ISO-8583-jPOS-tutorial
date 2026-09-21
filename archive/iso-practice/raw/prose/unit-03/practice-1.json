@@ -1,0 +1,68 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-practice"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Unpacking data elements",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Run `practice/fields/Fields.java` and read what it prints. Then change it: add a data element to the sample message and teach `unpack` to read it, or make it print the field numbers the bitmap claims are present."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson: a practice with no grader"
+    },
+    {
+      "type": "para",
+      "text": "Nothing checks this file, and that is not a shortfall. Some material is worth running and reading rather than scoring, and a practice that says so honestly is better than one with a grader invented for it. There is a Run button here and no Submit button, because there is nothing to submit to."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "/**\n * Walk an ISO-8583 message and print the data elements it carries.\n *\n * <p>Nothing grades this file. Run it, read what it prints, then change it:\n * add a field to the sample message, or teach {@link #unpack} a data element\n * it does not know yet. That is the whole exercise.\n *\n * <p>The sample below is a made-up authorization request. Its account number\n * is one of the standard test values that no bank ever issues.\n */\npublic final class Fields {\n\n    /** A made-up authorization request: MTI, primary bitmap, then the fields in order. */\n    public static final String SAMPLE =\n        \"0100\"\n        + \"7000000000000000\"\n        + \"16\" + \"4111111111111111\"\n        + \"000000\"\n        + \"000000010000\";\n\n    private Fields() {\n    }\n\n    /** Print every part of {@code message}, in the order it is written. */\n    public static void unpack(String message) {\n        int at = 0;\n        System.out.println(\"MTI            \" + message.substring(at, at += 4));\n        System.out.println(\"primary bitmap \" + message.substring(at, at += 16));\n\n        // Data element 2 is variable length: two digits of length, then that many.\n        int length = Integer.parseInt(message.substring(at, at += 2));\n        System.out.println(\"DE 2  PAN      \" + message.substring(at, at += length)\n            + \"  (LLVAR, \" + length + \" digits)\");\n\n        // Data elements 3 and 4 are fixed length, so nothing announces them.\n        System.out.println(\"DE 3  proc code \" + message.substring(at, at += 6) + \"  (n 6)\");\n        System.out.println(\"DE 4  amount    \" + message.substring(at, at += 12) + \"  (n 12)\");\n\n        if (at != message.length()) {\n            System.out.println(\"and \" + (message.length() - at) + \" character(s) nobody read\");\n        }\n    }\n\n    public static void main(String[] args) {\n        unpack(args.length > 0 ? args[0] : SAMPLE);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "b9a3a335d28de52c0522a23144c157cdb429b3ec2312f04c2005312f8d5e26bd",
+  "starting_code": "/**\n * Walk an ISO-8583 message and print the data elements it carries.\n *\n * <p>Nothing grades this file. Run it, read what it prints, then change it:\n * add a field to the sample message, or teach {@link #unpack} a data element\n * it does not know yet. That is the whole exercise.\n *\n * <p>The sample below is a made-up authorization request. Its account number\n * is one of the standard test values that no bank ever issues.\n */\npublic final class Fields {\n\n    /** A made-up authorization request: MTI, primary bitmap, then the fields in order. */\n    public static final String SAMPLE =\n        \"0100\"\n        + \"7000000000000000\"\n        + \"16\" + \"4111111111111111\"\n        + \"000000\"\n        + \"000000010000\";\n\n    private Fields() {\n    }\n\n    /** Print every part of {@code message}, in the order it is written. */\n    public static void unpack(String message) {\n        int at = 0;\n        System.out.println(\"MTI            \" + message.substring(at, at += 4));\n        System.out.println(\"primary bitmap \" + message.substring(at, at += 16));\n\n        // Data element 2 is variable length: two digits of length, then that many.\n        int length = Integer.parseInt(message.substring(at, at += 2));\n        System.out.println(\"DE 2  PAN      \" + message.substring(at, at += length)\n            + \"  (LLVAR, \" + length + \" digits)\");\n\n        // Data elements 3 and 4 are fixed length, so nothing announces them.\n        System.out.println(\"DE 3  proc code \" + message.substring(at, at += 6) + \"  (n 6)\");\n        System.out.println(\"DE 4  amount    \" + message.substring(at, at += 12) + \"  (n 12)\");\n\n        if (at != message.length()) {\n            System.out.println(\"and \" + (message.length() - at) + \" character(s) nobody read\");\n        }\n    }\n\n    public static void main(String[] args) {\n        unpack(args.length > 0 ? args[0] : SAMPLE);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/fields/Fields.java",
+    "run_command": [
+      "java",
+      "practice/fields/Fields.java"
+    ]
+  }
+}

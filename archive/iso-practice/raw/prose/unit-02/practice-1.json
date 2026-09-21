@@ -1,0 +1,75 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-practice"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Building the primary bitmap",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Make `primary` in `practice/bitmap/Bitmap.java` return the correct sixteen hex characters for the data elements it is given. The file as shipped is wrong by exactly one bit position, and its grader says so."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson: a practice whose grader fails until you fix it"
+    },
+    {
+      "type": "para",
+      "text": "Press Submit before you change anything. The grader fails, it names the value it wanted and the value it found, and the difference between the two is the whole bug. Fix the bit position and submit again."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "/**\n * Build the primary bitmap of an ISO-8583 message.\n *\n * <p>The primary bitmap is 8 bytes — 64 bits — written as 16 hexadecimal\n * characters. Bit <em>n</em> is set when data element <em>n</em> is present,\n * and the bits are counted from 1, most significant bit first. Bit 1 is not a\n * data element at all: it says a secondary bitmap follows.\n */\npublic final class Bitmap {\n\n    /** How many data elements the primary bitmap can speak for. */\n    public static final int FIELDS = 64;\n\n    /** The data element the first bit is reserved for: the secondary bitmap flag. */\n    public static final int SECONDARY_FLAG = 1;\n\n    private Bitmap() {\n    }\n\n    /**\n     * Return the primary bitmap for {@code fields}, as 16 uppercase hex characters.\n     *\n     * <p>Each entry is a data element number between 2 and 64.\n     */\n    public static String primary(int... fields) {\n        byte[] bits = new byte[FIELDS / 8];\n        for (int field : fields) {\n            if (field <= SECONDARY_FLAG || field > FIELDS) {\n                throw new IllegalArgumentException(\n                    \"the primary bitmap speaks for data elements 2 to \" + FIELDS);\n            }\n            bits[(field - 1) / 8] |= (byte) (0x80 >> (field % 8));\n        }\n        StringBuilder written = new StringBuilder(bits.length * 2);\n        for (byte each : bits) {\n            written.append(String.format(\"%02X\", each));\n        }\n        return written.toString();\n    }\n\n    /** Print the bitmap of a small authorization request, so Run has something to show. */\n    public static void main(String[] args) {\n        System.out.println(\"fields 2, 3, 4      -> \" + primary(2, 3, 4));\n        System.out.println(\"fields 2, 3, 4, 11  -> \" + primary(2, 3, 4, 11));\n        System.out.println(\"field 64            -> \" + primary(64));\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "4fe7770986fe7fae8c348a90838be50ec93265f706ee7f4b3e1dc16076b7876d",
+  "starting_code": "/**\n * Build the primary bitmap of an ISO-8583 message.\n *\n * <p>The primary bitmap is 8 bytes — 64 bits — written as 16 hexadecimal\n * characters. Bit <em>n</em> is set when data element <em>n</em> is present,\n * and the bits are counted from 1, most significant bit first. Bit 1 is not a\n * data element at all: it says a secondary bitmap follows.\n */\npublic final class Bitmap {\n\n    /** How many data elements the primary bitmap can speak for. */\n    public static final int FIELDS = 64;\n\n    /** The data element the first bit is reserved for: the secondary bitmap flag. */\n    public static final int SECONDARY_FLAG = 1;\n\n    private Bitmap() {\n    }\n\n    /**\n     * Return the primary bitmap for {@code fields}, as 16 uppercase hex characters.\n     *\n     * <p>Each entry is a data element number between 2 and 64.\n     */\n    public static String primary(int... fields) {\n        byte[] bits = new byte[FIELDS / 8];\n        for (int field : fields) {\n            if (field <= SECONDARY_FLAG || field > FIELDS) {\n                throw new IllegalArgumentException(\n                    \"the primary bitmap speaks for data elements 2 to \" + FIELDS);\n            }\n            bits[(field - 1) / 8] |= (byte) (0x80 >> (field % 8));\n        }\n        StringBuilder written = new StringBuilder(bits.length * 2);\n        for (byte each : bits) {\n            written.append(String.format(\"%02X\", each));\n        }\n        return written.toString();\n    }\n\n    /** Print the bitmap of a small authorization request, so Run has something to show. */\n    public static void main(String[] args) {\n        System.out.println(\"fields 2, 3, 4      -> \" + primary(2, 3, 4));\n        System.out.println(\"fields 2, 3, 4, 11  -> \" + primary(2, 3, 4, 11));\n        System.out.println(\"field 64            -> \" + primary(64));\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/bitmap/Bitmap.java",
+    "test_path": "practice/bitmap/BitmapTest.java",
+    "run_command": [
+      "java",
+      "practice/bitmap/Bitmap.java"
+    ],
+    "test_command": [
+      "java",
+      "practice/bitmap/BitmapTest.java"
+    ],
+    "provenance": "bundled",
+    "trust": "authoritative"
+  }
+}

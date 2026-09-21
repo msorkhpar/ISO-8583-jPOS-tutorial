@@ -30,12 +30,25 @@ from pathlib import Path
 
 import pytest
 
-from ingest import read
+from ingest import practices, read
 
 CORPUS_ROOT = Path(__file__).resolve().parents[2]
 
-#: The counts this corpus records, by address. ⛔ Asserted, never assumed.
+#: The counts `README.md` records, by address. ⛔ Asserted, never assumed.
 RECORDED = {"iso-fundamentals": 16, "jpos-server": 11, "jpos-client": 11}
+
+#: ⭐ **The practice series, which `README.md` does not record.** It is kept a
+#: separate name on purpose: this module is about the region of *that* file, and
+#: folding a container it never mentions into `RECORDED` would quietly widen
+#: what these assertions are read as covering.
+PRACTICES = {practices.ADDRESS: 3}
+
+#: Every container this corpus reads, from both of its records.
+EVERY = {**RECORDED, **PRACTICES}
+
+#: The last unit of the last series `README.md` records. ⛔ Named rather than
+#: taken from the end of the list, which is now the practice series.
+LAST_RECORDED = ("jpos-client", "src/c11.md")
 
 
 def _material_copy(tmp_path: Path) -> Path:
@@ -50,19 +63,21 @@ def _material_copy(tmp_path: Path) -> Path:
 
 def test_the_region_stops_at_the_label_and_nothing_below_it_is_read():
     found = read.containers(CORPUS_ROOT)
-    assert {c.address.key: len(c.units) for c in found} == RECORDED
-    assert sum(len(c.units) for c in found) == sum(RECORDED.values())
-    # ⛔ The last container ends where the record ends it. A reader that ran on
-    # would still report exactly this, which is why the count is not the check.
-    last = found[-1]
-    assert last.units[-1].origin == "src/c11.md"
+    assert {c.address.key: len(c.units) for c in found} == EVERY
+    assert sum(len(c.units) for c in found) == sum(EVERY.values())
+    # ⛔ The last container the RECORD carries ends where the record ends it. A
+    # reader that ran on would still report exactly this, which is why the count
+    # is not the check.
+    key, origin = LAST_RECORDED
+    last = next(c for c in found if c.address.key == key)
+    assert last.units[-1].origin == origin
     assert all(unit.origin.startswith("src/") for c in found for unit in c.units)
 
 
 def test_the_two_readings_of_the_record_agree():
     # ⭐ `expected_units` is the source-side count the framework cannot make.
     # It is a different reading of the same document; agreement is the signal.
-    assert read.expected_units(CORPUS_ROOT) == RECORDED
+    assert read.expected_units(CORPUS_ROOT) == EVERY
 
 
 def test_the_reader_refuses_when_the_label_it_keys_on_is_gone(tmp_path):

@@ -1,0 +1,79 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-practice"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Reading the MTI",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Make `parts` in `practice/mti/Mti.java` return the four parts of an MTI — its version, its message class, its message function and its message origin, in that order — and refuse anything that is not four digits."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson: a practice whose grader already passes"
+    },
+    {
+      "type": "para",
+      "text": "The file ships finished, so its grader passes the moment you press Submit. That is deliberate: the first thing worth knowing about a practice is what a green run looks like, and you cannot recognise a broken one until you have seen a working one. Press Run to see the file's own output, then Submit to see the grader's."
+    },
+    {
+      "type": "para",
+      "text": "Then break it on purpose. Delete a case from `messageClass`, submit again, and read what the grader says. Put it back."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "/**\n * Read an ISO-8583 Message Type Indicator, one digit at a time.\n *\n * <p>The MTI is four numeric digits and each digit answers a different\n * question: which version of the standard, which class of message, which\n * function it performs, and where it came from. Nothing here needs a\n * library — the whole of it is in the four tables below.\n */\npublic final class Mti {\n\n    /** How many digits an MTI has, always. */\n    public static final int DIGITS = 4;\n\n    private Mti() {\n    }\n\n    /**\n     * Return the four parts of {@code mti}, in the order the standard reads them:\n     * version, message class, message function, message origin.\n     */\n    public static String[] parts(String mti) {\n        if (mti == null || mti.length() != DIGITS) {\n            throw new IllegalArgumentException(\"an MTI is exactly \" + DIGITS + \" digits\");\n        }\n        for (int at = 0; at < DIGITS; at++) {\n            char digit = mti.charAt(at);\n            if (digit < '0' || digit > '9') {\n                throw new IllegalArgumentException(\"an MTI is exactly \" + DIGITS + \" digits\");\n            }\n        }\n        return new String[] {\n            version(mti.charAt(0)),\n            messageClass(mti.charAt(1)),\n            messageFunction(mti.charAt(2)),\n            messageOrigin(mti.charAt(3)),\n        };\n    }\n\n    /** The first digit: which edition of the standard the message is written against. */\n    public static String version(char digit) {\n        switch (digit) {\n            case '0': return \"ISO 8583-1:1987\";\n            case '1': return \"ISO 8583-2:1993\";\n            case '2': return \"ISO 8583-3:2003\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The second digit: what the message is for. */\n    public static String messageClass(char digit) {\n        switch (digit) {\n            case '1': return \"Authorization\";\n            case '2': return \"Financial\";\n            case '3': return \"File actions\";\n            case '4': return \"Reversal and chargeback\";\n            case '5': return \"Reconciliation\";\n            case '6': return \"Administrative\";\n            case '7': return \"Fee collection\";\n            case '8': return \"Network management\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The third digit: where in the exchange this message sits. */\n    public static String messageFunction(char digit) {\n        switch (digit) {\n            case '0': return \"Request\";\n            case '1': return \"Response\";\n            case '2': return \"Advice\";\n            case '3': return \"Advice response\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The fourth digit: which side of the link sent it. */\n    public static String messageOrigin(char digit) {\n        switch (digit) {\n            case '0': return \"Acquirer\";\n            case '1': return \"Acquirer repeat\";\n            case '2': return \"Issuer\";\n            case '3': return \"Issuer repeat\";\n            case '4': return \"Other\";\n            case '5': return \"Other repeat\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** Print one MTI's four parts, so Run has something to show. */\n    public static void main(String[] args) {\n        String mti = args.length > 0 ? args[0] : \"0100\";\n        String[] parts = parts(mti);\n        System.out.println(\"MTI \" + mti);\n        System.out.println(\"  version:  \" + parts[0]);\n        System.out.println(\"  class:    \" + parts[1]);\n        System.out.println(\"  function: \" + parts[2]);\n        System.out.println(\"  origin:   \" + parts[3]);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "e054bc4926e18efe5d61595325ee7d2885ccd4a6d83076c89e4bf819d25bd03f",
+  "starting_code": "/**\n * Read an ISO-8583 Message Type Indicator, one digit at a time.\n *\n * <p>The MTI is four numeric digits and each digit answers a different\n * question: which version of the standard, which class of message, which\n * function it performs, and where it came from. Nothing here needs a\n * library — the whole of it is in the four tables below.\n */\npublic final class Mti {\n\n    /** How many digits an MTI has, always. */\n    public static final int DIGITS = 4;\n\n    private Mti() {\n    }\n\n    /**\n     * Return the four parts of {@code mti}, in the order the standard reads them:\n     * version, message class, message function, message origin.\n     */\n    public static String[] parts(String mti) {\n        if (mti == null || mti.length() != DIGITS) {\n            throw new IllegalArgumentException(\"an MTI is exactly \" + DIGITS + \" digits\");\n        }\n        for (int at = 0; at < DIGITS; at++) {\n            char digit = mti.charAt(at);\n            if (digit < '0' || digit > '9') {\n                throw new IllegalArgumentException(\"an MTI is exactly \" + DIGITS + \" digits\");\n            }\n        }\n        return new String[] {\n            version(mti.charAt(0)),\n            messageClass(mti.charAt(1)),\n            messageFunction(mti.charAt(2)),\n            messageOrigin(mti.charAt(3)),\n        };\n    }\n\n    /** The first digit: which edition of the standard the message is written against. */\n    public static String version(char digit) {\n        switch (digit) {\n            case '0': return \"ISO 8583-1:1987\";\n            case '1': return \"ISO 8583-2:1993\";\n            case '2': return \"ISO 8583-3:2003\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The second digit: what the message is for. */\n    public static String messageClass(char digit) {\n        switch (digit) {\n            case '1': return \"Authorization\";\n            case '2': return \"Financial\";\n            case '3': return \"File actions\";\n            case '4': return \"Reversal and chargeback\";\n            case '5': return \"Reconciliation\";\n            case '6': return \"Administrative\";\n            case '7': return \"Fee collection\";\n            case '8': return \"Network management\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The third digit: where in the exchange this message sits. */\n    public static String messageFunction(char digit) {\n        switch (digit) {\n            case '0': return \"Request\";\n            case '1': return \"Response\";\n            case '2': return \"Advice\";\n            case '3': return \"Advice response\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** The fourth digit: which side of the link sent it. */\n    public static String messageOrigin(char digit) {\n        switch (digit) {\n            case '0': return \"Acquirer\";\n            case '1': return \"Acquirer repeat\";\n            case '2': return \"Issuer\";\n            case '3': return \"Issuer repeat\";\n            case '4': return \"Other\";\n            case '5': return \"Other repeat\";\n            default: return \"Reserved\";\n        }\n    }\n\n    /** Print one MTI's four parts, so Run has something to show. */\n    public static void main(String[] args) {\n        String mti = args.length > 0 ? args[0] : \"0100\";\n        String[] parts = parts(mti);\n        System.out.println(\"MTI \" + mti);\n        System.out.println(\"  version:  \" + parts[0]);\n        System.out.println(\"  class:    \" + parts[1]);\n        System.out.println(\"  function: \" + parts[2]);\n        System.out.println(\"  origin:   \" + parts[3]);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/mti/Mti.java",
+    "test_path": "practice/mti/MtiTest.java",
+    "run_command": [
+      "java",
+      "practice/mti/Mti.java"
+    ],
+    "test_command": [
+      "java",
+      "practice/mti/MtiTest.java"
+    ],
+    "provenance": "bundled",
+    "trust": "authoritative"
+  }
+}

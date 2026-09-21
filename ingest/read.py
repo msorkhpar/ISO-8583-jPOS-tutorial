@@ -79,8 +79,10 @@ CONTAINERS: dict[str, tuple[str, str]] = {
     "Client Implementation": ("jpos-client", "src/Client.md"),
 }
 
-#: The single variant this corpus declares, and the one kind it holds. ⭐ Zero
-#: graded practices is a finished corpus, not a short one (§11.0, C5).
+#: The single variant this corpus declares, and the one kind the three recorded
+#: series hold. ⚠️ **The practice series holds both kinds** — `ingest.practices`
+#: names them — and it is a fourth container rather than units added to these,
+#: because nothing that already existed may be rewritten (R3).
 VARIANT = "prose"
 KIND = "lesson"
 
@@ -111,6 +113,20 @@ class CurriculumChanged(RuntimeError):
     ⚠️ The message names what changed and what would settle it, never a value
     that could carry personal data (R7).
     """
+
+
+def _practices():
+    """Return the practice series' reader. ⛔ Imported here, never at module scope.
+
+    ⚠️ `ingest.practices` reads this module's `ENTRY`, `VARIANT`, `_titled` and
+    `CurriculumChanged`, because the practice record is written in the shape
+    `README.md` already uses and a second spelling of that shape would drift
+    from it. ⭐ So the import is deferred rather than circular: the record's
+    grammar has one home, and this module still imports nothing at load.
+    """
+    from ingest import practices
+
+    return practices
 
 
 def _record(root: Path) -> list[str]:
@@ -236,14 +252,16 @@ def containers(root: Path) -> list[Container]:
                 origin=origin,
             )
         )
+    found.append(_practices().container(root))
     return found
 
 
 def documents(root: Path, container: Container) -> list[dict]:
     """Return the fields for each document of `container`, in reading order.
 
-    ⭐ One `lesson` per unit and nothing else: this corpus declares no
-    exercises, so there is no practice path to take (§7's three states, C5).
+    ⭐ One `lesson` per unit for each of the three **recorded** series: their
+    material is prose and sets no work. ⛔ The practice series is read by
+    `ingest.practices` instead, and holds a lesson and a practice per unit.
 
     ⛔ **Every block comes from the framework's vocabulary**, through its own
     strict reader — a construct it does not recognise raises there rather than
@@ -251,6 +269,11 @@ def documents(root: Path, container: Container) -> list[dict]:
     counts alike.
     """
     root = Path(root)
+    if container.address.key == _practices().ADDRESS:
+        # ⭐ The practice series holds two documents per unit and this one holds
+        # one, so the two readings are separate functions rather than a branch
+        # threaded through a shared loop.
+        return _practices().documents(root, container)
     fields = []
     for unit in container.units:
         text = (root / unit.origin).read_text(encoding="utf-8")
@@ -291,4 +314,8 @@ def expected_units(root: Path) -> dict[str, int] | None:
             continue
         if label is not None and MATERIAL_LINK.search(line) and ENTRY.match(line):
             counts[CONTAINERS[label][0]] += 1
+    # ⭐ Counted from the practice series' own record, which `README.md` does
+    # not carry: this corpus records its curriculum in two documents, and a
+    # count taken from one of them would be short by a whole container.
+    counts[_practices().ADDRESS] = _practices().expected_units(root)
     return counts
