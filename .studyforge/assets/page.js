@@ -1056,10 +1056,16 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    development environment with a shell, and opening a reading page is not
    consent to run one. The slot carries the sentence saying it is not running
    and how to start it, so a reader sees a statement rather than a blank frame
-   — ⭐ and when `studyforge.run.editor(corpus)` answers that one IS up, the
-   frame replaces that sentence (`W416`). ⛔ **The origin is the SERVER's
-   answer, never a name in this file**: a built page may name no origin and no
-   port (R8), and the editor's host port is per-project.
+   — ⭐ and when `studyforge.run.practice(corpus, key)` answers where this
+   practice's two windows are, the frames replace that sentence (`W416`,
+   `W429`). ⛔ **Every URL is the SERVER's answer, never a name in this file**:
+   a built page may name no origin and no port (R8), the editor's host port is
+   per-project, and the absolute path a window opens is a path inside somebody
+   else's container.
+
+   ⛔ **This panel does not make anything read-only and never says it is.** The
+   editor enforces that itself, out of the workspace settings the server writes
+   — a guard here would be a second, weaker copy of a rule the editor keeps.
 
    ⛔ **Nothing is written to browser storage.** A run's outcome is the SERVER's
    record (`SF-21`), written where it was established; a page that also
@@ -1079,7 +1085,15 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var CORPUS = 'data-corpus';
   var PART = 'data-practice-part';
   var ACT = 'data-practice-act';
+  var TAB = 'data-practice-tab';
+  var FRAME = 'data-practice-frame';
   var STOP = 'stop';
+
+  /* The two windows, and what each frame is called to a screen reader. ⚠️ These
+     are the framework's own words for its own controls, not the material's
+     (R1) — the same status the panel's 'Running…' and 'Passed.' already have. */
+  var WINDOWS = ['main', 'test'];
+  var TITLES = { main: 'Your code', test: 'Tests' };
 
   function part(panel, name) {
     return panel.querySelector('[' + PART + '="' + name + '"]');
@@ -1114,6 +1128,80 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return 'That could not be started.';
   }
 
+  function frame(slot, url, title) {
+    var built = document.createElement('iframe');
+    built.src = url;
+    built.title = title;
+    slot.appendChild(built);
+  }
+
+  /* ⭐ **Two frames of ONE editor, one visible at a time — never a split pane.**
+     The file a reader may type in and the file that judges it are two different
+     acts of reading, and standing them side by side halves the width of both.
+
+     ⛔ **Each frame's URL is the SERVER's answer and is never built here**: the
+     window's own URL is the only thing that can point two windows of one editor
+     at two different files, because an extension cannot read its own window's
+     query string and both windows share one workspace settings file.
+
+     ⛔ **The TESTS frame is built LAZILY, on the first click of its tab.** A
+     second workbench is a second language server, and a reader who never opens
+     the tests should never pay for one.
+
+     ⛔ **This page neither claims nor enforces read-only.** The editor does, out
+     of the workspace settings the server wrote; a guard here would be a second,
+     weaker copy of a rule the editor already keeps. */
+  function windows(panel, where) {
+    var slots = {};
+    WINDOWS.forEach(function (name) {
+      slots[name] = panel.querySelector('[' + FRAME + '="' + name + '"]');
+    });
+    if (!slots.main) { return; }
+    var tested = !!(where.test && where.test.url);
+    var buttons = [].slice.call(panel.querySelectorAll('[' + TAB + ']')).filter(
+      function (button) {
+        var keep = tested || button.getAttribute(TAB) !== 'test';
+        if (!keep) { button.hidden = true; }
+        return keep;
+      }
+    );
+    var lazy = false;
+
+    function select(name) {
+      buttons.forEach(function (button) {
+        var mine = button.getAttribute(TAB) === name;
+        button.setAttribute('aria-selected', mine ? 'true' : 'false');
+        button.tabIndex = mine ? 0 : -1;
+      });
+      WINDOWS.forEach(function (one) { show(slots[one], one === name && !!slots[one]); });
+      if (name === 'test' && !lazy && tested) {
+        lazy = true;
+        frame(slots.test, where.test.url, TITLES.test);
+      }
+    }
+
+    frame(slots.main, where.main.url, TITLES.main);
+    buttons.forEach(function (button) {
+      button.addEventListener('click', function () { select(button.getAttribute(TAB)); });
+      /* ⚠️ Arrow keys move between tabs, which is what a tablist is announced
+         as promising. Without them the roles say one thing and the keyboard
+         does another. */
+      button.addEventListener('keydown', function (event) {
+        var step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        var next = buttons.indexOf(button) + step;
+        if (!step || next < 0 || next >= buttons.length) { return; }
+        event.preventDefault();
+        buttons[next].focus();
+        select(buttons[next].getAttribute(TAB));
+      });
+    });
+    select('main');
+    /* ⭐ One tab is no choice, so the tablist stays hidden where the material
+       names no test — the same honesty as offering no Submit. */
+    show(part(panel, 'tabs'), tested);
+    show(part(panel, 'no-editor'), false);
+  }
+
   function wire(panel, run) {
     var key = panel.getAttribute(KEY);
     var corpus = panel.getAttribute(CORPUS);
@@ -1130,24 +1218,19 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'editor'), true);
     show(controls, true);
 
-    /* ⭐ Fill the editor slot when the served index says where a running editor
-       is, and leave the sentence standing when it does not. ⛔ A frame is added
-       only for an editor that is already up over this corpus's own files — the
-       server decides that, this asks.
+    /* ⭐ Fill the editor slot when the server says where THIS PRACTICE's two
+       windows are, and leave the sentence standing when it does not. ⛔ Frames
+       are added only for an editor that is already up over this corpus's own
+       files and that actually holds this practice's file — the server decides
+       both, this asks.
 
        ⚠️ **Asked for, never assumed.** A site BUILT by one version of this
        framework may be SERVED by another, and the client is the serving
        process's; a panel that called a function an older client does not
        publish would take Run and Submit down with it. */
-    if (run.editor) {
-      run.editor(corpus).then(function (where) {
-        var slot = part(panel, 'editor');
-        if (!where || !slot) { return; }
-        var frame = document.createElement('iframe');
-        frame.src = where.origin + '/?folder=' + encodeURIComponent(where.folder);
-        frame.title = 'Editor';
-        slot.insertBefore(frame, slot.firstChild);
-        show(part(panel, 'no-editor'), false);
+    if (run.practice) {
+      run.practice(corpus, key).then(function (where) {
+        if (where && where.main && where.main.url) { windows(panel, where); }
       }, function () { return null; });
     }
 
