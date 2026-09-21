@@ -2,18 +2,31 @@
   "raw_api": 1,
   "source": "iso-8583-jpos-tutorial",
   "address": [
-    "iso-practice"
+    "iso-fundamentals"
   ],
   "variant": "prose",
   "unit": 3,
   "kind": "practice",
   "ordinal": 1,
   "ingested": "2026-09-21",
-  "title": "Unpacking data elements",
+  "title": "Data Elements",
   "blocks": [
     {
       "type": "heading",
-      "level": 2,
+      "level": 3,
+      "text": "Practice: Unpacking data elements"
+    },
+    {
+      "type": "para",
+      "text": "A message is a single string, and the fields inside it are not separated by anything. Section 3.2 is the reason it can still be read: every data element has a declared format, and the format says how long it is."
+    },
+    {
+      "type": "para",
+      "text": "A fixed-length element simply occupies its length. A variable-length one announces itself first — an LLVAR carries two digits of length before its value, an LLLVAR carries three. So a reader walks the message from left to right, and at each step it already knows how far to walk next. Get one length wrong and everything after it is garbage, which is why a malformed message usually fails somewhere other than where it is malformed."
+    },
+    {
+      "type": "heading",
+      "level": 4,
       "text": "Problem statement"
     },
     {
@@ -22,7 +35,7 @@
     },
     {
       "type": "heading",
-      "level": 2,
+      "level": 4,
       "text": "Lesson: a practice with no grader"
     },
     {
@@ -31,7 +44,7 @@
     },
     {
       "type": "heading",
-      "level": 2,
+      "level": 4,
       "text": "Starting code"
     },
     {
@@ -44,8 +57,8 @@
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 3,
-    "paras": 2,
+    "headings": 4,
+    "paras": 4,
     "code": 1,
     "tables": 0,
     "lists": 0,
@@ -56,7 +69,7 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "b9a3a335d28de52c0522a23144c157cdb429b3ec2312f04c2005312f8d5e26bd",
+  "content_sha256": "3d8557312931e0e815be96a8629d3ce4f73390128424db45af8aafe5eb7b6c09",
   "starting_code": "/**\n * Walk an ISO-8583 message and print the data elements it carries.\n *\n * <p>Nothing grades this file. Run it, read what it prints, then change it:\n * add a field to the sample message, or teach {@link #unpack} a data element\n * it does not know yet. That is the whole exercise.\n *\n * <p>The sample below is a made-up authorization request. Its account number\n * is one of the standard test values that no bank ever issues.\n */\npublic final class Fields {\n\n    /** A made-up authorization request: MTI, primary bitmap, then the fields in order. */\n    public static final String SAMPLE =\n        \"0100\"\n        + \"7000000000000000\"\n        + \"16\" + \"4111111111111111\"\n        + \"000000\"\n        + \"000000010000\";\n\n    private Fields() {\n    }\n\n    /** Print every part of {@code message}, in the order it is written. */\n    public static void unpack(String message) {\n        int at = 0;\n        System.out.println(\"MTI            \" + message.substring(at, at += 4));\n        System.out.println(\"primary bitmap \" + message.substring(at, at += 16));\n\n        // Data element 2 is variable length: two digits of length, then that many.\n        int length = Integer.parseInt(message.substring(at, at += 2));\n        System.out.println(\"DE 2  PAN      \" + message.substring(at, at += length)\n            + \"  (LLVAR, \" + length + \" digits)\");\n\n        // Data elements 3 and 4 are fixed length, so nothing announces them.\n        System.out.println(\"DE 3  proc code \" + message.substring(at, at += 6) + \"  (n 6)\");\n        System.out.println(\"DE 4  amount    \" + message.substring(at, at += 12) + \"  (n 12)\");\n\n        if (at != message.length()) {\n            System.out.println(\"and \" + (message.length() - at) + \" character(s) nobody read\");\n        }\n    }\n\n    public static void main(String[] args) {\n        unpack(args.length > 0 ? args[0] : SAMPLE);\n    }\n}\n",
   "exercise": {
     "main_path": "practice/fields/Fields.java",

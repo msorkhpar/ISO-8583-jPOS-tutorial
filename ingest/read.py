@@ -37,6 +37,7 @@ knows still works.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
 
@@ -79,10 +80,13 @@ CONTAINERS: dict[str, tuple[str, str]] = {
     "Client Implementation": ("jpos-client", "src/Client.md"),
 }
 
-#: The single variant this corpus declares, and the one kind the three recorded
-#: series hold. ⚠️ **The practice series holds both kinds** — `ingest.practices`
-#: names them — and it is a fourth container rather than units added to these,
-#: because nothing that already existed may be rewritten (R3).
+#: The single variant this corpus declares, and the kind every unit's prose is.
+#: ⚠️ **A unit may hold a SECOND document, of kind `practice`** — read from a
+#: file of its own, recorded in `ingest.practices` and declared by
+#: `container_api: 3`'s `practice_origin`. ⭐ It lands on the unit's own page,
+#: which is where a practice belongs (`W428`); ⛔ and nothing that already
+#: existed is rewritten to make room for it (R3), because the practice's
+#: material arrives in an additive file beside the prose.
 VARIANT = "prose"
 KIND = "lesson"
 
@@ -118,8 +122,8 @@ class CurriculumChanged(RuntimeError):
 def _practices():
     """Return the practice series' reader. ⛔ Imported here, never at module scope.
 
-    ⚠️ `ingest.practices` reads this module's `ENTRY`, `VARIANT`, `_titled` and
-    `CurriculumChanged`, because the practice record is written in the shape
+    ⚠️ `ingest.practices` reads this module's `ENTRY`, `LABEL`, `CONTAINERS`
+    and `CurriculumChanged`, because the practice record is written in the shape
     `README.md` already uses and a second spelling of that shape would drift
     from it. ⭐ So the import is deferred rather than circular: the record's
     grammar has one home, and this module still imports nothing at load.
@@ -208,10 +212,15 @@ def containers(root: Path) -> list[Container]:
     record of it and no title is slugified here.
 
     ⭐ Each container carries `origin` — the path of the file the material was
-    read from, verbatim — and one `Unit` per unit, with its declared practice
-    count, which is zero for every unit of this corpus.
+    read from, verbatim — and one `Unit` per unit.
+
+    ⭐ **A unit the practice record names then gains `practice_origin`** — the
+    additive file its practice was written into (`W428`). ⛔ Its prose `origin`
+    is untouched, because the practice joins the unit's page and does not
+    replace it, and because rewriting a recorded source file is what R3 forbids.
     """
     root = Path(root)
+    attached_by = _practices().attachments(root)
     found = []
     for label, entries in _grouped(_region(_record(root))):
         address, origin = CONTAINERS[label]
@@ -240,6 +249,7 @@ def containers(root: Path) -> list[Container]:
                 f"{RECORD} opens the group {label!r} and records no entry under it. "
                 f"An empty container reaches the contents page as an empty row."
             )
+        units = _attached(units, attached_by.get(address, {}), label)
         found.append(
             Container(
                 address=Address.of(address),
@@ -252,16 +262,44 @@ def containers(root: Path) -> list[Container]:
                 origin=origin,
             )
         )
-    found.append(_practices().container(root))
     return found
+
+
+def _attached(units: list[Unit], attached: dict[int, str], label: str) -> list[Unit]:
+    """Return `units` with each practice the record names declared on its unit.
+
+    ⛔ **An ordinal naming no unit is refused rather than dropped** (R6). A
+    practice joins the unit it practises, so a number that matches nothing is a
+    decision about which unit it belongs to and not a typo to smooth over.
+    """
+    declared = {unit.n for unit in units}
+    unknown = sorted(n for n in attached if n not in declared)
+    if unknown:
+        raise CurriculumChanged(
+            f"the practice record names unit(s) {unknown} of {label!r}, which "
+            f"declares {len(units)} unit(s) numbered from 1. A practice is attached "
+            f"to the unit whose material it practises, so an ordinal that names no "
+            f"unit is settled by correcting the record, never by dropping the entry."
+        )
+    return [
+        dataclasses.replace(unit, practices=1, practice_origin=attached[unit.n])
+        if unit.n in attached
+        else unit
+        for unit in units
+    ]
 
 
 def documents(root: Path, container: Container) -> list[dict]:
     """Return the fields for each document of `container`, in reading order.
 
-    ⭐ One `lesson` per unit for each of the three **recorded** series: their
-    material is prose and sets no work. ⛔ The practice series is read by
-    `ingest.practices` instead, and holds a lesson and a practice per unit.
+    ⭐ One `lesson` per unit, read from the file its `origin` names — ⭐ **and,
+    for a unit that declares `practice_origin`, one `practice` beneath it**,
+    read from that file by `ingest.practices` and landing on the same page.
+
+    ⛔ **The two documents never share a file**, which is what the second
+    declaration promises `studyforge validate`: the lesson's headings are
+    counted against `origin` and the practice's against `practice_origin`, so a
+    block that strayed from one file into the other reads as a short read.
 
     ⛔ **Every block comes from the framework's vocabulary**, through its own
     strict reader — a construct it does not recognise raises there rather than
@@ -269,11 +307,6 @@ def documents(root: Path, container: Container) -> list[dict]:
     counts alike.
     """
     root = Path(root)
-    if container.address.key == _practices().ADDRESS:
-        # ⭐ The practice series holds two documents per unit and this one holds
-        # one, so the two readings are separate functions rather than a branch
-        # threaded through a shared loop.
-        return _practices().documents(root, container)
     fields = []
     for unit in container.units:
         text = (root / unit.origin).read_text(encoding="utf-8")
@@ -288,6 +321,17 @@ def documents(root: Path, container: Container) -> list[dict]:
                 "blocks": parse_markdown(text),
             }
         )
+        if unit.practice_origin is not None:
+            fields.append(
+                _practices().document(
+                    root,
+                    address=container.address,
+                    variant=container.variant,
+                    unit=unit.n,
+                    title=unit.title,
+                    href=unit.practice_origin,
+                )
+            )
     return fields
 
 
@@ -314,8 +358,8 @@ def expected_units(root: Path) -> dict[str, int] | None:
             continue
         if label is not None and MATERIAL_LINK.search(line) and ENTRY.match(line):
             counts[CONTAINERS[label][0]] += 1
-    # ⭐ Counted from the practice series' own record, which `README.md` does
-    # not carry: this corpus records its curriculum in two documents, and a
-    # count taken from one of them would be short by a whole container.
-    counts[_practices().ADDRESS] = _practices().expected_units(root)
+    # ⭐ **The practices add no unit and are therefore absent from this count**
+    # (`W428`). They join units this record already carries, so a corpus whose
+    # practices all vanished would still be counted complete here — which is
+    # `ingest.practices.expected`'s job and not this one.
     return counts

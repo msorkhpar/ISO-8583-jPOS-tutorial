@@ -37,17 +37,18 @@ CORPUS_ROOT = Path(__file__).resolve().parents[2]
 #: The counts `README.md` records, by address. ⛔ Asserted, never assumed.
 RECORDED = {"iso-fundamentals": 16, "jpos-server": 11, "jpos-client": 11}
 
-#: ⭐ **The practice series, which `README.md` does not record.** It is kept a
-#: separate name on purpose: this module is about the region of *that* file, and
-#: folding a container it never mentions into `RECORDED` would quietly widen
-#: what these assertions are read as covering.
-PRACTICES = {practices.ADDRESS: 3}
+#: ⭐ **Which unit each practice joins**, recorded in `src/Practice.md`, which
+#: `README.md` does not mention at all. ⛔ **A practice adds NO unit** (`W428`):
+#: it is a second document on a unit this record already carries, so these
+#: ordinals are units of `RECORDED` and never entries beside them.
+PRACTICES = {"iso-fundamentals": {2: "src/p2.md", 3: "src/p3.md", 4: "src/p1.md"}}
 
-#: Every container this corpus reads, from both of its records.
-EVERY = {**RECORDED, **PRACTICES}
+#: Every container this corpus reads. ⭐ It is `RECORDED` exactly, and that is
+#: the reading `W428` changed: this corpus used to carry a fourth container of
+#: practices, and now it carries none.
+EVERY = dict(RECORDED)
 
-#: The last unit of the last series `README.md` records. ⛔ Named rather than
-#: taken from the end of the list, which is now the practice series.
+#: The last unit of the last series `README.md` records.
 LAST_RECORDED = ("jpos-client", "src/c11.md")
 
 
@@ -74,10 +75,71 @@ def test_the_region_stops_at_the_label_and_nothing_below_it_is_read():
     assert all(unit.origin.startswith("src/") for c in found for unit in c.units)
 
 
+def test_every_practice_is_declared_on_the_unit_it_practises():
+    # ⛔ `W428`, and it is the user's own clause: a practice is part of its
+    # topic page, so it reaches the reader as a second document of that unit
+    # and never as a container of its own.
+    found = {c.address.key: c for c in read.containers(CORPUS_ROOT)}
+    for address, attached in PRACTICES.items():
+        for ordinal, href in attached.items():
+            unit = found[address].unit(ordinal)
+            assert unit.practice_origin == href, (address, ordinal)
+            assert unit.practices == 1
+            # ⛔ The prose file is untouched: the practice joined the page, it
+            # did not replace the material (R3).
+            assert unit.origin != href
+    attached_units = {(a, n) for a, units in PRACTICES.items() for n in units}
+    assert {
+        (c.address.key, u.n)
+        for c in found.values()
+        for u in c.units
+        if u.practice_origin is not None
+    } == attached_units
+
+
+def test_a_practice_brings_its_own_file_and_never_edits_the_unit_s():
+    # ⭐ The reason `practice_origin` exists. Every prose unit file is INCLUDED
+    # by this corpus's own content policy, and `corpus.manifest.edits` refuses
+    # an edit to an included file however it is declared — so the practice's
+    # material has to arrive beside it.
+    origins = {u.origin for c in read.containers(CORPUS_ROOT) for u in c.units}
+    for attached in PRACTICES.values():
+        for href in attached.values():
+            assert href not in origins, "a practice file is no unit's prose"
+            assert (CORPUS_ROOT / href).is_file()
+
+
+def test_the_practice_document_is_the_whole_of_its_own_file():
+    # ⛔ What the second declaration promises `check_completeness`: the
+    # practice's headings are counted against the practice file, so a lesson
+    # block that strayed in here would read as a short read on that file.
+    found = {c.address.key: c for c in read.containers(CORPUS_ROOT)}
+    for address, attached in PRACTICES.items():
+        container = found[address]
+        documents = read.documents(CORPUS_ROOT, container)
+        for ordinal, href in attached.items():
+            kinds = [d["kind"] for d in documents if d["unit"] == ordinal]
+            assert kinds == ["lesson", "practice"], (address, ordinal)
+            practice = next(
+                d for d in documents if d["unit"] == ordinal and d["kind"] == "practice"
+            )
+            headings = sum(1 for b in practice["blocks"] if b["type"] == "heading")
+            source = (CORPUS_ROOT / href).read_text(encoding="utf-8")
+            assert headings == sum(1 for line in source.splitlines() if line.startswith("#"))
+            assert practice["exercise"]["main_path"] in practices.WORKSPACES[href]["main_path"]
+
+
 def test_the_two_readings_of_the_record_agree():
     # ⭐ `expected_units` is the source-side count the framework cannot make.
     # It is a different reading of the same document; agreement is the signal.
     assert read.expected_units(CORPUS_ROOT) == EVERY
+
+
+def test_the_practices_are_counted_from_their_own_record():
+    # ⚠️ `expected_units` no longer counts them at all, because they add no
+    # unit — so a corpus whose practices all vanished would still be counted
+    # complete there. This is the count that would notice.
+    assert practices.expected(CORPUS_ROOT) == {a: len(u) for a, u in PRACTICES.items()}
 
 
 def test_the_reader_refuses_when_the_label_it_keys_on_is_gone(tmp_path):
