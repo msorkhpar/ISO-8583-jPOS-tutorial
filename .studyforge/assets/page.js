@@ -1056,8 +1056,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    development environment with a shell, and opening a reading page is not
    consent to run one. The slot carries the sentence saying it is not running
    and how to start it, so a reader sees a statement rather than a blank frame
-   — ⚠️ and until something publishes where a running editor is, that sentence
-   is the only state this part can reach (`SF-24/1`).
+   — ⭐ and when `studyforge.run.editor(corpus)` answers that one IS up, the
+   frame replaces that sentence (`W416`). ⛔ **The origin is the SERVER's
+   answer, never a name in this file**: a built page may name no origin and no
+   port (R8), and the editor's host port is per-project.
 
    ⛔ **Nothing is written to browser storage.** A run's outcome is the SERVER's
    record (`SF-21`), written where it was established; a page that also
@@ -1128,6 +1130,27 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'editor'), true);
     show(controls, true);
 
+    /* ⭐ Fill the editor slot when the served index says where a running editor
+       is, and leave the sentence standing when it does not. ⛔ A frame is added
+       only for an editor that is already up over this corpus's own files — the
+       server decides that, this asks.
+
+       ⚠️ **Asked for, never assumed.** A site BUILT by one version of this
+       framework may be SERVED by another, and the client is the serving
+       process's; a panel that called a function an older client does not
+       publish would take Run and Submit down with it. */
+    if (run.editor) {
+      run.editor(corpus).then(function (where) {
+        var slot = part(panel, 'editor');
+        if (!where || !slot) { return; }
+        var frame = document.createElement('iframe');
+        frame.src = where.origin + '/?folder=' + encodeURIComponent(where.folder);
+        frame.title = 'Editor';
+        slot.insertBefore(frame, slot.firstChild);
+        show(part(panel, 'no-editor'), false);
+      }, function () { return null; });
+    }
+
     var stop = null;
     var starters = [];
     acts.forEach(function (button) {
@@ -1141,6 +1164,16 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
        Stop and the end gives it back to the button that was pressed — and only
        ever when this panel already had it. */
     var pressed = null;
+
+    /* ⛔ **Set when STOP takes focus away from this panel itself**, which is the
+       one hand-back `holdsFocus()` cannot answer for. Pressing Stop disables
+       Stop, a disabled element drops focus to the document AT ONCE, and the
+       run then settles a moment later with focus already on `<body>` — so the
+       question *did the panel have focus?* answers no and the keyboard reader
+       is left at the top of the page. ⚠️ **Measured in a browser by `W417`,
+       the first reading this panel ever had on a served origin**; the ordinary
+       end-of-run path was correct and only this one was not. */
+    var handedBack = false;
 
     /* ⚠️ Asked BEFORE the control is disabled or hidden, never after: a
        disabled element drops focus to the document immediately, so a check
@@ -1156,9 +1189,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     }
 
     function settle(text) {
-      var keyboard = holdsFocus();
+      var keyboard = holdsFocus() || handedBack;
+      handedBack = false;
       status.textContent = text;
       live(false);
+      /* ⛔ AFTER `live(false)`: the button that was pressed is disabled while
+         the run is live, and focusing a disabled control does nothing at all. */
       if (keyboard && pressed) { pressed.focus(); }
     }
 
@@ -1181,6 +1217,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
     if (stop) {
       stop.addEventListener('click', function () {
+        /* ⛔ Asked BEFORE the line below, for the reason `holdsFocus` states:
+           this IS the disable that drops focus to the document. */
+        handedBack = holdsFocus();
         stop.disabled = true;
         run.stop().then(
           function () { stop.disabled = false; },
