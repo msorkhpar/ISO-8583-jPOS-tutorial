@@ -1,0 +1,150 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Answer requests the way a host simulator does",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "You cannot certify, or even test, against a live card network every time you change your code. A host simulator stands in for the network: it takes each request your system sends and answers it the way the network would, and designated test card numbers let a test pick the outcome it wants."
+    },
+    {
+      "type": "para",
+      "text": "Write the answering half of such a simulator (no sockets: the part a request listener would call). `new HostSimulator(approvalCode)` approves every card unless told otherwise, and `declineCard(pan, responseCode)` sets one test card up to be declined with that code."
+    },
+    {
+      "type": "para",
+      "text": "`respond(ISOMsg request)` returns the response:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "it carries every field of the request, with the MTI turned into the matching response MTI (a `0100` is answered with a `0110`, a `0200` with a `0210`);",
+        "an approved request gets response code `00` in field 39 and the approval code in field 38;",
+        "a request for a card set up to be declined gets that card's response code in field 39 and no field 38, because nothing was approved."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The request is not changed. Your caller still holds it, for example to match the answer to what it sent.",
+        "A message that is already a response (`0110`, `0210`, ...) cannot be answered; refuse it with an `ISOException`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    private final String approvalCode;\n    private final Map<String, String> declined = new HashMap<>();\n\n    public HostSimulator(String approvalCode) {\n        this.approvalCode = approvalCode;\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        declined.put(pan, responseCode);\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        String code = declined.get(request.getString(2));\n        if (code == null) {\n            response.set(39, \"00\");\n            response.set(38, approvalCode);\n        } else {\n            response.set(39, code);\n            response.unset(38);\n        }\n        return response;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    public HostSimulator(String approvalCode) {\n        throw new UnsupportedOperationException(\"write HostSimulator\");\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        throw new UnsupportedOperationException(\"write declineCard\");\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ebe0f0739dab591c91158618c854f36b75db951953f2fb590c68714999c5827e",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    public HostSimulator(String approvalCode) {\n        throw new UnsupportedOperationException(\"write HostSimulator\");\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        throw new UnsupportedOperationException(\"write declineCard\");\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/com/example/practice/HostSimulator.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/test/java/com/example/practice/HostSimulatorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-10/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-10/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HostSimulatorTest#approvesARequestWithACopyThatCarriesTheResponseMti",
+        "kind": "main",
+        "says": "an approved request is answered with a copy of it carrying the response MTI, response code 00 and the approval code"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#declinesATestCardWithItsCodeAndNoApprovalCode",
+        "kind": "main",
+        "says": "a card set up to be declined gets its response code and no approval code"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#leavesTheRequestUntouched",
+        "kind": "edge",
+        "says": "answering a request does not change the request itself"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#refusesToAnswerAResponse",
+        "kind": "edge",
+        "says": "a message that is already a response is refused with an ISOException"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-10/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/10.md",
+      "section": "10.3. Simulation and test environments"
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Raise the right exception for a missing or declining reply",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "`mux.request(request, timeout)` gives back the host's reply, or `null` when no reply came in time. A reply is not an approval either: the host says yes or no in field 39, the response code, and only `00` means approved. A client that hands every reply back as if it were a success lets a declined purchase through; a client that trips over `null` turns a slow host into a crash. Raising a specific exception for each outcome lets one error handler answer each one properly."
+    },
+    {
+      "type": "para",
+      "text": "Write `TransactionService`, built from a jPOS `MUX` and a timeout in milliseconds, with `ISOMsg send(ISOMsg request)`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "it asks the MUX for a reply, using that timeout;",
+        "an approved reply (`00`) is returned as it is;",
+        "any other response code raises `TransactionDeclinedException`, a nested unchecked exception carrying that response code;",
+        "an `ISOException` from the MUX reaches the caller unchanged."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "No reply at all raises `java.util.concurrent.TimeoutException`: nobody declined anything.",
+        "A reply with no response code is not an approval. Decline it, with a `null` code."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        private final String responseCode;\n\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            this.responseCode = responseCode;\n        }\n\n        public String getResponseCode() {\n            return responseCode;\n        }\n    }\n\n    private final MUX mux;\n    private final long timeoutMillis;\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n        this.mux = mux;\n        this.timeoutMillis = timeoutMillis;\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        ISOMsg response = mux.request(request, timeoutMillis);\n        if (response == null) {\n            throw new TimeoutException(\"Transaction timed out\");\n        }\n        String responseCode = response.getString(39);\n        if (!\"00\".equals(responseCode)) {\n            throw new TransactionDeclinedException(\"Transaction declined\", responseCode);\n        }\n        return response;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "4a3bf0df4959db49001145b48031fbc1ff858691ce1e75b476581847a2f53182",
+  "starting_code": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-09/practice-2/src/main/java/com/example/practice/TransactionService.java",
+    "test_path": "practice/jpos-client/prose/unit-09/practice-2/src/test/java/com/example/practice/TransactionServiceTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TransactionServiceTest#anApprovedReplyIsReturned",
+        "kind": "main",
+        "says": "a reply with response code 00 is returned to the caller"
+      },
+      {
+        "id": "com.example.practice.TransactionServiceTest#aDeclineRaisesAnExceptionCarryingItsCode",
+        "kind": "main",
+        "says": "a reply with any other response code raises a decline that carries that code"
+      },
+      {
+        "id": "com.example.practice.TransactionServiceTest#noReplyIsATimeoutNotADecline",
+        "kind": "edge",
+        "says": "no reply within the timeout raises a TimeoutException, not a decline or a NullPointerException"
+      },
+      {
+        "id": "com.example.practice.TransactionServiceTest#aReplyWithoutAResponseCodeIsNotAnApproval",
+        "kind": "edge",
+        "says": "a reply that carries no response code is declined, never returned as approved"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-09/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c9.md",
+      "section": "9.6 Integration with jPOS Client"
+    }
+  }
+}

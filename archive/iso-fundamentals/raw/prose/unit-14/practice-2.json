@@ -1,0 +1,140 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Swap the card number in field 2 for a token, and back",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your acquirer wants card numbers out of every system that does not strictly need them. Messages leaving the secure zone should carry a token in field 2 instead of the PAN, and only the vault, inside the secure zone, may turn a token back into the card number. The token has to look like a card number, because routing, logging and receipts downstream still expect one."
+    },
+    {
+      "type": "para",
+      "text": "Write the class `PanVault` with two methods, each working on field 2 of the message in place:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`protect(ISOMsg message)` replaces the PAN with a token: the same length, digits only, the first six digits (the BIN, which routing needs) and the last four (what the cardholder sees on a receipt) kept, the digits between replaced. A token equal to the card number protects nothing, so never hand one out.",
+        "`reveal(ISOMsg message)` replaces a token this vault issued with the card number it stands for."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Why the edges matter:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The same card must always get the same token, or reports and fraud checks downstream see one card as many.",
+        "A token the vault never issued is refused with an `ISOException`, and field 2 is left exactly as it was. Passing along an empty or unchanged field 2 would send a message on with no real card number in it."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.security.SecureRandom;\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    private final Map<String, String> tokenOfPan = new HashMap<>();\n    private final Map<String, String> panOfToken = new HashMap<>();\n    private final SecureRandom random = new SecureRandom();\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        String pan = message.getString(2);\n        String token = tokenOfPan.get(pan);\n        if (token == null) {\n            do {\n                token = generate(pan);\n            } while (token.equals(pan) || panOfToken.containsKey(token));\n            tokenOfPan.put(pan, token);\n            panOfToken.put(token, pan);\n        }\n        message.set(2, token);\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        String pan = panOfToken.get(message.getString(2));\n        if (pan == null) {\n            throw new ISOException(\"field 2 does not hold a token this vault issued\");\n        }\n        message.set(2, pan);\n    }\n\n    private String generate(String pan) {\n        StringBuilder token = new StringBuilder(pan.length());\n        for (int i = 0; i < pan.length(); i++) {\n            boolean kept = i < 6 || i >= pan.length() - 4;\n            token.append(kept ? pan.charAt(i) : (char) ('0' + random.nextInt(10)));\n        }\n        return token.toString();\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write protect\");\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write reveal\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b2cd8ca93b447787cd8b3c3ec4374cb0c0dd86882b40bab0339f30458274d477",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write protect\");\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write reveal\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/com/example/practice/PanVault.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/test/java/com/example/practice/PanVaultTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-14/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-14/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PanVaultTest#tokenKeepsTheShapeOfTheCardAndRevealsBack",
+        "kind": "main",
+        "says": "the token in field 2 keeps the card's length, first six and last four digits, is not the card number, and reveals back to it"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#sameCardAlwaysGetsTheSameToken",
+        "kind": "edge",
+        "says": "tokenizing the same card twice gives the same token"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#refusesATokenTheVaultNeverIssued",
+        "kind": "edge",
+        "says": "a token the vault never issued is refused with an ISOException and field 2 is left as it was"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-14/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/14.md",
+      "section": "14.2. Tokenization"
+    }
+  }
+}

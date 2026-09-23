@@ -1,0 +1,144 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Write the participants of a card-network flow",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A jPOS `TransactionManager` runs a transaction through its participants in the order they are declared, in two phases. First it calls `prepare` on each in turn, and each one votes. A participant whose vote does not carry `NO_JOIN` joins the transaction. As soon as one votes `ABORTED`, the participants after it are not prepared at all. Then, if every vote carried `PREPARED`, `commit` is called on every participant that joined; otherwise `abort` is called on every participant that joined, including the one that voted `ABORTED`."
+    },
+    {
+      "type": "para",
+      "text": "The page's flow is a validator, then a Visa participant, then a Mastercard participant. Look at what its Visa participant votes for a Mastercard card: the whole transaction aborts before the Mastercard participant is ever asked. Every participant votes on the whole transaction, not just on the part it cares about."
+    },
+    {
+      "type": "para",
+      "text": "Write `NetworkRouting` with two nested participants (both `org.jpos.transaction.TransactionParticipant`, working on an `org.jpos.transaction.Context`):"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`NetworkRouting.Validator`: prepares the transaction when the context holds both `\"amount\"` and `\"pan\"`, and changes nothing in the context when it does; otherwise it votes `ABORTED`. When it is aborted it puts a message under `\"error\"` saying the transaction was incomplete.",
+        "`new NetworkRouting.NetworkParticipant(String network, String panPrefix)`: for a card whose `\"pan\"` starts with `panPrefix` it puts `network` under `\"network\"` and prepares. When it is committed it records that the card went to its network: it appends `network` to the `List<String>` under `\"sent\"`, creating the list if there is none yet. For any other card it steps aside: it must not abort the transaction, and it must not be committed for it."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The tests play the transaction manager's part, as described above, with the flow `Validator`, `NetworkParticipant(\"VISA\", \"4\")`, `NetworkParticipant(\"MASTERCARD\", \"5\")`."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A transaction missing its amount (or its PAN) aborts at the validator: it carries an `\"error\"`, and neither network marks it or sends it.",
+        "A card is sent to its own network only: `\"sent\"` holds exactly that one network."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The participants of a flow that routes a card to its network. */\npublic final class NetworkRouting {\n\n    private NetworkRouting() {\n    }\n\n    /** Aborts a transaction that lacks its amount or its PAN. */\n    public static final class Validator implements TransactionParticipant {\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            if (ctx.get(\"amount\") != null && ctx.get(\"pan\") != null) {\n                return PREPARED | READONLY;\n            }\n            return ABORTED;\n        }\n\n        @Override\n        public void abort(long id, Serializable context) {\n            ((Context) context).put(\"error\", \"incomplete transaction: amount and PAN are required\");\n        }\n    }\n\n    /** Marks and sends the cards of one network; steps aside for every other card. */\n    public static final class NetworkParticipant implements TransactionParticipant {\n\n        private final String network;\n        private final String panPrefix;\n\n        public NetworkParticipant(String network, String panPrefix) {\n            this.network = network;\n            this.panPrefix = panPrefix;\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            String pan = ctx.getString(\"pan\");\n            if (pan != null && pan.startsWith(panPrefix)) {\n                ctx.put(\"network\", network);\n                return PREPARED;\n            }\n            return PREPARED | READONLY | NO_JOIN;\n        }\n\n        @Override\n        public void commit(long id, Serializable context) {\n            Context ctx = (Context) context;\n            List<String> sent = ctx.get(\"sent\");\n            if (sent == null) {\n                sent = new ArrayList<>();\n                ctx.put(\"sent\", sent);\n            }\n            sent.add(network);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The participants of a flow that routes a card to its network. */\npublic final class NetworkRouting {\n\n    private NetworkRouting() {\n    }\n\n    /** Aborts a transaction that lacks its amount or its PAN. */\n    public static final class Validator implements TransactionParticipant {\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write Validator.prepare\");\n        }\n\n        @Override\n        public void abort(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write Validator.abort\");\n        }\n    }\n\n    /** Marks and sends the cards of one network; steps aside for every other card. */\n    public static final class NetworkParticipant implements TransactionParticipant {\n\n        public NetworkParticipant(String network, String panPrefix) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant.prepare\");\n        }\n\n        @Override\n        public void commit(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant.commit\");\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "9d00f2731f77d62c301b86927ce2e8ca2d78ea10639f9eb4de9eea205b2a0b23",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The participants of a flow that routes a card to its network. */\npublic final class NetworkRouting {\n\n    private NetworkRouting() {\n    }\n\n    /** Aborts a transaction that lacks its amount or its PAN. */\n    public static final class Validator implements TransactionParticipant {\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write Validator.prepare\");\n        }\n\n        @Override\n        public void abort(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write Validator.abort\");\n        }\n    }\n\n    /** Marks and sends the cards of one network; steps aside for every other card. */\n    public static final class NetworkParticipant implements TransactionParticipant {\n\n        public NetworkParticipant(String network, String panPrefix) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant.prepare\");\n        }\n\n        @Override\n        public void commit(long id, Serializable context) {\n            throw new UnsupportedOperationException(\"write NetworkParticipant.commit\");\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-04/practice-1/src/main/java/com/example/practice/NetworkRouting.java",
+    "test_path": "practice/jpos-server/prose/unit-04/practice-1/src/test/java/com/example/practice/NetworkRoutingTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-04/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-04/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.NetworkRoutingTest#visaAndMastercardCardsBothCommitThroughTheSameFlow",
+        "kind": "main",
+        "says": "a Visa card and a Mastercard card each go through validator, Visa and Mastercard participants, commit, and are marked with their own network"
+      },
+      {
+        "id": "com.example.practice.NetworkRoutingTest#anIncompleteTransactionIsAbortedBeforeAnyNetworkSeesIt",
+        "kind": "edge",
+        "says": "a transaction with no amount aborts at the validator, carries an error, and no network ever marks or sends it"
+      },
+      {
+        "id": "com.example.practice.NetworkRoutingTest#onlyTheCardsOwnNetworkIsCommitted",
+        "kind": "edge",
+        "says": "a network participant that stepped aside is not committed, so the card is sent to its own network only"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-04/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s4.md",
+      "section": "4.3 Custom Participants for Visa/Mastercard Logic"
+    }
+  }
+}

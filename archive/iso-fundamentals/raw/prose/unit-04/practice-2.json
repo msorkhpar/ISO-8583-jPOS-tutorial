@@ -1,0 +1,133 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Decide what a response says about its request",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Every request on this page has its response: 0100 is answered by 0110, 0200 by 0210, 0400 by 0410, 0800 by 0810. Before you act on a response's field 39, you must be sure it answers the request you sent; approving a purchase on somebody else's \"00\" is how money goes missing."
+    },
+    {
+      "type": "para",
+      "text": "Write `Exchange.outcome(ISOMsg request, ISOMsg response)`. It returns `Outcome.APPROVED` when the response's field 39 is `00` and `Outcome.DECLINED` for any other response code, but only once the response is known to answer the request:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The request's third MTI digit must say it is a request (`0`), and the response's MTI must be the request's with that digit changed to response (`1`). Nothing else in the MTI changes.",
+        "The response must carry the same STAN (field 11) as the request.",
+        "The response must carry a response code (field 39)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Anything else is refused with an `IllegalArgumentException`. `Outcome` is the nested enum in the starter."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        String asked = request.getMTI();\n        if (asked == null || asked.length() != 4 || asked.charAt(2) != '0') {\n            throw new IllegalArgumentException(\"not a request: \" + asked);\n        }\n        String answer = asked.substring(0, 2) + '1' + asked.charAt(3);\n        if (!answer.equals(response.getMTI())) {\n            throw new IllegalArgumentException(response.getMTI() + \" does not answer \" + asked);\n        }\n        String stan = request.getString(11);\n        if (stan == null || !stan.equals(response.getString(11))) {\n            throw new IllegalArgumentException(\"the response answers another STAN\");\n        }\n        String code = response.getString(39);\n        if (code == null) {\n            throw new IllegalArgumentException(\"the response has no response code\");\n        }\n        return \"00\".equals(code) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        throw new UnsupportedOperationException(\"write outcome\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "7909e26878cf49cd8c65514f66a49c44bed83ab9f69f5ceb4193f2e1fc6a0811",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        throw new UnsupportedOperationException(\"write outcome\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Exchange.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/test/java/com/example/practice/ExchangeTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-04/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-04/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ExchangeTest#readsTheOutcomeOfAResponseThatAnswersItsRequest",
+        "kind": "main",
+        "says": "a response that answers its request is approved on response code 00 and declined on any other; a message that is not an answer, or has no response code, is refused"
+      },
+      {
+        "id": "com.example.practice.ExchangeTest#aResponseOfAnotherClassIsNotTheAnswer",
+        "kind": "edge",
+        "says": "a response of another message class, such as 0210 to an 0100, does not answer the request"
+      },
+      {
+        "id": "com.example.practice.ExchangeTest#aResponseWithAnotherStanIsNotTheAnswer",
+        "kind": "edge",
+        "says": "a response that carries a different STAN answers some other request"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-04/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/4.md",
+      "section": "4.1. Authorization messages"
+    }
+  }
+}

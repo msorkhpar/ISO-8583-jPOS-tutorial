@@ -1,0 +1,147 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Store subfields and binary data in their own components",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Not every field is a plain string. Field 48 carries numbered subfields of its own, and field 55 carries the chip's EMV data as raw bytes. jPOS stores each as a component of the right kind: a nested `ISOMsg` for subfields, an `ISOBinaryField` for bytes. Code that pushes these through `set(int, String)` loses their structure or mangles their bytes, and the packager then sends something the other side cannot read."
+    },
+    {
+      "type": "para",
+      "text": "Write `ComplexFields` with four static methods:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`putSubfield(ISOMsg msg, int field, int subfield, String value)` puts `value` into subfield `subfield` of `field`. The field is a nested `ISOMsg` whose own field number is `field`.",
+        "`getSubfield(ISOMsg msg, int field, int subfield)` returns that subfield's value.",
+        "`putBinary(ISOMsg msg, int field, byte[] data)` stores `data` in `field` as an `ISOBinaryField`.",
+        "`getBinary(ISOMsg msg, int field)` returns the bytes stored in `field`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Mind these:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A field gets its subfields one call at a time. Putting subfield 2 of field 48 must not lose the subfield 1 already there.",
+        "`getSubfield` returns `null` when the message does not carry the field at all, or carries it without that subfield."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOBinaryField;\nimport org.jpos.iso.ISOComponent;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Subfields and binary data, each stored as the component that fits it. */\npublic final class ComplexFields {\n\n    private ComplexFields() {\n    }\n\n    public static void putSubfield(ISOMsg msg, int field, int subfield, String value)\n            throws ISOException {\n        ISOComponent existing = msg.getComponent(field);\n        ISOMsg nested;\n        if (existing instanceof ISOMsg) {\n            nested = (ISOMsg) existing;\n        } else {\n            nested = new ISOMsg(field);\n            msg.set(nested);\n        }\n        nested.set(subfield, value);\n    }\n\n    public static String getSubfield(ISOMsg msg, int field, int subfield) {\n        ISOComponent component = msg.getComponent(field);\n        if (!(component instanceof ISOMsg)) {\n            return null;\n        }\n        return ((ISOMsg) component).getString(subfield);\n    }\n\n    public static void putBinary(ISOMsg msg, int field, byte[] data) throws ISOException {\n        msg.set(new ISOBinaryField(field, data));\n    }\n\n    public static byte[] getBinary(ISOMsg msg, int field) throws ISOException {\n        return msg.getBytes(field);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Subfields and binary data, each stored as the component that fits it. */\npublic final class ComplexFields {\n\n    private ComplexFields() {\n    }\n\n    public static void putSubfield(ISOMsg msg, int field, int subfield, String value)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write putSubfield\");\n    }\n\n    public static String getSubfield(ISOMsg msg, int field, int subfield) {\n        throw new UnsupportedOperationException(\"write getSubfield\");\n    }\n\n    public static void putBinary(ISOMsg msg, int field, byte[] data) throws ISOException {\n        throw new UnsupportedOperationException(\"write putBinary\");\n    }\n\n    public static byte[] getBinary(ISOMsg msg, int field) throws ISOException {\n        throw new UnsupportedOperationException(\"write getBinary\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "2463ff6f6acb8a9cb385a167f933bbc90e5d13867c2784f5ec1ed695dc59c711",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Subfields and binary data, each stored as the component that fits it. */\npublic final class ComplexFields {\n\n    private ComplexFields() {\n    }\n\n    public static void putSubfield(ISOMsg msg, int field, int subfield, String value)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write putSubfield\");\n    }\n\n    public static String getSubfield(ISOMsg msg, int field, int subfield) {\n        throw new UnsupportedOperationException(\"write getSubfield\");\n    }\n\n    public static void putBinary(ISOMsg msg, int field, byte[] data) throws ISOException {\n        throw new UnsupportedOperationException(\"write putBinary\");\n    }\n\n    public static byte[] getBinary(ISOMsg msg, int field) throws ISOException {\n        throw new UnsupportedOperationException(\"write getBinary\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-06/practice-2/src/main/java/com/example/practice/ComplexFields.java",
+    "test_path": "practice/jpos-client/prose/unit-06/practice-2/src/test/java/com/example/practice/ComplexFieldsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ComplexFieldsTest#subfieldsLiveInANestedMessageNumberedAsTheirField",
+        "kind": "main",
+        "says": "a subfield is stored in a nested ISOMsg carrying the field's number and is read back from it"
+      },
+      {
+        "id": "com.example.practice.ComplexFieldsTest#binaryDataComesBackAsTheSameBytes",
+        "kind": "main",
+        "says": "binary data is stored as an ISOBinaryField and read back as the same bytes"
+      },
+      {
+        "id": "com.example.practice.ComplexFieldsTest#aSecondSubfieldJoinsTheFirst",
+        "kind": "edge",
+        "says": "adding a second subfield to a field keeps the subfield already there"
+      },
+      {
+        "id": "com.example.practice.ComplexFieldsTest#aMissingSubfieldReadsAsNull",
+        "kind": "edge",
+        "says": "reading a subfield of a field the message does not carry gives null, not an exception"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-06/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c6.md",
+      "section": "6.3 Handling Complex Data Elements"
+    }
+  }
+}

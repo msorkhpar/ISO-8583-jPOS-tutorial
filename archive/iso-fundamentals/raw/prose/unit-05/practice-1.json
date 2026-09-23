@@ -1,0 +1,144 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Approve Visa purchases in a transaction participant",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "In a jPOS switch, each step of handling a transaction is a `TransactionParticipant`. Its `prepare` reads what it needs from the transaction's `Context`, and either leaves its result there and says `PREPARED`, or records why it cannot go on and says `ABORTED`. Here you write the step that approves Visa purchases."
+    },
+    {
+      "type": "para",
+      "text": "Field 3, the processing code, is six digits, and its **first two** name the transaction: `00` purchase, `01` cash advance, `02` void, `20` refund. The other four digits say which accounts are involved and do not change what the transaction is."
+    },
+    {
+      "type": "para",
+      "text": "Write `VisaPurchaseParticipant`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`static String transactionType(String processingCode)` returns `\"Purchase\"`, `\"Cash Advance\"`, `\"Void\"` or `\"Refund\"`, or `null` for a code that is none of them (or is `null`).",
+        "The constructor takes the merchant's card acceptor ID and its name and location.",
+        "`prepare(long id, Serializable context)` takes the `ISOMsg` under `\"REQUEST\"` in the `Context`. When it is an 0100 whose processing code names a purchase, it puts under `\"RESPONSE\"` an 0110 carrying everything the request carried, plus field 39 `00`, field 42 set to the acceptor ID and field 43 to the name and location, right-padded with spaces to 15 and 40 characters, and returns `PREPARED`.",
+        "Anything else (another MTI, another transaction, no processing code) puts `\"Invalid transaction type\"` under `\"RESULT\"` and returns `ABORTED`.",
+        "The request stays in the context as it arrived: the response is a message of its own."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`commit` and `abort` have nothing to do here."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    private final String acceptorId;\n    private final String nameAndLocation;\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n        this.acceptorId = acceptorId;\n        this.nameAndLocation = nameAndLocation;\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        if (processingCode == null || processingCode.length() < 2) {\n            return null;\n        }\n        switch (processingCode.substring(0, 2)) {\n            case \"00\": return \"Purchase\";\n            case \"01\": return \"Cash Advance\";\n            case \"02\": return \"Void\";\n            case \"20\": return \"Refund\";\n            default: return null;\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = (ISOMsg) ctx.get(\"REQUEST\");\n        try {\n            if (!\"0100\".equals(request.getMTI())\n                    || !\"Purchase\".equals(transactionType(request.getString(3)))) {\n                ctx.put(\"RESULT\", \"Invalid transaction type\");\n                return ABORTED;\n            }\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setMTI(\"0110\");\n            response.set(39, \"00\");\n            response.set(42, ISOUtil.padright(acceptorId, 15, ' '));\n            response.set(43, ISOUtil.padright(nameAndLocation, 40, ' '));\n            ctx.put(\"RESPONSE\", response);\n            return PREPARED;\n        } catch (ISOException e) {\n            ctx.put(\"RESULT\", \"Invalid transaction type\");\n            return ABORTED;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        throw new UnsupportedOperationException(\"write transactionType\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "76aad03979166d76b6f896839992d1d18cdec447c614e6cf625908c188f900e0",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        throw new UnsupportedOperationException(\"write transactionType\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/com/example/practice/VisaPurchaseParticipant.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/test/java/com/example/practice/VisaPurchaseParticipantTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-05/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-05/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.VisaPurchaseParticipantTest#namesTheTransactionTypeFromTheProcessingCode",
+        "kind": "main",
+        "says": "names purchase, cash advance, void and refund from the processing code, and nothing else"
+      },
+      {
+        "id": "com.example.practice.VisaPurchaseParticipantTest#preparesAnApprovedResponseForAPurchase",
+        "kind": "main",
+        "says": "prepares an approved 0110 with the merchant fields padded to width for a purchase, and aborts with a reason for anything else"
+      },
+      {
+        "id": "com.example.practice.VisaPurchaseParticipantTest#aPurchaseFromAnyAccountIsStillAPurchase",
+        "kind": "edge",
+        "says": "only the processing code's first two digits name the transaction, so 003000 is a purchase too"
+      },
+      {
+        "id": "com.example.practice.VisaPurchaseParticipantTest#leavesTheRequestAsItArrived",
+        "kind": "edge",
+        "says": "the request in the context is left as it arrived; the response is a separate message"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-05/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/5.md",
+      "section": "5.3. Visa processing codes"
+    }
+  }
+}

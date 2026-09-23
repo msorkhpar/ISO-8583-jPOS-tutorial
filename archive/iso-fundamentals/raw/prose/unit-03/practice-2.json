@@ -1,0 +1,135 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Write a field value the way its format says",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Every data element has a format, written the way the data element tables write it: `n6`, `an12`, `n..19`, `ans..999`. The format is all a receiver has to find where one field ends and the next begins, so a value written in any other shape breaks the rest of the message."
+    },
+    {
+      "type": "para",
+      "text": "Write `FieldEncoder.encode(String format, String value)`, which returns the field as it goes on the wire."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The format is a type followed by either a length (`n6`: fixed, exactly 6 characters) or `..` and a maximum (`n..19`: variable, up to 19).",
+        "The types are `n` (digits), `a` (letters), `an` (letters and digits), `ans` (any printable ASCII character, space included) and `z` (track 2: digits and `=`). A value with a character outside its type is refused.",
+        "A fixed field is padded to its full length. Numeric fields are padded with zeros on the left; every other type with spaces on the right.",
+        "A variable field is not padded. It is preceded by its length, written with as many digits as the maximum has: two for `n..19` or `ans..40`, three for `ans..999`.",
+        "A value longer than the field allows is refused."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Refuse with an `IllegalArgumentException`. You may assume the format itself is well formed."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n|z)(\\\\.\\\\.)?(\\\\d+)\");\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        Matcher parts = FORMAT.matcher(format);\n        if (!parts.matches()) {\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        }\n        String type = parts.group(1);\n        boolean variable = parts.group(2) != null;\n        String length = parts.group(3);\n        int most = Integer.parseInt(length);\n        if (!value.matches(allowed(type) + \"*\")) {\n            throw new IllegalArgumentException(\"a character outside type \" + type);\n        }\n        if (value.length() > most) {\n            throw new IllegalArgumentException(\"longer than \" + most + \" characters\");\n        }\n        if (variable) {\n            return pad(String.valueOf(value.length()), length.length(), '0', true) + value;\n        }\n        return \"n\".equals(type) ? pad(value, most, '0', true) : pad(value, most, ' ', false);\n    }\n\n    private static String allowed(String type) {\n        switch (type) {\n            case \"n\": return \"[0-9]\";\n            case \"a\": return \"[A-Za-z]\";\n            case \"an\": return \"[A-Za-z0-9]\";\n            case \"z\": return \"[0-9=]\";\n            default: return \"[\\\\x20-\\\\x7E]\";\n        }\n    }\n\n    private static String pad(String value, int width, char filler, boolean left) {\n        StringBuilder fill = new StringBuilder();\n        while (fill.length() + value.length() < width) {\n            fill.append(filler);\n        }\n        return left ? fill + value : value + fill;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        throw new UnsupportedOperationException(\"write encode\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6d2f227cbc5139cb5f53fdc29895f4c58c15f3fc7e3e50139b80af32ae632e5c",
+  "starting_code": "package com.example.practice;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        throw new UnsupportedOperationException(\"write encode\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/com/example/practice/FieldEncoder.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/test/java/com/example/practice/FieldEncoderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-03/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-03/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.FieldEncoderTest#writesEachFieldAsItsFormatSays",
+        "kind": "main",
+        "says": "pads a fixed field to its width, prefixes a variable field with its length, and refuses characters outside the field's type"
+      },
+      {
+        "id": "com.example.practice.FieldEncoderTest#numericFieldsArePaddedOnTheLeftWithZeros",
+        "kind": "edge",
+        "says": "a short numeric value is padded on the left with zeros, so the number does not change"
+      },
+      {
+        "id": "com.example.practice.FieldEncoderTest#refusesAValueTooLongInsteadOfCuttingIt",
+        "kind": "edge",
+        "says": "a value longer than its field allows is refused, never cut short"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-03/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/3.md",
+      "section": "3.2. Fixed-length vs. Variable-length fields"
+    }
+  }
+}

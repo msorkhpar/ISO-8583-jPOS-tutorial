@@ -1,0 +1,160 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Bridge an ISO-8583 request to a gateway and back",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your switch speaks ISO-8583; the payment gateway behind it speaks a REST API with its own names and formats. The bridge between them has two halves: turn the request into the gateway's request, and turn the gateway's reply back into the ISO-8583 response your acquirer is waiting for."
+    },
+    {
+      "type": "para",
+      "text": "Write `GatewayBridge.toGateway(ISOMsg request, LocalDate today)`, returning a `PaymentRequest` with:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`amount`: field 4, an amount in minor units, with its decimal point (`000000100000` becomes `1000.00`);",
+        "`cardNumber`: field 2, as it is;",
+        "`expirationDate`: field 14, `YYMM`, as `MM/YY` (`2405` becomes `05/24`);",
+        "`transactionType`: from the processing code in field 3, `000000` is `PURCHASE` and `200000` is `REFUND`;",
+        "`transactionDate`: field 13, `MMDD`, as `YYYY-MM-DD`, in the year of `today`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Then write `GatewayBridge.toIso(ISOMsg request, GatewayResponse reply)`. It answers the request: a copy of it with the response MTI, and"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "when the reply's status is `SUCCESS`: field 39 `00` and the reply's transaction id in field 38;",
+        "otherwise: field 39 `05` and the reply's error message in field 63, with no field 38."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Field 13 carries no year. A month and day still ahead of `today` cannot have happened this year, so it belongs to the year before.",
+        "A processing code that is neither `000000` nor `200000` is refused with an `IllegalArgumentException`: sending the gateway a guessed transaction type moves money the wrong way."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Carries an ISO-8583 request to a REST payment gateway and its reply back. */\npublic final class GatewayBridge {\n\n    /** What the gateway's API expects. */\n    public record PaymentRequest(String amount, String cardNumber, String expirationDate,\n                                 String transactionType, String transactionDate) {\n    }\n\n    /** What the gateway's API answers. */\n    public record GatewayResponse(String status, String transactionId, String errorMessage) {\n    }\n\n    private GatewayBridge() {\n    }\n\n    /** The gateway request for an ISO-8583 request received on {@code today}. */\n    public static PaymentRequest toGateway(ISOMsg request, LocalDate today) {\n        String amount = new BigDecimal(request.getString(4)).movePointLeft(2).toPlainString();\n        String yymm = request.getString(14);\n        String expiry = yymm.substring(2, 4) + \"/\" + yymm.substring(0, 2);\n        return new PaymentRequest(amount, request.getString(2), expiry,\n            type(request.getString(3)), date(request.getString(13), today));\n    }\n\n    private static String type(String processingCode) {\n        switch (processingCode) {\n            case \"000000\":\n                return \"PURCHASE\";\n            case \"200000\":\n                return \"REFUND\";\n            default:\n                throw new IllegalArgumentException(\"no gateway type for \" + processingCode);\n        }\n    }\n\n    private static String date(String mmdd, LocalDate today) {\n        int month = Integer.parseInt(mmdd.substring(0, 2));\n        int day = Integer.parseInt(mmdd.substring(2, 4));\n        LocalDate date = LocalDate.of(today.getYear(), month, day);\n        if (date.isAfter(today)) {\n            date = date.minusYears(1);\n        }\n        return date.toString();\n    }\n\n    /** The ISO-8583 response to {@code request}, from the gateway's reply. */\n    public static ISOMsg toIso(ISOMsg request, GatewayResponse reply) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        if (\"SUCCESS\".equals(reply.status())) {\n            response.set(39, \"00\");\n            response.set(38, reply.transactionId());\n        } else {\n            response.set(39, \"05\");\n            response.unset(38);\n            response.set(63, reply.errorMessage());\n        }\n        return response;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.time.LocalDate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Carries an ISO-8583 request to a REST payment gateway and its reply back. */\npublic final class GatewayBridge {\n\n    /** What the gateway's API expects. */\n    public record PaymentRequest(String amount, String cardNumber, String expirationDate,\n                                 String transactionType, String transactionDate) {\n    }\n\n    /** What the gateway's API answers. */\n    public record GatewayResponse(String status, String transactionId, String errorMessage) {\n    }\n\n    private GatewayBridge() {\n    }\n\n    /** The gateway request for an ISO-8583 request received on {@code today}. */\n    public static PaymentRequest toGateway(ISOMsg request, LocalDate today) {\n        throw new UnsupportedOperationException(\"write toGateway\");\n    }\n\n    /** The ISO-8583 response to {@code request}, from the gateway's reply. */\n    public static ISOMsg toIso(ISOMsg request, GatewayResponse reply) throws ISOException {\n        throw new UnsupportedOperationException(\"write toIso\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "99f179100a852147a5f7245ad2458bd662cb9228da68d3b635b2c62de53834e7",
+  "starting_code": "package com.example.practice;\n\nimport java.time.LocalDate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Carries an ISO-8583 request to a REST payment gateway and its reply back. */\npublic final class GatewayBridge {\n\n    /** What the gateway's API expects. */\n    public record PaymentRequest(String amount, String cardNumber, String expirationDate,\n                                 String transactionType, String transactionDate) {\n    }\n\n    /** What the gateway's API answers. */\n    public record GatewayResponse(String status, String transactionId, String errorMessage) {\n    }\n\n    private GatewayBridge() {\n    }\n\n    /** The gateway request for an ISO-8583 request received on {@code today}. */\n    public static PaymentRequest toGateway(ISOMsg request, LocalDate today) {\n        throw new UnsupportedOperationException(\"write toGateway\");\n    }\n\n    /** The ISO-8583 response to {@code request}, from the gateway's reply. */\n    public static ISOMsg toIso(ISOMsg request, GatewayResponse reply) throws ISOException {\n        throw new UnsupportedOperationException(\"write toIso\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-12/practice-1/src/main/java/com/example/practice/GatewayBridge.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-12/practice-1/src/test/java/com/example/practice/GatewayBridgeTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-12/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-12/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.GatewayBridgeTest#mapsARequestIntoTheGatewaysFormat",
+        "kind": "main",
+        "says": "a purchase request becomes a gateway request with a decimal amount, an MM/YY expiry, its type and a full date"
+      },
+      {
+        "id": "com.example.practice.GatewayBridgeTest#answersTheRequestFromTheGatewaysReply",
+        "kind": "main",
+        "says": "a success becomes a 00 response with the gateway's transaction id, a failure a 05 response with its error text"
+      },
+      {
+        "id": "com.example.practice.GatewayBridgeTest#aDayStillAheadBelongsToLastYear",
+        "kind": "edge",
+        "says": "a transaction date later in the year than today is given last year"
+      },
+      {
+        "id": "com.example.practice.GatewayBridgeTest#refusesAProcessingCodeTheGatewayHasNoTypeFor",
+        "kind": "edge",
+        "says": "a processing code with no gateway transaction type is refused, not guessed"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-12/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/12.md",
+      "section": "12.2. Mapping ISO-8583 to API calls"
+    }
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Record the transactions a jPOS logger carries",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A jPOS `Logger` hands each `LogEvent` to its listeners one after another. A transaction log is one such listener: it keeps the ISO messages of the events that are transactions and lets everything else go by. Get it wrong and you either lose transactions from the log or, worse, silently starve every listener added after yours."
+    },
+    {
+      "type": "para",
+      "text": "Write `TransactionRecorder`, a `org.jpos.util.LogListener`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`log(LogEvent event)` records every `ISOMsg` in the payload (`event.getPayLoad()`, a list) of an event whose tag is `\"TX\"`; events with any other tag are not recorded;",
+        "`recorded()` returns the recorded messages in the order they arrived."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The logger passes to the next listener whatever your `log` returns, and stops when it returns `null`. Every event, recorded or not, must reach the listeners after yours.",
+        "A `TX` event's payload can carry more than the message, such as a text note. Record only the `ISOMsg` items, and do not fail on the rest."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    private final List<ISOMsg> recorded = new ArrayList<>();\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        if (\"TX\".equals(event.getTag())) {\n            for (Object item : event.getPayLoad()) {\n                if (item instanceof ISOMsg) {\n                    recorded.add((ISOMsg) item);\n                }\n            }\n        }\n        return event;\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        return List.copyOf(recorded);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        throw new UnsupportedOperationException(\"write recorded\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f6b30ebbff2f00a72d569d88d601096e78ccb4ee14721b88318ccc0a0df35c89",
+  "starting_code": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        throw new UnsupportedOperationException(\"write recorded\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/com/example/practice/TransactionRecorder.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/test/java/com/example/practice/TransactionRecorderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-11/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-11/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TransactionRecorderTest#recordsTheMessagesOfTransactionEventsOnly",
+        "kind": "main",
+        "says": "the messages of events tagged TX are recorded, in order, and events with other tags are not"
+      },
+      {
+        "id": "com.example.practice.TransactionRecorderTest#handsEveryEventOnToTheNextListener",
+        "kind": "edge",
+        "says": "every event, recorded or not, reaches the listener added after the recorder"
+      },
+      {
+        "id": "com.example.practice.TransactionRecorderTest#skipsPayloadThatIsNotAMessage",
+        "kind": "edge",
+        "says": "a TX event that also carries a note records only its message, without failing"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-11/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/11.md",
+      "section": "11.2.1. Transaction Logging"
+    }
+  }
+}

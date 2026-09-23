@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Pool channels so they stay connected between uses",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A pool of connections is there so a request does not pay for a connect. The page's pool connects a client every time it is borrowed and disconnects it every time it is returned, so every request still opens a fresh connection, and the pool saves nothing."
+    },
+    {
+      "type": "para",
+      "text": "Write `ChannelPool` on Apache Commons Pool 2 (`org.apache.commons.pool2`), built from a `Supplier<ISOChannel>` that makes a new, unconnected channel, and the most channels it may hold."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`withChannel(work)` borrows a connected channel, runs `work.apply(channel)`, gives the channel back and returns what the work returned.",
+        "A channel is connected once, when the pool makes it, and stays connected while it sits in the pool; returning it does not disconnect it.",
+        "`active()` and `idle()` say how many channels are borrowed and how many wait in the pool.",
+        "`close()` disconnects every channel the pool holds."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Work that throws still gives its channel back, and the exception reaches the caller unchanged. A channel that is never returned is a connection lost to the pool for good.",
+        "A channel that dropped its connection while it sat in the pool is disconnected and thrown away, and a freshly connected one is used instead."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.function.Supplier;\nimport org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOChannel;\n\n/** Keeps channels connected between uses and lends them out one piece of work at a time. */\npublic final class ChannelPool implements AutoCloseable {\n\n    /** One piece of work done with a borrowed channel. */\n    public interface ChannelWork<T> {\n        T apply(ISOChannel channel) throws Exception;\n    }\n\n    private final GenericObjectPool<ISOChannel> pool;\n\n    public ChannelPool(Supplier<ISOChannel> newChannel, int maxChannels) {\n        pool = new GenericObjectPool<>(new Channels(newChannel));\n        pool.setMaxTotal(maxChannels);\n        pool.setTestOnBorrow(true);\n    }\n\n    public <T> T withChannel(ChannelWork<T> work) throws Exception {\n        ISOChannel channel = pool.borrowObject();\n        try {\n            return work.apply(channel);\n        } finally {\n            pool.returnObject(channel);\n        }\n    }\n\n    public int active() {\n        return pool.getNumActive();\n    }\n\n    public int idle() {\n        return pool.getNumIdle();\n    }\n\n    @Override\n    public void close() {\n        pool.close();\n    }\n\n    private static final class Channels extends BasePooledObjectFactory<ISOChannel> {\n        private final Supplier<ISOChannel> newChannel;\n\n        Channels(Supplier<ISOChannel> newChannel) {\n            this.newChannel = newChannel;\n        }\n\n        @Override\n        public ISOChannel create() throws Exception {\n            ISOChannel channel = newChannel.get();\n            channel.connect();\n            return channel;\n        }\n\n        @Override\n        public PooledObject<ISOChannel> wrap(ISOChannel channel) {\n            return new DefaultPooledObject<>(channel);\n        }\n\n        @Override\n        public boolean validateObject(PooledObject<ISOChannel> p) {\n            return p.getObject().isConnected();\n        }\n\n        @Override\n        public void destroyObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.function.Supplier;\nimport org.jpos.iso.ISOChannel;\n\n/** Keeps channels connected between uses and lends them out one piece of work at a time. */\npublic final class ChannelPool implements AutoCloseable {\n\n    /** One piece of work done with a borrowed channel. */\n    public interface ChannelWork<T> {\n        T apply(ISOChannel channel) throws Exception;\n    }\n\n    public ChannelPool(Supplier<ISOChannel> newChannel, int maxChannels) {\n    }\n\n    public <T> T withChannel(ChannelWork<T> work) throws Exception {\n        throw new UnsupportedOperationException(\"write withChannel\");\n    }\n\n    public int active() {\n        throw new UnsupportedOperationException(\"write active\");\n    }\n\n    public int idle() {\n        throw new UnsupportedOperationException(\"write idle\");\n    }\n\n    @Override\n    public void close() {\n        throw new UnsupportedOperationException(\"write close\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "4227d4e2f05958f2cd31dc694a2a8fc1b2b50e48bb725f5094105bf409d39343",
+  "starting_code": "package com.example.practice;\n\nimport java.util.function.Supplier;\nimport org.jpos.iso.ISOChannel;\n\n/** Keeps channels connected between uses and lends them out one piece of work at a time. */\npublic final class ChannelPool implements AutoCloseable {\n\n    /** One piece of work done with a borrowed channel. */\n    public interface ChannelWork<T> {\n        T apply(ISOChannel channel) throws Exception;\n    }\n\n    public ChannelPool(Supplier<ISOChannel> newChannel, int maxChannels) {\n    }\n\n    public <T> T withChannel(ChannelWork<T> work) throws Exception {\n        throw new UnsupportedOperationException(\"write withChannel\");\n    }\n\n    public int active() {\n        throw new UnsupportedOperationException(\"write active\");\n    }\n\n    public int idle() {\n        throw new UnsupportedOperationException(\"write idle\");\n    }\n\n    @Override\n    public void close() {\n        throw new UnsupportedOperationException(\"write close\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-03/practice-1/src/main/java/com/example/practice/ChannelPool.java",
+    "test_path": "practice/jpos-client/prose/unit-03/practice-1/src/test/java/com/example/practice/ChannelPoolTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-03/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-03/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ChannelPoolTest#aChannelIsConnectedOnceAndReused",
+        "kind": "main",
+        "says": "two pieces of work run on the same channel, connected once and still connected between them, and closing the pool disconnects it"
+      },
+      {
+        "id": "com.example.practice.ChannelPoolTest#aChannelGoesBackEvenWhenTheWorkFails",
+        "kind": "edge",
+        "says": "work that throws still gives its channel back, and the error reaches the caller"
+      },
+      {
+        "id": "com.example.practice.ChannelPoolTest#aDroppedChannelIsReplacedNotHandedOut",
+        "kind": "edge",
+        "says": "a channel that lost its connection while idle is thrown away and a freshly connected one is used"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-03/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c3.md",
+      "section": "3.1.3 Advanced Usage with Connection Pool"
+    }
+  }
+}

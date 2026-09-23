@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Build messages from named templates and pack them",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A switch sends the same kinds of message all day: purchases, balance inquiries. Each kind always carries the same MTI, processing code, POS condition code and terminal id; only the card, the amount and the trace number change. The page keeps one template per kind and builds every message from it, then hands the message to a packager for the wire."
+    },
+    {
+      "type": "para",
+      "text": "The page's `MsgFactory` is not part of jPOS 2.1.7, so you build the same idea on `ISOMsg`. Write `MessageTemplates`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`new MessageTemplates(ISOPackager packager)` keeps the packager it is given.",
+        "`define(String name, ISOMsg template)` remembers a template under a name.",
+        "`newMessage(String name)` returns a new message that starts as a copy of that template: its MTI and every field the template has. The caller then sets the fields that vary.",
+        "`pack(ISOMsg message)` returns the bytes the packager makes of the message, and `unpack(byte[] bytes)` returns a new message read back from such bytes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Nobody sets the bitmap by hand: it has to describe exactly the fields the message carries at the moment it is packed. Calling the packager straight on a message that has never had its bitmap worked out fails in jPOS 2.1.7, so find how a message gets packed with its bitmap right."
+    },
+    {
+      "type": "para",
+      "text": "Why it matters: a template is shared by every message of its kind, so a message that leaks a change back into it would quietly put one customer's card number into the next request."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Changing a message you were given never changes the template, nor any message made from it afterwards.",
+        "Asking for a name that was never defined is refused with an `IllegalArgumentException`. An empty message would get as far as the wire before anyone noticed."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    private final ISOPackager packager;\n    private final Map<String, ISOMsg> templates = new HashMap<>();\n\n    public MessageTemplates(ISOPackager packager) {\n        this.packager = packager;\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        templates.put(name, (ISOMsg) template.clone());\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        ISOMsg template = templates.get(name);\n        if (template == null) {\n            throw new IllegalArgumentException(\"no template named \" + name);\n        }\n        return (ISOMsg) template.clone();\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        message.setPackager(packager);\n        return message.pack();\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setPackager(packager);\n        message.unpack(bytes);\n        return message;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    public MessageTemplates(ISOPackager packager) {\n        throw new UnsupportedOperationException(\"write MessageTemplates\");\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        throw new UnsupportedOperationException(\"write define\");\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        throw new UnsupportedOperationException(\"write newMessage\");\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write pack\");\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        throw new UnsupportedOperationException(\"write unpack\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f972dbfebcc8ec7473deebdc6e1a751cfc53d42b81e6c7755e29db7dbe088fd5",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    public MessageTemplates(ISOPackager packager) {\n        throw new UnsupportedOperationException(\"write MessageTemplates\");\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        throw new UnsupportedOperationException(\"write define\");\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        throw new UnsupportedOperationException(\"write newMessage\");\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write pack\");\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        throw new UnsupportedOperationException(\"write unpack\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-02/practice-1/src/main/java/com/example/practice/MessageTemplates.java",
+    "test_path": "practice/jpos-server/prose/unit-02/practice-1/src/test/java/com/example/practice/MessageTemplatesTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-02/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-02/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.MessageTemplatesTest#buildsEachMessageFromItsTemplateAndSurvivesAPackRoundTrip",
+        "kind": "main",
+        "says": "a message made from a template carries the template's MTI and fields plus its own, and packing then unpacking it gives the same fields back"
+      },
+      {
+        "id": "com.example.practice.MessageTemplatesTest#eachMessageStartsFromAnUntouchedTemplate",
+        "kind": "edge",
+        "says": "changing one message never changes the template or the next message made from it"
+      },
+      {
+        "id": "com.example.practice.MessageTemplatesTest#anUnknownTemplateIsRefused",
+        "kind": "edge",
+        "says": "asking for a template that was never defined is refused, not answered with an empty message"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-02/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s2.md",
+      "section": "2.4 Putting It All Together"
+    }
+  }
+}

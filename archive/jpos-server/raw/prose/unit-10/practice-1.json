@@ -1,0 +1,155 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Turn every failure into an error response",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "When something goes wrong inside a server, the other side still needs an answer it can act on, and the operator needs to know which kind of thing went wrong. The page gives each kind of failure its own exception type and maps each type to its own response code. Here you build that mapping and the participant that uses it."
+    },
+    {
+      "type": "para",
+      "text": "Write `ErrorHandlingParticipant`, a jPOS `TransactionParticipant`. The three exception types are declared for you as nested classes: `ISO8583ParseException`, `TransactionProcessingException` and `NetworkCommunicationException`."
+    },
+    {
+      "type": "para",
+      "text": "`static ISOMsg errorResponse(Exception failure)` builds the error response: field 39 holds the code and field 63 the message."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A parse failure is `01`, a processing failure `02`, a network failure `03`, each with the failure's own message.",
+        "Any other failure is `99` with the message `An unexpected error occurred`. Its own text may hold an internal detail (a query, a host name, a key alias) and must never reach the response."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`prepare` reads the request, an `ISOMsg`, from the context entry `REQUEST`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "no request is a parse failure, `Invalid or missing ISO message`;",
+        "processing code (field 3) `999999` is a processing failure, `Invalid processing code`;",
+        "processing code `888888` is a network failure, `Network is unavailable`;",
+        "anything else is fine, and `prepare` returns `PREPARED | NO_JOIN`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "On any failure, including one you did not anticipate, `prepare` must not throw. It puts the error response in the context entry `RESPONSE` and returns `ABORTED | NO_JOIN`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** A participant that turns every failure into an ISO-8583 error response. */\npublic final class ErrorHandlingParticipant implements TransactionParticipant {\n\n    public static class ISO8583ParseException extends RuntimeException {\n        public ISO8583ParseException(String message) {\n            super(message);\n        }\n    }\n\n    public static class TransactionProcessingException extends RuntimeException {\n        public TransactionProcessingException(String message) {\n            super(message);\n        }\n    }\n\n    public static class NetworkCommunicationException extends RuntimeException {\n        public NetworkCommunicationException(String message) {\n            super(message);\n        }\n    }\n\n    /** The error response for `failure`: its code in field 39, its message in field 63. */\n    public static ISOMsg errorResponse(Exception failure) {\n        String code;\n        String message = failure.getMessage();\n        if (failure instanceof ISO8583ParseException) {\n            code = \"01\";\n        } else if (failure instanceof TransactionProcessingException) {\n            code = \"02\";\n        } else if (failure instanceof NetworkCommunicationException) {\n            code = \"03\";\n        } else {\n            code = \"99\";\n            message = \"An unexpected error occurred\";\n        }\n        ISOMsg response = new ISOMsg();\n        response.set(39, code);\n        response.set(63, message);\n        return response;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        try {\n            ISOMsg msg = (ISOMsg) ctx.get(\"REQUEST\");\n            if (msg == null) {\n                throw new ISO8583ParseException(\"Invalid or missing ISO message\");\n            }\n            String processingCode = msg.getString(3);\n            if (\"999999\".equals(processingCode)) {\n                throw new TransactionProcessingException(\"Invalid processing code\");\n            }\n            if (\"888888\".equals(processingCode)) {\n                throw new NetworkCommunicationException(\"Network is unavailable\");\n            }\n            return PREPARED | NO_JOIN;\n        } catch (RuntimeException failure) {\n            ctx.put(\"RESPONSE\", errorResponse(failure));\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** A participant that turns every failure into an ISO-8583 error response. */\npublic final class ErrorHandlingParticipant implements TransactionParticipant {\n\n    public static class ISO8583ParseException extends RuntimeException {\n        public ISO8583ParseException(String message) {\n            super(message);\n        }\n    }\n\n    public static class TransactionProcessingException extends RuntimeException {\n        public TransactionProcessingException(String message) {\n            super(message);\n        }\n    }\n\n    public static class NetworkCommunicationException extends RuntimeException {\n        public NetworkCommunicationException(String message) {\n            super(message);\n        }\n    }\n\n    /** The error response for `failure`: its code in field 39, its message in field 63. */\n    public static ISOMsg errorResponse(Exception failure) {\n        throw new UnsupportedOperationException(\"write errorResponse\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 5,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ad3194caec0cbb3b4b748025cb0cdc2146bcfc1540d5820708565698751de61e",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** A participant that turns every failure into an ISO-8583 error response. */\npublic final class ErrorHandlingParticipant implements TransactionParticipant {\n\n    public static class ISO8583ParseException extends RuntimeException {\n        public ISO8583ParseException(String message) {\n            super(message);\n        }\n    }\n\n    public static class TransactionProcessingException extends RuntimeException {\n        public TransactionProcessingException(String message) {\n            super(message);\n        }\n    }\n\n    public static class NetworkCommunicationException extends RuntimeException {\n        public NetworkCommunicationException(String message) {\n            super(message);\n        }\n    }\n\n    /** The error response for `failure`: its code in field 39, its message in field 63. */\n    public static ISOMsg errorResponse(Exception failure) {\n        throw new UnsupportedOperationException(\"write errorResponse\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-10/practice-1/src/main/java/com/example/practice/ErrorHandlingParticipant.java",
+    "test_path": "practice/jpos-server/prose/unit-10/practice-1/src/test/java/com/example/practice/ErrorHandlingParticipantTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-10/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-10/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ErrorHandlingParticipantTest#eachKindOfFailureGetsItsOwnCodeAndMessage",
+        "kind": "main",
+        "says": "a parse, processing or network failure becomes an error response with code 01, 02 or 03 and the failure's message"
+      },
+      {
+        "id": "com.example.practice.ErrorHandlingParticipantTest#theParticipantAbortsWithAnErrorResponseInsteadOfThrowing",
+        "kind": "main",
+        "says": "the participant prepares a good request, and for a missing request or a failing processing code aborts with the error response in the context"
+      },
+      {
+        "id": "com.example.practice.ErrorHandlingParticipantTest#anUnexpectedFailureSaysNothingAboutItsInternals",
+        "kind": "edge",
+        "says": "an unexpected failure becomes code 99 with a generic message, never the failure's own text"
+      },
+      {
+        "id": "com.example.practice.ErrorHandlingParticipantTest#aRequestOfTheWrongTypeStillAbortsCleanly",
+        "kind": "edge",
+        "says": "a context holding something that is not an ISOMsg aborts with code 99 instead of throwing out of prepare"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-10/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s10.md",
+      "section": "10.2 Implementing Error Handling"
+    }
+  }
+}

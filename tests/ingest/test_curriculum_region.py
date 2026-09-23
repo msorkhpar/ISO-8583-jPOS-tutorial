@@ -52,6 +52,11 @@ EVERY = dict(RECORDED)
 LAST_RECORDED = ("jpos-client", "src/c11.md")
 
 
+def _authored(address: str, unit: int) -> int:
+    """How many exercises the authoring pass committed on `unit`: its bundle directories."""
+    return len(list((CORPUS_ROOT / "exercises" / address / "prose" / f"unit-{unit:02d}").glob("practice-*")))
+
+
 def _material_copy(tmp_path: Path) -> Path:
     """Return a copy of just what the reader reads, so the real tree is untouched."""
     root = tmp_path / "corpus"
@@ -84,7 +89,9 @@ def test_every_practice_is_declared_on_the_unit_it_practises():
         for ordinal, href in attached.items():
             unit = found[address].unit(ordinal)
             assert unit.practice_origin == href, (address, ordinal)
-            assert unit.practices == 1
+            # ⭐ The source's practice is the unit's first; the authoring pass's
+            # own exercises (ISO-23) are numbered after it and counted with it.
+            assert unit.practices == 1 + _authored(address, ordinal)
             # ⛔ The prose file is untouched: the practice joined the page, it
             # did not replace the material (R3).
             assert unit.origin != href
@@ -119,9 +126,12 @@ def test_the_practice_document_is_the_whole_of_its_own_file():
         documents = read.documents(CORPUS_ROOT, container)
         for ordinal, href in attached.items():
             kinds = [d["kind"] for d in documents if d["unit"] == ordinal]
-            assert kinds == ["lesson", "practice"], (address, ordinal)
+            authored = _authored(address, ordinal)
+            assert kinds == ["lesson", "practice"] + ["practice"] * authored, (address, ordinal)
             practice = next(
-                d for d in documents if d["unit"] == ordinal and d["kind"] == "practice"
+                d
+                for d in documents
+                if d["unit"] == ordinal and d["kind"] == "practice" and d["ordinal"] == 1
             )
             headings = sum(1 for b in practice["blocks"] if b["type"] == "heading")
             source = (CORPUS_ROOT / href).read_text(encoding="utf-8")

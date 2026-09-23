@@ -1,0 +1,123 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Store every transaction from a participant",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A server keeps a record of every transaction it handles, and the transaction manager is where that record is made: one participant turns the transaction's `Context` into a record and hands it to a service. It saves in `prepare` and has nothing to do afterwards, so it tells the manager to leave it out of the commit and abort phases altogether."
+    },
+    {
+      "type": "para",
+      "text": "Write `TransactionStorageParticipant`, a jPOS `TransactionParticipant` built from a `TransactionStore` (the service it saves through; it is declared as a nested interface, next to the nested `StoredTransaction` record). In `prepare`, read the context entries `transactionId`, `amount`, `currency`, `cardNumber`, `transactionType` and `status` (all strings), build one `StoredTransaction` with the amount as a `BigDecimal`, save it, and return `PREPARED | NO_JOIN | READONLY`."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The amount is kept exactly as written: `\"100.50\"` is stored as `100.50`, not rounded.",
+        "A context whose amount is missing or is not a number (`\"12,50\"`, say) must not throw out of `prepare`: a participant that throws takes the transaction down with an error nobody handles. Return `ABORTED` instead, and store nothing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Stores every transaction that passes through the transaction manager. */\npublic final class TransactionStorageParticipant implements TransactionParticipant {\n\n    /** One stored transaction. */\n    public record StoredTransaction(String transactionId, BigDecimal amount, String currency,\n            String cardNumber, String transactionType, String status) {\n    }\n\n    /** The service a transaction is saved through. */\n    public interface TransactionStore {\n        void save(StoredTransaction transaction);\n    }\n\n    private final TransactionStore store;\n\n    public TransactionStorageParticipant(TransactionStore store) {\n        this.store = store;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        BigDecimal amount;\n        try {\n            amount = new BigDecimal((String) ctx.get(\"amount\"));\n        } catch (NumberFormatException | NullPointerException e) {\n            return ABORTED;\n        }\n        store.save(new StoredTransaction(\n                (String) ctx.get(\"transactionId\"), amount, (String) ctx.get(\"currency\"),\n                (String) ctx.get(\"cardNumber\"), (String) ctx.get(\"transactionType\"),\n                (String) ctx.get(\"status\")));\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Stores every transaction that passes through the transaction manager. */\npublic final class TransactionStorageParticipant implements TransactionParticipant {\n\n    /** One stored transaction. */\n    public record StoredTransaction(String transactionId, BigDecimal amount, String currency,\n            String cardNumber, String transactionType, String status) {\n    }\n\n    /** The service a transaction is saved through. */\n    public interface TransactionStore {\n        void save(StoredTransaction transaction);\n    }\n\n    public TransactionStorageParticipant(TransactionStore store) {\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "1344f38fa4e4cfefa1b0894ff3839891115dcab515d916ad1ea38b4011a75044",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Stores every transaction that passes through the transaction manager. */\npublic final class TransactionStorageParticipant implements TransactionParticipant {\n\n    /** One stored transaction. */\n    public record StoredTransaction(String transactionId, BigDecimal amount, String currency,\n            String cardNumber, String transactionType, String status) {\n    }\n\n    /** The service a transaction is saved through. */\n    public interface TransactionStore {\n        void save(StoredTransaction transaction);\n    }\n\n    public TransactionStorageParticipant(TransactionStore store) {\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-09/practice-1/src/main/java/com/example/practice/TransactionStorageParticipant.java",
+    "test_path": "practice/jpos-server/prose/unit-09/practice-1/src/test/java/com/example/practice/TransactionStorageParticipantTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-09/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-09/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TransactionStorageParticipantTest#aTransactionIsStoredOnceAndTheParticipantStaysOutOfTheCommit",
+        "kind": "main",
+        "says": "a transaction is stored once, with its fields from the context, and prepare answers PREPARED, NO_JOIN and READONLY"
+      },
+      {
+        "id": "com.example.practice.TransactionStorageParticipantTest#anAmountThatIsNotANumberAbortsAndStoresNothing",
+        "kind": "edge",
+        "says": "a context whose amount is missing or not a number aborts the transaction instead of throwing, and nothing is stored"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-09/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s9.md",
+      "section": "9.5 Integrating with jPOS"
+    }
+  }
+}

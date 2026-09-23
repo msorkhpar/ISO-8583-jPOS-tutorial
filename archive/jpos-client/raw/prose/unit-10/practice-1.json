@@ -1,0 +1,150 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Stand in for the host so client tests run offline",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A client test that needs a real host is slow, depends on a network, and cannot make the host decline on demand. Everything the client does passes through its `MUX`, so the client can be tested against a stand-in that answers in the same process, the way the host would, and whose answers the test controls."
+    },
+    {
+      "type": "para",
+      "text": "Write `SimulatedHost`, a jPOS `MUX` built from an amount limit in minor units (cents). Its `request(ISOMsg request, long timeout)` answers at once with a reply that:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "has the response MTI of the request (`0100` is answered with `0110`, `0800` with `0810`);",
+        "echoes every field the request carried;",
+        "sets field 39 to `51` (insufficient funds) when the amount in field 4 is over the limit, and to `00` otherwise."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The other `MUX` methods: `isConnected()` is always true, `send` accepts a message and answers nothing, and the asynchronous `request` hands the same reply straight to the listener."
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The reply is a new message. The client still holds its request, and a test may still check it, so answering must not change it.",
+        "A request that carries no amount, such as a network echo test, is approved."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    private final long limit;\n\n    public SimulatedHost(long limitInMinorUnits) {\n        this.limit = limitInMinorUnits;\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        ISOMsg reply = (ISOMsg) request.clone();\n        reply.setResponseMTI();\n        boolean over = request.hasField(4) && Long.parseLong(request.getString(4)) > limit;\n        reply.set(39, over ? \"51\" : \"00\");\n        return reply;\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        listener.responseReceived(request(request, timeout), handBack);\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n    }\n\n    @Override\n    public boolean isConnected() {\n        return true;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    public SimulatedHost(long limitInMinorUnits) {\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n\n    @Override\n    public boolean isConnected() {\n        throw new UnsupportedOperationException(\"write isConnected\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "32420054d77e45968444fdc99375b871bfc00d27b6760a5957224c474b998d5c",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    public SimulatedHost(long limitInMinorUnits) {\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n\n    @Override\n    public boolean isConnected() {\n        throw new UnsupportedOperationException(\"write isConnected\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-10/practice-1/src/main/java/com/example/practice/SimulatedHost.java",
+    "test_path": "practice/jpos-client/prose/unit-10/practice-1/src/test/java/com/example/practice/SimulatedHostTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.SimulatedHostTest#aRequestWithinTheLimitIsApprovedWithItsFieldsEchoed",
+        "kind": "main",
+        "says": "a request within the limit is answered with the response MTI, its own fields echoed and response code 00"
+      },
+      {
+        "id": "com.example.practice.SimulatedHostTest#aRequestOverTheLimitIsDeclinedWith51",
+        "kind": "main",
+        "says": "a request whose amount is over the limit is answered with response code 51"
+      },
+      {
+        "id": "com.example.practice.SimulatedHostTest#theRequestItselfIsLeftUntouched",
+        "kind": "edge",
+        "says": "answering leaves the client's own request message unchanged"
+      },
+      {
+        "id": "com.example.practice.SimulatedHostTest#aRequestWithoutAnAmountIsApproved",
+        "kind": "edge",
+        "says": "a request that carries no amount, such as an echo test, is approved"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-10/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c10.md",
+      "section": "10.3 Simulating Server Responses"
+    }
+  }
+}

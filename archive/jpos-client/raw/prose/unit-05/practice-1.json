@@ -1,0 +1,153 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Build Visa and Mastercard requests from one set of rules",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The page writes a Visa service and a Mastercard service, eight methods that are almost the same code. Read them side by side and the differences are small: the processing code in field 3 says which transaction it is, and each network adds a little data of its own. When those rules live in one place, a new transaction type or a changed acquirer ID is one edit, not eight."
+    },
+    {
+      "type": "para",
+      "text": "Write `CardRequests` with four methods, each taking the card network's name first: `purchase(network, pan, amount, terminalId)`, `cashAdvance(network, pan, amount, terminalId)`, `refund(network, pan, amount, terminalId, originalRrn)` and `balanceInquiry(network, pan, terminalId)`. Each returns a new `ISOMsg` with:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "MTI `0100`, the card number in field 2, the terminal ID in field 41 and currency `840` in field 49;",
+        "the processing code in field 3: `000000` for a purchase, `010000` for a cash advance, `200000` for a refund and `300000` for a balance inquiry;",
+        "the amount in field 4, except on a balance inquiry, which has no amount;",
+        "on a refund, the original transaction's retrieval reference number in field 37;",
+        "the acquiring institution in field 32: `123456` for Visa, `654321` for Mastercard;",
+        "for Mastercard only, point-of-service data in field 61: `0000000000000001` for a purchase, `...02` for a cash advance, `...03` for a refund and `...04` for a balance inquiry (all sixteen digits long). A Visa request has no field 61."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Leave out the page's transmission time (field 7) and trace number (field 11); the sender fills those in when the request goes out."
+    },
+    {
+      "type": "para",
+      "text": "Mind these:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The network name is `visa` or `mastercard`, in any case (`VISA`, `MasterCard`).",
+        "Any other network (say `amex`) is refused with an `IllegalArgumentException`. Sending it as a Visa request would put the wrong acquirer on a real transaction."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    private enum Network {\n        VISA(\"123456\", false), MASTERCARD(\"654321\", true);\n\n        final String acquirer;\n        final boolean posData;\n\n        Network(String acquirer, boolean posData) {\n            this.acquirer = acquirer;\n            this.posData = posData;\n        }\n\n        static Network named(String name) {\n            for (Network n : values()) {\n                if (n.name().equalsIgnoreCase(name)) {\n                    return n;\n                }\n            }\n            throw new IllegalArgumentException(\"Unsupported card network: \" + name);\n        }\n    }\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        return request(network, \"000000\", 1, pan, amount, terminalId, null);\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        return request(network, \"010000\", 2, pan, amount, terminalId, null);\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        return request(network, \"200000\", 3, pan, amount, terminalId, originalRrn);\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        return request(network, \"300000\", 4, pan, null, terminalId, null);\n    }\n\n    private static ISOMsg request(String name, String processingCode, int pos, String pan,\n            String amount, String terminalId, String originalRrn) throws ISOException {\n        Network network = Network.named(name);\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, pan);\n        msg.set(3, processingCode);\n        if (amount != null) {\n            msg.set(4, amount);\n        }\n        msg.set(32, network.acquirer);\n        if (originalRrn != null) {\n            msg.set(37, originalRrn);\n        }\n        msg.set(41, terminalId);\n        msg.set(49, \"840\");\n        if (network.posData) {\n            msg.set(61, String.format(\"%016d\", pos));\n        }\n        return msg;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write purchase\");\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write cashAdvance\");\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write balanceInquiry\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6ddb4c3fbea2026a51b6f3aa39062340ebf0dd1292b29485cbd1034d874bf8ab",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write purchase\");\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write cashAdvance\");\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write balanceInquiry\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-05/practice-1/src/main/java/com/example/practice/CardRequests.java",
+    "test_path": "practice/jpos-client/prose/unit-05/practice-1/src/test/java/com/example/practice/CardRequestsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-05/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-05/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CardRequestsTest#eachTransactionTypeIsNamedByItsProcessingCode",
+        "kind": "main",
+        "says": "a purchase, a cash advance, a refund and a balance inquiry are each a 0100 request told apart by field 3, the refund carrying the original RRN and the balance inquiry no amount"
+      },
+      {
+        "id": "com.example.practice.CardRequestsTest#eachNetworkAddsItsOwnData",
+        "kind": "main",
+        "says": "a Visa request carries Visa's acquirer and no field 61; a Mastercard request carries Mastercard's acquirer and its point-of-service data"
+      },
+      {
+        "id": "com.example.practice.CardRequestsTest#theNetworkNameIgnoresCase",
+        "kind": "edge",
+        "says": "the network is recognised whatever the case of its name"
+      },
+      {
+        "id": "com.example.practice.CardRequestsTest#anUnsupportedNetworkIsRefused",
+        "kind": "edge",
+        "says": "a network other than Visa or Mastercard is refused, not sent as one of them"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-05/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c5.md",
+      "section": "5. Visa and Mastercard Specific Requests"
+    }
+  }
+}

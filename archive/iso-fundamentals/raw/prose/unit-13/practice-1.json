@@ -1,0 +1,145 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Mask the card number in a message before it is shown",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "PCI-DSS lets a PAN be shown only with its first six and last four digits visible. Screens, support tools and log lines all show messages, so the rule is applied to the copy that is shown, while the message being processed keeps the real card number it needs."
+    },
+    {
+      "type": "para",
+      "text": "Write `CardMasking.forDisplay(ISOMsg message)`. It returns a copy of the message fit to show:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "field 2, the PAN, keeps its first six and last four digits, and every digit between them is replaced by `*` (`4111111111111111` is shown as `411111******1111`);",
+        "every other field is carried over as it is;",
+        "a message with no field 2 is copied as it is."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "PANs are not all sixteen digits. However long the PAN, exactly the first six and the last four stay visible.",
+        "The message passed in is not changed. It is still being processed, and it needs its full PAN."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`ISOUtil.protect` masks with `_`, not `*`, so if you use it, mind the character."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        ISOMsg shown = (ISOMsg) message.clone();\n        if (shown.hasField(2)) {\n            String pan = shown.getString(2);\n            shown.set(2, pan.substring(0, 6) + \"*\".repeat(pan.length() - 10) + pan.substring(pan.length() - 4));\n        }\n        return shown;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write forDisplay\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "4c0c7e448d8e78691b9760816866cffd6dea50006302bfd0b08538e6baa3563c",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write forDisplay\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/com/example/practice/CardMasking.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/test/java/com/example/practice/CardMaskingTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-13/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-13/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CardMaskingTest#showsOnlyTheFirstSixAndLastFourDigits",
+        "kind": "main",
+        "says": "the copy for display shows the PAN's first six and last four digits and keeps every other field"
+      },
+      {
+        "id": "com.example.practice.CardMaskingTest#masksAPanOfAnyLength",
+        "kind": "edge",
+        "says": "a 19-digit PAN still shows only its first six and last four digits"
+      },
+      {
+        "id": "com.example.practice.CardMaskingTest#leavesTheMessageBeingProcessedUntouched",
+        "kind": "edge",
+        "says": "the message being processed keeps its full PAN"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-13/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/13.md",
+      "section": "13.1.1. Data Protection"
+    }
+  }
+}

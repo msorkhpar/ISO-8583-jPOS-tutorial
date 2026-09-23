@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Answer a request without spoiling it",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The page turns a request into a response by changing it in place: a new MTI, a response code, the EMV data removed. That is a hazard in a client or server that still holds the request, to log it, match it or retry it, because after the call the request is no longer the request."
+    },
+    {
+      "type": "para",
+      "text": "Write `ResponseMaker` with `respond(ISOMsg request, String responseCode)`. It returns a new `ISOMsg` that:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "has the response MTI for the request's MTI: the third digit goes up by one, so a `0200` is answered with a `0210`;",
+        "carries every field of the request, with the same values;",
+        "carries `responseCode` in field 39;",
+        "does not carry field 55 (the chip's EMV data), whether or not the request had it."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Mind these:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Do not assume every request is a `0200`. An authorization `0100` is answered with a `0110`.",
+        "The request passed in must come out of the call exactly as it went in: same MTI, same fields, its field 55 still there, and no field 39 added to it."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        response.set(39, responseCode);\n        response.unset(55);\n        return response;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f10c502784f91e2966f0bbfe95b33a4ec964bb05a9ea5654846c130b6e66d66d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-06/practice-1/src/main/java/com/example/practice/ResponseMaker.java",
+    "test_path": "practice/jpos-client/prose/unit-06/practice-1/src/test/java/com/example/practice/ResponseMakerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ResponseMakerTest#aPurchaseIsAnsweredWithItsFieldsAndAResponseCode",
+        "kind": "main",
+        "says": "a 0200 request is answered with a 0210 that echoes its fields, carries the response code in field 39 and drops the EMV data in field 55"
+      },
+      {
+        "id": "com.example.practice.ResponseMakerTest#anAuthorizationIsAnsweredWith0110",
+        "kind": "edge",
+        "says": "the response MTI follows the request's MTI, so a 0100 is answered with a 0110"
+      },
+      {
+        "id": "com.example.practice.ResponseMakerTest#theRequestIsLeftUntouched",
+        "kind": "edge",
+        "says": "the request is left exactly as it came in"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-06/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c6.md",
+      "section": "6.1 ISOMsg"
+    }
+  }
+}

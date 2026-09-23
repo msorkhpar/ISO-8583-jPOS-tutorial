@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Build Mastercard requests from their processing codes",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not."
+    },
+    {
+      "type": "para",
+      "text": "Write `MastercardRequests`, using its nested enum `ProcessingCode` with the page's codes: `PURCHASE` `00`, `CASH_ADVANCE` `01`, `VOID` `02`, `REFUND` `20`."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`ProcessingCode.fromCode(String code)` returns the type a code stands for.",
+        "`request(ProcessingCode type, String pan, String amount, String merchantId)` builds an `0200` with the card number in field 2, the type's code in field 3, the amount in field 4 and the merchant id in field 42.",
+        "`refund(String pan, String amount, String merchantId, String originalReference)` builds the same request for `REFUND`, and also carries the original transaction's reference in field 37.",
+        "`typeOf(ISOMsg message)` reads a message's type back from its field 3.",
+        "`isApproved(ISOMsg response)` says whether the response approves the transaction: its field 39 is `00`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases to handle:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A code that is not one of the four is refused with an `IllegalArgumentException`, whether it reaches `fromCode` directly or through `typeOf`.",
+        "A response with no field 39 at all is not approved, and `isApproved` answers `false` rather than failing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"00\"),\n        CASH_ADVANCE(\"01\"),\n        VOID(\"02\"),\n        REFUND(\"20\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The type a processing code stands for. */\n        public static ProcessingCode fromCode(String code) {\n            for (ProcessingCode type : values()) {\n                if (type.code.equals(code)) {\n                    return type;\n                }\n            }\n            throw new IllegalArgumentException(\"not a Mastercard processing code: \" + code);\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0200\");\n        message.set(2, pan);\n        message.set(3, type.code());\n        message.set(4, amount);\n        message.set(42, merchantId);\n        return message;\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        ISOMsg message = request(ProcessingCode.REFUND, pan, amount, merchantId);\n        message.set(37, originalReference);\n        return message;\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        return ProcessingCode.fromCode(message.getString(3));\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        return \"00\".equals(response.getString(39));\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"00\"),\n        CASH_ADVANCE(\"01\"),\n        VOID(\"02\"),\n        REFUND(\"20\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The type a processing code stands for. */\n        public static ProcessingCode fromCode(String code) {\n            throw new UnsupportedOperationException(\"write fromCode\");\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write typeOf\");\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write isApproved\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "57c596ccef1b4e5162ccd342bddedb8e558a61a19cd14c24b168991655915035",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"00\"),\n        CASH_ADVANCE(\"01\"),\n        VOID(\"02\"),\n        REFUND(\"20\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The type a processing code stands for. */\n        public static ProcessingCode fromCode(String code) {\n            throw new UnsupportedOperationException(\"write fromCode\");\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write typeOf\");\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write isApproved\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/com/example/practice/MastercardRequests.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/test/java/com/example/practice/MastercardRequestsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-06/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-06/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.MastercardRequestsTest#buildsRequestsAndReadsTheirType",
+        "kind": "main",
+        "says": "builds 0200 purchase and refund requests with the right fields, reads a message's type back from field 3, and approves only on 00"
+      },
+      {
+        "id": "com.example.practice.MastercardRequestsTest#refusesAnUnknownProcessingCode",
+        "kind": "edge",
+        "says": "a processing code the scheme does not define is refused, not mapped to null"
+      },
+      {
+        "id": "com.example.practice.MastercardRequestsTest#aResponseWithoutField39IsNotApproved",
+        "kind": "edge",
+        "says": "a response that carries no field 39 is not approved, and asking does not fail"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-06/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/6.md",
+      "section": "6.3. Mastercard processing codes"
+    }
+  }
+}

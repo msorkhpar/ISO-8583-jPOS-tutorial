@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Encrypt the PIN, sign the request, check the response",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A PIN must never cross the network in the clear, and both sides must be able to tell whether a message was changed on the way. The page's `SecureISOClient` does both: it encrypts the PIN, adds a Message Authentication Code (MAC) to what it sends, and checks the MAC on what comes back. The order of those steps and what each MAC is computed over are what make it work."
+    },
+    {
+      "type": "para",
+      "text": "Write `SecureClient`. It is built from two collaborators, both nested interfaces of the class: `Security` (the security module: `encryptPin(pin, pan)` and `mac(msg)`) and `Link` (the channel: `exchange(request)` sends a request and returns the response). Your `send(ISOMsg msg)`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "replaces the clear PIN in field 52 with `encryptPin(pin, pan)`, where the PAN is field 2;",
+        "puts in field 64 the MAC of the message as it is sent, so computed after the PIN is encrypted, and over the message without field 64 itself;",
+        "exchanges the message over the `Link`;",
+        "checks the response: its field 64 must equal the MAC of the response without its field 64. If it does, `send` returns the response; if not, it throws a `SecurityException`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Mind these:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A response whose MAC does not match (someone changed the amount, say) is refused.",
+        "A response with no field 64 at all is refused too. A missing MAC is not a valid one."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.Arrays;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    private final Security security;\n    private final Link link;\n\n    public SecureClient(Security security, Link link) {\n        this.security = security;\n        this.link = link;\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        msg.set(52, security.encryptPin(msg.getString(52), msg.getString(2)));\n        msg.unset(64);\n        msg.set(64, security.mac(msg));\n\n        ISOMsg response = link.exchange(msg);\n        byte[] received = response.hasField(64) ? response.getBytes(64) : null;\n        if (received == null) {\n            throw new SecurityException(\"Response carries no MAC\");\n        }\n        ISOMsg unsigned = (ISOMsg) response.clone();\n        unsigned.unset(64);\n        if (!Arrays.equals(security.mac(unsigned), received)) {\n            throw new SecurityException(\"Invalid MAC in response\");\n        }\n        return response;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    public SecureClient(Security security, Link link) {\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f85ec4c873ba0fac1b0065d8c4111a39ec699d4edf3b2050a1b4e8bc8901bbd7",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    public SecureClient(Security security, Link link) {\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-07/practice-1/src/main/java/com/example/practice/SecureClient.java",
+    "test_path": "practice/jpos-client/prose/unit-07/practice-1/src/test/java/com/example/practice/SecureClientTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-07/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-07/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.SecureClientTest#sendsAnEncryptedPinAndAMacOverWhatItSends",
+        "kind": "main",
+        "says": "the request goes out with its PIN encrypted and a MAC in field 64 computed over the message as sent, and a correctly signed response is returned"
+      },
+      {
+        "id": "com.example.practice.SecureClientTest#aTamperedResponseIsRefused",
+        "kind": "edge",
+        "says": "a response whose MAC does not match its content is refused with a SecurityException"
+      },
+      {
+        "id": "com.example.practice.SecureClientTest#aResponseWithoutAMacIsRefused",
+        "kind": "edge",
+        "says": "a response that carries no MAC at all is refused, not waved through"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-07/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c7.md",
+      "section": "7.2 Implementing Security in a jPOS Client"
+    }
+  }
+}

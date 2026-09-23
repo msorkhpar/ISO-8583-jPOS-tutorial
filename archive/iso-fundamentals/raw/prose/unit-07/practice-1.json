@@ -1,0 +1,134 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Authorize a request through a MUX",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer does not talk to the issuer directly. It hands the authorization request to a jPOS `MUX`, which sends it on and matches the answer that comes back, and it waits only so long. What the acquirer does with that answer, or with its absence, decides what the cardholder is told at the terminal."
+    },
+    {
+      "type": "para",
+      "text": "Write `Authorizer.authorize(MUX mux, ISOMsg request)`. It sends the request with `mux.request(request, Authorizer.TIMEOUT_MILLIS)` (30 seconds) and returns a `Decision`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`approved`: whether the issuer approved, which it does only with `00` in field 39;",
+        "`responseCode`: the code the issuer returned in field 39, so a decline such as `05` or `51` can be passed on."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge case to handle:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "When the MUX gives back no response (it returns `null`, which is how a timeout arrives), the issuer has **not** declined: nobody knows what it decided. Throw an `IOException` saying there was no response; never turn it into a declined `Decision`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        ISOMsg response = mux.request(request, TIMEOUT_MILLIS);\n        if (response == null) {\n            throw new IOException(\"no response from the issuer\");\n        }\n        String code = response.getString(39);\n        return new Decision(\"00\".equals(code), code);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "586205f2c0e4856cc16f566f405ed928220c40a4013579a54672bfdde57f91c7",
+  "starting_code": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/main/java/com/example/practice/Authorizer.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/test/java/com/example/practice/AuthorizerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-07/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-07/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AuthorizerTest#approvesOn00AndPassesADeclineCodeOn",
+        "kind": "main",
+        "says": "sends the request through the MUX with a bounded wait, approves on 00 and reports any other code as a decline"
+      },
+      {
+        "id": "com.example.practice.AuthorizerTest#noAnswerIsAnErrorNotADecline",
+        "kind": "edge",
+        "says": "when the MUX returns no answer the call fails with an IOException instead of reporting a decline"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-07/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/7.md",
+      "section": "7.1. Authorization Flow"
+    }
+  }
+}

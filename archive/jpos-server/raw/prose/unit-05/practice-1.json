@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Check each card against its own network's rules",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Visa and Mastercard ask for different data elements in an authorization, so a server first works out which network a card belongs to and then checks the request against that network's rules. The page does it with three participants in a row. Here you do both steps in one jPOS `TransactionParticipant`, in the same order."
+    },
+    {
+      "type": "para",
+      "text": "Write `CardNetworkCheck`. Its `prepare` reads the request `ISOMsg` from the `Context` under `\"REQUEST\"` and:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "puts `\"CARD_TYPE\"`: `\"VISA\"` when the card number (field 2) starts with `4`, `\"MASTERCARD\"` when it starts with `51` to `55`, and `\"UNKNOWN\"` otherwise;",
+        "for a Visa card, puts `\"VISA_TRANSACTION_VALID\"`: `true` when fields 42, 43 and 48 are all present, else `false` together with a `\"VISA_ERROR\"` saying what is wrong;",
+        "for a Mastercard card, does the same with fields 48, 61 and 63, under `\"MASTERCARD_TRANSACTION_VALID\"` and `\"MASTERCARD_ERROR\"`;",
+        "always returns `PREPARED | NO_JOIN | READONLY`. An invalid request is a verdict for the participants after this one to act on, not a reason to throw."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Watch for:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "a card starting `56` (or `50`) is not Mastercard. An unknown card gets no network verdict at all;",
+        "a request with no card number is `\"UNKNOWN\"`, and the participant must not crash on it."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "In jPOS 2.1.7 `prepare` is declared as `int prepare(long id, Serializable context)`; the page's `Context` parameter comes from a later version, so cast it yourself."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Identifies a request's card network and checks it against that network's required fields. */\npublic class CardNetworkCheck implements TransactionParticipant {\n\n    private static final int[] VISA_FIELDS = {42, 43, 48};\n    private static final int[] MASTERCARD_FIELDS = {48, 61, 63};\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg msg = ctx.get(\"REQUEST\");\n        String type = cardType(msg.getString(2));\n        ctx.put(\"CARD_TYPE\", type);\n        if (type.equals(\"VISA\")) {\n            check(ctx, msg, \"VISA\", VISA_FIELDS);\n        } else if (type.equals(\"MASTERCARD\")) {\n            check(ctx, msg, \"MASTERCARD\", MASTERCARD_FIELDS);\n        }\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    private static String cardType(String pan) {\n        if (pan == null) {\n            return \"UNKNOWN\";\n        }\n        if (pan.startsWith(\"4\")) {\n            return \"VISA\";\n        }\n        if (pan.length() >= 2 && pan.charAt(0) == '5' && pan.charAt(1) >= '1' && pan.charAt(1) <= '5') {\n            return \"MASTERCARD\";\n        }\n        return \"UNKNOWN\";\n    }\n\n    private static void check(Context ctx, ISOMsg msg, String network, int[] required) {\n        List<Integer> missing = new ArrayList<>();\n        for (int field : required) {\n            if (!msg.hasField(field)) {\n                missing.add(field);\n            }\n        }\n        ctx.put(network + \"_TRANSACTION_VALID\", missing.isEmpty());\n        if (!missing.isEmpty()) {\n            ctx.put(network + \"_ERROR\", \"Missing \" + network + \" fields: \" + missing);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Identifies a request's card network and checks it against that network's required fields. */\npublic class CardNetworkCheck implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "49a2c788c71a128a6a3446b8ec7fa4e27c4f23e3cc9a552e5d5926ee3b910707",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Identifies a request's card network and checks it against that network's required fields. */\npublic class CardNetworkCheck implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-05/practice-1/src/main/java/com/example/practice/CardNetworkCheck.java",
+    "test_path": "practice/jpos-server/prose/unit-05/practice-1/src/test/java/com/example/practice/CardNetworkCheckTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-05/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-05/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CardNetworkCheckTest#eachNetworkIsCheckedAgainstItsOwnFields",
+        "kind": "main",
+        "says": "a Visa and a Mastercard request are each identified and checked against their own required fields, and a missing field marks the request invalid with a reason"
+      },
+      {
+        "id": "com.example.practice.CardNetworkCheckTest#onlyFiftyOneToFiftyFiveAreMastercard",
+        "kind": "edge",
+        "says": "a card starting 56 is not Mastercard: it is unknown and no network check runs"
+      },
+      {
+        "id": "com.example.practice.CardNetworkCheckTest#aRequestWithNoCardNumberIsUnknown",
+        "kind": "edge",
+        "says": "a request with no card number is recorded as unknown instead of crashing the participant"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-05/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s5.md",
+      "section": "Implementation"
+    }
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "A debug mode you can switch off",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "During an incident an operator turns a server's debug mode on, reads what it says, and turns it off again. The page adds and removes a listener to do that. Here the switch is a flag, and what it controls is one extra event per transaction."
+    },
+    {
+      "type": "para",
+      "text": "Write `DebuggableServer`, built from a jPOS `Logger`, with `setDebugMode(boolean on)` and `processTransaction(ISOMsg msg)`. Every transaction is logged as one event tagged `transaction.process`, saying `Processing transaction: <MTI>`. While debug mode is on, a `transaction.debug` event comes first, saying `MTI: <MTI>` and then `Amount: <field 4>`."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Debug mode starts off, and switching it off again stops the debug events.",
+        "A message with no amount (field 4) is logged as `Amount: none`. An operator reading `Amount: null` cannot tell a missing field from a bug."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The card number is deliberately not logged, even in debug mode: see the client's unit 8."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    private final LogSource source;\n    private boolean debug;\n\n    public DebuggableServer(Logger logger) {\n        this.source = new SimpleLogSource(logger, \"server\");\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        this.debug = on;\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        if (debug) {\n            LogEvent details = new LogEvent(source, \"transaction.debug\");\n            details.addMessage(\"MTI: \" + msg.getMTI());\n            details.addMessage(\"Amount: \" + (msg.hasField(4) ? msg.getString(4) : \"none\"));\n            Logger.log(details);\n        }\n        LogEvent event = new LogEvent(source, \"transaction.process\");\n        event.addMessage(\"Processing transaction: \" + msg.getMTI());\n        Logger.log(event);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    public DebuggableServer(Logger logger) {\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        throw new UnsupportedOperationException(\"write setDebugMode\");\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write processTransaction\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "d37f4d9a21fae77cee260105bc2962fe20f541f2fefc48f6c337bfa33d7e8f44",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    public DebuggableServer(Logger logger) {\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        throw new UnsupportedOperationException(\"write setDebugMode\");\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write processTransaction\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-08/practice-2/src/main/java/com/example/practice/DebuggableServer.java",
+    "test_path": "practice/jpos-server/prose/unit-08/practice-2/src/test/java/com/example/practice/DebuggableServerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-08/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-08/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DebuggableServerTest#withDebugOnADebugEventPrecedesTheProcessingEvent",
+        "kind": "main",
+        "says": "with debug on, a debug event comes before the processing event, and not otherwise"
+      },
+      {
+        "id": "com.example.practice.DebuggableServerTest#switchingDebugOffStopsTheDebugEvents",
+        "kind": "edge",
+        "says": "switching debug off again stops the debug events"
+      },
+      {
+        "id": "com.example.practice.DebuggableServerTest#aMissingAmountIsSaidNotPrintedAsNull",
+        "kind": "edge",
+        "says": "a message with no amount says so, instead of logging the word null"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-08/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s8.md",
+      "section": "8.4 Debugging Techniques"
+    }
+  }
+}

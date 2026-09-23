@@ -1,0 +1,139 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-09-21",
+  "title": "Build the reversal of an earlier transaction",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A transaction sometimes has to be undone: the terminal timed out, the customer walked away, the response never came. The reversal (MTI 0400) only works if the other side can find the transaction it undoes, so it must carry the same identifying data as the original."
+    },
+    {
+      "type": "para",
+      "text": "Write `Reversals.reversalOf(ISOMsg original)`, which returns a new 0400 message carrying these fields of the original, each only if the original has it:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "2 (PAN), 3 (processing code), 4 (amount), 11 (STAN), 37 (retrieval reference number), 41 (terminal ID) and 42 (card acceptor ID)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Nothing else is carried over: no response code, no entry mode, no transmission time (whoever sends the reversal stamps field 7)."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The original is the record of what happened. Building its reversal must not change it.",
+        "Only a transaction request can be reversed: an 0100 authorization or an 0200 financial request. Anything else, such as an 0110 response or an 0800 echo test, is refused with an `IllegalArgumentException`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the reversal of an earlier transaction. */\npublic final class Reversals {\n\n    /** The fields that let the other side find the transaction being reversed. */\n    private static final int[] IDENTIFYING = {2, 3, 4, 11, 37, 41, 42};\n\n    private Reversals() {\n    }\n\n    /** A new 0400 carrying the fields that identify {@code original}. */\n    public static ISOMsg reversalOf(ISOMsg original) throws Exception {\n        String mti = original.getMTI();\n        if (!\"0100\".equals(mti) && !\"0200\".equals(mti)) {\n            throw new IllegalArgumentException(\"only an 0100 or 0200 request can be reversed, not \" + mti);\n        }\n        ISOMsg reversal = new ISOMsg();\n        reversal.setMTI(\"0400\");\n        for (int field : IDENTIFYING) {\n            if (original.hasField(field)) {\n                reversal.set(field, original.getString(field));\n            }\n        }\n        return reversal;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the reversal of an earlier transaction. */\npublic final class Reversals {\n\n    private Reversals() {\n    }\n\n    /** A new 0400 carrying the fields that identify {@code original}. */\n    public static ISOMsg reversalOf(ISOMsg original) throws Exception {\n        throw new UnsupportedOperationException(\"write reversalOf\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "eec5f52763bf274c1d29495c0ec20aade6d89ef8c2341a08aacba48a3a55f08b",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the reversal of an earlier transaction. */\npublic final class Reversals {\n\n    private Reversals() {\n    }\n\n    /** A new 0400 carrying the fields that identify {@code original}. */\n    public static ISOMsg reversalOf(ISOMsg original) throws Exception {\n        throw new UnsupportedOperationException(\"write reversalOf\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/com/example/practice/Reversals.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-04/practice-3/src/test/java/com/example/practice/ReversalsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-04/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-04/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ReversalsTest#aReversalCarriesWhatIdentifiesTheOriginal",
+        "kind": "main",
+        "says": "the reversal is an 0400 that carries exactly the original's identifying fields that it has, and nothing else"
+      },
+      {
+        "id": "com.example.practice.ReversalsTest#leavesTheOriginalAsItWas",
+        "kind": "edge",
+        "says": "building the reversal does not change the original message"
+      },
+      {
+        "id": "com.example.practice.ReversalsTest#refusesWhatIsNotATransactionRequest",
+        "kind": "edge",
+        "says": "only an authorization or financial request can be reversed; a response or a network message is refused"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-04/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/4.md",
+      "section": "4.3. Reversal messages"
+    }
+  }
+}

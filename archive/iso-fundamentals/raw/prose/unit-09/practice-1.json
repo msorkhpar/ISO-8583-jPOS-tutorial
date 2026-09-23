@@ -1,0 +1,164 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Decide what a transaction's outcome calls for",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Every transaction ends in one of two ways: a response arrives and field 39 says what the issuer decided, or something fails before it can. Each case calls for different handling, and getting the category wrong is costly: calling an unknown code an approval gives goods away, and retrying a security failure hides an attack."
+    },
+    {
+      "type": "para",
+      "text": "Write `ResponseHandling` with two methods."
+    },
+    {
+      "type": "para",
+      "text": "`outcomeOf(ISOMsg response)` reads field 39 and returns an `Outcome`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`APPROVED` for the page's approval codes: `00`, `10` (partial approval) and `85` (no reason to decline);",
+        "`REFER` for the referral codes `01` and `02`: the issuer wants to be called, which is neither an approval nor a plain decline;",
+        "`DECLINED` for everything else."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`actionFor(Exception failure)` returns an `Action`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`RETRY` for a network error, which arrives as a `java.io.IOException`;",
+        "`LOG_FOR_FIX` for a format error, which jPOS reports as an `org.jpos.iso.ISOException`;",
+        "`ALERT_SECURITY` for a `SecurityException`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases to handle:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`10` and `85` are approvals as well as `00`.",
+        "A response that carries no field 39 is `DECLINED`; asking must not fail.",
+        "Network errors come in many kinds: a `java.net.SocketTimeoutException` is an `IOException` and is retried like the rest."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** What a transaction's response, or its failure, calls for. */\npublic final class ResponseHandling {\n\n    /** What the issuer decided. */\n    public enum Outcome { APPROVED, DECLINED, REFER }\n\n    /** What to do about a failure. */\n    public enum Action { RETRY, LOG_FOR_FIX, ALERT_SECURITY }\n\n    private ResponseHandling() {\n    }\n\n    /** The issuer's decision, read from field 39. */\n    public static Outcome outcomeOf(ISOMsg response) {\n        String code = response.getString(39);\n        if (\"00\".equals(code) || \"10\".equals(code) || \"85\".equals(code)) {\n            return Outcome.APPROVED;\n        }\n        if (\"01\".equals(code) || \"02\".equals(code)) {\n            return Outcome.REFER;\n        }\n        return Outcome.DECLINED;\n    }\n\n    /** How to handle a failure: a network, a format or a security error. */\n    public static Action actionFor(Exception failure) {\n        if (failure instanceof IOException) {\n            return Action.RETRY;\n        }\n        if (failure instanceof ISOException) {\n            return Action.LOG_FOR_FIX;\n        }\n        if (failure instanceof SecurityException) {\n            return Action.ALERT_SECURITY;\n        }\n        throw new IllegalArgumentException(\"not a network, format or security error\", failure);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a transaction's response, or its failure, calls for. */\npublic final class ResponseHandling {\n\n    /** What the issuer decided. */\n    public enum Outcome { APPROVED, DECLINED, REFER }\n\n    /** What to do about a failure. */\n    public enum Action { RETRY, LOG_FOR_FIX, ALERT_SECURITY }\n\n    private ResponseHandling() {\n    }\n\n    /** The issuer's decision, read from field 39. */\n    public static Outcome outcomeOf(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write outcomeOf\");\n    }\n\n    /** How to handle a failure: a network, a format or a security error. */\n    public static Action actionFor(Exception failure) {\n        throw new UnsupportedOperationException(\"write actionFor\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 5,
+    "code": 1,
+    "tables": 0,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "e5e7430327f7be089ca9fb3b23b6ef7223acc43935d2191517814cedcc72a926",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a transaction's response, or its failure, calls for. */\npublic final class ResponseHandling {\n\n    /** What the issuer decided. */\n    public enum Outcome { APPROVED, DECLINED, REFER }\n\n    /** What to do about a failure. */\n    public enum Action { RETRY, LOG_FOR_FIX, ALERT_SECURITY }\n\n    private ResponseHandling() {\n    }\n\n    /** The issuer's decision, read from field 39. */\n    public static Outcome outcomeOf(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write outcomeOf\");\n    }\n\n    /** How to handle a failure: a network, a format or a security error. */\n    public static Action actionFor(Exception failure) {\n        throw new UnsupportedOperationException(\"write actionFor\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-09/practice-1/src/main/java/com/example/practice/ResponseHandling.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-09/practice-1/src/test/java/com/example/practice/ResponseHandlingTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-09/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-09/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ResponseHandlingTest#sortsCodesAndErrorsIntoTheirHandling",
+        "kind": "main",
+        "says": "sorts 00, 05, 51 and 01 into approval, decline and referral, and network, format and security errors into retry, fix and alert"
+      },
+      {
+        "id": "com.example.practice.ResponseHandlingTest#partialApprovalAndNoReasonToDeclineAreApprovals",
+        "kind": "edge",
+        "says": "10 and 85 are approvals too, not only 00"
+      },
+      {
+        "id": "com.example.practice.ResponseHandlingTest#aResponseWithoutACodeIsDeclined",
+        "kind": "edge",
+        "says": "a response with no field 39 is declined, and asking does not fail"
+      },
+      {
+        "id": "com.example.practice.ResponseHandlingTest#aTimeoutIsANetworkError",
+        "kind": "edge",
+        "says": "a socket timeout, a kind of IOException, is retried like any network error"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-09/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/9.md",
+      "section": "9.2. Error scenarios and handling"
+    }
+  }
+}

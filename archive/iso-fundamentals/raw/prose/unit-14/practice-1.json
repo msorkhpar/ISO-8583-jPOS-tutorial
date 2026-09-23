@@ -1,0 +1,133 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Read the EMV tags out of field 55",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A chip card authorization reaches your host with the card's EMV data in field 55, the ICC system related data. The field is binary: one tag-length-value item after another, with no separators. Before your risk rules can look at the Application Interchange Profile (tag `82`) or the Terminal Verification Results (tag `95`), something has to split the field into its items, and a mistake there silently feeds the rules the wrong bytes."
+    },
+    {
+      "type": "para",
+      "text": "Write `ChipData.tags(ISOMsg message)`. It returns a map from each tag to its value, both as upper-case hexadecimal, in the order the items appear in field 55. Each item is:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "the tag: one byte, unless the low five bits of that byte are all set (`0x1F`), in which case the tag is two bytes, so `9F 26` is the single tag `9F26`;",
+        "the length: one byte, the number of value bytes that follow;",
+        "the value: exactly that many bytes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A message without field 55 is not an error: it simply has no chip data, and you return an empty map. A field whose last item claims more bytes than are left is damaged; refuse it with an `ISOException` rather than return a value cut short."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.LinkedHashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        Map<String, String> found = new LinkedHashMap<>();\n        if (!message.hasField(55)) {\n            return found;\n        }\n        byte[] data = message.getBytes(55);\n        int at = 0;\n        while (at < data.length) {\n            int tagStart = at;\n            int tagLength = (data[at] & 0x1F) == 0x1F ? 2 : 1;\n            if (at + tagLength + 1 > data.length) {\n                throw new ISOException(\"field 55 ends inside an item at byte \" + at);\n            }\n            String tag = ISOUtil.hexString(data, tagStart, tagLength).toUpperCase();\n            at += tagLength;\n            int length = data[at++] & 0xFF;\n            if (at + length > data.length) {\n                throw new ISOException(\"tag \" + tag + \" claims \" + length + \" bytes past the end of field 55\");\n            }\n            found.put(tag, ISOUtil.hexString(data, at, length).toUpperCase());\n            at += length;\n        }\n        return found;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write tags\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "abff1a35c338055fbf3e1ceb480faf50de010475c184f49282c2afa752906991",
+  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write tags\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/com/example/practice/ChipData.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/test/java/com/example/practice/ChipDataTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-14/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-14/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ChipDataTest#readsEveryTagWithItsValueInOrder",
+        "kind": "main",
+        "says": "reads every one-byte tag of field 55 with its value, in the order they arrive, and an absent field 55 gives no tags"
+      },
+      {
+        "id": "com.example.practice.ChipDataTest#readsTwoByteTags",
+        "kind": "edge",
+        "says": "a tag whose first byte ends in five set bits (such as 9F26 or 5F2A) is two bytes long"
+      },
+      {
+        "id": "com.example.practice.ChipDataTest#refusesAValueThatRunsPastTheEnd",
+        "kind": "edge",
+        "says": "a length that runs past the end of field 55 is refused with an ISOException instead of read short"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-14/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/14.md",
+      "section": "14.1.1. EMV data in ISO-8583 messages"
+    }
+  }
+}

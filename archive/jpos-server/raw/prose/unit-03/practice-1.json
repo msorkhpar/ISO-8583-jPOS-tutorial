@@ -1,0 +1,132 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Answer requests from a server's request listener",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An `ISOServer` hands every message that arrives on a connection to its request listeners, one after another, until one of them returns `true`. The listener gets the message and the `ISOSource` it came from, and it answers by sending through that source. The page's listener approves everything it receives; you write it so that it can be trusted inside a real server."
+    },
+    {
+      "type": "para",
+      "text": "Write `ApprovingListener`, an `org.jpos.iso.ISORequestListener`. Its `process(ISOSource source, ISOMsg request)` sends one reply through `source`: the request's fields, the response MTI (a `0200` is answered with a `0210`, a `0800` with a `0810`) and response code `00` in field 39. It returns `true` once the reply has gone."
+    },
+    {
+      "type": "para",
+      "text": "Why it matters: the `true` or `false` you return decides whether the server offers the message to the next listener, and the request you were handed may still be read by others after you."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The request you were handed is left exactly as it arrived: same MTI, no field 39.",
+        "If the reply cannot be sent (`send` throws), `process` returns `false` and throws nothing: the message was not dealt with, and saying otherwise would hide a lost reply."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg reply = (ISOMsg) request.clone();\n            reply.setResponseMTI();\n            reply.set(39, \"00\");\n            source.send(reply);\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "63cf14783654d637e0228ab27b23d08e75abd9ccf76ec23f5cfbb8caf325849b",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-03/practice-1/src/main/java/com/example/practice/ApprovingListener.java",
+    "test_path": "practice/jpos-server/prose/unit-03/practice-1/src/test/java/com/example/practice/ApprovingListenerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ApprovingListenerTest#answersARequestWithItsResponseThroughItsSource",
+        "kind": "main",
+        "says": "a request is answered once, through its own source, with the response MTI, response code 00 and the request's fields, and the listener says it dealt with it"
+      },
+      {
+        "id": "com.example.practice.ApprovingListenerTest#theRequestItselfIsLeftUnchanged",
+        "kind": "edge",
+        "says": "answering never changes the request the server handed in"
+      },
+      {
+        "id": "com.example.practice.ApprovingListenerTest#aReplyThatCannotBeSentIsNotClaimed",
+        "kind": "edge",
+        "says": "when the reply cannot be sent the listener returns false instead of throwing or claiming it"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-03/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s3.md",
+      "section": "3.2 SSL Channel"
+    }
+  }
+}

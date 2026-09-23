@@ -1,0 +1,129 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-09-21",
+  "title": "Read which data elements a bitmap says are present",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The receiving side of a link never sees your `ISOMsg`: it sees bytes, and the bitmap is how it learns which data elements follow. Reading it wrongly shifts every field after the mistake, so the whole message parses as nonsense."
+    },
+    {
+      "type": "para",
+      "text": "Write `BitmapReader.present(String bitmapHex)`. It takes the bitmap part of a message as hexadecimal digits (either case) and returns, in ascending order, every data element it says is present."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "The first sixteen digits are the primary bitmap. Bit *n*, counted from 1, most significant first, stands for data element *n*, from 2 to 64.",
+        "Bit 1 of the primary bitmap is not a data element. When it is set, a secondary bitmap of sixteen more digits follows, and its bit *n* stands for data element 64 + *n*, from 65 to 128. Only the primary's bit 1 is a flag: there is no tertiary bitmap here.",
+        "The length must agree with bit 1: sixteen digits when it is clear, thirty-two when it is set. Anything else, including a digit that is not hexadecimal, is refused with an `IllegalArgumentException`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        if (bitmapHex == null || !bitmapHex.matches(\"[0-9A-Fa-f]{16}([0-9A-Fa-f]{16})?\")) {\n            throw new IllegalArgumentException(\"a bitmap is sixteen or thirty-two hexadecimal digits\");\n        }\n        long primary = Long.parseUnsignedLong(bitmapHex.substring(0, 16), 16);\n        boolean secondaryFollows = primary < 0;\n        if (secondaryFollows != (bitmapHex.length() == 32)) {\n            throw new IllegalArgumentException(\"bit 1 and the bitmap's length disagree\");\n        }\n        List<Integer> found = new ArrayList<>();\n        for (int bit = 2; bit <= 64; bit++) {\n            if ((primary & (1L << (64 - bit))) != 0) {\n                found.add(bit);\n            }\n        }\n        if (secondaryFollows) {\n            long secondary = Long.parseUnsignedLong(bitmapHex.substring(16), 16);\n            for (int bit = 1; bit <= 64; bit++) {\n                if ((secondary & (1L << (64 - bit))) != 0) {\n                    found.add(64 + bit);\n                }\n            }\n        }\n        return found;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        throw new UnsupportedOperationException(\"write present\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "40ac7bd1a29b3aa1a058df96f4a67dcc5c934bd9c59f0d2eaa8739f111701298",
+  "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        throw new UnsupportedOperationException(\"write present\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/BitmapReader.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/test/java/com/example/practice/BitmapReaderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-02/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-02/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.BitmapReaderTest#listsTheFieldsBothBitmapsFlag",
+        "kind": "main",
+        "says": "lists, in ascending order, every data element the primary and any secondary bitmap flag"
+      },
+      {
+        "id": "com.example.practice.BitmapReaderTest#fieldSixtyFiveIsTheSecondarysFirstBit",
+        "kind": "edge",
+        "says": "the secondary bitmap's first bit is data element 65, not another flag"
+      },
+      {
+        "id": "com.example.practice.BitmapReaderTest#refusesALengthThatDisagreesWithBitOne",
+        "kind": "edge",
+        "says": "a secondary bitmap must be there when bit 1 is set, and must not be there when it is clear"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-02/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/2.md",
+      "section": "2.2. Bitmaps"
+    }
+  }
+}

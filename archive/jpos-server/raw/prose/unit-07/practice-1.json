@@ -1,0 +1,145 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Put an encrypted PIN block into field 52",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A cardholder's PIN must never travel, or sit in memory longer than it has to, in the clear. The server hands it to a security module, which returns a PIN block: the PIN combined with the card number and encrypted under a key the application never sees. The block is what goes into field 52. Because the application only talks to the `SMAdapter` interface, the module behind it can be jPOS's software `JCESecurityModule` or a hardware HSM, and in a test a mock."
+    },
+    {
+      "type": "para",
+      "text": "Write `PinEncryptionService`, built from an `SMAdapter`, with `ISOMsg encryptPIN(ISOMsg msg, String clearPin)`. It:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "asks the module to encrypt the PIN with the card number from field 2, through `encryptPIN(pin, accountNumber)`. Pass the whole card number; jPOS takes the digits it needs;",
+        "puts the returned block (`EncryptedPIN.getPINBlock()`) into field 52 and returns the same message;",
+        "never puts the clear PIN into any field."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Watch for:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "field 52 is binary: it holds the block's 8 bytes themselves, not their hex digits as text;",
+        "a message with no card number cannot have a PIN block. Throw `IllegalArgumentException` before asking the module anything."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The page's `encryptPIN(clearPIN, pan, \"01\")` and `getEncoded()` are not jPOS 2.1.7 API; use the two-argument `encryptPIN` and `getPINBlock()`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\n\n/** Replaces a clear PIN by the PIN block a security module makes of it, in field 52. */\npublic class PinEncryptionService {\n\n    private final SMAdapter<?> securityModule;\n\n    public PinEncryptionService(SMAdapter<?> securityModule) {\n        this.securityModule = securityModule;\n    }\n\n    /** Ask the module for the PIN block of `clearPin` with the card in field 2, and put it in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        String pan = msg.getString(2);\n        if (pan == null) {\n            throw new IllegalArgumentException(\"no card number (field 2): cannot make a PIN block\");\n        }\n        EncryptedPIN pin = securityModule.encryptPIN(clearPin, pan);\n        msg.set(52, pin.getPINBlock());\n        return msg;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\n\n/** Replaces a clear PIN by the PIN block a security module makes of it, in field 52. */\npublic class PinEncryptionService {\n\n    public PinEncryptionService(SMAdapter<?> securityModule) {\n    }\n\n    /** Ask the module for the PIN block of `clearPin` with the card in field 2, and put it in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        throw new UnsupportedOperationException(\"write encryptPIN\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "1ef1ae333b6aede19f62383709630177ef9695e779b0c1bd7dcd54c4c8343818",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\n\n/** Replaces a clear PIN by the PIN block a security module makes of it, in field 52. */\npublic class PinEncryptionService {\n\n    public PinEncryptionService(SMAdapter<?> securityModule) {\n    }\n\n    /** Ask the module for the PIN block of `clearPin` with the card in field 2, and put it in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        throw new UnsupportedOperationException(\"write encryptPIN\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-07/practice-1/src/main/java/com/example/practice/PinEncryptionService.java",
+    "test_path": "practice/jpos-server/prose/unit-07/practice-1/src/test/java/com/example/practice/PinEncryptionServiceTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-07/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-07/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PinEncryptionServiceTest#theModuleEncryptsThePinWithTheCardNumber",
+        "kind": "main",
+        "says": "the security module is asked to encrypt the PIN with the card number from field 2, and its block lands in field 52 with no clear PIN anywhere in the message"
+      },
+      {
+        "id": "com.example.practice.PinEncryptionServiceTest#thePinBlockGoesInAsItsRawBytes",
+        "kind": "edge",
+        "says": "field 52 carries the block's raw bytes, not a hex or text rendering of them"
+      },
+      {
+        "id": "com.example.practice.PinEncryptionServiceTest#aMessageWithNoCardNumberIsRefusedBeforeTheModuleIsAsked",
+        "kind": "edge",
+        "says": "a message with no card number is refused, and the security module is never asked"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-07/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s7.md",
+      "section": "7.3 Implementing PIN Encryption"
+    }
+  }
+}

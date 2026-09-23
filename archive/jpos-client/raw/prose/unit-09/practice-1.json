@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Turn every failure into the response its caller should see",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A jPOS client fails in a handful of distinct ways: the message itself is wrong (`ISOException`), the network let you down (`IOException`), the host never answered (`TimeoutException`), or the host answered and declined. Whoever called the client needs to know which of these happened, because each one calls for a different reaction: fix the request, try again later, or tell the cardholder. Handling them in one place keeps that decision consistent across the whole application."
+    },
+    {
+      "type": "para",
+      "text": "Write `ErrorHandler.handle(Throwable failure)`, returning an `ErrorResponse` with a type, a message and an HTTP-style status:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`ISOException`: type `ISO-8583 Error`, the exception's own message, status 400;",
+        "`IOException`: type `Network Error`, message `Failed to communicate with the server`, status 503;",
+        "`TimeoutException`: type `Timeout Error`, message `The operation timed out`, status 408;",
+        "`TransactionDeclinedException`: type `Transaction Declined`, message `Transaction was declined with response code: <code>`, status 402;",
+        "anything else: type `Internal Server Error`, message `An unexpected error occurred`, status 500."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`TransactionDeclinedException` is yours to write too, as a nested class: an unchecked exception that carries the host's response code."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "A narrower kind of failure belongs with its family: a refused connection is an `IOException`, so it is a network error.",
+        "An unexpected failure says nothing about its cause. Its message may carry internals a caller has no business seeing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\n\n/** One place that decides what a caller sees when the client fails. */\npublic final class ErrorHandler {\n\n    /** What a caller is told about a failure. */\n    public static final class ErrorResponse {\n        private final String type;\n        private final String message;\n        private final int status;\n\n        public ErrorResponse(String type, String message, int status) {\n            this.type = type;\n            this.message = message;\n            this.status = status;\n        }\n\n        public String getType() { return type; }\n        public String getMessage() { return message; }\n        public int getStatus() { return status; }\n    }\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        private final String responseCode;\n\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            this.responseCode = responseCode;\n        }\n\n        public String getResponseCode() {\n            return responseCode;\n        }\n    }\n\n    /** The response a caller sees for `failure`. */\n    public ErrorResponse handle(Throwable failure) {\n        if (failure instanceof ISOException) {\n            return new ErrorResponse(\"ISO-8583 Error\", failure.getMessage(), 400);\n        }\n        if (failure instanceof IOException) {\n            return new ErrorResponse(\"Network Error\", \"Failed to communicate with the server\", 503);\n        }\n        if (failure instanceof TimeoutException) {\n            return new ErrorResponse(\"Timeout Error\", \"The operation timed out\", 408);\n        }\n        if (failure instanceof TransactionDeclinedException) {\n            String code = ((TransactionDeclinedException) failure).getResponseCode();\n            return new ErrorResponse(\"Transaction Declined\",\n                    \"Transaction was declined with response code: \" + code, 402);\n        }\n        return new ErrorResponse(\"Internal Server Error\", \"An unexpected error occurred\", 500);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\n/** One place that decides what a caller sees when the client fails. */\npublic final class ErrorHandler {\n\n    /** What a caller is told about a failure. */\n    public static final class ErrorResponse {\n        private final String type;\n        private final String message;\n        private final int status;\n\n        public ErrorResponse(String type, String message, int status) {\n            this.type = type;\n            this.message = message;\n            this.status = status;\n        }\n\n        public String getType() { return type; }\n        public String getMessage() { return message; }\n        public int getStatus() { return status; }\n    }\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    /** The response a caller sees for `failure`. */\n    public ErrorResponse handle(Throwable failure) {\n        throw new UnsupportedOperationException(\"write handle\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "2549733e550999046a712e91e06baf14a8056f081b7dd0d7ab1dc1a98e281a34",
+  "starting_code": "package com.example.practice;\n\n/** One place that decides what a caller sees when the client fails. */\npublic final class ErrorHandler {\n\n    /** What a caller is told about a failure. */\n    public static final class ErrorResponse {\n        private final String type;\n        private final String message;\n        private final int status;\n\n        public ErrorResponse(String type, String message, int status) {\n            this.type = type;\n            this.message = message;\n            this.status = status;\n        }\n\n        public String getType() { return type; }\n        public String getMessage() { return message; }\n        public int getStatus() { return status; }\n    }\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    /** The response a caller sees for `failure`. */\n    public ErrorResponse handle(Throwable failure) {\n        throw new UnsupportedOperationException(\"write handle\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-09/practice-1/src/main/java/com/example/practice/ErrorHandler.java",
+    "test_path": "practice/jpos-client/prose/unit-09/practice-1/src/test/java/com/example/practice/ErrorHandlerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ErrorHandlerTest#eachKindOfFailureGetsItsOwnResponse",
+        "kind": "main",
+        "says": "an ISO-8583 error, a network error, a timeout and a decline each get their own type, message and status"
+      },
+      {
+        "id": "com.example.practice.ErrorHandlerTest#aNarrowerNetworkFailureIsStillANetworkError",
+        "kind": "edge",
+        "says": "a subclass of IOException, such as a refused connection, is still a network error"
+      },
+      {
+        "id": "com.example.practice.ErrorHandlerTest#anUnexpectedFailureRevealsNothingOfItsCause",
+        "kind": "edge",
+        "says": "an unexpected failure is answered generically, without its own message"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-09/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c9.md",
+      "section": "9.2 Implementing Exception Handlers"
+    }
+  }
+}

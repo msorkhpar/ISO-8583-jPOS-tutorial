@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Build each request type on one factory of common fields",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The page's factory stamps the fields every request shares, so a message type only adds what is its own. But its trace number is a fixed `\"123456\"` and its date is a constant. A host matches a response, and later a reversal, to the request by these fields; two requests with the same trace number are two requests nobody can tell apart."
+    },
+    {
+      "type": "para",
+      "text": "Write `RequestFactory`, built from a terminal id, a `java.time.Clock` and the last trace number already used (`0` for a fresh start)."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`create(mti)` returns an `ISOMsg` with that MTI, field 7 as the clock's time in UTC formatted `MMddHHmmss`, field 11 as the next trace number (six digits, zero-padded) and field 41 as the terminal id.",
+        "`authorization(pan, amountMinor)` is an `0100` and `financial(pan, amountMinor)` an `0200`; both carry field 2 (the PAN), field 3 `000000`, field 4 (the amount in minor units, twelve digits zero-padded) and field 49 `840`.",
+        "`reversal(original)` is an `0400` carrying the original's fields 2, 3, 4 and 49, and field 90: the original's MTI, then its field 11, then its field 7, then 22 zeros (42 digits in all)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "After `999999` the trace number starts again at `000001`; `000000` is never used.",
+        "A reversal is a new message: it takes its own trace number, not the original's."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    private static final DateTimeFormatter FIELD_7 =\n            DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC);\n\n    private final String terminalId;\n    private final Clock clock;\n    private int traceNumber;\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n        this.terminalId = terminalId;\n        this.clock = clock;\n        this.traceNumber = lastTraceNumber;\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(mti);\n        msg.set(7, FIELD_7.format(clock.instant()));\n        msg.set(11, String.format(\"%06d\", nextTraceNumber()));\n        msg.set(41, terminalId);\n        return msg;\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        return cardRequest(\"0100\", pan, amountMinor);\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        return cardRequest(\"0200\", pan, amountMinor);\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        ISOMsg msg = create(\"0400\");\n        for (int field : new int[] {2, 3, 4, 49}) {\n            msg.set(field, original.getString(field));\n        }\n        msg.set(90, original.getMTI() + original.getString(11) + original.getString(7) + \"0\".repeat(22));\n        return msg;\n    }\n\n    private ISOMsg cardRequest(String mti, String pan, long amountMinor) throws ISOException {\n        ISOMsg msg = create(mti);\n        msg.set(2, pan);\n        msg.set(3, \"000000\");\n        msg.set(4, String.format(\"%012d\", amountMinor));\n        msg.set(49, \"840\");\n        return msg;\n    }\n\n    private int nextTraceNumber() {\n        traceNumber = traceNumber >= 999999 ? 1 : traceNumber + 1;\n        return traceNumber;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.time.Clock;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        throw new UnsupportedOperationException(\"write create\");\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorization\");\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write financial\");\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        throw new UnsupportedOperationException(\"write reversal\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6f04e9a7fde3a8512090f5ea820964d6215578b551f1d42b9ca1ffcfeac59f45",
+  "starting_code": "package com.example.practice;\n\nimport java.time.Clock;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        throw new UnsupportedOperationException(\"write create\");\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorization\");\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write financial\");\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        throw new UnsupportedOperationException(\"write reversal\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-02/practice-1/src/main/java/com/example/practice/RequestFactory.java",
+    "test_path": "practice/jpos-client/prose/unit-02/practice-1/src/test/java/com/example/practice/RequestFactoryTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-02/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-02/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.RequestFactoryTest#authorizationAndFinancialShareTheCommonFields",
+        "kind": "main",
+        "says": "an authorization and a financial request carry their own MTI and fields plus the common date-time, terminal and consecutive trace numbers"
+      },
+      {
+        "id": "com.example.practice.RequestFactoryTest#aReversalPointsBackAtTheOriginal",
+        "kind": "main",
+        "says": "a reversal is an 0400 with the original's card, amount and currency, and field 90 built from the original's MTI, trace number and date-time"
+      },
+      {
+        "id": "com.example.practice.RequestFactoryTest#theTraceNumberWrapsPastSixNines",
+        "kind": "edge",
+        "says": "after 999999 the trace number starts again at 000001, never 000000"
+      },
+      {
+        "id": "com.example.practice.RequestFactoryTest#aReversalGetsItsOwnTraceNumber",
+        "kind": "edge",
+        "says": "a reversal takes a fresh trace number of its own instead of copying the original's"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-02/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c2.md",
+      "section": "2.3 Handling Different Message Types"
+    }
+  }
+}

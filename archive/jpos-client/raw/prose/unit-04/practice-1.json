@@ -1,0 +1,149 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Send a request over a MUX, waiting or not",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A request through a jPOS `MUX` either waits for its answer or hands it to a listener later. In both forms the answer may never come: the blocking `request(msg, timeout)` then returns `null`, and the listener form calls the listener's `expired`. Code that forgets this throws a `NullPointerException` on a busy day, or leaves a caller waiting on a result that will never arrive."
+    },
+    {
+      "type": "para",
+      "text": "In jPOS 2.1.7 the listener is `ISOResponseListener`, with `responseReceived(ISOMsg response, Object handBack)` and a default `expired(Object handBack)` that calls `responseReceived` with a `null` response; the asynchronous request is `request(msg, timeout, listener, handBack)`. (The page's listener signatures are not the 2.1.7 ones.)"
+    },
+    {
+      "type": "para",
+      "text": "Write `AuthorizationSender`, built from a `MUX` and a timeout in milliseconds, and the nested enum `Outcome { APPROVED, DECLINED, NO_ANSWER }`."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`authorize(request)` sends the request with that timeout and waits. A response whose field 39 is `00` is `APPROVED`; any other response is `DECLINED`.",
+        "`authorizeAsync(request)` sends the request with the same timeout and returns a `CompletableFuture<Outcome>` at once; the response, when it arrives, completes it the same way."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Edge cases:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "No response in time is `NO_ANSWER`, not an exception.",
+        "An asynchronous request that expires completes its future with `NO_ANSWER`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.concurrent.CompletableFuture;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** Sends authorization requests over a MUX and says what came of them. */\npublic final class AuthorizationSender {\n\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER }\n\n    private final MUX mux;\n    private final long timeoutMillis;\n\n    public AuthorizationSender(MUX mux, long timeoutMillis) {\n        this.mux = mux;\n        this.timeoutMillis = timeoutMillis;\n    }\n\n    public Outcome authorize(ISOMsg request) throws ISOException {\n        return outcomeOf(mux.request(request, timeoutMillis));\n    }\n\n    public CompletableFuture<Outcome> authorizeAsync(ISOMsg request) throws ISOException {\n        CompletableFuture<Outcome> outcome = new CompletableFuture<>();\n        mux.request(request, timeoutMillis, new ISOResponseListener() {\n            @Override\n            public void responseReceived(ISOMsg response, Object handBack) {\n                outcome.complete(outcomeOf(response));\n            }\n        }, null);\n        return outcome;\n    }\n\n    private static Outcome outcomeOf(ISOMsg response) {\n        if (response == null) {\n            return Outcome.NO_ANSWER;\n        }\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.concurrent.CompletableFuture;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends authorization requests over a MUX and says what came of them. */\npublic final class AuthorizationSender {\n\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER }\n\n    public AuthorizationSender(MUX mux, long timeoutMillis) {\n    }\n\n    public Outcome authorize(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n\n    public CompletableFuture<Outcome> authorizeAsync(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorizeAsync\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "744e4f5b88858e518d24cb658dafb68c72be2473a9500d09addece86c772a4d2",
+  "starting_code": "package com.example.practice;\n\nimport java.util.concurrent.CompletableFuture;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends authorization requests over a MUX and says what came of them. */\npublic final class AuthorizationSender {\n\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER }\n\n    public AuthorizationSender(MUX mux, long timeoutMillis) {\n    }\n\n    public Outcome authorize(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n\n    public CompletableFuture<Outcome> authorizeAsync(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorizeAsync\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-04/practice-1/src/main/java/com/example/practice/AuthorizationSender.java",
+    "test_path": "practice/jpos-client/prose/unit-04/practice-1/src/test/java/com/example/practice/AuthorizationSenderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AuthorizationSenderTest#aWaitedAnswerIsReadFromFieldThirtyNine",
+        "kind": "main",
+        "says": "a blocking request uses the sender's timeout, and a response with 00 in field 39 is approved while any other code is declined"
+      },
+      {
+        "id": "com.example.practice.AuthorizationSenderTest#anAsynchronousAnswerCompletesTheFuture",
+        "kind": "main",
+        "says": "an asynchronous request returns an unfinished future at once, and the response completes it"
+      },
+      {
+        "id": "com.example.practice.AuthorizationSenderTest#noAnswerInTimeIsNoAnswerNotAnError",
+        "kind": "edge",
+        "says": "a blocking request that gets no response in time comes back as no answer, not an exception"
+      },
+      {
+        "id": "com.example.practice.AuthorizationSenderTest#anExpiredRequestCompletesAsNoAnswer",
+        "kind": "edge",
+        "says": "an asynchronous request that expires completes its future as no answer instead of leaving it waiting forever"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-04/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c4.md",
+      "section": "4.2 MUX (org.jpos.iso.MUX)"
+    }
+  }
+}

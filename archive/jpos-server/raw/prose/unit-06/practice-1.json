@@ -1,0 +1,149 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Answer a request with a response built from it",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A server answers most requests by sending back the same message with a few changes: the response MTI, a response code and an authorization code. The page does that in a `TransactionParticipant` by cloning the request. The request stays in the `Context` too, and later participants (and the log) must see it exactly as it arrived."
+    },
+    {
+      "type": "para",
+      "text": "Write `DataElementHandler`, a jPOS `TransactionParticipant`. Its `prepare` reads the request `ISOMsg` from the `Context` under `\"REQUEST\"` and puts under `\"RESPONSE\"` a message that:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "carries every data element of the request, with the same values;",
+        "has the response MTI (`0200` becomes `0210`, `0100` becomes `0110`), set by jPOS rather than worked out by hand;",
+        "adds field 39 = `00` (approved) and field 38 = `123456` (the authorization code)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "It then returns `PREPARED | NO_JOIN | READONLY`."
+    },
+    {
+      "type": "para",
+      "text": "Watch for:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "the request must come out unchanged: no response MTI and no field 38 or 39 on it;",
+        "a message that is already a response (`0210`, say) has no response to take. jPOS refuses it with an `ISOException`. Put that exception in the `Context` under `\"EXCEPTION\"`, put no `\"RESPONSE\"`, and return `ABORTED | NO_JOIN | READONLY`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "In jPOS 2.1.7 `prepare` is declared as `int prepare(long id, Serializable context)`; the page's `Context` parameter comes from a later version, so cast it yourself."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(\"REQUEST\");\n        try {\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setResponseMTI();\n            response.set(39, \"00\");\n            response.set(38, \"123456\");\n            ctx.put(\"RESPONSE\", response);\n            return PREPARED | NO_JOIN | READONLY;\n        } catch (ISOException e) {\n            ctx.put(\"EXCEPTION\", e);\n            return ABORTED | NO_JOIN | READONLY;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 5,
+    "code": 1,
+    "tables": 0,
+    "lists": 2,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "8ace7b02bd75ae1ae701ccd612ba4ecb944767e53b24dfafac0d9ea47390f92e",
+  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-06/practice-1/src/main/java/com/example/practice/DataElementHandler.java",
+    "test_path": "practice/jpos-server/prose/unit-06/practice-1/src/test/java/com/example/practice/DataElementHandlerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DataElementHandlerTest#aRequestIsAnsweredWithAnApprovedCopyOfItself",
+        "kind": "main",
+        "says": "a request is answered by a response under the response MTI, carrying the request's fields plus 39 and 38"
+      },
+      {
+        "id": "com.example.practice.DataElementHandlerTest#theRequestItselfIsLeftAsItWas",
+        "kind": "edge",
+        "says": "the request in the Context is not changed: the response is a separate message"
+      },
+      {
+        "id": "com.example.practice.DataElementHandlerTest#aMessageThatIsAlreadyAResponseAborts",
+        "kind": "edge",
+        "says": "a message that is already a response cannot be answered: the participant aborts with the exception in the Context"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-06/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s6.md",
+      "section": "6.3 Integrating Data Element Handling in a jPOS Server"
+    }
+  }
+}

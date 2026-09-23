@@ -2,8 +2,10 @@
 
 **What it does.** Writes a throwaway authored bundle into a COPY of this corpus,
 runs the adapter there and validates what it emitted. ⛔ No fixture bundle is
-ever written into this repository, and the fixtures address units the authoring
-pass has not (the pilot's bundles, ISO-22, are part of every copy).
+ever written into this repository. Every copy carries the authoring pass's
+committed bundles (ISO-23 authored all 38 units), so a fixture takes the next
+free ordinal on a unit the pass authored, or addresses jpos-client unit 11, which
+the pass left with nothing by plan.
 
 **How you use it.** `python3 -m pytest tests/ingest/test_exercises.py` from the corpus root.
 
@@ -133,28 +135,28 @@ def _units(root: Path, address: str) -> dict[int, int]:
 
 
 def _two_bundles(tmp_path: Path) -> Path:
-    """A copy carrying an authored practice-2 on a unit with the source's practice-1,
-    and an authored practice-1 on a unit with none, emitted."""
+    """A copy carrying an authored practice-3 on a unit with the source's practice-1
+    and the pass's practice-2, and an authored practice-1 on a unit with none, emitted."""
     root = _copy(tmp_path)
-    _bundle(root, address="iso-fundamentals", unit=2, ordinal=2,
+    _bundle(root, address="iso-fundamentals", unit=2, ordinal=3,
             section="2.2. Bitmaps", origin="src/2.md")
-    _bundle(root, address="jpos-client", unit=9, ordinal=1,
-            section="9.1 Types of Exceptions", origin="src/c9.md")
+    _bundle(root, address="jpos-client", unit=11, ordinal=1,
+            section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     emit(root, ingested=INGESTED)
     return root
 
 
-def test_a_unit_with_the_source_practice_gets_practice_2_and_its_count_raised(tmp_path):
+def test_a_unit_with_the_source_practice_gets_the_next_ordinal_and_its_count_raised(tmp_path):
     root = _two_bundles(tmp_path)
     unit_2 = root / "archive/iso-fundamentals/raw/prose/unit-02"
-    assert (unit_2 / "practice-1.json").is_file() and (unit_2 / "practice-2.json").is_file()
-    assert (root / "archive/jpos-client/raw/prose/unit-09/practice-1.json").is_file()
-    assert _units(root, "iso-fundamentals")[2] == 2
-    assert _units(root, "jpos-client")[9] == 1
-    authored = json.loads((unit_2 / "practice-2.json").read_text("utf-8"))
+    assert all((unit_2 / f"practice-{n}.json").is_file() for n in (1, 2, 3))
+    assert (root / "archive/jpos-client/raw/prose/unit-11/practice-1.json").is_file()
+    assert _units(root, "iso-fundamentals")[2] == 3
+    assert _units(root, "jpos-client")[11] == 1
+    authored = json.loads((unit_2 / "practice-3.json").read_text("utf-8"))
     assert authored["exercise"]["provenance"] == "generated"
     assert authored["exercise"]["main_path"].startswith(
-        "practice/iso-fundamentals/prose/unit-02/practice-2/"
+        "practice/iso-fundamentals/prose/unit-02/practice-3/"
     )
     # ⛔ The source's own practice is byte-unchanged by an authored one beside it.
     original = CORPUS_ROOT / "archive/iso-fundamentals/raw/prose/unit-02/practice-1.json"
@@ -185,8 +187,8 @@ def test_re_emitting_this_corpus_reproduces_its_committed_archive(tmp_path):
 
 def test_a_bundle_the_gates_never_cleared_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
-                   section="9.1 Types of Exceptions", origin="src/c9.md")
+    here = _bundle(root, address="jpos-client", unit=11, ordinal=1,
+                   section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     (here / "gates.json").unlink()
     with pytest.raises(BundleRefused, match="ships no gate record"):
         emit(root, ingested=INGESTED)
@@ -195,8 +197,8 @@ def test_a_bundle_the_gates_never_cleared_is_refused(tmp_path):
 
 def test_a_gate_record_that_did_not_clear_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
-                   section="9.1 Types of Exceptions", origin="src/c9.md")
+    here = _bundle(root, address="jpos-client", unit=11, ordinal=1,
+                   section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     record = json.loads((here / "gates.json").read_text("utf-8"))
     record["gates"][2]["held"] = False
     (here / "gates.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -206,8 +208,8 @@ def test_a_gate_record_that_did_not_clear_is_refused(tmp_path):
 
 def test_a_bundle_edited_after_its_gates_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
-                   section="9.1 Types of Exceptions", origin="src/c9.md")
+    here = _bundle(root, address="jpos-client", unit=11, ordinal=1,
+                   section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     (here / "reference/Echo.java").write_text("class Echo {}\n", encoding="utf-8")
     with pytest.raises(BundleRefused, match="no longer matches"):
         emit(root, ingested=INGESTED)
@@ -219,7 +221,8 @@ def test_an_authored_ordinal_that_collides_with_the_source_practice_is_refused(t
     root = _copy(tmp_path)
     _bundle(root, address="iso-fundamentals", unit=2, ordinal=1,
             section="2.2. Bitmaps", origin="src/2.md")
-    with pytest.raises(BundleRefused, match=r"must be numbered \[2\]"):
+    # ⭐ The pass's own practice-2 is committed beside it, so [2, 3] is needed.
+    with pytest.raises(BundleRefused, match=r"must be numbered \[2, 3\]"):
         emit(root, ingested=INGESTED)
 
 
@@ -275,25 +278,25 @@ def _quiz(root: Path, *, address: str, unit: int, ordinal: int, section: str, or
 
 def test_a_quiz_bundle_is_emitted_as_a_quiz_practice_and_validates(tmp_path):
     root = _copy(tmp_path)
-    _quiz(root, address="jpos-client", unit=9, ordinal=1,
-          section="9.1 Types of Exceptions", origin="src/c9.md")
+    _quiz(root, address="jpos-client", unit=11, ordinal=1,
+          section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     emit(root, ingested=INGESTED)
     emitted = json.loads(
-        (root / "archive/jpos-client/raw/prose/unit-09/practice-1.json").read_text("utf-8")
+        (root / "archive/jpos-client/raw/prose/unit-11/practice-1.json").read_text("utf-8")
     )
     assert emitted["kind"] == "practice"
     assert emitted["exercise"]["kind"] == "quiz"
     assert emitted["exercise"]["provenance"] == "generated"
     assert "main_path" not in emitted["exercise"]
-    assert _units(root, "jpos-client")[9] == 1
+    assert _units(root, "jpos-client")[11] == 1
     report = validate(root)
     assert report.ok, "\n".join(report.lines())
 
 
 def test_a_quiz_whose_gates_never_cleared_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _quiz(root, address="jpos-client", unit=9, ordinal=1,
-                 section="9.1 Types of Exceptions", origin="src/c9.md")
+    here = _quiz(root, address="jpos-client", unit=11, ordinal=1,
+                 section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     (here / "gates.json").unlink()
     with pytest.raises(BundleRefused, match="ships no gate record"):
         emit(root, ingested=INGESTED)
@@ -301,8 +304,8 @@ def test_a_quiz_whose_gates_never_cleared_is_refused(tmp_path):
 
 def test_a_quiz_edited_after_its_gates_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _quiz(root, address="jpos-client", unit=9, ordinal=1,
-                 section="9.1 Types of Exceptions", origin="src/c9.md")
+    here = _quiz(root, address="jpos-client", unit=11, ordinal=1,
+                 section="11.1 Overview of ISOClientSocketFactory", origin="src/c11.md")
     text = (here / QUIZ_DOCUMENT).read_text("utf-8").replace("It is first.", "It is.")
     (here / QUIZ_DOCUMENT).write_text(text, encoding="utf-8")
     with pytest.raises(BundleRefused, match="no longer matches"):
