@@ -1651,7 +1651,7 @@ section[data-practice] button[role="tab"][aria-selected="true"] {
   border-color: var(--practice);
 }
 
-/* ⭐ The frames `practice.js` puts a RUNNING editor's two windows in (`W416`,
+/* ⭐ The frames `practice-editor.js` puts a RUNNING editor's two windows in (`W416`,
    `W429`), and they exist only on a served page: a built one names no origin
    (R8). ⚠️ A box of its own, for the reason the output has one — an editor
    given no height is a 150-pixel-tall development environment. ⛔ No colour of
@@ -1803,6 +1803,194 @@ section[data-practice] pre[data-practice-part="output"] {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border-radius: var(--radius-tight);
+}
+
+/* ⭐ **WHAT THE SUBMIT REPORTED** (`AX-09`): every case this practice declares,
+   marked with what the run said about it, under one sentence that counts the
+   edges. ⛔ It sits between the status line and the raw output on purpose — the
+   reader's question after a Submit is *what is still missing*, and the grader's
+   own log is the place they go next rather than first.
+
+   ⛔ **TOLD APART BY A WORD, NEVER BY COLOUR ALONE.** Each row carries *Passed*
+   or *Not yet* as text, put there by `practice.js` out of the markup's own
+   attributes — so the breakdown reads the same to a screen reader, in a
+   high-contrast theme and on a printed page. ⚠️ The ink below is a second
+   signal and never the only one.
+
+   ⛔ **NO NEW TOKEN AND NO NEW COLOUR.** `--done` is the ink a finished thing is
+   already marked in on this site and `--accent` is the one that asks for
+   attention; a green and a red invented here would be two more values nobody
+   checked against either theme. */
+section[data-practice] div[data-practice-part="breakdown"] {
+  margin: .6rem 0 0;
+  padding: .6rem .85rem;
+  background: var(--surface);
+  border-left: 3px solid var(--rule-strong);
+  border-radius: var(--radius-tight);
+}
+
+section[data-practice] div[data-practice-part="breakdown"] p[data-practice-part="summary"] {
+  margin: 0 0 .4rem;
+  font-weight: 700;
+  color: var(--practice);
+}
+
+section[data-practice] ul[data-practice-part="cases"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: .9rem;
+  color: var(--fg-soft);
+}
+
+section[data-practice] li[data-practice-case] { margin: 0 0 .25rem; }
+
+/* ⭐ The word, then the sentence the CORPUS wrote (R1). ⚠️ `inline-block` with a
+   measured width so the sentences line up as a column rather than as ragged
+   prose — the one thing that makes a list of verdicts readable at a glance. */
+section[data-practice] li[data-practice-case] span[data-practice-part="verdict"] {
+  display: inline-block;
+  min-width: 5rem;
+  font-weight: 700;
+}
+
+section[data-practice] li[data-practice-case][data-practice-verdict="passed"] span {
+  color: var(--done);
+}
+
+section[data-practice] li[data-practice-case][data-practice-verdict="failed"] span {
+  color: var(--accent);
+}
+
+/* The quiz: the questions, the answers a reader may choose, and what each one says.
+
+   ⛔ NO CLASS, and that is the standing rule for a region the framework itself
+   emits: the section is reached by `data-practice-quiz`, which
+   `render/page/quiz.py` is the single emitter of. ⚠️ Deliberately NOT
+   `data-practice` — the code panel wears that, and the two shapes share a look
+   but not a surface: a quiz has no editor slot, no controls row and no terminal,
+   so a selector that covered both would carry rules for parts that are not
+   there.
+
+   ⛔ **ITS OWN PART, and the split is the same one the script took** (`AX-09`):
+   `practice.css` is *the panel, the editor and the run*; this is *the
+   questions*. ⚠️ It follows `practice.css` in `pageassets.bundle` so the two
+   read together, and it shares every one of that file's rules about colour —
+   ⛔ **no colour and no measure of its own**, every value a palette token, and
+   the ground `--practice-soft` because this is the same workbench.
+
+   ⛔ **NO DEAD CONTROL ANYWHERE BELOW.** There is no rule here for a disabled
+   Run or a greyed Submit, because the page emits neither: a quiz has no file to
+   open, no command to run and no grader to submit to (`AX-05`, `SF-24`). */
+
+section[data-practice-quiz] {
+  margin: 2rem 0 0;
+  padding: .85rem 1rem 1rem;
+  background: var(--practice-soft);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  color: var(--practice);
+}
+
+section[data-practice-quiz] h2 {
+  margin: 0 0 .4rem;
+  font-size: 1rem;
+  color: var(--practice);
+}
+
+section[data-practice-quiz] p {
+  margin: 0 0 .5rem;
+  font-size: .95rem;
+  color: var(--fg-soft);
+}
+
+/* ⭐ The questions are an ordered list and they keep their numbers: a reader
+   answering seven of them needs to know which one the sentence under it belongs
+   to. ⚠️ The list marker is the browser's own, so it is announced. */
+section[data-practice-quiz] ol[data-practice-part="questions"] {
+  margin: 0 0 .75rem;
+  padding: 0 0 0 1.5rem;
+}
+
+section[data-practice-quiz] li[data-practice-question] { margin: 0 0 1rem; }
+
+/* ⛔ A REAL `<fieldset>` AND A REAL `<legend>`, so the stem is announced as the
+   group's question before each option is read — which a styled `div` around
+   loose radios is not. ⚠️ The border is removed and the grouping is not: the
+   element is what carries the meaning, and the look is the list's. */
+section[data-practice-quiz] fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+section[data-practice-quiz] legend {
+  padding: 0;
+  font-weight: 700;
+  color: var(--practice);
+}
+
+section[data-practice-quiz] ul[data-practice-part="options"] {
+  margin: .4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+section[data-practice-quiz] li[data-practice-option] { margin: 0 0 .2rem; }
+
+/* ⭐ The whole option is the label, so the hit area is the sentence and not the
+   twelve pixels of the radio — which is the difference between a control that
+   works on a phone and one that does not. */
+section[data-practice-quiz] label {
+  display: block;
+  padding: .3rem .45rem;
+  border-radius: var(--radius-tight);
+  font-size: .95rem;
+  color: var(--fg-soft);
+  cursor: pointer;
+}
+
+section[data-practice-quiz] label:hover { background: var(--surface); }
+
+/* ⛔ The sentence behind whatever the reader chose, right or wrong, and it is
+   told apart by the WORD in front of it — *Right.* or *Not this one.* — which
+   `practice-quiz.js` reads off the markup. ⚠️ The ink is a second signal and
+   never the only one, exactly as in the Submit breakdown. */
+section[data-practice-quiz] p[data-practice-part="says"] {
+  margin: .35rem 0 0;
+  padding: .35rem .6rem;
+  background: var(--surface);
+  border-left: 3px solid var(--rule-strong);
+  border-radius: var(--radius-tight);
+  font-size: .9rem;
+}
+
+section[data-practice-quiz] li[data-practice-verdict="correct"] p[data-practice-part="says"] {
+  border-left-color: var(--done);
+}
+
+section[data-practice-quiz] li[data-practice-verdict="wrong"] p[data-practice-part="says"] {
+  border-left-color: var(--accent);
+}
+
+section[data-practice-quiz] button {
+  font: inherit;
+  font-weight: 700;
+  font-size: .95rem;
+  padding: .4rem .95rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+section[data-practice-quiz] button:hover { background: var(--surface-2); }
+
+section[data-practice-quiz] p[data-practice-part="status"] {
+  margin: .5rem 0 0;
+  font-size: .9rem;
+  color: var(--muted);
 }
 
 /* Syntax highlighting for the lesson's code blocks.
