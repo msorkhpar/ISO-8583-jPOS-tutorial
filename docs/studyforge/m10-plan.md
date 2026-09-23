@@ -373,6 +373,48 @@ findings first rather than in the milestone's closing reading.
 **Acceptance.** Each line above was read at a recorded ref and environment, with GREEN/RED and the
 exit code. A RED is a finding against the row that owns the surface, never an edit from this row.
 
+### ISO-25 — The pilot quiz: one conceptual page, declared `quiz`
+**Milestone** M10 · 10.4 · **Depends on** ISO-21 (the adapter), ISO-22 (the pilot's bundles and
+ledger); framework `AX-05`, `AX-06`, `AX-08` (all in the pin `3758d114`); ⛔ **framework `W451`**
+(the key leaves the page; in flight) · **Team** solo · **Status** authored, emitted and built on
+`int/m10-pilot-quiz`; ⛔ **the built page carries the key until `W451` merges and the register
+re-pins and rebuilds**
+**Owns** `exercises/iso-fundamentals/prose/unit-01/` (the quiz bundle and its coverage report);
+`exercises/ledger.json` (additions only); the quiz arm of `ingest/exercises.py` and its tests;
+`archive/iso-fundamentals/raw/prose/unit-01/practice-1.json`; the rebuilt unit-1 page
+**Context** ~25k — `SF/src/studyforge/skills/exercises/SKILL.md`, spec §7 §7, `W451`'s row;
+handoff `docs/studyforge/handoffs/ISO-25.md`
+
+**Definition.** §1.2 found no ISO page `neither`, so the ledger planned no quiz. The user wants
+one multiple-choice quiz in the pilot, beside the six code exercises. ⭐ **The register rules,
+reversibly and as corpus data, that one conceptual page is a `quiz` page.** This office chose
+`iso-fundamentals` unit 1, `src/1.md` (*Introduction to ISO-8583*). Its subject is what the
+standard is, how its versions differ and why it matters. Its one Java fence is an illustration
+placed after the prose, and the unit has no pilot exercise. The unit's coverage report declares
+`kind: quiz`. To reverse the ruling, remove that unit's directory, its emitted practice and the
+ledger, then run the pass again. The readings are 475 words (`short`), 2 checkable skills (what
+the standard is for, and how its versions differ) and tier `introductory`, so the plan is **1**:
+one quiz of 3 to 5 questions.
+
+⛔ **The quiz is authored against the CURRENT bundle shape**, with the key in `tests/quiz.json`
+as `AX-05` writes it. The user's ruling of 2026-09-23 moves the key to the local study server
+(`W451`). No generated page is hand-edited to hide it. That work is `W451`'s, in the framework.
+
+**Acceptance.**
+- `exercises/iso-fundamentals/prose/unit-01/coverage.json` exists: kind `quiz`, plan 1, shipped
+  1, no shortfall.
+- The quiz's gate record holds `Q1`–`Q5`. `Q1`–`Q3` were taken over each question's digest by
+  independent model sessions, never by the author. `Q4` and `Q5` are re-run mechanically, and
+  both hold.
+- The diff of `exercises/ledger.json` against `acde021` is additions only: the pilot's 28 entries
+  are byte-unchanged, and the one fence in `src/1.md` carries a written reason.
+- `python3 -m ingest . 2026-09-21` emits the quiz as `practice-1` on unit 1 and raises the unit's
+  count to 1. Nothing else in the archive changes, and `studyforge validate .` is GREEN.
+- The rebuilt site changes one page, unit 1. A real browser over a served origin reads the quiz
+  and grades it.
+- ⛔ **Open until `W451` merges and the register re-pins and rebuilds:** no built page carries
+  the quiz's key. At the pin `3758d114`, the page still carries it.
+
 ---
 
 ## 4. Blockers and questions for the framework — findings, not patches
