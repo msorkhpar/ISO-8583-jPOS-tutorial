@@ -161,20 +161,12 @@ def test_a_unit_with_the_source_practice_gets_practice_2_and_its_count_raised(tm
     assert {**emitted, "ingested": None} == {**kept, "ingested": None}
 
 
-def test_validate_refuses_the_emitted_archive_only_for_the_framework_finding(tmp_path):
-    # ⚠️ ISO-21/1, a FRAMEWORK finding, not this adapter's: validate's short-read
-    # check sums an authored practice's headings into its unit's source files,
-    # which the practice was never read from. So the archive is refused for
-    # exactly that, on exactly the two authored units, and for nothing else.
-    # ⛔ Pinned exactly: the day the framework fixes it this goes RED, and the
-    # assertion becomes `report.ok` (ISO-21's acceptance).
+def test_validate_accepts_the_archive_with_authored_practices(tmp_path):
+    # ⭐ ISO-21's acceptance. It was pinned RED on ISO-21/1 until W444
+    # (376ebb46) left an authored practice out of source completeness.
     root = _two_bundles(tmp_path)
     report = validate(root)
-    found = sorted((finding.rule, finding.where) for finding in report.findings)
-    assert found == [
-        ("short-read", "iso-fundamentals/unit-02"),
-        ("short-read", "jpos-client/unit-08"),
-    ], "\n".join(report.lines())
+    assert report.ok, "\n".join(report.lines())
     assert not report.unchecked, "\n".join(report.lines())
 
 

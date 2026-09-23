@@ -17,17 +17,17 @@ manifest, not this file (R19).
 
 The framework is a checkout beside this repository's main checkout —
 this repository itself unless it is a linked worktree — never a submodule
-and never installed. Clone it there; it is `../../studyforge` from this
-repository's root, and these run from there. They pin the framework,
+and never installed. Clone it there; it is `../studyforge` from the main
+checkout's root, and these run from there. They pin the framework,
 ingest with this corpus's adapter, check the archive, and say what a
 build would write before building:
 
 ```
-git -C ../../studyforge checkout --detach a5373c1b9a3a4a07f5e15d0a6da95c19f9ea0680
-PYTHONPATH=../../studyforge/src python3 -m ingest .
-PYTHONPATH=../../studyforge/src python3 -m studyforge.cli validate .
-PYTHONPATH=../../studyforge/src python3 -m studyforge.cli plan .
-PYTHONPATH=../../studyforge/src python3 -m studyforge.cli build . --out .
+git -C ../studyforge checkout --detach 7f68b7906d368849f66272a375213dfc4b8cf85f
+PYTHONPATH=../studyforge/src python3 -m ingest .
+PYTHONPATH=../studyforge/src python3 -m studyforge.cli validate .
+PYTHONPATH=../studyforge/src python3 -m studyforge.cli plan .
+PYTHONPATH=../studyforge/src python3 -m studyforge.cli build . --out .
 ```
 
 The adapter stamps today's date as `ingested`; pass a date after `.` to
@@ -35,7 +35,7 @@ reproduce an earlier archive byte for byte. Narration needs a running
 narration service, so it is not run here; its options are:
 
 ```
-PYTHONPATH=../../studyforge/src python3 -m studyforge.cli narrate --help
+PYTHONPATH=../studyforge/src python3 -m studyforge.cli narrate --help
 ```
 
 ## Where it stands
@@ -47,7 +47,7 @@ again rewrites the archive. Nothing rewrites this file when they move,
 so it states no figure: this reads them as they are now.
 
 ```
-PYTHONPATH=../../studyforge/src python3 -m studyforge.skills.onboarding .
+PYTHONPATH=../studyforge/src python3 -m studyforge.skills.onboarding .
 ```
 
 ## What you get
