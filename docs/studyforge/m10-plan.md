@@ -118,7 +118,7 @@ aspect carries a written reason), or `0` with the gate that refused. On `iso-fun
 | iso-fundamentals | 14 | `src/14.md` | 419 | 2 code | 6 | 6 | 166 | 5 | 0 | code, no tests |
 | iso-fundamentals | **15** | `src/15.md` | 456 | 2 code | 10 | **10** | 206 | 4 | 0 | code, no tests |
 | iso-fundamentals | 16 | `src/16.md` | 677 | 1 quiz | 5 | 3 | 77 | 3 | 0 | code, no tests |
-| jpos-client | 1 | `src/c1.md` | 312 | 0 (quiz refused at Q2) | 9 | 4 | 62 | 4 | 1 | code, no tests |
+| jpos-client | 1 | `src/c1.md` | 312 | 0 by plan (`ISO-M10/12` ruling) | 9 | 4 | 62 | 4 | 1 | code, no tests |
 | jpos-client | 2 | `src/c2.md` | 306 | 1 code | 5 | 5 | 125 | 4 | 1 | code, no tests |
 | jpos-client | 3 | `src/c3.md` | 290 | 1 code | 7 | 7 | 150 | 6 | 0 | code, no tests |
 | jpos-client | 4 | `src/c4.md` | 278 | 1 code | 6 | 5 | 113 | 5 | 1 | code, no tests |
@@ -367,24 +367,24 @@ grader.
 - The site is rebuilt. A page changes only where its practices changed, and a real browser over a
   served origin grades one code practice and one quiz.
 
-**Result** (at `a3936b6`; framework `6d0b8dc6`; runner
+**Result** (at `a3936b6`, the unit-1 zero plan at `dda566b`; framework `6d0b8dc6`; runner
 `code-server-toolchain/runner:java-maven-amd64-54f18c498a95`, offline).
 
 | container | units | code | quiz | zero by plan | shortfall |
 |---|---|---|---|---|---|
 | `iso-fundamentals` | 16 | 17 | 2 (units 1, 16) | 0 | 0 |
-| `jpos-client` | 11 | 12 | 0 | 1 (unit 11) | 1: unit 1's quiz, at `Q2` |
+| `jpos-client` | 11 | 12 | 0 | 2 (units 1, 11) | 0 |
 | `jpos-server` | 11 | 11 | 0 | 1 (unit 1) | 0 |
-| **total** | **38** | **40** | **2** | **2** | **1** |
+| **total** | **38** | **40** | **2** | **3** | **0** |
 
 - 42 exercises shipped. Per unit, §1.3's `ISO-23` column. Most units have one exercise. Seven have
   two (`iso-fundamentals` 4, 14 and 15; `jpos-client` 6, 8 and 9; `jpos-server` 8). The three
   units the bands planned at zero each ship one.
-- ⚠️ **The one shortfall is `jpos-client` unit 1** (`src/c1.md`, a quiz page), refused by `Q2`
-  on all three attempts. The page's ideas are the crossing send and receive queues and finding the
-  mux by name, and both are standard jPOS convention. Both page-free readings picked the key in
-  attempts 1 and 2. Attempt 3 resubmitted attempt 2 unchanged, because no honest rewording makes
-  the page necessary. Its fences carry that as their written reason.
+- ⭐ **`jpos-client` unit 1 is a zero plan, by the register's ruling on `ISO-M10/12`**
+  (`dda566b`; reversible, as corpus data). Its quiz was refused by `Q2` on all three attempts:
+  the page's ideas, the crossing send and receive queues and finding the mux by name, are standard
+  jPOS convention that general knowledge answers without the page. Every aspect and fence carries
+  that reason, and the corpus has no shortfall.
 - 38 `coverage.json` files. The ledger holds 220 entries (218 fences and 2 graders). `validate`
   GREEN, exit 0; the suite GREEN, exit 0. The M7 practice trees (`practice/bitmap`, `fields`,
   `mti`) and the archived `practice-1` of `iso-fundamentals` units 2, 3 and 4 are byte-unchanged
@@ -485,7 +485,7 @@ as `AX-05` writes it. The user's ruling of 2026-09-23 moves the key to the local
 | `ISO-M10/9` | `[local]` | nothing today | ⭐ A unit whose material is two files (`src/2.md` plus `src/p2.md`) cannot be one `Page`: `Page` takes one path, and `corpus._in_order` refuses two pages on one unit. The practice files carry 0 fences, so no ledger entry is orphaned here, but a passage in `src/p2.md` cannot be a page's own material. Recorded for the next corpus |
 | `ISO-M10/10` | `[local]` | nothing | ⚠️ **This document makes `studyforge validate .` RED on this branch** (the bound: one `[unclassified]` finding, `docs/studyforge/m10-plan.md`). `docs/**` was declared on `release/studyforge-integration` and is not declared on the `06df27f` line. `ISO-19` adds it. The same document on `06df27f`'s line cannot be committed GREEN without a manifest edit, and a manifest edit is `ISO-19`'s, not this planning row's |
 | `ISO-M10/11` | `[structural]` | ISO-23 | ⛔ **A pass over some of a corpus's pages rewrites the whole ledger with only those pages' entries, and `validate` stays GREEN.** `exercises/ledger.json` is one file per corpus. The `jpos-client` pass, run alone, wrote 67 entries in place of 85 and would have dropped every `iso-fundamentals` entry. `studyforge validate .` still read 0 findings, so an unaccounted lesson page is not a finding. ISO-23 re-ran each pass over every container done so far, and all 38 pages came back `kept`, byte-identical. ⚠️ **Question: should `author_corpus` refuse a ledger that drops pages it was not given, and should `validate` refuse a lesson page the ledger does not account for?** |
-| `ISO-M10/12` | question | ISO-23 (`jpos-client` 1) | ⚠️ **A page that teaches only a tool's convention cannot yield a quiz that clears `Q2`**, because general knowledge answers it without the page. `src/c1.md` was declared a quiz page, was refused at `Q2` on all three attempts, and ships nothing. The shortfall is honest. The question is whether `W453`'s plan should weigh "is this idea the page's own, or the tool's convention?" before it chooses a quiz, so that such a page plans zero with a reason instead of spending three attempts |
+| `ISO-M10/12` | ⭐ **ruled by the register**: `jpos-client` unit 1 plans zero (`dda566b`); the framework question stands | ISO-23 (`jpos-client` 1) | ⚠️ **A page that teaches only a tool's convention cannot yield a quiz that clears `Q2`**, because general knowledge answers it without the page. `src/c1.md` was declared a quiz page, was refused at `Q2` on all three attempts, and ships nothing. The shortfall is honest. The question is whether `W453`'s plan should weigh "is this idea the page's own, or the tool's convention?" before it chooses a quiz, so that such a page plans zero with a reason instead of spending three attempts |
 | `ISO-M10/13` | `[structural]` | ISO-23's browser reading; any second checkout | ⚠️ **The study server finds its runner by a container name fixed per `source`** (`studyforge-runner-iso-8583-jpos-tutorial`), and that container is the user's, over the main checkout. A worktree or any second checkout of the same corpus therefore falls to host mode, and a code Submit needs the host's own `mvn` (this host has none: exit 127). ISO-23 graded code through a scratch shim that runs the pinned runner image offline. ⚠️ **Question: should the runner's name carry the root (or be overridable), so a second checkout can grade without the user's container?** |
 | `ISO-M10/14` | `[local]`, fixed in this diff | ISO-23 | The corpus's `tests/ingest` fixtures addressed units "the authoring pass has not" touched (`jpos-client` 9, `iso-fundamentals` 2 practice-2). Once all 38 units were authored, 5 tests failed (exit 1). The fixtures now take the next free ordinal or address `jpos-client` unit 11 (empty by plan). Every count stays exact. The suite is GREEN, exit 0 |
 

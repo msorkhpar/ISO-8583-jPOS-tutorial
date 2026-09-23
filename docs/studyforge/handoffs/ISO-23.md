@@ -16,7 +16,9 @@ The commits, in order:
 | `b137d11` | batch 2: `jpos-client`, 11 units |
 | `6b16acd` | batch 3: `jpos-server`, 11 units |
 | `a3936b6` | emit through the adapter, rebuild the site, re-address the `tests/ingest` fixtures |
-| this commit | `m10-plan.md` (the band column, the ISO-23 row and its result, findings `ISO-M10/11`–`14`) and this handoff |
+| `0655069` | `m10-plan.md` (the band column, the ISO-23 row and its result, findings `ISO-M10/11`–`14`) and this handoff |
+| `dda566b` | `jpos-client` unit 1 re-planned as zero, by the register's ruling on `ISO-M10/12` |
+| this commit | the documents follow the ruling; F10 settled |
 
 ## The rule, and how it was applied
 
@@ -30,7 +32,7 @@ row, works like this:
 - Trivia (dates, host names, port numbers, boilerplate wiring) is not an aspect.
 - There is no band, no ceiling and no quota.
 
-Most pages ended with one exercise, seven with two, and two with none by plan.
+Most pages ended with one exercise, seven with two, and three with none by plan.
 
 - `jpos-client` unit 11 (connection management) plans zero. Its one real idea, pooling channels,
   is practised on unit 3 (`pooled-channels`), and a second exercise on it would repeat unit 3.
@@ -46,9 +48,9 @@ Most pages ended with one exercise, seven with two, and two with none by plan.
 | container | units | code | quiz | zero by plan | shortfall |
 |---|---|---|---|---|---|
 | `iso-fundamentals` | 16 | 17 | 2 | 0 | 0 |
-| `jpos-client` | 11 | 12 | 0 | 1 (unit 11) | 1 (unit 1, at `Q2`) |
+| `jpos-client` | 11 | 12 | 0 | 2 (units 1, 11) | 0 |
 | `jpos-server` | 11 | 11 | 0 | 1 (unit 1) | 0 |
-| **total** | **38** | **40** | **2** | **2** | **1** |
+| **total** | **38** | **40** | **2** | **3** | **0** |
 
 The exercises per unit, in practice order:
 
@@ -70,7 +72,7 @@ The exercises per unit, in practice order:
   - 15 `bitmap-mismatches`, `reconcile-day`
   - 16 quiz `check-yourself`
 - `jpos-client`:
-  - 1 none (shortfall)
+  - 1 none (by plan, register ruling on `ISO-M10/12`)
   - 2 `request-types`
   - 3 `pooled-channels`
   - 4 `send-over-mux`
@@ -103,38 +105,19 @@ two places:
 
 The three pilot pages are byte-unchanged.
 
-### The one shortfall: `jpos-client` unit 1, gate `Q2`
+### `jpos-client` unit 1: a zero plan, by the register's ruling on `ISO-M10/12`
 
 `src/c1.md` teaches two ideas: the crossing `send`/`receive` queues between the channel adaptor
-and the mux, and application code finding the mux by name. The plan made the page a
-two-question quiz. `Q1` held on every attempt (both readings with the page picked the key), and
-`Q3` refuted every wrong option. But `Q2` refused:
+and the mux, and application code finding the mux by name. It was first planned as a
+two-question quiz. `Q1` held on every attempt and `Q3` refuted every wrong option, but `Q2`
+refused all three attempts: both page-free readings picked both keys in attempts 1 and 2, and
+attempt 3 resubmitted attempt 2 unchanged. Both ideas are standard jPOS convention, so general
+knowledge answers them, and no honest quiz makes the page necessary.
 
-- In attempt 1, both page-free readings picked both keys.
-- Attempt 2 re-authored both questions under the same ids, around what *this page* wires, and
-  both page-free readings still picked both keys.
-- Attempt 3 resubmitted attempt 2 unchanged, with a note in the scratch record.
-
-Both ideas are standard jPOS convention, so general knowledge answers them, and no honest
-rewording makes the page necessary. Nothing ships from unit 1. Its fences carry that as their
-written reason, and its `coverage.json` records the shortfall. See `ISO-M10/12`.
-
-## ⚠️ The user's edit to `ClientLogger.java`: it survives
-
-The user edited
-`practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/ClientLogger.java`
-in the corpus's **main checkout**. This office never wrote to the main checkout.
-
-- **The path survives.** `jpos-client` unit 8 keeps the pilot's `logger-through-source` exercise.
-  It sorts first by name, so it is still `practice-1`, with the same workspace and the same main
-  file.
-- **The committed bytes are unchanged.** At this branch's tip the file's blob is identical to
-  `424e55a`'s (`git diff 424e55a HEAD -- <that path>` is empty). The exercise was imported
-  byte-for-byte from the pilot bundle, statement, starter, reference, tests and plants alike, and
-  it cleared G1–G5 again.
-- So a merge of this branch does not touch that file, and the user's uncommitted edit in the main
-  checkout is not overwritten. The unit's second exercise, `masked-transaction-log`, is
-  `practice-2`, also unchanged from the pilot.
+⭐ **The register ruled (reversibly, as corpus data) that the unit plans zero** (`dda566b`).
+Every aspect and every unexercised fence carries that reason, and the unit has no shortfall. To
+reverse it, give the unit's aspects an exercise again in the plan, remove the unit's directory
+and the ledger, and run the pass over all 38 pages.
 
 ## The gate records
 
@@ -149,7 +132,7 @@ were taken over each question's digest by independent model sessions, never the 
 
 - `iso-fundamentals` unit 16: attempt 1 was refused at `Q2` (a page-free reading picked the
   data-model key). It cleared at attempt 2.
-- `jpos-client` unit 1: the shortfall above.
+- `jpos-client` unit 1: refused at `Q2` three times, and now a zero plan (above).
 
 Every code exercise was rehearsed before the pass (the reference passes every case, the starter
 fails every case, and each plant passes the main case and fails its own edge). The pass then ran
@@ -194,9 +177,11 @@ The framework rows are in `m10-plan.md` §4:
 - `ISO-M10/14`: fixture assumptions; local, and fixed here.
 - `ISO-M10/6` is withdrawn by `W453`.
 
+⭐ **Settled: F10** (the quiz key reachable by URL) was fixed by framework `W452`, merged at
+`a394fb5b` and live.
+
 Carried from ISO-25 and ISO-26, still open:
 
-- **F10**: the quiz key is still reachable by URL, in the archive and the bundle.
 - **F4**: `validate` does not re-run `Q5`.
 - **W453/1**: an aspect's link to its exercise is recorded, not gated.
 - `Q2` is unstable between readings, which is why it is taken twice.
@@ -228,8 +213,7 @@ future red on it is not a mystery.
 
 ## For the register
 
-- **Merge**: this branch is based on `424e55a` (ISO-26), so ISO-25 and ISO-26 come with it. It
-  does not touch `ClientLogger.java`'s committed bytes (see above).
+- **Merge**: this branch is based on `424e55a` (ISO-26), so ISO-25 and ISO-26 come with it.
 - **Re-deploy**: the register's. The site at `:8770` is the user's and was not touched.
 - **Next**: ISO-24 (what `AX-11` reads) was blocked on ISO-23, and ISO-23 is now done.
 - **Scratch**: the authoring drafts, the raw judge readings and the driver live in this office's
