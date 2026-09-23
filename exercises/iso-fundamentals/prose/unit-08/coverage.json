@@ -1,0 +1,109 @@
+{
+  "coverage_api": 1,
+  "page": "src/8.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/8.md": "sha256:15d141a249526a92980251ad431a3e743fd88e1c771dafe87a7319f36d201506"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 1,
+    "aspects": [
+      {
+        "id": "dukpt-per-transaction-key",
+        "says": "DUKPT derives a fresh key for every transaction from a base key and the transaction counter in the key serial number.",
+        "basis": [
+          "example:src/8.md:4",
+          "section:8.3.2. DUKPT (Derived Unique Key Per Transaction)"
+        ],
+        "exercise": null,
+        "reason": "the page's derivation is not the standard DUKPT algorithm and cannot be checked against a published test vector, so practising it would drill a wrong result"
+      },
+      {
+        "id": "key-hierarchy",
+        "says": "Master keys encrypt session keys, and the working keys that encrypt data such as PINs come from session keys, so one compromised key exposes little.",
+        "basis": [
+          "example:src/8.md:2",
+          "section:8.2. Key management"
+        ],
+        "exercise": null,
+        "reason": "the page states it in prose; its code rests on a key file and security-module calls that jPOS 2.1.7 does not offer, so there is nothing faithful to run"
+      },
+      {
+        "id": "mac-integrity",
+        "says": "The receiver recomputes the MAC over the message with the shared key and compares it with the one received, which shows whether the message was altered or forged.",
+        "basis": [
+          "example:src/8.md:3",
+          "section:8.3.1. MAC (Message Authentication Code)"
+        ],
+        "exercise": null,
+        "reason": "the page's MAC is one library call and a comparison; there is no decision of the reader's own to practise"
+      },
+      {
+        "id": "pin-bound-to-pan",
+        "says": "XORing the PIN field with the twelve rightmost PAN digits, the check digit excluded, binds the PIN block to one card.",
+        "basis": [
+          "example:src/8.md:1",
+          "section:8.1.2. ISO Format 1"
+        ],
+        "exercise": "pin-block",
+        "reason": null
+      },
+      {
+        "id": "pin-field-layout",
+        "says": "A PIN field is a format digit, the PIN length as one hexadecimal digit, the PIN itself, then F padding to sixteen hexadecimal digits.",
+        "basis": [
+          "example:src/8.md:1",
+          "section:8.1.1. ISO Format 0 (Zero)"
+        ],
+        "exercise": "pin-block",
+        "reason": null
+      },
+      {
+        "id": "pin-length-bounds",
+        "says": "A PIN is four to twelve digits, and anything else is refused before a block is built.",
+        "basis": [
+          "example:src/8.md:1"
+        ],
+        "exercise": "pin-block",
+        "reason": null
+      },
+      {
+        "id": "random-padding",
+        "says": "Format 3 pads the PIN with random values instead of F, so the same PIN gives a different block each time.",
+        "basis": [
+          "section:8.1.3. ISO Format 3"
+        ],
+        "exercise": null,
+        "reason": "the same layout as the practised PIN field with only the padding changed, and a random block has no single right answer to check"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "pin-block",
+        "aspects": [
+          "pin-bound-to-pan",
+          "pin-field-layout",
+          "pin-length-bounds"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/iso-fundamentals/prose/unit-08/practice-1"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-1",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.1. PIN block formats"
+      }
+    }
+  ],
+  "shortfalls": []
+}

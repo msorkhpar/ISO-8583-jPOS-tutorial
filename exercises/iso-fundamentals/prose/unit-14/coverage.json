@@ -1,0 +1,106 @@
+{
+  "coverage_api": 1,
+  "page": "src/14.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/14.md": "sha256:f7cbcf6040983d1f51daf55ab7ea6f38aac076c652dcaf6da0a1d503792e41f2"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 2,
+    "aspects": [
+      {
+        "id": "chip-entry-fields",
+        "says": "A chip transaction also marks itself outside field 55, in the entry mode, card sequence number and PIN capture fields.",
+        "basis": [
+          "example:src/14.md:2",
+          "section:14.1.2. Chip card specific fields"
+        ],
+        "exercise": null,
+        "reason": "the values are network-specific codes the page itself only hedges ('typically', 'might'); setting a field is practised on earlier pages"
+      },
+      {
+        "id": "detokenize-or-refuse",
+        "says": "De-tokenization restores the card number in field 2 from the vault, and a token the vault does not know is refused rather than passed on.",
+        "basis": [
+          "example:src/14.md:4",
+          "section:14.2.2. De-tokenization process"
+        ],
+        "exercise": "tokenize-pan",
+        "reason": null
+      },
+      {
+        "id": "emv-tlv-in-field-55",
+        "says": "A chip card's EMV data travels in field 55 as a run of tag-length-value items, and a tag may take more than one byte.",
+        "basis": [
+          "example:src/14.md:1",
+          "section:14.1.1. EMV data in ISO-8583 messages"
+        ],
+        "exercise": "chip-data-tags",
+        "reason": null
+      },
+      {
+        "id": "format-preserving-token",
+        "says": "A token keeps the shape of the card number it replaces, the same length with the first six and last four digits kept, so existing systems still accept it, and one card always gets one token.",
+        "basis": [
+          "example:src/14.md:3",
+          "section:14.2.1. Token formats"
+        ],
+        "exercise": "tokenize-pan",
+        "reason": null
+      },
+      {
+        "id": "three-d-secure-subelements",
+        "says": "3-D Secure values ride in a private-use field (48 or 124) as a marker followed by length-prefixed sub-elements.",
+        "basis": [
+          "example:src/14.md:5",
+          "example:src/14.md:6",
+          "section:14.3. 3-D Secure integration"
+        ],
+        "exercise": null,
+        "reason": "the page's layout is an illustration it says varies by network; reading length-marked values out of one field is what the field 55 exercise already practises"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "chip-data-tags",
+        "aspects": [
+          "emv-tlv-in-field-55"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "tokenize-pan",
+        "aspects": [
+          "detokenize-or-refuse",
+          "format-preserving-token"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/iso-fundamentals/prose/unit-14/practice-1",
+    "exercises/iso-fundamentals/prose/unit-14/practice-2"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-1",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.1.1. EMV data in ISO-8583 messages"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-2",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.2. Tokenization"
+      }
+    }
+  ],
+  "shortfalls": []
+}
