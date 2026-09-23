@@ -1,0 +1,385 @@
+# M10 step 10.4 — the ISO rows
+
+**Corpus backlog, milestone `M10` ("every corpus has practices"), step 10.4.** Companion to
+`tasks.md` on `release/studyforge-integration`, whose rows end at `ISO-17`; the rows here are
+numbered after it and follow its shape (*Milestone · Depends on · Team · Status*, *Owns*,
+*Context*, *Definition*, *Acceptance*).
+
+**Taken at:** this corpus at `06df27f` (the commit the framework's `workspace.json` pins), the
+framework release tip `5e0657ba` (PO round 147), `code-server-toolchain` at `4b3fcdb` (the pinned
+sibling). Office: `po-int`. Branch `int/m10-step-10.4-plan`.
+
+⛔ **This document authors no exercise material.** Spec §9: the authoring skill and its guide
+(framework step 10.3) land before the artifact they produce. `AX-08` is merged (`e01c7243`);
+`AX-10`, the guide, is still in flight, so no row here that writes material can start yet.
+
+⛔ **Standing rules, inherited from `tasks.md` unchanged:** no row modifies `studyforge` (a
+shortfall is a finding, below); everything is additive (R3), and `permitted_edits` stays `[]`;
+acceptance is green or red; a hand-edit to a generated artifact is a finding (R19); no absolute
+path and no personal data anywhere (R7).
+
+**Repository shorthand**, relative to the workspace root (R18): `SF/` = `studyforge/`,
+`ISO/` = this repository, `CST/` = `code-server-toolchain/`.
+
+---
+
+## 1. The census, measured at `06df27f`
+
+### 1.1 How it was counted
+
+⭐ **With the framework's own readers, not a second grammar**: `scan` (the fence walk the source
+ledger uses), `words_of` (the one spelling of a page's words, fences left out) and `band_for`
+(the plan's length band), all from `SF/src/studyforge/skills/exercises/` at `5e0657ba`. So the
+fences counted here are the ledger's entries, one for one. Run from this repository's root:
+
+```sh
+SF=$(mktemp -d) && git -C ../studyforge archive 5e0657ba src | tar -x -C "$SF"
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SF/src" python3 - <<'EOF'
+import json, pathlib
+from studyforge.skills.exercises.scan import scan
+from studyforge.skills.exercises.drafts import words_of
+from studyforge.skills.exercises.plan import band_for
+root = pathlib.Path(".")
+for c in ("iso-fundamentals", "jpos-client", "jpos-server"):
+    for u in json.loads((root / "archive" / c / "container.json").read_text())["units"]:
+        text = (root / u["origin"]).read_text(encoding="utf-8")
+        fences = scan(text).fences
+        java = [f for f in fences if (f.language or "").lower() == "java"]
+        lines = sum(1 for f in java for l in f.body.splitlines() if l.strip())
+        jpos = sum(1 for f in java if "org.jpos" in f.body)
+        junit = sum(1 for f in fences if "org.junit" in f.body)
+        ex = {}
+        if u.get("practices"):
+            doc = root / "archive" / c / "raw/prose" / f"unit-{u['n']:02d}" / "practice-1.json"
+            ex = json.loads(doc.read_text())["exercise"]
+        tests = ex.get("test_path", "-")
+        case = "code+tests" if "test_path" in ex else ("code, no tests" if java else "neither")
+        print(c, u["n"], u["origin"], words_of(text), band_for(words_of(text)).name,
+              len(fences), len(java), lines, jpos, junit, tests, case, sep="\t")
+EOF
+```
+
+`../studyforge` is the sibling checkout from the corpus's main checkout; from a linked worktree it
+is one level further up. ⛔ **The practice files (`src/p1.md`–`p3.md`) carry no fence at all** —
+their starting code lives in `practice/*/` — so each unit's row is its lesson page alone.
+
+**Test files**: `git ls-files 'practice/**/*Test.java'` prints two, and the archive's practice
+documents name the same two as `test_path` (`archive/iso-fundamentals/raw/prose/unit-0{2,4}/practice-1.json`).
+⚠️ **Neither is the tutorial's own.** Both were added at `cd84017` by the framework's `W426` (M7's
+three sample practices), and both are plain-Java `main` programs, not JUnit. The tutorial itself
+ships no test file.
+
+### 1.2 Per container
+
+| container | units | Java fences | Java lines (non-blank) | fences importing `org.jpos` | fences importing `org.junit` | test files | code + tests | code, no tests | neither |
+|---|---|---|---|---|---|---|---|---|---|
+| `iso-fundamentals` | 16 | 76 | 2003 | 47 | 11 | 2 | 2 (units 2, 4) | 14 | 0 |
+| `jpos-client` | 11 | 59 | 1443 | 51 | 12 | 0 | 0 | 11 | 0 |
+| `jpos-server` | 11 | 53 | 1614 | 43 | 11 | 0 | 0 | 11 | 0 |
+| **total** | **38** | **188** | **5060** | **141** | **34** | **2** | **2** | **36** | **0** |
+
+⭐ **Every unit carries at least one Java fence, so no ISO page is `neither` and none needs the
+quiz shape.** All fences across the 38 lesson pages: 218 — `java` 188, `xml` 23, unlabelled 5,
+`json` 1, `properties` 1. ⭐ **36 of 38 units have at least one fence importing `org.jpos`**
+(the exceptions are `iso-fundamentals` units 7 and 11), which is why `W390`'s prime is on the
+critical path of every row below that runs a gate.
+
+⚠️ **The plan's length bands** (`AX-07`'s `BANDS`, which measure prose only): 34 units are
+`short` (ceiling 2), one is `standard` (ceiling 4: `iso-fundamentals` unit 3), and three are
+`stub` and **plan zero** — `iso-fundamentals` unit 11, `jpos-client` unit 5, `jpos-server`
+unit 5 — though they carry 7, 5 and 5 Java fences. See `ISO-M10/6`.
+
+### 1.3 Per unit
+
+`words` is `words_of`; `band` is `band_for(words)`; `java`, `lines`, `jpos` and `junit` are as in
+§1.1.
+
+| container | unit | page | words | band | fences | java | lines | jpos | junit | case |
+|---|---|---|---|---|---|---|---|---|---|---|
+| iso-fundamentals | 1 | `src/1.md` | 475 | short | 1 | 1 | 34 | 1 | 0 | code, no tests |
+| iso-fundamentals | 2 | `src/2.md` | 454 | short | 3 | 3 | 48 | 3 | 0 | code + tests (`practice/bitmap/BitmapTest.java`) |
+| iso-fundamentals | 3 | `src/3.md` | 768 | standard | 5 | 3 | 60 | 2 | 0 | code, no tests (its practice has no grader) |
+| iso-fundamentals | 4 | `src/4.md` | 323 | short | 9 | 9 | 188 | 9 | 0 | code + tests (`practice/mti/MtiTest.java`) |
+| iso-fundamentals | 5 | `src/5.md` | 503 | short | 3 | 2 | 109 | 2 | 1 | code, no tests |
+| iso-fundamentals | 6 | `src/6.md` | 273 | short | 4 | 4 | 160 | 3 | 1 | code, no tests |
+| iso-fundamentals | 7 | `src/7.md` | 353 | short | 4 | 4 | 123 | 0 | 0 | code, no tests |
+| iso-fundamentals | 8 | `src/8.md` | 446 | short | 4 | 4 | 141 | 4 | 0 | code, no tests |
+| iso-fundamentals | 9 | `src/9.md` | 364 | short | 2 | 2 | 124 | 2 | 1 | code, no tests |
+| iso-fundamentals | 10 | `src/10.md` | 569 | short | 7 | 7 | 206 | 6 | 6 | code, no tests |
+| iso-fundamentals | 11 | `src/11.md` | 197 | **stub** | 8 | 7 | 120 | 0 | 0 | code, no tests |
+| iso-fundamentals | 12 | `src/12.md` | 331 | short | 5 | 5 | 137 | 2 | 1 | code, no tests |
+| iso-fundamentals | 13 | `src/13.md` | 578 | short | 7 | 6 | 104 | 1 | 1 | code, no tests |
+| iso-fundamentals | 14 | `src/14.md` | 419 | short | 6 | 6 | 166 | 5 | 0 | code, no tests |
+| iso-fundamentals | **15** | `src/15.md` | 456 | short | 10 | **10** | 206 | 4 | 0 | code, no tests |
+| iso-fundamentals | 16 | `src/16.md` | 677 | short | 5 | 3 | 77 | 3 | 0 | code, no tests |
+| jpos-client | 1 | `src/c1.md` | 312 | short | 9 | 4 | 62 | 4 | 1 | code, no tests |
+| jpos-client | 2 | `src/c2.md` | 306 | short | 5 | 5 | 125 | 4 | 1 | code, no tests |
+| jpos-client | 3 | `src/c3.md` | 290 | short | 7 | 7 | 150 | 6 | 0 | code, no tests |
+| jpos-client | 4 | `src/c4.md` | 278 | short | 6 | 5 | 113 | 5 | 1 | code, no tests |
+| jpos-client | 5 | `src/c5.md` | 180 | **stub** | 5 | 5 | 201 | 5 | 0 | code, no tests |
+| jpos-client | 6 | `src/c6.md` | 328 | short | 7 | 7 | 124 | 7 | 0 | code, no tests |
+| jpos-client | 7 | `src/c7.md` | 318 | short | 4 | 3 | 116 | 3 | 1 | code, no tests |
+| jpos-client | **8** | `src/c8.md` | 435 | short | 8 | **8** | 119 | 8 | 1 | code, no tests |
+| jpos-client | 9 | `src/c9.md` | 328 | short | 7 | 7 | 122 | 1 | 1 | code, no tests |
+| jpos-client | 10 | `src/c10.md` | 331 | short | 5 | 5 | 177 | 5 | 5 | code, no tests |
+| jpos-client | 11 | `src/c11.md` | 412 | short | 4 | 3 | 134 | 3 | 1 | code, no tests |
+| jpos-server | 1 | `src/s1.md` | 277 | short | 7 | 3 | 48 | 3 | 1 | code, no tests |
+| jpos-server | 2 | `src/s2.md` | 267 | short | 5 | 4 | 147 | 4 | 0 | code, no tests |
+| jpos-server | 3 | `src/s3.md` | 321 | short | 4 | 3 | 106 | 3 | 0 | code, no tests |
+| jpos-server | 4 | `src/s4.md` | 338 | short | 5 | 4 | 150 | 3 | 1 | code, no tests |
+| jpos-server | 5 | `src/s5.md` | 214 | **stub** | 6 | 5 | 202 | 5 | 1 | code, no tests |
+| jpos-server | 6 | `src/s6.md` | 366 | short | 4 | 3 | 91 | 3 | 0 | code, no tests |
+| jpos-server | 7 | `src/s7.md` | 259 | short | 6 | 6 | 130 | 6 | 1 | code, no tests |
+| jpos-server | **8** | `src/s8.md` | 340 | short | 10 | **9** | 125 | 6 | 1 | code, no tests |
+| jpos-server | 9 | `src/s9.md` | 260 | short | 8 | 5 | 194 | 1 | 1 | code, no tests |
+| jpos-server | 10 | `src/s10.md` | 263 | short | 6 | 4 | 106 | 2 | 0 | code, no tests |
+| jpos-server | 11 | `src/s11.md` | 366 | short | 7 | 7 | 315 | 7 | 5 | code, no tests |
+
+---
+
+## 2. The pilot: three pages, and the density measure that chose them
+
+⭐ **The measure: Java fences on the unit's lesson page — its Java ledger entries — ties broken by
+non-blank Java lines, among pages whose band is not `stub`.**
+
+- **Why fences and not lines.** Each fence is one ledger entry that must either be the basis of an
+  exercise or carry a written reason (property 1, *nothing is lost*). The pilot is where the user
+  approves the **shape and the per-page counts**, and the count's hardest test is the page with
+  the most entries to account for against a ceiling of 2. A 300-line fence is one entry; ten short
+  fences are ten.
+- **Why not a `stub` page.** A `stub` page plans zero by construction (`AX-07`), so it would show
+  the user no exercise at all. That is a legitimate answer for such a page, and `ISO-23` reads it,
+  but it cannot be the page on which the shape is approved.
+
+| container | pilot page | Java fences | runner-up by the same measure | measured by lines instead |
+|---|---|---|---|---|
+| `iso-fundamentals` | **unit 15, `src/15.md`** (456 words, `short`) | **10** (206 lines, 4 on jPOS) | unit 4: 9 | unit 15 (206, tie with unit 10, broken by fences) |
+| `jpos-client` | **unit 8, `src/c8.md`** (435 words, `short`) | **8** (119 lines, all 8 on jPOS, 1 JUnit) | units 3, 6, 9: 7 each | unit 5 is `stub`, so unit 10 (177) |
+| `jpos-server` | **unit 8, `src/s8.md`** (340 words, `short`) | **9** (125 lines, 6 on jPOS, 1 JUnit) | unit 11: 7 | unit 5 is `stub`, so unit 11 (315) |
+
+⭐ **Each maximum is unique**, so no tie-break decided a pilot page. ⚠️ **The two measures
+disagree on two of the three containers**, which is why the choice is argued above, not assumed.
+⚠️ **Not one pilot page is case (a).** The only case-(a) pages are `iso-fundamentals` units 2 and
+4, and unit 4 is one fence behind unit 15. The user would then never review a code-with-tests
+page. That is a question for the PO (`ISO-M10/7`), not a substitution this office makes quietly.
+
+---
+
+## 3. The rows
+
+### ISO-18 — Re-pin to the authoring framework, and regenerate what the pin owns
+**Milestone** M10 · 10.4 · **Depends on** framework `AX-08` (`e01c7243`, in `5e0657ba`); `AX-03`
+`9ed320c9`, `AX-04` `638ec209`, `AX-06` `32391172`, `AX-07` `d7b80ed2`, `AX-09` `d459fadc` ·
+**Team** solo · **Status** ready
+**Owns** `.studyforge/pin.json` and the three `.studyforge/skills/*.md` stubs, **regenerated,
+never hand-edited**; `tests/test_framework_pin.py` as the onboarding skill regenerates it
+**Context** ~20k — `SF/src/studyforge/skills/onboarding/`, this document's `ISO-M10/1`
+
+**Definition.** The corpus records framework `638e233` (W426). That commit predates every `AX` row,
+and it does not read this corpus's own archive (`ISO-M10/1`). Move the pin in one step, by the
+onboarding skill, to a release commit that carries `AX-08`. ⚠️ **If `AX-10` has merged by then,
+pin past its merge.** Otherwise `ISO-22` re-pins before it authors (§9).
+
+**Acceptance.**
+- `.studyforge/pin.json`'s commit `C` satisfies `git -C ../studyforge merge-base --is-ancestor e01c7243 C`
+  (exit 0). A planted pin at `638e233` fails the same check (exit 1).
+- The corpus's own suite is GREEN at `C` (`PYTHONPATH=<SF at C>/src:. python3 -m pytest tests`),
+  including `tests/test_framework_pin.py::test_no_stub_has_drifted_from_the_pin`, which is **RED
+  at `06df27f`**.
+- `studyforge validate .` at `C` is GREEN.
+- `git diff 06df27f -- src README.md TestCases.md LICENSE .gitignore practice archive` is empty (R3):
+  the re-pin moves no material and no emitted document.
+
+### ISO-19 — The manifest classifies the exercise trees, and a run's report is ignored
+**Milestone** M10 · 10.4 · **Depends on** ISO-18; `AX-04/2`, `AX-04/3`, `AX-08/4` (the
+preconditions `SF/src/studyforge/skills/exercises/SKILL.md` §*Before you start* states) ·
+**Team** solo · **Status** blocked on ISO-18
+**Owns** `corpus.json`'s `content.not_material` (additions only); a **new** file
+`practice/.gitignore`
+**Context** ~15k — `SKILL.md`, `AX-04`'s handoff §§ *the shape* and *AX-03/1 is closed*, `W435`'s
+self-ignore precedent
+
+**Definition.** `AX-08/4`'s preconditions, typed by hand because no skill writes them yet (that gap
+is `ISO-M10/4`). Measured against `06df27f`: `corpus_api` is already 4 (2 is required), and
+`practice/**` is **already** declared (W426). Two lines are missing:
+
+| glob | why it is needed |
+|---|---|
+| `exercises/**` | the bundle tree; without it `validate` refuses every bundle file as unclassified before any exercise check runs (`AX-04/2`) |
+| `docs/**` | this backlog's own directory; this document is the first file under it on this line, and `validate` reads it as unclassified (`ISO-M10/10`) |
+
+⭐ **The ignore rule is a NEW file, never an edit to the root `.gitignore`** (R3, `permitted_edits:
+[]`; `W435`'s remedy is *"write new ignore files inside generated directories"*). It names the
+report path and the build output the runtime writes into a reader's workspace. The pattern depends
+on the report path the exercises declare (`ISO-M10/4`), so it is written after `ISO-20` fixes the
+runtime, and it is taken from that runtime's declared report path, never guessed.
+
+**Acceptance.**
+- `studyforge validate .` at the pin is GREEN, with a planted bundle-shaped file under `exercises/`.
+  With the `exercises/**` line removed, the same plant is reported `[unclassified]` (both ways, R12).
+- A JUnit report planted at the declared report path inside a workspace directory
+  `practice/<container>/prose/unit-NN/practice-M/` gives `git check-ignore` exit 0 and
+  `git status --porcelain` empty. Without `practice/.gitignore`, the same plant shows as untracked.
+- `git diff 06df27f -- .gitignore` is empty, and `corpus.json`'s diff is additions inside
+  `not_material` only.
+
+### ISO-20 — The runtime set, and the jPOS prime the runner is built with
+**Milestone** M10 · 10.4 · **Depends on** ISO-18; `W390` (`SF` `bb27e808`; `CST` `748f4fb`, an
+ancestor of the pinned `4b3fcdb`); `W390/4`; **`ISO-M10/2` answered** · **Team** solo ·
+**Status** blocked — `ISO-M10/2` and `ISO-M10/8`
+**Owns** `corpus.json`'s `runtimes`; the corpus's practice build file (a new file); what the
+execution skill writes under `.studyforge/execution/`; the recorded runner tag
+**Context** ~30k — `SF/src/studyforge/skills/execution/SKILL.md`, `W390`'s handoff *For dependents*,
+`CST/consuming.json` § `prime`
+
+**Definition.** A graded run is `--network none`, and 141 of the 188 Java fences import `org.jpos`.
+The runner must therefore carry jPOS, and the JUnit that writes `AX-01`'s channel, warmed from this
+corpus's own build file. The material's own `pom.xml` fences (`src/c1.md`, `src/c7.md`,
+`src/s1.md`) all name `org.jpos:jpos:2.1.7`. ⚠️ No fence names a JUnit version (`ISO-M10/8`).
+Declare the runtime set (`java` plus the build tool the build file needs, from `RUNTIMES`), run the
+execution skill so `prime.prime_for` builds the prime from the corpus's own files, and build the
+runner with `--prime`.
+
+**Acceptance.**
+- `studyforge validate .` GREEN; `parse_runtimes` accepts the set. `prime.prime_for(root, runtimes)`
+  does not refuse, and with the build file removed it refuses by name (R12).
+- The runner tag is the one the contract's `tag_from` argv prints. It is recorded beside the `CST`
+  commit `workspace.json` pins, and never typed.
+- In that runner, started `--network none` with an arbitrary `--user`, the prime's own test passes.
+  In the unprimed runner the same command fails (both ways, as `W390`'s reading was taken).
+- The three M7 practices still Run and Submit exactly as before, in the new runner: their archived
+  `test_command`s give the verdicts `src/Practice.md` says they ship with (the MTI grader passes,
+  the bitmap grader fails until fixed). The M7 reading is taken in the runner with this row's tag;
+  this host has no `java`.
+
+### ISO-21 — The adapter emits authored bundles beside the three bundled practices
+**Milestone** M10 · 10.4 · **Depends on** ISO-19; `AX-04` `638ec209` (`emit`, `emit_page`,
+`validate`'s gate-record arm); **`ISO-M10/3` answered** · **Team** solo · **Status** blocked —
+`ISO-M10/3`
+**Owns** `ingest/practices.py` (and a new module beside it if R11 needs one), `tests/ingest/`
+**Context** ~25k — `SF/src/studyforge/exercise/bundle/`, `AX-04`'s handoff, `ingest/`
+
+**Definition.** R2: the adapter reads each committed bundle under `exercises/` and writes its
+`practice-M.json` with the framework's `emit`. It carries no corpus-specific code in the framework
+and no path arithmetic of its own (`Places` answers every path). ⚠️ `iso-fundamentals` units 2, 3
+and 4 already carry a bundled `practice-1`, and the authoring loop numbers from 1 (`ISO-M10/3`).
+This row does not ship until that is answered.
+
+**Acceptance.**
+- Proved on a **test fixture bundle** under `tests/ingest/` (not corpus material): the emitted
+  document round-trips through the archive's reader, and `validate` is GREEN.
+- A fixture bundle whose digest drifted is refused by `validate`, naming the file.
+- On a unit that already has `practice-1`, the authored exercise takes an ordinal that leaves
+  `archive/iso-fundamentals/raw/prose/unit-0{2,3,4}/practice-1.json` **byte-unchanged**
+  (`git diff` empty), and the unit's ordinals run `1..n` with no gap.
+- With no bundle committed, the archive `ingest` emits is byte-identical to `06df27f`'s (R10).
+
+### ISO-22 — The pilot: three pages, one per container, reviewed once by the user
+**Milestone** M10 · 10.4 · **Depends on** ISO-19, ISO-20, ISO-21; `AX-08` `e01c7243`; **`AX-10`
+merged** (§9; not merged at `5e0657ba`); `AX-09` `d459fadc`; **`ISO-M10/5` answered** ·
+**Team** solo, then **the user** · **Status** blocked — `AX-10`, and every blocker above
+**Owns** `exercises/iso-fundamentals/prose/unit-15/`, `exercises/jpos-client/prose/unit-08/`,
+`exercises/jpos-server/prose/unit-08/`, the matching `practice/…` workspaces, `exercises/ledger.json`,
+and the rebuilt site
+**Context** ~40k — `SKILL.md`, `AX-10`'s guide, this document §§1–2
+
+**Definition.** Run `author_corpus` over the three pages §2 names: `src/15.md`, `src/c8.md` and
+`src/s8.md`. Material is the manifest's `content` policy, graders are none (all three are case
+*code, no tests*), and the runner is the primed runner from `ISO-20`. Each `Page` records its three
+readings (`words` by `words_of`, `skills`, `tier`), and each planned exercise is authored and gated
+inside `ATTEMPTS`. Emit (`ISO-21`), rebuild, and put the three pages in front of the user **once**.
+⛔ **The user's review approves the shape and the per-page counts, and nothing after it is
+reviewed** (user ruling, 2026-09-19).
+
+**Acceptance.**
+- Each pilot unit's `coverage.json` exists: shipped plus refused equals its plan, and every refusal
+  names its gate, the gate's sentence and the run's last output.
+- Every Java fence of the three pages (10 + 8 + 9 = 27) appears in `exercises/ledger.json`, either
+  as an exercise's `origin` or with a written reason.
+- `studyforge validate .` GREEN, and every shipped bundle's gate record verifies against the files
+  beside it.
+- Re-running the pass with nothing changed writes nothing (every file keeps its bytes and mtime).
+- ⛔ `git diff 06df27f -- src README.md TestCases.md LICENSE .gitignore` is empty, and the reading
+  floor of every non-pilot page is byte-unchanged over `file://`.
+- ⭐ **The user's verdict is recorded with the ref it was given at.** It is either *approved* or a
+  list of changes. A change re-runs this row (remove the unit's directory and
+  `exercises/ledger.json`, per `AX-08`'s *For dependents*). It never opens a second review of
+  `ISO-23`.
+
+### ISO-23 — The remaining 35 units, on the gates alone
+**Milestone** M10 · 10.4 · **Depends on** ISO-22 (the user's approval recorded) · **Team** solo ·
+**Status** blocked on ISO-22
+**Owns** `exercises/**` and `practice/**` for the 35 other units; `exercises/ledger.json`; the rebuilt
+site
+**Context** ~40k per batch — as ISO-22
+
+**Definition.** The same pass, the same shape, the per-page reasoning the user approved, over the
+other 35 units. ⛔ **No further review** — the gates are the only bar. Three units plan zero by
+their band (`iso-fundamentals` 11, `jpos-client` 5, `jpos-server` 5). Their coverage says why, and
+each of their Java fences carries a written reason. The two case-(a) units (`iso-fundamentals` 2
+and 4) hand `author_corpus` their declared grader as the page's `graders`.
+
+**Acceptance.**
+- Every one of the 38 units has a `coverage.json`. Shipped plus refused equals the plan on each, and
+  a page with a zero plan says why.
+- `exercises/ledger.json` accounts for all 218 fences of the 38 lesson pages and both declared test
+  files, each by an exercise's `origin` or a written reason. An entry with neither is refused
+  (`account`).
+- `studyforge validate .` GREEN; the three bundled M7 practices are byte-unchanged in `practice/` and
+  in the archive.
+- ⛔ The reading floor is byte-unchanged over `file://` for every page, the pilot's included, apart
+  from the practices the emission adds. The site's diff against `ISO-22`'s build lists only
+  additions.
+
+### ISO-24 — What `AX-11` reads here, named and dry-read before it runs
+**Milestone** M10 · 10.4 → 10.5 · **Depends on** ISO-23; framework `AX-11` (not started) ·
+**Team** solo · **Status** blocked on ISO-23
+**Owns** nothing. ⛔ This row produces evidence, like `AX-11` itself: a row that could edit what it
+measures measures nothing.
+**Context** ~15k — `E14` § AX-11, `AX-08`'s handoff *For `AX-11`*
+
+**Definition.** Hand `AX-11` a corpus where each of its conditions has a named file or command,
+and take a dry reading of each before `AX-11` does, so a shortfall shows up in this corpus's
+findings first rather than in the milestone's closing reading.
+
+| `AX-11` reads on ISO | where it reads it here |
+|---|---|
+| every page has a plan, and ships its planned exercises or names the gate that refused each | the 38 `exercises/<container>/prose/unit-NN/coverage.json`, read with no run. A zero plan (three units) is a legitimate answer; a page in `Authored.bare` with a non-zero plan is a shortfall |
+| every shipped exercise's gate record verifies against the files beside it | per bundle, `gates.drifted(root / bundle, record.inputs, bundle) == ()`, and `studyforge validate .` |
+| on a planted partial solution, Submit shows *main ask ✓* with the missed edge cases named | a pilot exercise's `plants/edge-N/` copied over its workspace file, then Submit through the served corpus (`AX-02`, `AX-09`) |
+| the ledger accounts for every Java fence in the corpus | `exercises/ledger.json` against §1.2's 188 Java fences, re-counted at the reading's ref by §1.1's command |
+| the reading floor is byte-unchanged over `file://` | the built lesson pages against `ISO-22`'s pre-pass build, diffed |
+
+**Acceptance.** Each line above was read at a recorded ref and environment, with GREEN/RED and the
+exit code. A RED is a finding against the row that owns the surface, never an edit from this row.
+
+---
+
+## 4. Blockers and questions for the framework — findings, not patches
+
+⛔ **None of these is fixed in this diff, and none may be fixed in `studyforge` by this office.**
+
+| # | triage | blocks | what |
+|---|---|---|---|
+| `ISO-M10/1` | `[local]`, baseline | ISO-18 | ⛔ **At `06df27f` the corpus's own suite is RED at every framework ref tried.** At its recorded pin `638e233`: exit 1, 15 failed, and `studyforge validate .` is RED because it refuses `container_api 3` in all three container maps. **The recorded pin cannot read its own archive.** At `5e0657ba`: exit 1, one failure, `test_no_stub_has_drifted_from_the_pin`: the three stubs name `aa4e256` and `pin.json` names `638e233`. The pin was advanced at `bc08aaa` without regenerating the stubs. `validate` is GREEN at `5e0657ba` (exit 0). ⭐ `ISO-18` is the remedy. The framework question is whether a pin advance that skips the stubs should be refusable at commit time |
+| `ISO-M10/2` | `[structural]` | ISO-20, ISO-22, ISO-23 — every jPOS exercise | ⛔ **No framework shape carries a Java exercise's third-party classpath.** A bundle's file set is closed (`bundle.json`, `statement.md`, `gates.json`, `starter/`, `reference/`, `tests/`, `plants/`). `emit` writes only `main_file` and `test_file` into the workspace, and refuses a command argument outside the workspace. So no build file can sit in the workspace, and none outside it can be named. `AX-01`'s channel is JUnit XML, and 141 of 188 Java fences import `org.jpos`. `W390` warms a Maven or Gradle seed, but nothing says how an exercise's command reaches it. ⚠️ **Question: where does a jPOS exercise's build (or classpath) and its JUnit report come from?** A build role in the bundle, a launcher the runner image provides, or a corpus-level build file the runner reads rather than the command? That is the framework's call (`AX-04`'s surface and `W390/4`) |
+| `ISO-M10/3` | `[structural]` | ISO-21, ISO-23 (iso units 2–4) | ⛔ **The authoring loop numbers a unit's exercises from 1** (`loop.author_page`: `Places(…, len(shipped) + 1)`). `iso-fundamentals` units 2, 3 and 4 already carry a bundled `practice-1` in the archive (W426), so an authored exercise there collides with it. Renumbering the bundled one moves every reader's progress, which is exactly what `loop.py`'s own docstring forbids. ⚠️ **Question: an ordinal offset from the unit's existing practices, read or declared?** The pilot does not touch these units, so this blocks `ISO-23` and not `ISO-22` |
+| `ISO-M10/4` | `[structural]` | ISO-19 | ⚠️ **`AX-08/4` restated, measured here.** The manifest lines and the ignore rule are still typed by hand. The ignore rule **cannot even be written before authoring**, because the report path is a per-draft field (`CodeDraft.report`) with no per-runtime convention. ⭐ R19: a fixed report path per runtime would let onboarding generate both the line and the rule |
+| `ISO-M10/5` | `[structural]` | ISO-22 | ⚠️ **The `Author` is an in-process Python protocol, and this office is a model session.** There is no console entry point (`AX-08` *For dependents*), and `draft(brief)` is called synchronously inside `author_corpus`. A session can answer it only through a driver that pauses the pass, or through a file-backed author across re-runs. The corpus would then write that driver itself, and every next corpus would retype it (R19). ⭐ `AX-10` was asked to show a driving script. **If the guide lands without one, this blocks the pilot** |
+| `ISO-M10/6` | question, for the pilot review | ISO-22's framing | ⚠️ **The bands measure prose only, and this corpus is code-dense.** 34 of 38 units are `short` (at most 2 exercises), one is `standard`, and three plan zero while carrying 7, 5 and 5 Java fences. `jpos-client` 5 and `jpos-server` 5 hold 201 and 202 Java lines. The corpus ceiling is at most 34×2 + 4 = 72 exercises against 188 Java fences, so **at least 116 fences ship as a written reason, not as an exercise.** That is honest under the ledger and is exactly what the user approves at the pilot. It is recorded so the review is framed with it, not discovered after |
+| `ISO-M10/7` | question, for the PO | ISO-22's page choice | ⚠️ **The density rule leaves case (a) out of the only review.** `iso-fundamentals` unit 4, the one case-(a) page with real code (9 fences), loses to unit 15 (10) by one fence. Also: this corpus's two test files are the framework's own M7 samples (`W426`), plain-Java and not JUnit, and case (a)'s blanking derivation does not exist yet (`AX-08/2`). Keep the rule, or substitute unit 4 for unit 15? This office keeps the rule until ruled otherwise |
+| `ISO-M10/8` | question | ISO-20 | ⚠️ **The execution skill copies the corpus's own build file and authors none, and this corpus has none.** `src/Practice.md` says *"no build tool, no dependency"*. The jPOS version has a source in the material (`2.1.7`, three `pom.xml` fences), but the JUnit version has none, even though 34 fences import `org.junit`. So this office would hand-author the build file and choose a JUnit version nothing in the corpus states. Is that acceptable as a declared hand-authored artifact, or does the framework want the version from somewhere else? |
+| `ISO-M10/9` | `[local]` | nothing today | ⭐ A unit whose material is two files (`src/2.md` plus `src/p2.md`) cannot be one `Page`: `Page` takes one path, and `corpus._in_order` refuses two pages on one unit. The practice files carry 0 fences, so no ledger entry is orphaned here, but a passage in `src/p2.md` cannot be a page's own material. Recorded for the next corpus |
+| `ISO-M10/10` | `[local]` | nothing | ⚠️ **This document makes `studyforge validate .` RED on this branch** (the bound: one `[unclassified]` finding, `docs/studyforge/m10-plan.md`). `docs/**` was declared on `release/studyforge-integration` and is not declared on the `06df27f` line. `ISO-19` adds it. The same document on `06df27f`'s line cannot be committed GREEN without a manifest edit, and a manifest edit is `ISO-19`'s, not this planning row's |
+
+## 5. Gates taken for this plan
+
+At `06df27f`, in this worktree, host `python3`; framework trees exported with `git archive`, never
+checked out into `SF/`.
+
+| gate | framework ref | reading |
+|---|---|---|
+| `studyforge validate .` | `638e233` (the corpus's pin) | RED, exit 1: `container_api 3` refused in all three container maps |
+| `studyforge validate .` | `5e0657ba` | GREEN, exit 0 |
+| `python3 -m pytest tests` | `638e233` | RED, exit 1 |
+| `python3 -m pytest tests` | `5e0657ba` | RED, exit 1: one test, the stub/pin drift (`ISO-M10/1`) |
