@@ -438,12 +438,16 @@ blockquote > :last-child { margin-bottom: 0; }
 
 /* ⭐ A real `<details>`, which opens, closes and takes keyboard focus with
    scripting off entirely. ⛔ No card: a feint rule above and below, and the
-   summary in the interface face. `open` is the author's, from the archive. */
+   summary in the interface face. `open` is the author's, from the archive.
+   ⛔ NO `max-width` OF ITS OWN (`W447`). A disclosure is a CONTAINER, and a
+   worked solution is a code figure inside one: capped at `--measure` it laid
+   out narrower than every code figure in the flow and scrolled where they did
+   not. Its running text is measured by `main p, main li` above, exactly as it
+   is outside the disclosure. */
 details.disclosure {
   margin: 1.6rem 0;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
-  max-width: var(--measure);
 }
 details.disclosure > summary {
   font-family: var(--font-ui);
@@ -1906,13 +1910,30 @@ section[data-practice-quiz] p {
 
 /* ⭐ The questions are an ordered list and they keep their numbers: a reader
    answering seven of them needs to know which one the sentence under it belongs
-   to. ⚠️ The list marker is the browser's own, so it is announced. */
+   to.
+
+   ⛔ **The number is drawn IN THE LEGEND, never as the list's own marker**
+   (`W451`, the corpus office's finding F9). A marker sits on the list item's
+   FIRST LINE BOX, and a `<legend>` is laid out in its fieldset's border rather
+   than as a line of content — so the browser's marker landed beside the FIRST
+   OPTION and the stem stood unnumbered above it. ⭐ A counter in the legend's
+   `::before` puts the number on the stem's own line, whatever the browser does
+   with a legend. ⚠️ It is still an `<ol>`, so the list and its length are still
+   announced, and the legend's text — the group's name — now starts with the
+   number. */
 section[data-practice-quiz] ol[data-practice-part="questions"] {
   margin: 0 0 .75rem;
-  padding: 0 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: question;
 }
 
-section[data-practice-quiz] li[data-practice-question] { margin: 0 0 1rem; }
+section[data-practice-quiz] li[data-practice-question] {
+  margin: 0 0 1rem;
+  counter-increment: question;
+}
+
+section[data-practice-quiz] legend::before { content: counter(question) ". "; }
 
 /* ⛔ A REAL `<fieldset>` AND A REAL `<legend>`, so the stem is announced as the
    group's question before each option is read — which a styled `div` around

@@ -1472,10 +1472,151 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     if (element) { element.hidden = !visible; }
   }
 
+  /* ⛔ **A FRAME NEVER TAKES FOCUS THE READER DID NOT GIVE IT, AND THE PAGE
+     NEVER MOVES ON ITS OWN** (`W449`, the user's report of 2026-09-23).
+
+     ⚠️ **The mechanism, measured in a real browser and not guessed.** A
+     workbench focuses its editor as it starts — `restoreParts()` calls
+     `activeGroup.focus()`, then the editor that opens the window's file calls
+     `focus()` on its input, neither with `preventScroll` — and the browser lets
+     a frame of another origin on the same site take focus from the page with
+     no user activation at all. ⛔ **Focusing an element scrolls every ancestor
+     frame to it**, so a reader who opened the page at its top was carried to
+     the editor seconds later, and `document.activeElement` became the frame.
+     ⚠️ Nothing on the frame refuses it: `inert` does not reach the framed
+     document, and `allow="focus-without-user-activation 'none'"` is not
+     honoured (both measured). ⛔ Delaying the frame until the reader reaches it
+     was not needed, so it was not done.
+
+     ⭐ **So the page gives focus back, and it can because of an order the
+     browser keeps.** The page's `blur` is dispatched INSIDE the frame's
+     `focus()` call, before the scroll it starts has moved anything; one task
+     later focus goes back to where the reader left it and the page is put back
+     where it was, which also cancels the glide `scroll-behavior: smooth` had
+     queued. ⛔ **The reader never sees the page move** (measured over the
+     two-practice pilot page: the page rests where it was opened, and at most
+     one 3px step is painted before it is put back).
+
+     ⭐ **What counts as GIVEN is the reader's hand, never a timer:** the
+     pointer over THAT frame together with the page's own user activation —
+     which a click inside a frame propagates to every ancestor — or a Tab
+     pressed on the page just before focus arrived. ⚠️ **Two steals raise NO
+     `blur`**: a frame taking focus while the reader types in ANOTHER frame, and
+     any frame taking it while the browser window itself is not focused (the
+     page still scrolls — measured). So the page also reads `activeElement`
+     every `WATCH_EVERY` ms for as long as it carries a frame, and answers
+     those the same way. ⭐ Nothing is installed until the first frame is
+     built, so a page with no editor carries none of it. */
+  var held = (function () {
+    var TAB_GRACE = 500;
+    var WATCH_EVERY = 100;
+    var frames = [];
+    var pointed = null;
+    var tabbed = -Infinity;
+    var trusted = null;
+    var previous = null;
+    var resting = { x: 0, y: 0 };
+
+    function ours(element) {
+      return frames.indexOf(element) >= 0 ? element : null;
+    }
+
+    function here() {
+      return { x: window.scrollX, y: window.scrollY };
+    }
+
+    function given(built) {
+      var state = navigator.userActivation;
+      var active = state ? state.isActive : true;
+      return (pointed === built && active) || Date.now() - tabbed < TAB_GRACE;
+    }
+
+    /* ⚠️ Put the page back, and CANCEL the glide the frame queued. A scroll to
+       where the page already is does nothing, and a glide not yet begun
+       survives it (measured: the page crept 3px and stopped there), so the
+       page is moved one pixel and back — both instant, within one task, so no
+       frame is ever painted between them. ⚠️ A glide already under way can
+       still land one step after that (measured, once in six), so the next two
+       frames look again. */
+    function stay(at, again) {
+      if (window.scrollX !== at.x || window.scrollY !== at.y || again === undefined) {
+        var nudge = at.y > 0 ? at.y - 1 : at.y + 1;
+        window.scrollTo({ left: at.x, top: nudge, behavior: 'instant' });
+        window.scrollTo({ left: at.x, top: at.y, behavior: 'instant' });
+      }
+      var left = again === undefined ? 2 : again;
+      if (left > 0) { requestAnimationFrame(function () { stay(at, left - 1); }); }
+    }
+
+    /* ⚠️ One task later, and not inside the `blur`: a focus moved while the
+       browser is still dispatching the frame's own focus change is ignored,
+       and a MICROTASK is still inside it (both measured — `activeElement`
+       stayed the frame and the page glided to it). ⛔ Whichever frame holds
+       focus by THEN is the one answered: the second practice's workbench can
+       take it from the first in between, and raises no event here. */
+    function refuse(at) {
+      setTimeout(function () {
+        var built = ours(document.activeElement);
+        if (!built || built === trusted) { return; }
+        var back = !!previous && previous !== built && previous !== document.body &&
+          document.contains(previous);
+        if (back) { previous.focus({ preventScroll: true }); } else { built.blur(); }
+        stay(at);
+      }, 0);
+    }
+
+    function arrived(at) {
+      var built = ours(document.activeElement);
+      if (!built || built === trusted) { return; }
+      if (given(built)) {
+        trusted = built;
+        previous = built;
+      } else {
+        refuse(at);
+      }
+    }
+
+    /* The only way to see the two steals that raise no `blur`. ⚠️ `resting` is
+       where the page was one tick ago, which is before a steal it now sees. */
+    function tick() {
+      arrived(resting);
+      resting = here();
+    }
+
+    function install() {
+      setInterval(tick, WATCH_EVERY);
+      document.addEventListener('focusin', function (event) { previous = event.target; }, true);
+      /* Focus back on the page itself, which raises no `focusin` when it lands
+         on the body: the page, not the frame it left, is where it now is. */
+      window.addEventListener('focus', function () {
+        trusted = null;
+        previous = document.activeElement;
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Tab') { tabbed = Date.now(); }
+      }, true);
+      window.addEventListener('blur', function () {
+        resting = here();
+        arrived(resting);
+      });
+    }
+
+    return function (built) {
+      if (!frames.length) { install(); }
+      frames.push(built);
+      built.addEventListener('pointerenter', function () { pointed = built; });
+      built.addEventListener('pointerleave', function () {
+        if (pointed === built) { pointed = null; }
+      });
+    };
+  }());
+
   function frame(slot, url, title) {
     var built = document.createElement('iframe');
     built.src = url;
     built.title = title;
+    /* ⛔ BEFORE it is added: the workbench may take focus as soon as it loads. */
+    held(built);
     slot.appendChild(built);
   }
 
@@ -1598,39 +1739,41 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   panels.forEach(function (panel) { ask(panel, run); });
 }());
 
-/* The quiz: what a reader chose, whether it was right, and why it is what it is.
+/* The quiz: what a reader chose, and what the local study server said about it.
 
-   ⛔ **NO SERVER, EVER — and that is the whole point of the shape** (spec §7 §7,
-   `AX-05`). A quiz is graded with no compiler, no container, no network and no
-   model: the key ships in the page and the rule is four lines of arithmetic, so
-   the reading is IDENTICAL over `file://` and over a served origin (R8). ⭐ So
-   this file does NOT ask `window.studyforge.run` whether an origin exists, and
-   it must never be made to — a guard on the run client would make a quiz work
-   only where a server happens to be, which is the one property this shape has
-   that the code exercise does not.
+   ⛔ **THE KEY IS NOT IN THE PAGE, AND THIS FILE DOES NOT GRADE** — the user's
+   ruling of 2026-09-23 (`W451`): *"a test with the correct answer residing on
+   the server side. When user answers it will get validated and result will be
+   returned to the user with explanation if needed"*. ⭐ So this file reads
+   which option the reader chose, hands the choices to `window.studyforge.quiz`
+   — which the SERVING PROCESS adds to a served page and a built page never
+   names (R8, `W370`) — and shows what came back: right or wrong per question,
+   the chosen option's sentence, the count, and whether the quiz is complete.
+   ⛔ **The completion rule is the server's** (`exercise.quiz.completes`, applied
+   once, in Python); this file shows `complete` and never re-derives it.
+
+   ⚠️ **Superseded, and kept readable so it is not re-derived:** until `W451`
+   this file graded in the page from a key every option carried, identically
+   over `file://`, on the stance that an offline page cannot hide the key it grades
+   with. The ruling removes the key from the page instead.
+
+   ⭐ **Over `file://` the questions and the options still show** and a reader
+   may still choose; the Check control stays `hidden` and the `offline`
+   sentence stays showing, exactly as Run and Submit do in the code panel. ⛔
+   Nothing is sent from a file page — there is no origin to send it to.
 
    ⛔ **A quiz has no file, no command and no grader to submit to, so it renders
    no Run and no Submit — and not disabled ones** (`AX-05/3`, `SF-24`'s standing
-   rule about a dead button). ⚠️ There is nothing here that hides such a control
-   either: `render/page/practice.py` never emits one, which is the only place a
-   control can be refused honestly.
+   rule about a dead button).
 
-   ⛔ **The key is IN the page and this file does not pretend otherwise.** The
-   site is offline and the bundle is on the reader's disk, exactly as an offline
-   workspace cannot hide its test file — claiming to hide either is the theatre
-   R5 exists to prevent, and `exercise.quiz` says so first.
-
-   ⛔ **Nothing is written to browser storage.** What a reader answered is the
-   page's for as long as they are on it; a second, weaker record of *did this
-   complete?* is exactly the second answer `practice.js` refuses to keep for a
-   run. ⚠️ **So a reload clears the answers**, and that is a property rather than
-   an oversight: recording a quiz's completion is a decision about the reader's
-   own state and it belongs to the row that takes it, not to the panel.
+   ⛔ **Nothing is written to browser storage, and the server records nothing
+   either.** What a reader answered is the page's for as long as they are on
+   it; ⚠️ **so a reload clears the answers**, and recording a quiz's completion
+   in the reader's own state is a decision for the row that takes it — never a
+   run verdict, which a quiz does not produce.
 
    ⭐ **Every word this file says is read off the markup**, where Python put it —
-   the same two-sided spelling every hook on this page has, because markup and
-   script cannot import one another and the Python side is the single source for
-   what is emitted (`W431`). */
+   the same two-sided spelling every hook on this page has (`W431`). */
 
 (function () {
   'use strict';
@@ -1638,9 +1781,6 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var QUIZ = 'section[data-practice-quiz]';
   var PART = 'data-practice-part';
   var QUESTION = 'data-practice-question';
-  var OPTION = 'data-practice-option';
-  var CORRECT = 'data-practice-correct';
-  var SAYS = 'data-practice-says';
   var VERDICT = 'data-practice-verdict';
 
   /* Where each of this file's own sentences is kept. ⚠️ `right` is read off two
@@ -1651,6 +1791,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var WRONG = 'data-practice-wrong';
   var COMPLETE = 'data-practice-complete';
   var BLANK = 'data-practice-blank';
+  var CHECKING = 'data-practice-checking';
+  var FAILED = 'data-practice-failed';
 
   function part(root, name) {
     return root.querySelector('[' + PART + '="' + name + '"]');
@@ -1660,71 +1802,93 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return (element && element.getAttribute(name)) || '';
   }
 
-  /* The option a reader chose, or `null`. ⚠️ Read off the DOM rather than
-     remembered: the radios ARE the state, and a second copy of them would be a
-     second answer to *what did they choose?*. */
-  function chosen(question) {
-    var picked = question.querySelector('input[type="radio"]:checked');
-    return picked ? question.querySelector('[' + OPTION + '="' + picked.value + '"]') : null;
+  /* What the reader chose, as `{question id: option id}`. ⚠️ Read off the DOM
+     rather than remembered: the radios ARE the state, and a second copy of them
+     would be a second answer to *what did they choose?*. */
+  function chosen(quiz) {
+    var answers = {};
+    [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']')).forEach(function (question) {
+      var picked = question.querySelector('input[type="radio"]:checked');
+      if (picked) { answers[question.getAttribute(QUESTION)] = picked.value; }
+    });
+    return answers;
   }
 
-  /* ⛔ **One question's reading, and it is TOTAL.** A question nobody answered
-     is not correct — it is simply not answered, which is the same answer
-     `exercise.quiz.grade` gives for a stored answer it does not recognise. */
-  function read(question) {
-    var picked = chosen(question);
+  /* One question's row of the server's verdict, drawn. ⭐ The sentence is the
+     one for whatever the reader CHOSE, right or wrong — a page that showed one
+     only for a wrong answer would teach half the material. ⛔ A question the
+     verdict says nobody answered shows nothing. */
+  function draw(question, row) {
     var says = part(question, 'says');
-    var right = !!picked && picked.getAttribute(CORRECT) === 'true';
-    if (!picked) {
+    if (!row || !row.answered) {
       question.removeAttribute(VERDICT);
       if (says) { says.textContent = ''; says.hidden = true; }
-      return { answered: false, correct: false };
-    }
-    question.setAttribute(VERDICT, right ? 'correct' : 'wrong');
-    if (says) {
-      /* ⭐ The sentence for whatever the reader chose, RIGHT OR WRONG. A page
-         that showed one only for a wrong answer would teach half the material
-         and would tell the reader which half by showing nothing. */
-      says.textContent = words(says, right ? RIGHT : WRONG) + ' ' + picked.getAttribute(SAYS);
-      says.hidden = false;
-    }
-    return { answered: true, correct: right };
-  }
-
-  function grade(quiz) {
-    var questions = [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']'));
-    var status = part(quiz, 'status');
-    var right = 0;
-    var answered = 0;
-    questions.forEach(function (question) {
-      var reading = read(question);
-      if (reading.answered) { answered += 1; }
-      if (reading.correct) { right += 1; }
-    });
-    if (!status) { return; }
-    if (!answered) {
-      status.textContent = words(status, BLANK);
       return;
     }
-    /* ⛔ **Complete is EVERY question answered correctly and nothing less**
-       (`exercise.quiz.completes`), and the count is said in every other case so
-       a reader is never told only that they are not finished. */
-    status.textContent = right === questions.length && questions.length
+    question.setAttribute(VERDICT, row.correct ? 'correct' : 'wrong');
+    if (says) {
+      says.textContent = words(says, row.correct ? RIGHT : WRONG) + ' ' + (row.says || '');
+      says.hidden = false;
+    }
+  }
+
+  function show(quiz, verdict) {
+    var rows = {};
+    (verdict.questions || []).forEach(function (row) { rows[row.id] = row; });
+    [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']')).forEach(function (question) {
+      draw(question, rows[question.getAttribute(QUESTION)]);
+    });
+    var status = part(quiz, 'status');
+    if (!status) { return; }
+    /* ⛔ **Complete is the SERVER's word** and is EVERY question answered
+       correctly; the count is said in every other case so a reader is never
+       told only that they are not finished. */
+    status.textContent = verdict.complete === true
       ? words(status, COMPLETE)
-      : words(status, RIGHT).replace('{right}', right).replace('{asked}', questions.length);
+      : words(status, RIGHT).replace('{right}', verdict.right).replace('{asked}', verdict.asked);
   }
 
-  /* ⭐ Re-graded as soon as a reader changes an answer, so the sentence under a
-     question can never describe an option that is no longer chosen. */
-  function wire(quiz) {
+  function wire(quiz, client) {
     var check = part(quiz, 'check');
-    if (!check) { return; }
+    var controls = part(quiz, 'controls');
+    var offline = part(quiz, 'offline');
+    var status = part(quiz, 'status');
+    if (!check || !controls) { return; }
+    if (offline) { offline.hidden = true; }
+    controls.hidden = false;
     var graded = false;
-    check.addEventListener('click', function () { graded = true; grade(quiz); });
-    quiz.addEventListener('change', function () { if (graded) { grade(quiz); } });
+    /* ⭐ Only the LATEST request may draw: a reader who changes an answer while
+       the previous one is still being checked must never see the older verdict
+       land on top of the newer choice. */
+    var asked = 0;
+
+    function grade() {
+      var answers = chosen(quiz);
+      var ticket = ++asked;
+      if (!Object.keys(answers).length) {
+        show(quiz, { questions: [], right: 0, asked: 0, complete: false });
+        if (status) { status.textContent = words(status, BLANK); }
+        return;
+      }
+      if (status) { status.textContent = words(status, CHECKING); }
+      client.grade(quiz.getAttribute('data-corpus'), quiz.getAttribute('data-practice-quiz'), answers)
+        .then(function (verdict) {
+          if (ticket === asked) { show(quiz, verdict); }
+        }, function () {
+          if (ticket === asked && status) { status.textContent = words(status, FAILED); }
+        });
+    }
+
+    /* ⭐ Re-graded as soon as a reader changes an answer, once they have asked
+       once, so the sentence under a question can never describe an option that
+       is no longer chosen. */
+    check.addEventListener('click', function () { graded = true; grade(); });
+    quiz.addEventListener('change', function () { if (graded) { grade(); } });
   }
 
-  [].slice.call(document.querySelectorAll(QUIZ)).forEach(wire);
+  var client = window.studyforge && window.studyforge.quiz;
+  if (!client || !client.available()) { return; }
+  [].slice.call(document.querySelectorAll(QUIZ)).forEach(function (quiz) { wire(quiz, client); });
 }());
 
 /* Where the reader is: the Up next slip, the progress line and strip, the tick
