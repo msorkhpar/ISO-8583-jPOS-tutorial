@@ -6,11 +6,16 @@
 
 - runtimes: `java`, `maven`
 - the directory the editor binds: `src` (§8.1 ruling 2)
+- the practice workspaces the editor binds too: `practice`
 - the image the component builds: `EDITOR_IMAGE`
+- the runner a Submit runs in: `studyforge-runner-iso-8583-jpos-tutorial`, from `STUDYFORGE_RUNNER_IMAGE`
 
-## Build the image
+## Build the images
+
+From the component's checkout — the runner, then the editor:
 
 ```
+python3 docker/minimal/build.py --runtimes java,maven --prime <this corpus>/.studyforge/execution/prime
 python3 docker/editor/build.py --runtimes java,maven
 python3 docker/editor/build.py --runtimes java,maven --print-tag
 ```
@@ -18,16 +23,27 @@ python3 docker/editor/build.py --runtimes java,maven --print-tag
 ⛔ Never pin a tag you did not compute: a tag is a function of the build's
 inputs. Read the set back from `the image label org.studyforge.editor.runtimes`.
 
+## Record the runner's tag
+
+⭐ The skill records it: its record step runs `python3 docker/minimal/build.py --runtimes java,maven --print-tag`
+with the prime above, in the pinned checkout, and writes `.studyforge/execution/runner.env`.
+⛔ Never type it, and never edit that file: re-run the step when the
+component's pin, the prime or the host's architecture moves.
+
 ## Bring it up
 
 ```
-docker compose -f .studyforge/execution/compose.yaml up -d --wait
+docker compose --env-file .studyforge/execution/runner.env -f .studyforge/execution/compose.yaml up -d --wait
 ```
+
+⛔ That one command starts the editor AND the runner. The study server never
+starts either and never holds the Docker socket (§8.3).
 
 ⛔ §8.1 ruling 4 — these exist on the host before the start, or docker
 creates them root-owned and the container can never write them:
 
 - `src`
+- `practice`
 
 ## The prime
 
@@ -38,7 +54,7 @@ corpus's own files, one project per seeded tool, copied and never authored:
 - `maven/src/main/java/com/example/jpos/Authorization.java` ← `java-build/src/main/java/com/example/jpos/Authorization.java`
 - `maven/src/test/java/com/example/jpos/MockitoTest.java` ← `java-build/src/test/java/com/example/jpos/MockitoTest.java`
 
-Pass `--prime <this corpus>/.studyforge/execution/prime` to the build above.
+Pass `--prime <this corpus>/.studyforge/execution/prime` to the builds above.
 
 ## Narration
 

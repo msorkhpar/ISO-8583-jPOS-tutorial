@@ -283,7 +283,7 @@ This row does not ship until that is answered.
   2.1.7, `spring-context` 5.3.20, `spring-boot-starter` 2.6.3 and `commons-pool2` 2.11.1. It also
   declares JUnit Jupiter 5.14.4 and Mockito 5.23.0, which the material imports but gives no
   version for. Every exercise's build role names these versions and no others, and the runner
-  recorded in `docs/studyforge/runner.json` is warmed from this build. A library outside this set
+  recorded in `.studyforge/execution/runner.env` is warmed from this build. A library outside this set
   fails `G1` offline. The remedy is this build and a rebuilt runner, never the exercise.
 - ⛔ **A fence that needs a live database, or anything else off the machine, gets a written
   reason in the ledger at authoring time. It never becomes an exercise.** A graded run is

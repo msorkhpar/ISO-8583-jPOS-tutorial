@@ -23,6 +23,7 @@ services:
       - "editor-config:/home/coder/.config"
       - "editor-data:/home/coder/.local"
       - "maven-repo:/home/coder/.m2"
+      - "../../practice:/home/coder/repo/practice"
     healthcheck:
       test:
         - CMD
@@ -35,6 +36,15 @@ services:
       start_interval: 1s
       retries: 3
     restart: "no"
+  runner:
+    image: "${STUDYFORGE_RUNNER_IMAGE:?record the primed runner's tag with the execution skill; it writes STUDYFORGE_RUNNER_IMAGE}"
+    container_name: studyforge-runner-iso-8583-jpos-tutorial
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    init: true
+    network_mode: "none"
+    volumes:
+      - "../..:/work"
+    restart: "no"
 volumes:
   editor-config: {}
   editor-data: {}
@@ -44,3 +54,4 @@ volumes:
 # file is brought up. Docker creates a missing one root-owned, and the
 # container can then never write it:
 #   - ../../src
+#   - ../../practice
