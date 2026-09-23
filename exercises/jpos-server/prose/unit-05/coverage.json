@@ -1,0 +1,84 @@
+{
+  "coverage_api": 1,
+  "page": "src/s5.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/s5.md": "sha256:4f3949c04c2268e9461fc69f1dd12aea67f68a2a9f8270477c76d72cb10967a5"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 1,
+    "aspects": [
+      {
+        "id": "network-required-fields",
+        "says": "Each network is checked against its own required data elements: Visa needs 42, 43 and 48, Mastercard needs 48, 61 and 63.",
+        "basis": [
+          "example:src/s5.md:2",
+          "example:src/s5.md:3",
+          "section:2. Implement Visa-specific Participant",
+          "section:3. Implement Mastercard-specific Participant"
+        ],
+        "exercise": "check-by-card-network",
+        "reason": null
+      },
+      {
+        "id": "pan-prefix-picks-network",
+        "says": "The card network is read from the leading digits of the card number in field 2: 4 is Visa, 51 to 55 is Mastercard, anything else is unknown.",
+        "basis": [
+          "example:src/s5.md:5",
+          "section:5. Implement Card Type Identifier"
+        ],
+        "exercise": "check-by-card-network",
+        "reason": null
+      },
+      {
+        "id": "participant-order",
+        "says": "The transaction manager runs participants in the order they are listed, so the card type identifier must come before the network participants that read its result.",
+        "basis": [
+          "example:src/s5.md:4",
+          "section:4. Configure Transaction Manager"
+        ],
+        "exercise": null,
+        "reason": "Spring wiring of a TransactionManager; the exercise keeps the order inside one participant, identifying the network before checking it"
+      },
+      {
+        "id": "verdict-in-context",
+        "says": "A participant records its verdict (valid or not, and why) in the transaction Context for the participants after it, instead of throwing or answering the request itself.",
+        "basis": [
+          "example:src/s5.md:1",
+          "example:src/s5.md:6",
+          "section:1. Create Custom Participants"
+        ],
+        "exercise": "check-by-card-network",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "check-by-card-network",
+        "aspects": [
+          "network-required-fields",
+          "pan-prefix-picks-network",
+          "verdict-in-context"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-server/prose/unit-05/practice-1"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-1",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "Implementation"
+      }
+    }
+  ],
+  "shortfalls": []
+}

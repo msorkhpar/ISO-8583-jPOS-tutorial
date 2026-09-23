@@ -1,0 +1,92 @@
+{
+  "coverage_api": 1,
+  "page": "src/s7.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/s7.md": "sha256:7595bd691f8351375c49bf83b3f4a14adf2fcdb55c0ba2a7006410ec41ba0433"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 1,
+    "aspects": [
+      {
+        "id": "ask-the-security-module",
+        "says": "Application code never does PIN or key cryptography itself: it asks a security module through the SMAdapter interface, so a software (JCE) module and a hardware one are interchangeable and a test can stand in a mock.",
+        "basis": [
+          "example:src/s7.md:1",
+          "example:src/s7.md:6",
+          "section:7.1 Security Module (SMAdapter)",
+          "section:7.6 Testing Security Features"
+        ],
+        "exercise": "pin-block-into-field-52",
+        "reason": null
+      },
+      {
+        "id": "jce-module-setup",
+        "says": "The JCE security module is a software SMAdapter configured with a crypto provider and a local master key (LMK) file.",
+        "basis": [
+          "example:src/s7.md:2",
+          "section:7.2 JCE Security Module"
+        ],
+        "exercise": null,
+        "reason": "configuration wiring that needs an LMK file; the exercise works against the SMAdapter interface instead"
+      },
+      {
+        "id": "key-rotation-keeps-old-key",
+        "says": "Keys are rotated on a schedule, and the previous key is kept for a while so transactions already in flight under it still verify.",
+        "basis": [
+          "example:src/s7.md:4",
+          "section:7.4 Key Management"
+        ],
+        "exercise": null,
+        "reason": "an operational policy built on a scheduler and a key store the page leaves undefined; nothing in it can be checked offline without inventing that store"
+      },
+      {
+        "id": "pin-block-in-field-52",
+        "says": "A PIN travels only as a PIN block encrypted together with the card number from field 2, and the block goes into field 52 as its raw bytes; the clear PIN is never put in the message.",
+        "basis": [
+          "example:src/s7.md:3",
+          "section:7.3 Implementing PIN Encryption"
+        ],
+        "exercise": "pin-block-into-field-52",
+        "reason": null
+      },
+      {
+        "id": "tls-channel",
+        "says": "Messages between client and server travel over a TLS-protected channel.",
+        "basis": [
+          "example:src/s7.md:5",
+          "section:7.5 Secure Communication Channel"
+        ],
+        "exercise": null,
+        "reason": "needs a live peer and sockets; a graded run is offline"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "pin-block-into-field-52",
+        "aspects": [
+          "ask-the-security-module",
+          "pin-block-in-field-52"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-server/prose/unit-07/practice-1"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-07/practice-1",
+      "origin": {
+        "path": "src/s7.md",
+        "section": "7.3 Implementing PIN Encryption"
+      }
+    }
+  ],
+  "shortfalls": []
+}
