@@ -1,9 +1,9 @@
 """ISO-21: committed exercise bundles reach the archive, and an unproven one never does.
 
 **What it does.** Writes a throwaway authored bundle into a COPY of this corpus,
-runs the adapter there and validates what it emitted. ⛔ No bundle is ever
-written into this repository: `exercises/` stays empty here until the authoring
-pass (ISO-22) fills it.
+runs the adapter there and validates what it emitted. ⛔ No fixture bundle is
+ever written into this repository, and the fixtures address units the authoring
+pass has not (the pilot's bundles, ISO-22, are part of every copy).
 
 **How you use it.** `python3 -m pytest tests/ingest/test_exercises.py` from the corpus root.
 
@@ -136,8 +136,8 @@ def _two_bundles(tmp_path: Path) -> Path:
     root = _copy(tmp_path)
     _bundle(root, address="iso-fundamentals", unit=2, ordinal=2,
             section="2.2. Bitmaps", origin="src/2.md")
-    _bundle(root, address="jpos-client", unit=8, ordinal=1,
-            section="8.1 jPOS Logging Framework", origin="src/c8.md")
+    _bundle(root, address="jpos-client", unit=9, ordinal=1,
+            section="9.1 Types of Exceptions", origin="src/c9.md")
     emit(root, ingested=INGESTED)
     return root
 
@@ -146,9 +146,9 @@ def test_a_unit_with_the_source_practice_gets_practice_2_and_its_count_raised(tm
     root = _two_bundles(tmp_path)
     unit_2 = root / "archive/iso-fundamentals/raw/prose/unit-02"
     assert (unit_2 / "practice-1.json").is_file() and (unit_2 / "practice-2.json").is_file()
-    assert (root / "archive/jpos-client/raw/prose/unit-08/practice-1.json").is_file()
+    assert (root / "archive/jpos-client/raw/prose/unit-09/practice-1.json").is_file()
     assert _units(root, "iso-fundamentals")[2] == 2
-    assert _units(root, "jpos-client")[8] == 1
+    assert _units(root, "jpos-client")[9] == 1
     authored = json.loads((unit_2 / "practice-2.json").read_text("utf-8"))
     assert authored["exercise"]["provenance"] == "generated"
     assert authored["exercise"]["main_path"].startswith(
@@ -170,8 +170,8 @@ def test_validate_accepts_the_archive_with_authored_practices(tmp_path):
     assert not report.unchecked, "\n".join(report.lines())
 
 
-def test_with_no_bundle_the_archive_is_what_it_was(tmp_path):
-    # ⭐ R10: this module adds nothing to a corpus with no committed bundle.
+def test_re_emitting_this_corpus_reproduces_its_committed_archive(tmp_path):
+    # ⭐ R10: the committed bundles, and nothing else, give the committed archive.
     root = _copy(tmp_path)
     emit(root, ingested=INGESTED)
     for path in sorted((CORPUS_ROOT / "archive").rglob("*.json")):
@@ -183,8 +183,8 @@ def test_with_no_bundle_the_archive_is_what_it_was(tmp_path):
 
 def test_a_bundle_the_gates_never_cleared_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=8, ordinal=1,
-                   section="8.1 jPOS Logging Framework", origin="src/c8.md")
+    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
+                   section="9.1 Types of Exceptions", origin="src/c9.md")
     (here / "gates.json").unlink()
     with pytest.raises(BundleRefused, match="ships no gate record"):
         emit(root, ingested=INGESTED)
@@ -193,8 +193,8 @@ def test_a_bundle_the_gates_never_cleared_is_refused(tmp_path):
 
 def test_a_gate_record_that_did_not_clear_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=8, ordinal=1,
-                   section="8.1 jPOS Logging Framework", origin="src/c8.md")
+    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
+                   section="9.1 Types of Exceptions", origin="src/c9.md")
     record = json.loads((here / "gates.json").read_text("utf-8"))
     record["gates"][2]["held"] = False
     (here / "gates.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -204,8 +204,8 @@ def test_a_gate_record_that_did_not_clear_is_refused(tmp_path):
 
 def test_a_bundle_edited_after_its_gates_is_refused(tmp_path):
     root = _copy(tmp_path)
-    here = _bundle(root, address="jpos-client", unit=8, ordinal=1,
-                   section="8.1 jPOS Logging Framework", origin="src/c8.md")
+    here = _bundle(root, address="jpos-client", unit=9, ordinal=1,
+                   section="9.1 Types of Exceptions", origin="src/c9.md")
     (here / "reference/Echo.java").write_text("class Echo {}\n", encoding="utf-8")
     with pytest.raises(BundleRefused, match="no longer matches"):
         emit(root, ingested=INGESTED)
