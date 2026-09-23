@@ -1,6 +1,6 @@
 """The iso-8583-jpos-tutorial adapter: read this source, write an archive, prove it.
 
-**What it does.** Reads this repository's own material and writes the archive `studyforge validate` accepts. 1 container level(s), variant(s) prose, document kind(s) lesson — every one of those from `corpus.json`.
+**What it does.** Reads this repository's own material and writes the archive `studyforge validate` accepts. 1 container level(s), variant(s) prose, document kind(s) lesson, practice — every one of those from `corpus.json`.
 
 **How you use it.** `python3 -m ingest <corpus-root>` writes the archive and audits it. The exit code is the answer; there is no other agreement with the framework.
 

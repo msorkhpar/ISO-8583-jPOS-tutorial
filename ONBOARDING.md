@@ -10,7 +10,7 @@ manifest, not this file (R19).
 - 1 container level(s): group
 - variants: prose
 - placement profile: `sibling`
-- graded practices: no
+- graded practices: yes
 - media: committed to git
 
 ## Running it from a fresh clone
@@ -23,7 +23,7 @@ ingest with this corpus's adapter, check the archive, and say what a
 build would write before building:
 
 ```
-git -C ../../studyforge checkout --detach aa4e2569fb856e78cb20399690a8263c1a99b5fa
+git -C ../../studyforge checkout --detach 1994b43741042aad4f561ccc5276d34e2496b6b6
 PYTHONPATH=../../studyforge/src python3 -m ingest .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli validate .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli plan .
@@ -52,10 +52,10 @@ PYTHONPATH=../../studyforge/src python3 -m studyforge.skills.onboarding .
 
 ## What you get
 
-The reading floor, and it is a complete product rather than a partial
-one: pages, narration, contents, navigation and progress, offline,
-with no server and no container. This corpus declares no graded
-practices, so nothing here is waiting on one.
+This corpus declares graded practices, so it reaches the execution
+track as well as the reading floor: pages, narration, contents,
+navigation and progress offline, plus Run and Submit against a
+pinned toolchain.
 
 ## The one file that is yours
 

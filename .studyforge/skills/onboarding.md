@@ -1,6 +1,6 @@
 # Skill — onboarding (pinned)
 
-pin: aa4e2569fb856e78cb20399690a8263c1a99b5fa
+pin: 1994b43741042aad4f561ccc5276d34e2496b6b6
 
 The procedure lives in the framework checked out beside this
 repository's main checkout — this repository itself unless it is a
