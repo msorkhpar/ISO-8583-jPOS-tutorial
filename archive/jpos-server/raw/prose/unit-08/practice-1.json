@@ -1,0 +1,123 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Leave one trace of every transaction",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An operator reading a server's log after an incident needs one thing above all: every transaction the server touched left a trace, including the ones that failed. The page builds its event in a `try` and logs it in a `finally` for exactly that reason."
+    },
+    {
+      "type": "para",
+      "text": "Write `TransactionProcessor`, built from a jPOS `Logger`, with `boolean process(ISOMsg msg)`. For every call it delivers exactly one event tagged `transaction.process` to that logger:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "for a good message the event says `Processing transaction: <MTI>` and then `Transaction processed successfully`, and `process` returns `true`;",
+        "for a message that cannot be processed (one with no MTI, say) the event carries the exception jPOS raised instead of the success line, and `process` returns `false`. It is still logged, once."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    private final LogSource source;\n\n    public TransactionProcessor(Logger logger) {\n        this.source = new SimpleLogSource(logger, \"server\");\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        LogEvent event = new LogEvent(source, \"transaction.process\");\n        try {\n            event.addMessage(\"Processing transaction: \" + msg.getMTI());\n            event.addMessage(\"Transaction processed successfully\");\n            return true;\n        } catch (ISOException e) {\n            event.addMessage(e);\n            return false;\n        } finally {\n            Logger.log(event);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    public TransactionProcessor(Logger logger) {\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "13d5f3097e4a922c2ebb29350c7fefbd6b65bff381f9924d2bacbe94ace43285",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    public TransactionProcessor(Logger logger) {\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-08/practice-1/src/main/java/com/example/practice/TransactionProcessor.java",
+    "test_path": "practice/jpos-server/prose/unit-08/practice-1/src/test/java/com/example/practice/TransactionProcessorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-08/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-08/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TransactionProcessorTest#aGoodMessageLogsOneEventSayingItWasProcessed",
+        "kind": "main",
+        "says": "a good message is logged as one event saying it was processed"
+      },
+      {
+        "id": "com.example.practice.TransactionProcessorTest#aMessageThatFailsStillLogsExactlyOneEvent",
+        "kind": "edge",
+        "says": "a message that fails still leaves exactly one event, carrying the error"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-08/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s8.md",
+      "section": "8.1 jPOS Logging Framework"
+    }
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-09-21",
+  "title": "Find where a bitmap and its message disagree",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A message reached your switch with its primary bitmap captured separately, in a trace, as sixteen hexadecimal digits. Before anybody trusts the parsed fields, you want to know where the bitmap and the message disagree."
+    },
+    {
+      "type": "para",
+      "text": "Write `BitmapCheck.mismatches(String bitmapHex, ISOMsg message)`. It returns, in ascending order, every data element from 2 to 64 whose bit in the bitmap says one thing while the message says the other: a bit set for a field the message does not carry, or a field the message carries whose bit is clear. A message that matches its bitmap gives an empty list."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Bit 1 is not a data element. It flags that a secondary bitmap follows, so it is never reported, whatever it says.",
+        "A bitmap that is not exactly sixteen hexadecimal digits is refused with an `IllegalArgumentException`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Bits are counted from 1, most significant first: bit *n* stands for data element *n*."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        if (bitmapHex == null || !bitmapHex.matches(\"[0-9A-Fa-f]{16}\")) {\n            throw new IllegalArgumentException(\"a primary bitmap is sixteen hexadecimal digits\");\n        }\n        long bits = Long.parseUnsignedLong(bitmapHex, 16);\n        List<Integer> found = new ArrayList<>();\n        for (int field = 2; field <= 64; field++) {\n            boolean claimed = (bits & (1L << (64 - field))) != 0;\n            if (claimed != message.hasField(field)) {\n                found.add(field);\n            }\n        }\n        return found;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        throw new UnsupportedOperationException(\"write mismatches\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "090f001f01187783afb6f3897bfef30c181d00b9d279655e910c63a78dd2bedd",
+  "starting_code": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        throw new UnsupportedOperationException(\"write mismatches\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/BitmapCheck.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/test/java/com/example/practice/BitmapCheckTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-15/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-15/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.BitmapCheckTest#listsEveryFieldTheBitmapAndTheMessageDisagreeOn",
+        "kind": "main",
+        "says": "lists every data element the bitmap and the message disagree on"
+      },
+      {
+        "id": "com.example.practice.BitmapCheckTest#neverReportsBitOne",
+        "kind": "edge",
+        "says": "bit 1 flags a secondary bitmap and is never reported as a data element"
+      },
+      {
+        "id": "com.example.practice.BitmapCheckTest#refusesABitmapThatIsNotSixteenHexDigits",
+        "kind": "edge",
+        "says": "a bitmap that is not sixteen hexadecimal digits is refused"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-15/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/15.md",
+      "section": "15.1.1. Bitmap inconsistencies"
+    }
+  }
+}
