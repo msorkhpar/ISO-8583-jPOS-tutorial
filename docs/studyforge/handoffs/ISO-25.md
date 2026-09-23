@@ -144,3 +144,24 @@ Each re-authoring removed the unit's bundle directory and its emitted archive pr
   stem.
 - **Host:** another office deleted the session scratchpad at about 11:33. This office's scratch
   was recreated under a directory named for this row.
+
+## ISO-26: regenerated on framework 79797b90 (W451 merged)
+
+- The re-pin went through `reonboard`. The framework now writes `pin_api` 2 (`"where": "installed"`,
+  version `0.1.0`), so the stubs, ONBOARDING.md and the pin test describe an installed library.
+  The regenerated execution output is byte-identical at code-server-toolchain `a34a93e`.
+- The key grep covers every `src/study/*.html` and `.studyforge/assets/*` file: the
+  `data-practice-correct` attribute, each option's sentence (raw and HTML-escaped) and each key
+  marker, 35 needles. It reads 24 hits at `e221026` (the positive control) and 0 hits after the
+  rebuild.
+- The browser run was on port 8794. Right answers read "Every question answered correctly." and
+  wrong answers read "2 of 4 answered correctly." Each check sent exactly one
+  `POST /api/v1/quiz/iso-8583-jpos-tutorial/iso-fundamentals/unit-01/practice-prose/q-…=…` and
+  got 200. F9 (the question numbering) is fixed at this framework.
+- ⛔ **Finding F10 (against W451, not patched): the same served origin still serves the key.**
+  `serve --site .` serves the corpus root, because the site is built into it (`--out .`). So
+  `GET /archive/iso-fundamentals/raw/prose/unit-01/practice-1.json` and
+  `GET /exercises/iso-fundamentals/prose/unit-01/practice-1/tests/quiz.json` both answer 200,
+  and the first carries `"correct": true` four times. The page no longer holds the key, but a
+  reader who opens either URL reads it. Whether `serve` should refuse `archive/` and
+  `exercises/`, or the site should be built outside the corpus root, is the framework's call.
