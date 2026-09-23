@@ -23,7 +23,7 @@ ingest with this corpus's adapter, check the archive, and say what a
 build would write before building:
 
 ```
-git -C ../../studyforge checkout --detach 1994b43741042aad4f561ccc5276d34e2496b6b6
+git -C ../../studyforge checkout --detach 0e1dfca29f9c39067128c6d77a1d9ff568f01544
 PYTHONPATH=../../studyforge/src python3 -m ingest .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli validate .
 PYTHONPATH=../../studyforge/src python3 -m studyforge.cli plan .
