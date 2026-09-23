@@ -6,9 +6,20 @@
   .studyforge/execution/prime/maven/), and a graded run is offline, so every library an
   authored exercise's build role names must be declared here too, at the same version.
 
-  org.jpos:jpos 2.1.7 is the version the tutorial's own pom.xml fences name
-  (src/c1.md, src/c7.md, src/s1.md). JUnit Jupiter 5.14.4 is corpus data, chosen
-  once here (register ruling on ISO-M10/8) and copied into every exercise's build role.
+  Every library below is one the tutorial's own pom.xml fences name, at the version they
+  name: org.jpos:jpos 2.1.7 (src/c1.md, src/c7.md, src/s1.md), spring-context 5.3.20
+  (src/c1.md, src/c7.md), spring-boot-starter 2.6.3 and commons-pool2 2.11.1. The
+  PostgreSQL driver those fences also name is deliberately absent: a graded run is
+  run with no network and no database, so a fence that needs a live one gets a written
+  reason in the ledger instead (register ruling, ISO-M10 finding 4).
+
+  JUnit Jupiter 5.14.4 and Mockito 5.23.0 name no version in the material, so they are
+  corpus data chosen once here, and every exercise's build role copies the same versions.
+  The JUnit BOM pins every junit artifact to 5.14.4, including the junit-jupiter-api that
+  mockito-junit-jupiter would otherwise bring at its own version.
+
+  The release is 17: Spring 5.3 reads class files with its own ASM, which is older than
+  the class files a newer release writes.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -22,10 +33,26 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
     <jpos.version>2.1.7</jpos.version>
     <junit.version>5.14.4</junit.version>
+    <mockito.version>5.23.0</mockito.version>
+    <spring.version>5.3.20</spring.version>
+    <spring-boot.version>2.6.3</spring-boot.version>
+    <commons-pool2.version>2.11.1</commons-pool2.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -34,9 +61,35 @@
       <version>${jpos.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+      <version>${spring-boot.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-pool2</artifactId>
+      <version>${commons-pool2.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

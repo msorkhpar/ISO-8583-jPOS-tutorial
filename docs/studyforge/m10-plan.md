@@ -274,6 +274,26 @@ This row does not ship until that is answered.
   (`git diff` empty), and the unit's ordinals run `1..n` with no gap.
 - With no bundle committed, the archive `ingest` emits is byte-identical to `06df27f`'s (R10).
 
+### ⛔ The standing rule for ISO-22 and ISO-23: what a graded run can rely on
+
+*Added after ISO-20, on the register's ruling on finding 4, which is reversible and is corpus data.*
+
+- ⭐ **The corpus build is the whole dependency set.** `java-build/pom.xml` declares exactly the
+  libraries the material's own `pom.xml` fences name, at the versions they name: `org.jpos:jpos`
+  2.1.7, `spring-context` 5.3.20, `spring-boot-starter` 2.6.3 and `commons-pool2` 2.11.1. It also
+  declares JUnit Jupiter 5.14.4 and Mockito 5.23.0, which the material imports but gives no
+  version for. Every exercise's build role names these versions and no others, and the runner
+  recorded in `docs/studyforge/runner.json` is warmed from this build. A library outside this set
+  fails `G1` offline. The remedy is this build and a rebuilt runner, never the exercise.
+- ⛔ **A fence that needs a live database, or anything else off the machine, gets a written
+  reason in the ledger at authoring time. It never becomes an exercise.** A graded run is
+  `--network none` with no database behind it. So the PostgreSQL driver the material's fences
+  name is deliberately **not** in the corpus build, and no exercise may rely on a JDBC connection,
+  a socket to a peer, or a service a container would have to start. The same fence's logic may
+  still be the basis of an exercise once the live dependency is removed, for example by a mock
+  from the declared Mockito. What may not happen is an exercise whose main ask needs the
+  database.
+
 ### ISO-22 — The pilot: three pages, one per container, reviewed once by the user
 **Milestone** M10 · 10.4 · **Depends on** ISO-19, ISO-20, ISO-21; `AX-08` `e01c7243`; **`AX-10`
 merged** (§9; not merged at `5e0657ba`); `AX-09` `d459fadc`; **`ISO-M10/5` answered** ·

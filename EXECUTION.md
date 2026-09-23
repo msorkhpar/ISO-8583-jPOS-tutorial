@@ -36,7 +36,7 @@ corpus's own files, one project per seeded tool, copied and never authored:
 
 - `maven/pom.xml` ← `java-build/pom.xml`
 - `maven/src/main/java/com/example/jpos/Authorization.java` ← `java-build/src/main/java/com/example/jpos/Authorization.java`
-- `maven/src/test/java/com/example/jpos/AuthorizationTest.java` ← `java-build/src/test/java/com/example/jpos/AuthorizationTest.java`
+- `maven/src/test/java/com/example/jpos/MockitoTest.java` ← `java-build/src/test/java/com/example/jpos/MockitoTest.java`
 
 Pass `--prime <this corpus>/.studyforge/execution/prime` to the build above.
 
