@@ -1,0 +1,92 @@
+{
+  "coverage_api": 1,
+  "page": "src/c4.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/c4.md": "sha256:154eea27d35d8551fe11e9f029f0927694021de250c5792373036c744cd6d575"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 1,
+    "aspects": [
+      {
+        "id": "answer-from-response-code",
+        "says": "Whether a transaction was approved is read from the response's field 39, where 00 means approved.",
+        "basis": [
+          "example:src/c4.md:6",
+          "section:4.5 Testing"
+        ],
+        "exercise": "send-over-mux",
+        "reason": null
+      },
+      {
+        "id": "async-listener",
+        "says": "An asynchronous request returns at once and hands the response, or the request's expiry, to a listener instead of blocking the caller.",
+        "basis": [
+          "example:src/c4.md:3",
+          "section:4.2.2 Example: Asynchronous Transaction Sending"
+        ],
+        "exercise": "send-over-mux",
+        "reason": null
+      },
+      {
+        "id": "mux-by-name",
+        "says": "A deployed QMUX is registered by name, and a sender finds it through the NameRegistrar rather than building it.",
+        "basis": [
+          "example:src/c4.md:1",
+          "section:4.1.1 Configuration"
+        ],
+        "exercise": null,
+        "reason": "configuration wiring that needs a running Q2 and a channel; the practice is handed its MUX directly, which is also what lets it be tested"
+      },
+      {
+        "id": "request-waits-bounded",
+        "says": "A request through the MUX waits at most its timeout for the matching response and yields null when none arrives, which is no answer rather than an error.",
+        "basis": [
+          "example:src/c4.md:2",
+          "section:4.1.2 Usage"
+        ],
+        "exercise": "send-over-mux",
+        "reason": null
+      },
+      {
+        "id": "sender-behind-interface",
+        "says": "Creating a message and sending it are separate collaborators, so a service can be tested with the sender replaced by a stand-in.",
+        "basis": [
+          "example:src/c4.md:5",
+          "example:src/c4.md:6",
+          "section:4.4 Putting It All Together"
+        ],
+        "exercise": null,
+        "reason": "the practice's own tests replace the MUX with a stand-in for the reader; it is not practised separately"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "send-over-mux",
+        "aspects": [
+          "answer-from-response-code",
+          "async-listener",
+          "request-waits-bounded"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-client/prose/unit-04/practice-1"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-1",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.2 MUX (org.jpos.iso.MUX)"
+      }
+    }
+  ],
+  "shortfalls": []
+}

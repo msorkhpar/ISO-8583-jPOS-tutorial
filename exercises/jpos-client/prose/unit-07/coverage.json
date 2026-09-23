@@ -1,0 +1,110 @@
+{
+  "coverage_api": 1,
+  "page": "src/c7.md",
+  "kind": "code",
+  "case": "code-no-tests",
+  "digests": {
+    "src/c7.md": "sha256:34213f497d2a6a8d5e10ddb3fbe10dd847453ce4d6ce917f52a7954fd3ef4d78"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 1,
+    "aspects": [
+      {
+        "id": "configure-the-jce-module",
+        "says": "JCESecurityModule is configured with a provider and loaded keys before it can encrypt PINs or generate MACs.",
+        "basis": [
+          "example:src/c7.md:1",
+          "example:src/c7.md:2"
+        ],
+        "exercise": null,
+        "reason": "configuration wiring that needs real key material and a key store; the exercise reaches the module through its service instead"
+      },
+      {
+        "id": "mac-covers-what-is-sent",
+        "says": "The MAC in field 64 is computed over the message as it is actually sent, after the PIN has been encrypted, so the peer can check that nothing changed on the way.",
+        "basis": [
+          "example:src/c7.md:3"
+        ],
+        "exercise": "secure-exchange",
+        "reason": null
+      },
+      {
+        "id": "pin-never-travels-clear",
+        "says": "The PIN in field 52 leaves the client only encrypted, under the card number it belongs to, never in the clear.",
+        "basis": [
+          "example:src/c7.md:3",
+          "section:7.2 Implementing Security in a jPOS Client"
+        ],
+        "exercise": "secure-exchange",
+        "reason": null
+      },
+      {
+        "id": "security-module-behind-a-service",
+        "says": "PIN encryption and MAC generation belong to a security module with its keys, which the client reaches through a security service instead of doing the cryptography itself.",
+        "basis": [
+          "example:src/c7.md:2",
+          "section:7.1 Overview of jPOS Security Features"
+        ],
+        "exercise": "secure-exchange",
+        "reason": null
+      },
+      {
+        "id": "security-practices",
+        "says": "Keys are rotated and stored securely, channels use TLS, security operations are audited and error messages reveal nothing sensitive.",
+        "basis": [
+          "section:7.4 Best Practices for Security in jPOS"
+        ],
+        "exercise": null,
+        "reason": "operational advice with nothing a graded offline run can check"
+      },
+      {
+        "id": "test-with-stand-in-collaborators",
+        "says": "The secure client is tested by replacing its security service and its channel with stand-ins and checking how it uses them.",
+        "basis": [
+          "example:src/c7.md:4",
+          "section:7.3 Testing the Secure Client"
+        ],
+        "exercise": null,
+        "reason": "the exercise's own test works exactly this way, so the reader meets it there; the page's test itself cannot run as written (AssertJ, and a live channel it leaves unmocked)"
+      },
+      {
+        "id": "verify-the-response-mac",
+        "says": "A response is accepted only when the MAC it carries matches the MAC computed over it, and one whose MAC is wrong or missing is refused.",
+        "basis": [
+          "example:src/c7.md:2",
+          "example:src/c7.md:3"
+        ],
+        "exercise": "secure-exchange",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "secure-exchange",
+        "aspects": [
+          "mac-covers-what-is-sent",
+          "pin-never-travels-clear",
+          "security-module-behind-a-service",
+          "verify-the-response-mac"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-client/prose/unit-07/practice-1"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-1",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.2 Implementing Security in a jPOS Client"
+      }
+    }
+  ],
+  "shortfalls": []
+}
