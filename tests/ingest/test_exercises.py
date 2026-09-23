@@ -23,9 +23,11 @@ from pathlib import Path
 
 import pytest
 
+from studyforge.address import Address
 from studyforge.corpus.container import CONTAINER_FILENAME
-from studyforge.exercise.bundle import bundle_of
+from studyforge.exercise.bundle import Places, bundle_of
 from studyforge.exercise.gates import GateRecord, Verdict, record_document, taken_over
+from studyforge.skills.exercises import QUIZ_API, QUIZ_DOCUMENT, QUIZ_KEYS
 from studyforge.validate import validate
 
 from ingest.emit import emit
@@ -218,4 +220,90 @@ def test_an_authored_ordinal_that_collides_with_the_source_practice_is_refused(t
     _bundle(root, address="iso-fundamentals", unit=2, ordinal=1,
             section="2.2. Bitmaps", origin="src/2.md")
     with pytest.raises(BundleRefused, match=r"must be numbered \[2\]"):
+        emit(root, ingested=INGESTED)
+
+
+# --- ISO-25: a quiz bundle reaches the archive the same way ------------------
+
+QUIZ_HELD = ("Q1", "Q2", "Q3", "Q4", "Q5")
+
+
+def _quiz(root: Path, *, address: str, unit: int, ordinal: int, section: str, origin: str) -> Path:
+    """Write one quiz bundle under `root` as the authoring pass lays it out, and return it."""
+    places = Places(Address.of(address), "prose", unit, ordinal)
+    here = root / places.bundle
+    document = {
+        "quiz_api": QUIZ_API,
+        "address": [address],
+        "variant": "prose",
+        "unit": unit,
+        "ordinal": ordinal,
+        "title": "Check yourself",
+        "exercise": {
+            "provenance": "generated",
+            "trust": "advisory",
+            "kind": "quiz",
+            "questions": [
+                {
+                    "id": "q-1",
+                    "stem": "Which message class does the page name first?",
+                    "options": [
+                        {"id": "a", "text": "Authorization", "correct": True, "says": "It is first."},
+                        {"id": "b", "text": "Reversal", "correct": False, "says": "It comes later."},
+                    ],
+                    "origin": {"path": origin, "section": section},
+                }
+            ],
+        },
+    }
+    assert tuple(document) == QUIZ_KEYS
+    (here / "tests").mkdir(parents=True, exist_ok=True)
+    (here / QUIZ_DOCUMENT).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    record = GateRecord(
+        inputs=taken_over(here, (("tests", QUIZ_DOCUMENT),), places.bundle),
+        origins=(),
+        verdicts=tuple(
+            Verdict(id=gate, family="quiz", held=True, says="the gate held", recorded=())
+            for gate in QUIZ_HELD
+        ),
+    )
+    (root / places.gates).write_text(
+        json.dumps(record_document(record), indent=2) + "\n", encoding="utf-8"
+    )
+    return here
+
+
+def test_a_quiz_bundle_is_emitted_as_a_quiz_practice_and_validates(tmp_path):
+    root = _copy(tmp_path)
+    _quiz(root, address="jpos-client", unit=9, ordinal=1,
+          section="9.1 Types of Exceptions", origin="src/c9.md")
+    emit(root, ingested=INGESTED)
+    emitted = json.loads(
+        (root / "archive/jpos-client/raw/prose/unit-09/practice-1.json").read_text("utf-8")
+    )
+    assert emitted["kind"] == "practice"
+    assert emitted["exercise"]["kind"] == "quiz"
+    assert emitted["exercise"]["provenance"] == "generated"
+    assert "main_path" not in emitted["exercise"]
+    assert _units(root, "jpos-client")[9] == 1
+    report = validate(root)
+    assert report.ok, "\n".join(report.lines())
+
+
+def test_a_quiz_whose_gates_never_cleared_is_refused(tmp_path):
+    root = _copy(tmp_path)
+    here = _quiz(root, address="jpos-client", unit=9, ordinal=1,
+                 section="9.1 Types of Exceptions", origin="src/c9.md")
+    (here / "gates.json").unlink()
+    with pytest.raises(BundleRefused, match="ships no gate record"):
+        emit(root, ingested=INGESTED)
+
+
+def test_a_quiz_edited_after_its_gates_is_refused(tmp_path):
+    root = _copy(tmp_path)
+    here = _quiz(root, address="jpos-client", unit=9, ordinal=1,
+                 section="9.1 Types of Exceptions", origin="src/c9.md")
+    text = (here / QUIZ_DOCUMENT).read_text("utf-8").replace("It is first.", "It is.")
+    (here / QUIZ_DOCUMENT).write_text(text, encoding="utf-8")
+    with pytest.raises(BundleRefused, match="no longer matches"):
         emit(root, ingested=INGESTED)

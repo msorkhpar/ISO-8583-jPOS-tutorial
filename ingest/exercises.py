@@ -45,14 +45,25 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
+from studyforge.address import Address
 from studyforge.archive.document import build
 from studyforge.archive.scrub import assert_clean
 from studyforge.corpus.manifest import MANIFEST_FILENAME
 from studyforge.corpus.manifest import load as load_manifest
-from studyforge.exercise.bundle import BUNDLE_FILENAME, BUNDLES_DIRNAME, Bundle, bundle_of, emit
+from studyforge.exercise import from_document
+from studyforge.exercise.bundle import (
+    BUNDLE_FILENAME,
+    BUNDLES_DIRNAME,
+    Bundle,
+    Places,
+    bundle_of,
+    emit,
+)
 from studyforge.exercise.gates import drifted, record_of
+from studyforge.skills.exercises import QUIZ_API, QUIZ_DOCUMENT, QUIZ_KEYS
 
 #: ⚠️ The date an emission is taken with. `ingest.emit` rebuilds every document
 #: with the run's own `ingested` (INT-09/3), so this value never reaches the
@@ -63,6 +74,33 @@ PLACEHOLDER_DATE = "1970-01-01"
 #: input. ⭐ Everything else in the document (its counts, its digest, its API
 #: version) is `build`'s arithmetic over these, and is recomputed.
 BUILD_FIELDS = ("variant", "unit", "kind", "ordinal", "title", "blocks", "starting_code", "exercise")
+
+
+#: ⭐ What a quiz practice shows above its questions (ISO-25). The framework has
+#: no `emit` for a quiz (its guide says the adapter builds the document from
+#: `tests/quiz.json`), so these two blocks are this adapter's. ⚠️ They say
+#: nothing about where the answer is checked: that is the framework's (W451).
+QUIZ_BLOCKS = (
+    {"type": "heading", "level": 2, "text": "Check yourself"},
+    {"type": "para", "text": "Questions on what this page has just taught. Choose one answer for each."},
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Quiz:
+    """One committed quiz bundle: its identity, its title and its exercise record.
+
+    ⭐ It answers `places` and `ordinal` as a `Bundle` does, so `counted` and the
+    gate-record check read both shapes the same way.
+    """
+
+    address: Address
+    variant: str
+    unit: int
+    ordinal: int
+    title: str
+    exercise: dict
+    places: Places
 
 
 class BundleRefused(RuntimeError):
@@ -95,6 +133,14 @@ def authored(root: Path | str) -> dict[tuple[str, str, int], tuple[Bundle, ...]]
         _require_cleared(base, bundle, where)
         key = (bundle.address.key, bundle.variant, bundle.unit)
         found.setdefault(key, []).append(bundle)
+    for path in sorted((base / BUNDLES_DIRNAME).rglob(Path(QUIZ_DOCUMENT).name)):
+        where = path.parent.parent.relative_to(base).as_posix()
+        if path.relative_to(base).as_posix() != f"{where}/{QUIZ_DOCUMENT}":
+            continue
+        quiz = _quiz_of(path, where)
+        _require_cleared(base, quiz, where)
+        key = (quiz.address.key, quiz.variant, quiz.unit)
+        found.setdefault(key, []).append(quiz)
     return {key: tuple(sorted(page, key=lambda one: one.ordinal)) for key, page in found.items()}
 
 
@@ -145,6 +191,9 @@ def documents(root: Path | str, bundles, container, unit: int) -> list[dict]:
     source = load_manifest(base / MANIFEST_FILENAME).source
     fields = []
     for bundle in page:
+        if isinstance(bundle, Quiz):
+            fields.append(_quiz_fields(bundle, source))
+            continue
         emission = emit(base, bundle, source=source, ingested=PLACEHOLDER_DATE)
         document = emission.document
         taken = {"address": bundle.address, **{key: document[key] for key in BUILD_FIELDS}}
@@ -158,7 +207,58 @@ def documents(root: Path | str, bundles, container, unit: int) -> list[dict]:
     return fields
 
 
-def _require_cleared(base: Path, bundle: Bundle, where: str) -> None:
+def _quiz_of(path: Path, where: str) -> Quiz:
+    """Read one quiz's own document, refusing one whose identity or record will not read."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or tuple(document) != QUIZ_KEYS:
+        raise BundleRefused(
+            f"the quiz at '{where}' carries a document that is not {list(QUIZ_KEYS)} in "
+            f"that order, so it was not written by the authoring pass this adapter reads."
+        )
+    if document["quiz_api"] != QUIZ_API:
+        raise BundleRefused(
+            f"the quiz at '{where}' is written at a quiz_api this adapter does not read "
+            f"(it reads {QUIZ_API})."
+        )
+    address = Address.of(*document["address"])
+    places = Places(address, document["variant"], document["unit"], document["ordinal"])
+    if places.bundle != where:
+        raise BundleRefused(
+            f"the quiz at '{where}' declares an identity whose directory is "
+            f"'{places.bundle}'. It is refused rather than emitted under an identity "
+            f"nobody can find it by."
+        )
+    exercise = from_document(document["exercise"], f"{where}/{QUIZ_DOCUMENT}")
+    if not exercise.is_quiz:
+        raise BundleRefused(f"the document at '{where}/{QUIZ_DOCUMENT}' is not a quiz.")
+    return Quiz(
+        address,
+        document["variant"],
+        document["unit"],
+        document["ordinal"],
+        document["title"],
+        document["exercise"],
+        places,
+    )
+
+
+def _quiz_fields(quiz: Quiz, source: str) -> dict:
+    """Return one quiz practice's fields, checked by building the document once."""
+    taken = {
+        "address": quiz.address,
+        "variant": quiz.variant,
+        "unit": quiz.unit,
+        "kind": "practice",
+        "ordinal": quiz.ordinal,
+        "title": quiz.title,
+        "blocks": [dict(block) for block in QUIZ_BLOCKS],
+        "exercise": quiz.exercise,
+    }
+    build(source=source, ingested=PLACEHOLDER_DATE, **taken)
+    return taken
+
+
+def _require_cleared(base: Path, bundle: Bundle | Quiz, where: str) -> None:
     """Refuse a bundle whose gate record is absent, did not clear, or no longer matches."""
     gates = base / bundle.places.gates
     if not gates.is_file():
