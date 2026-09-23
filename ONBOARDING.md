@@ -15,27 +15,38 @@ manifest, not this file (R19).
 
 ## Running it from a fresh clone
 
-The framework is a checkout beside this repository's main checkout —
-this repository itself unless it is a linked worktree — never a submodule
-and never installed. Clone it there; it is `../studyforge` from the main
-checkout's root, and these run from there. They pin the framework,
+The framework is the `studyforge` library, installed into the Python that
+runs these commands — never a submodule, and never a checkout this
+repository reaches by path. This corpus is pinned to `studyforge` version
+`0.1.0`, built from commit `79797b90fd7d9e3494ebf73462df86d943b33ce0`.
+The library is not published to a package index: build a wheel from the
+framework at that commit and install it, for example with
+`python3 -m pip install --no-index <the wheel>`.
+
+Then, from this repository's root, these check that the installed
+library is the pinned version, list the skill procedures it ships,
 ingest with this corpus's adapter, check the archive, and say what a
 build would write before building:
 
 ```
-git -C ../studyforge checkout --detach 3758d1145dab6a1f36ddb87d0259488d5bfd6659
-PYTHONPATH=../studyforge/src python3 -m ingest .
-PYTHONPATH=../studyforge/src python3 -m studyforge.cli validate .
-PYTHONPATH=../studyforge/src python3 -m studyforge.cli plan .
-PYTHONPATH=../studyforge/src python3 -m studyforge.cli build . --out .
+python3 -m studyforge.skills.onboarding.verify .
+python3 -m studyforge.skills.documents
+python3 -m ingest .
+python3 -m studyforge.cli validate .
+python3 -m studyforge.cli plan .
+python3 -m studyforge.cli build . --out .
 ```
+
+A skill's procedure is printed by naming it — `python3 -m studyforge.skills.documents onboarding`
+is this corpus's onboarding procedure — and `.studyforge/skills/` names each
+skill this corpus was pointed at.
 
 The adapter stamps today's date as `ingested`; pass a date after `.` to
 reproduce an earlier archive byte for byte. Narration needs a running
 narration service, so it is not run here; its options are:
 
 ```
-PYTHONPATH=../studyforge/src python3 -m studyforge.cli narrate --help
+python3 -m studyforge.cli narrate --help
 ```
 
 ## Where it stands
@@ -47,7 +58,7 @@ again rewrites the archive. Nothing rewrites this file when they move,
 so it states no figure: this reads them as they are now.
 
 ```
-PYTHONPATH=../studyforge/src python3 -m studyforge.skills.onboarding .
+python3 -m studyforge.skills.onboarding .
 ```
 
 ## What you get
