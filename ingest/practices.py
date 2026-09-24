@@ -94,7 +94,7 @@ WORKSPACES: dict[str, dict] = {
         "run_command": ["java", "practice/mti/Mti.java"],
         "test_command": ["java", "practice/mti/MtiTest.java"],
         "provenance": "bundled",
-        "trust": "authoritative",
+        "trust": "advisory",
     },
     "src/p2.md": {
         "main_path": "practice/bitmap/Bitmap.java",
@@ -102,7 +102,7 @@ WORKSPACES: dict[str, dict] = {
         "run_command": ["java", "practice/bitmap/Bitmap.java"],
         "test_command": ["java", "practice/bitmap/BitmapTest.java"],
         "provenance": "bundled",
-        "trust": "authoritative",
+        "trust": "advisory",
     },
     "src/p3.md": {
         "main_path": "practice/fields/Fields.java",

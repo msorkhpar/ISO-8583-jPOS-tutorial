@@ -2,7 +2,7 @@
 
 This repository was onboarded by `studyforge`. Everything below is
 generated from `corpus.json` and from what the build reads — edit the
-manifest, not this file (R19).
+manifest, not this file: a regeneration writes over it.
 
 ## What this corpus declares
 
@@ -18,15 +18,18 @@ manifest, not this file (R19).
 The framework is the `studyforge` library, installed into the Python that
 runs these commands — never a submodule, and never a checkout this
 repository reaches by path. This corpus is pinned to `studyforge` version
-`0.1.0`, built from commit `2fe132690660f2f20d44330a4883dddbd7f32a59`.
+`0.1.0`, built from commit `037a3eec9dc3fc7a245cbc285a4a43d7947f3ea4`.
 The library is not published to a package index: build a wheel from the
 framework at that commit and install it, for example with
 `python3 -m pip install --no-index <the wheel>`.
 
 Then, from this repository's root, these check that the installed
 library is the pinned version, list the skill procedures it ships,
-ingest with this corpus's adapter, check the archive, and say what a
-build would write before building:
+ingest with this corpus's adapter, check the archive, say what a
+build would write before building, and run the checks onboarding
+generated. Those need no test runner: each prints a line per check and
+exits non-zero on a failure, and `python3 -m pytest tests` runs the
+same checks where pytest is installed:
 
 ```
 python3 -m studyforge.skills.onboarding.verify .
@@ -35,6 +38,8 @@ python3 -m ingest .
 python3 -m studyforge.cli validate .
 python3 -m studyforge.cli plan .
 python3 -m studyforge.cli build . --out .
+python3 tests/test_framework_pin.py
+python3 tests/test_non_destructive.py
 ```
 
 A skill's procedure is printed by naming it — `python3 -m studyforge.skills.documents onboarding`
@@ -67,6 +72,13 @@ This corpus declares graded practices, so it reaches the execution
 track as well as the reading floor: pages, narration, contents,
 navigation and progress offline, plus Run and Submit against a
 pinned toolchain.
+
+## Narration
+
+Narration is optional: the site is complete without it. Pages, practices,
+quizzes, contents and progress need no clip; the clips add the voice.
+This corpus commits its clips, so a clone carries them and nothing needs
+fetching.
 
 ## The one file that is yours
 

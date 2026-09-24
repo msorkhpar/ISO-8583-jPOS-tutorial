@@ -86,13 +86,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
   /* ⛔ THE BOOT CACHE, AND IT IS A DIFFERENT STORAGE AREA ON PURPOSE.
      ⚠️ `page.html` carries a synchronous boot in the `<head>` so a
-     reader who chose a theme is not shown the other one for a frame. That boot
-     ran against `localStorage`, and it is the EARLIEST a document can touch
-     that area: a document that binds it before the previous page's write has
+     reader who chose a theme is not shown the other one for a frame. A boot is
+     the EARLIEST a document can touch a storage area, so it must not read
+     `localStorage`: a document that binds it before the previous page's write has
      been committed keeps a snapshot WITHOUT that write, for its whole life.
-     ⛔ Measured on one host at `-n 16`: a mark written on one page was missing
-     on the next in 14 of 35 runs; with the boot not touching `localStorage`,
-     0 of 10. ⛔ And it is not cosmetic — the reader then marks the page they
+     ⛔ Under load a mark written on one page is then missing on the next in a
+     large share of runs. ⛔ And it is not cosmetic — the reader then marks the page they
      are on, `writeMarks` composes the record from the stale set, and the
      earlier mark is gone.
 
@@ -201,8 +200,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
   /* Whether this is something the control could show a reader, and a bound
      rather than a grammar. ⚠️ Written as a loop over code points rather than
-     as a character class: the class is where this went wrong once already,
-     because a HYPHEN inside one is a range operator or a literal depending
+     as a character class, because a HYPHEN inside one is a range operator or a literal depending
      on where it sits — and every slug this framework mints is hyphenated,
      so a class that swallowed `-` would discard every key there is.
      ⛔ Refused: anything at or below a space (every ASCII control and every
@@ -302,12 +300,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
 /* The reader's choice of theme: light, dark, or whatever their system says.
 
-   ⛔ **The user asked for BOTH THEMES to be reachable from the page**
-   (2026-09-19: *"have the both dark and light themes in
-   studyforge as well"*). `palette.css` carried both, behind the guards
-   `[data-theme="light"]` and `[data-theme="dark"]`, but nothing wrote
-   either, so a reader whose system said light could not read the
-   dark page at all.
+   ⛔ **BOTH THEMES ARE REACHABLE FROM THE PAGE.** `palette.css` carries both,
+   behind the guards `[data-theme="light"]` and `[data-theme="dark"]`, and this
+   control writes one of them, so a reader whose system says light can still
+   read the dark page.
 
    ⛔ **THREE STATES, AND THE THIRD IS THE DEFAULT.** *System* is not the same
    answer as *light*: a reader whose machine turns dark at sunset wants the page
@@ -338,19 +334,16 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    painted.
 
    ⛔ **AND THAT BOOT READS `sessionStorage`, NEVER `localStorage`, WHICH IS
-   A MEASURED DEFECT RATHER THAN A PREFERENCE.** The boot
-   as it first shipped read the display record out of `localStorage` in the
-   `<head>` — the document's FIRST touch of that area, far earlier than any
-   build before it. ⚠️ Measured on this host at `-n 16`: with that boot, a mark
-   written on one page and read on the next was MISSING in 14 of 35 runs; with
-   the same branch and the boot not touching `localStorage`, 0 of 10; on the
-   release tip, which carries no boot at all, 0 of 10. ⛔ A document that binds
+   A CORRECTNESS RULE RATHER THAN A PREFERENCE.** A boot in the `<head>` is the
+   document's FIRST touch of whatever storage it reads, and a boot reading
+   `localStorage` there loses marks under load: a mark written on one page is
+   missing on the next in a large share of runs. ⛔ A document that binds
    the area before the previous document's write has been committed gets a
    snapshot WITHOUT it, and that snapshot is what it keeps: the value was still
    missing a second later. ⛔ **The harm is not cosmetic** — the reader then
    presses *Mark as read* on that page, `writeMarks` composes the new record
-   from the stale set, and the earlier mark is destroyed. A record reading
-   `{"version":1,"read":[]}` after two marks is what the measurement caught.
+   from the stale set, and the earlier mark is destroyed: two marks can end as
+   `{"version":1,"read":[]}`.
 
    ⭐ **So the boot reads a CACHE in `sessionStorage`, which is a different
    storage area and binds nothing in `localStorage`.** ⛔ The cache is the
@@ -594,7 +587,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
   /* Two videos on one page must not speak over each other. Wired from the
      elements' own events rather than from either player's internals, so
-     neither has to know the other exists — and so narration (E04) can join
+     neither has to know the other exists — and so narration can join
      the same convention without either side being edited. */
   videos.forEach(function (video) {
     video.addEventListener('play', function () {
@@ -667,8 +660,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
    ⛔ **Progressive enhancement, and the transport ships HIDDEN.** With scripting
    off, a reader is shown nothing rather than a Play button that cannot play —
-   the row's own acceptance says *no dead control*, and a control that does
-   nothing is the dead one.
+   a control that does nothing is a dead control, and none is shown. ⭐ The same
+   holds when the clips are not on disk: the transport stays hidden, and this
+   file learns it without requesting a clip (see `CLIPS` below).
 
    ⭐ **It degrades honestly, in three named states** (R6). A passage whose clip
    is not on disk says so and stops rather than pretending; a unit with no usable
@@ -703,9 +697,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
   /* The highlight. ⭐ NOT published in `pageassets.SURFACE_HOOKS`, and that is a
      decision rather than an omission: `data-marked` is published because
-     `chrome.css` paints a state `read-mark.js` writes, so two offices hold the
-     two ends. Here `narration.css` and this file are one task's, the spelling has
-     one owner, and publishing it would oblige a stylesheet nobody else writes. */
+     `chrome.css` paints a state `read-mark.js` writes, so two parts hold the
+     two ends. Here `narration.css` and this file are one feature's, the spelling
+     has one owner, and publishing it would oblige a stylesheet nobody else writes. */
   var SPEAKING = 'data-speaking';
 
   /* Which sentence, and which face of the play button, is showing. */
@@ -724,12 +718,23 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var audio = document.getElementById(NARRATOR);
   if (!player || !audio) { return; }
 
+  /* ⛔ **Whether the clips are on disk is asked of a script that is always
+     there, never of a clip.** `templates/player.html` links
+     `pageassets.CLIPS_NAME` ahead of this bundle, and it says `present` only
+     where a build found clips or a restore put them back. ⚠️ A request for a
+     clip that is not there is an error in the console, over `file://` and
+     served alike, and a site whose clips are a download nobody has taken is the
+     normal case. ⭐ So anything but `present` leaves the transport hidden and
+     binds nothing: no button, no passage that answers a click, no key. */
+  var CLIPS = 'present';
+  var told = window.studyforge && window.studyforge.clips;
+  if (told !== CLIPS) { return; }
+
   /* ⛔ THE WHOLE DOCUMENT, NOT `#content`. A unit page is headed by its
      material's own opening heading, and that heading sits in the `<header>`
      above the content — it is a narrated passage like every other one. Scoped to
-     `#content` the transport skipped the first passage of every page while the
-     page still carried its attribute and `speakable` still minted its clip: a
-     clip on disk that nothing could ever play. ⭐ `querySelectorAll` answers in
+     `#content` the transport would skip the first passage of every page while
+     `speakable` still made its clip: a clip on disk that nothing could play. ⭐ `querySelectorAll` answers in
      document order, so the heading is still passage one. ⚠️ Nothing outside the
      heading and the content carries `data-audio` — `render/page/document.py` is
      the one composer of this skeleton and fills the attribute in exactly those
@@ -1035,7 +1040,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    ⛔ **This file draws; it never talks to the API.** Everything it sends goes
    through `window.studyforge.run` — `available()`, `start(corpus, practice,
    mode, onLine)`, `stop()` — which the SERVING PROCESS adds to the page it
-   answers (`E05` § how a served page loads the run client). ⭐ That is the whole
+   answers (`serve.routes.assets` says how). ⭐ That is the whole
    reason this part can live in a built site at all: a built text that named the
    API, the serving origin or the client file is a defect R8's floor reads
    (`tests/studyforge/cli/serving.py`), and there is no such name below.
@@ -1180,8 +1185,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      ⛔ **A frame is never moved to another parent.** An `iframe` REPARENTED IN
      THE DOM RELOADS, so nothing below appends, removes or replaces a node.
 
-     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (measured
-     and argued where the rule is, in `practice.css`).
+     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (argued
+     where the rule is, in `practice.css`).
 
      ⛔ **No keyboard exit would make this a trap.** A real button, focus into
      the expanded practice and back on restore, Escape on the DOCUMENT (focus
@@ -1202,8 +1207,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       (open ? panel : button).focus({ preventScroll: true });
       /* ⛔ **`'instant'` is the repair, not a flourish**: `reset.css` sets
          `scroll-behavior: smooth`, so a plain `scrollTo` ANIMATES and the page
-         is still gliding when whatever looks at it next does. ⚠️ **The glide IS
-         the defect** — measured at 2px by a merge gate and at 306px here. */
+         is still gliding when whatever looks at it next does, anywhere from a
+         couple of pixels to the panel's whole height away. */
       if (!open) { window.scrollTo({ top: was, left: 0, behavior: 'instant' }); }
     }
 
@@ -1307,9 +1312,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
        Stop, a disabled element drops focus to the document AT ONCE, and the
        run then settles a moment later with focus already on `<body>` — so the
        question *did the panel have focus?* answers no and the keyboard reader
-       is left at the top of the page. ⚠️ **Measured in a browser, in the
-       first reading this panel ever had on a served origin**; the ordinary
-       end-of-run path was correct and only this one was not. */
+       is left at the top of the page. ⚠️ The ordinary end-of-run path does
+       not have this problem; only Stop does. */
     var handedBack = false;
 
     /* ⚠️ Asked BEFORE the control is disabled or hidden, never after: a
@@ -1395,7 +1399,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
    ⛔ **This file draws; it never talks to the API.** Everything it asks goes
    through `window.studyforge.run.practice(corpus, key)`, which the SERVING
-   PROCESS adds to the page it answers (`E05`). ⭐ A built text that named the
+   PROCESS adds to the page it answers. ⭐ A built text that named the
    API, the serving origin or the client file is a defect R8's floor reads
    (`tests/studyforge/cli/serving.py`), and there is no such name below.
 
@@ -1473,29 +1477,27 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   }
 
   /* ⛔ **A FRAME NEVER TAKES FOCUS THE READER DID NOT GIVE IT, AND THE PAGE
-     NEVER MOVES ON ITS OWN** (the user's report of 2026-09-23).
+     NEVER MOVES ON ITS OWN**.
 
-     ⚠️ **The mechanism, measured in a real browser and not guessed.** A
+     ⚠️ **The mechanism, as a real browser behaves.** A
      workbench focuses its editor as it starts — `restoreParts()` calls
      `activeGroup.focus()`, then the editor that opens the window's file calls
      `focus()` on its input, neither with `preventScroll` — and the browser lets
      a frame of another origin on the same site take focus from the page with
      no user activation at all. ⛔ **Focusing an element scrolls every ancestor
      frame to it**, so a reader who opened the page at its top was carried to
-     the editor seconds later, and `document.activeElement` became the frame.
+     the editor seconds later, and `document.activeElement` would become the frame.
      ⚠️ Nothing on the frame refuses it: `inert` does not reach the framed
      document, and `allow="focus-without-user-activation 'none'"` is not
-     honoured (both measured). ⛔ Delaying the frame until the reader reaches it
-     was not needed, so it was not done.
+     honoured.
 
      ⭐ **So the page gives focus back, and it can because of an order the
      browser keeps.** The page's `blur` is dispatched INSIDE the frame's
      `focus()` call, before the scroll it starts has moved anything; one task
      later focus goes back to where the reader left it and the page is put back
      where it was, which also cancels the glide `scroll-behavior: smooth` had
-     queued. ⛔ **The reader never sees the page move** (measured over the
-     two-practice pilot page: the page rests where it was opened, and at most
-     one 3px step is painted before it is put back).
+     queued. ⛔ **The reader never sees the page move**: the page rests where
+     it was opened, and at most one 3px step is painted before it is put back.
 
      ⭐ **What counts as GIVEN is the reader's hand, never a timer:** the
      pointer over THAT frame together with the page's own user activation —
@@ -1503,7 +1505,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      pressed on the page just before focus arrived. ⚠️ **Two steals raise NO
      `blur`**: a frame taking focus while the reader types in ANOTHER frame, and
      any frame taking it while the browser window itself is not focused (the
-     page still scrolls — measured). So the page also reads `activeElement`
+     page still scrolls). So the page also reads `activeElement`
      every `WATCH_EVERY` ms for as long as it carries a frame, and answers
      those the same way. ⭐ Nothing is installed until the first frame is
      built, so a page with no editor carries none of it. */
@@ -1533,10 +1535,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
     /* ⚠️ Put the page back, and CANCEL the glide the frame queued. A scroll to
        where the page already is does nothing, and a glide not yet begun
-       survives it (measured: the page crept 3px and stopped there), so the
+       survives it (the page creeps 3px and stops there), so the
        page is moved one pixel and back — both instant, within one task, so no
        frame is ever painted between them. ⚠️ A glide already under way can
-       still land one step after that (measured, once in six), so the next two
+       still land one step after that, so the next two
        frames look again. */
     function stay(at, again) {
       if (window.scrollX !== at.x || window.scrollY !== at.y || again === undefined) {
@@ -1550,8 +1552,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
     /* ⚠️ One task later, and not inside the `blur`: a focus moved while the
        browser is still dispatching the frame's own focus change is ignored,
-       and a MICROTASK is still inside it (both measured — `activeElement`
-       stayed the frame and the page glided to it). ⛔ Whichever frame holds
+       and a MICROTASK is still inside it (`activeElement`
+       stays the frame and the page glides to it). ⛔ Whichever frame holds
        focus by THEN is the one answered: the second practice's workbench can
        take it from the first in between, and raises no event here. */
     function refuse(at) {
@@ -1741,10 +1743,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
 /* The quiz: what a reader chose, and what the local study server said about it.
 
-   ⛔ **THE KEY IS NOT IN THE PAGE, AND THIS FILE DOES NOT GRADE** — the user's
-   ruling of 2026-09-23: *"a test with the correct answer residing on
-   the server side. When user answers it will get validated and result will be
-   returned to the user with explanation if needed"*. ⭐ So this file reads
+   ⛔ **THE KEY IS NOT IN THE PAGE, AND THIS FILE DOES NOT GRADE**: the correct
+   answers stay on the local server, which validates each answer and returns
+   the result with its explanation. ⭐ So this file reads
    which option the reader chose, hands the choices to `window.studyforge.quiz`
    — which the SERVING PROCESS adds to a served page and a built page never
    names (R8) — and shows what came back: right or wrong per question,
@@ -1769,7 +1770,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    ⛔ **Nothing is written to browser storage, and the server records nothing
    either.** What a reader answered is the page's for as long as they are on
    it; ⚠️ **so a reload clears the answers**, and recording a quiz's completion
-   in the reader's own state is a decision for the row that takes it — never a
+   in the reader's own state is not done here — and it would never be a
    run verdict, which a quiz does not produce.
 
    ⭐ **Every word this file says is read off the markup**, where Python put it —

@@ -1,6 +1,6 @@
 """The adapter's whole obligation: what it emits is what `validate` accepts.
 
-**What it does.** Emits this corpus into a temporary directory and validates it there. ⭐ One assertion, and it is the definition of done (R2) — there is no other agreement between an adapter and the framework.
+**What it does.** Emits this corpus into a temporary directory and validates it there. ⭐ One assertion, and it is the definition of done — there is no other agreement between an adapter and the framework.
 
 **How you use it.** `python3 -m pytest tests/ingest/test_emit.py` from the corpus root.
 
@@ -23,7 +23,7 @@ from ingest.emit import emit
 
 CORPUS_ROOT = Path(__file__).resolve().parents[2]
 
-#: Fixed, never today's date. ⚠️ R10: two runs differ only in `ingested`, so a
+#: Fixed, never today's date. ⚠️ Reproducible: two runs differ only in `ingested`, so a
 #: test that passed a moving date could not compare two runs byte for byte.
 INGESTED = "2026-01-01"
 
@@ -66,7 +66,7 @@ def _left_out(
 
     ⭐ Asked once per directory, so an ignored directory is never walked, let
     alone copied. ⛔ A repository that stops answering part-way refuses the
-    copy: a copy that quietly took everything is the defect this replaced.
+    copy: a copy that quietly took everything would test the wrong tree.
     ⛔ A nested store `validate` refuses is copied and never asked about.
     """
     left: set[str] = set()
@@ -83,7 +83,7 @@ def _left_out(
 
 
 def _emitted(root: Path) -> list:
-    """Every JSON file under `root`, with its bytes — what R10 compares."""
+    """Every JSON file under `root`, with its bytes — what the reproducibility check compares."""
     return sorted(
         (path.relative_to(root).as_posix(), path.read_bytes())
         for path in root.rglob("*.json")
@@ -91,7 +91,7 @@ def _emitted(root: Path) -> list:
 
 
 def test_what_this_adapter_emits_is_what_validate_accepts(tmp_path):
-    # ⭐ The whole obligation, in one assertion (R2). Everything else in this
+    # ⭐ The whole obligation, in one assertion. Everything else in this
     # package exists to make this line reachable.
     root = _copy(tmp_path)
     written = emit(root, ingested=INGESTED)
@@ -101,7 +101,7 @@ def test_what_this_adapter_emits_is_what_validate_accepts(tmp_path):
 
 
 def test_two_runs_produce_the_same_bytes(tmp_path):
-    # ⭐ R10. `ingested` is held fixed above, so anything that differs between
+    # ⭐ Reproducibility. `ingested` is held fixed above, so anything that differs between
     # these two runs is non-determinism in the reader — a dict order, a
     # directory listing, a set — and every one of them is a real defect.
     root = _copy(tmp_path)

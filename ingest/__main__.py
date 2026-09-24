@@ -26,7 +26,7 @@ def main(argv=None) -> int:
         print("usage: python3 -m ingest <corpus-root> [YYYY-MM-DD]")
         return UNUSABLE
     root = argv[0]
-    # ⚠️ R10: re-running produces identical bytes apart from `ingested`, so the
+    # ⚠️ Reproducible: re-running produces identical bytes apart from `ingested`, so the
     # date is an argument first and today's date only as a fallback.
     ingested = argv[1] if len(argv) == 2 else date.today().isoformat()
     for where in emit(root, ingested=ingested, replace=True):

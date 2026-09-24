@@ -27,7 +27,7 @@ from ingest import read
 class EmitRefused(RuntimeError):
     """An emission this adapter will not perform, and the field that is why.
 
-    ⛔ Names the field and what would settle it, never a path or a value (R7).
+    ⛔ Names the field and what would settle it, never a path or a value.
     """
 
 
@@ -46,7 +46,7 @@ def emit(root, *, ingested: str, into=None, replace: bool = False) -> list[str]:
     if layout.archive.exists() and not replace:
         raise EmitRefused(
             "the archive directory already exists; pass replace=True to rebuild it. "
-            "⛔ Nothing outside it is written, moved or renamed either way (R3)."
+            "⛔ Nothing outside it is written, moved or renamed either way."
         )
     staging = Layout(layout.staging, plan.archive_dir)
     if layout.staging.exists():
@@ -85,7 +85,7 @@ def emit(root, *, ingested: str, into=None, replace: bool = False) -> list[str]:
 
 
 def _write(path: Path, text: str, staging: Layout) -> str:
-    """Write one staged file and return where it will land, root-relative (R7)."""
+    """Write one staged file and return where it will land, root-relative, so no home path is printed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return staging.relative(path)

@@ -1,6 +1,6 @@
 # Skill — reconnaissance (pinned)
 
-pin: 2fe132690660f2f20d44330a4883dddbd7f32a59
+pin: 037a3eec9dc3fc7a245cbc285a4a43d7947f3ea4
 version: 0.1.0
 
 The procedure ships inside the installed `studyforge` library, at the
@@ -13,4 +13,4 @@ and check that the library this Python imports is the pinned version with:
     python3 -m studyforge.skills.onboarding.verify .
 
 This file is a pointer and is regenerated. A hand-edit to it is a
-finding against the onboarding skill, not a fix (R19).
+finding against the onboarding skill, not a fix.
