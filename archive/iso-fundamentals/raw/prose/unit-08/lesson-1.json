@@ -148,6 +148,10 @@
       "text": "import org.jpos.core.SimpleConfiguration;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.security.SimpleKeyFile;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class KeyManager {\n    private final SMAdapter<SecureDESKey> sm;\n    private final SecureKeyStore ks;\n\n    public KeyManager() throws Exception {\n        Logger logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n\n        ks = new SimpleKeyFile(\"keystore.ks\");\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        cfg.put(\"lmk\", \"lmk\"); // the Local Master Keys file that protects every key the module holds\n        sm = new JCESecurityModule(cfg, logger, \"jce\");\n    }\n\n    public SecureDESKey generateMasterKey() throws SMException {\n        return sm.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZMK); // Use Triple DES (112-bit) key\n    }\n\n    public SecureDESKey generateSessionKey() throws SMException {\n        return sm.generateKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK); // Use single DES key for session\n    }\n\n    public byte[] encryptSessionKey(SecureDESKey masterKey, SecureDESKey sessionKey) throws SMException {\n        return sm.exportKey(sessionKey, masterKey);\n    }\n\n    public SecureDESKey decryptSessionKey(SecureDESKey masterKey, byte[] encryptedSessionKey) throws SMException {\n        return sm.importKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK, encryptedSessionKey, masterKey, true);\n    }\n\n    public void storeMasterKey(String alias, SecureDESKey masterKey) throws Exception {\n        ks.setKey(alias, masterKey);\n    }\n\n    public SecureDESKey retrieveMasterKey(String alias) throws Exception {\n        return ks.getKey(alias);\n    }\n}"
     },
     {
+      "type": "para",
+      "text": "`JCESecurityModule` loads its Local Master Keys from the `lmk` file, and it fails if that file does not exist. Create the file once, before the first run, by constructing a `JCESecurityModule` with the same `lmk` setting and `rebuildlmk` set to `true`. With no `provider` setting, jPOS 2.1.7 loads the SunJCE provider by its class name, `com.sun.crypto.provider.SunJCE`, which Java 17 and later do not open to other code. So run the JVM with `--add-exports java.base/com.sun.crypto.provider=ALL-UNNAMED`."
+    },
+    {
       "type": "heading",
       "level": 2,
       "text": "8.3. Secure messaging"
@@ -172,7 +176,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\nimport java.security.InvalidKeyException;\nimport java.security.MessageDigest;\nimport java.security.NoSuchAlgorithmException;\n\npublic class MACGenerator {\n\n    public static byte[] generateMAC(byte[] message, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        Mac mac = Mac.getInstance(\"HmacSHA256\");\n        mac.init(key);\n        return mac.doFinal(message);\n    }\n\n    public static boolean verifyMAC(byte[] message, byte[] receivedMAC, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        byte[] calculatedMAC = generateMAC(message, key);\n        return MessageDigest.isEqual(calculatedMAC, receivedMAC);\n    }\n}"
+      "text": "import javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport java.security.InvalidKeyException;\nimport java.security.MessageDigest;\nimport java.security.NoSuchAlgorithmException;\n\npublic class MACGenerator {\n\n    public static byte[] generateMAC(byte[] message, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        Mac mac = Mac.getInstance(\"HmacSHA256\");\n        mac.init(key);\n        return mac.doFinal(message);\n    }\n\n    public static boolean verifyMAC(byte[] message, byte[] receivedMAC, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {\n        byte[] calculatedMAC = generateMAC(message, key);\n        return MessageDigest.isEqual(calculatedMAC, receivedMAC);\n    }\n}"
     },
     {
       "type": "heading",
@@ -206,7 +210,7 @@
   "attachments": [],
   "counts": {
     "headings": 12,
-    "paras": 14,
+    "paras": 15,
     "code": 4,
     "tables": 0,
     "lists": 6,
@@ -217,5 +221,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "6d0eb404b14ae07397646a8fa48c3cc50f9ba455c410fd9f4b7de872fdb8d84e"
+  "content_sha256": "31f639787a37049fdd79d33b5bc9813d263c67875fe8282802795865f2090036"
 }

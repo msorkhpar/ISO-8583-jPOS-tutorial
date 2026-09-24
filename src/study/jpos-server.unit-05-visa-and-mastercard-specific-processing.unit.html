@@ -87,7 +87,9 @@ public class VisaAuthorizationParticipant extends VisaParticipant {
     @Override
     public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields((Context) context);
+        if (&quot;VISA&quot;.equals(((Context) context).get(&quot;CARD_TYPE&quot;))) { // only Visa cards; any other card passes through untouched
+            processSpecificFields((Context) context);
+        }
         return result;
     }
 
@@ -134,7 +136,9 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
     @Override
     public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields((Context) context);
+        if (&quot;MASTERCARD&quot;.equals(((Context) context).get(&quot;CARD_TYPE&quot;))) { // only Mastercard cards; any other card passes through untouched
+            processSpecificFields((Context) context);
+        }
         return result;
     }
 
@@ -172,9 +176,9 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
     &lt;property name=&quot;queue&quot; value=&quot;txnqueue&quot;/&gt;
     &lt;property name=&quot;sessions&quot; value=&quot;2&quot;/&gt;
     &lt;property name=&quot;max-sessions&quot; value=&quot;128&quot;/&gt;
-    &lt;participant class=&quot;com.example.CardTypeIdentifierParticipant&quot; logger=&quot;Q2&quot;/&gt;
-    &lt;participant class=&quot;com.example.VisaAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
-    &lt;participant class=&quot;com.example.MastercardAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;participant class=&quot;CardTypeIdentifierParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;participant class=&quot;VisaAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;participant class=&quot;MastercardAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
     &lt;!-- Other participants --&gt;
 &lt;/txnmgr&gt;</code></pre></figure>
 <h3 id="prose-b16" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b17-1a8850d9.mp3">5. Implement Card Type Identifier</h3>
@@ -246,6 +250,7 @@ class VisaAuthorizationParticipantTest {
         msg.set(43, &quot;VISA_MERCHANT_NAME_LOCATION&quot;);
         msg.set(48, &quot;ADDITIONAL_DATA&quot;);
         context.put(&quot;REQUEST&quot;, msg);
+        context.put(&quot;CARD_TYPE&quot;, &quot;VISA&quot;);
     }
 
     @Test
@@ -280,6 +285,7 @@ class MastercardAuthorizationParticipantTest {
         msg.set(61, &quot;POS_DATA&quot;);
         msg.set(63, &quot;NETWORK_DATA&quot;);
         context.put(&quot;REQUEST&quot;, msg);
+        context.put(&quot;CARD_TYPE&quot;, &quot;MASTERCARD&quot;);
     }
 
     @Test

@@ -35,7 +35,6 @@
 <figure class="code" data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b9-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.ConfigurationException;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOServer;
-import org.jpos.iso.ServerChannel;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.q2.QBeanSupport;
 import org.jpos.util.NameRegistrar;
@@ -52,12 +51,14 @@ public class ISOServerConfig extends QBeanSupport {
 
     @Bean
     public ISOServer isoServer() throws ConfigurationException, ISOException {
-        ServerChannel channel = new NACChannel(
+        org.jpos.core.Configuration cfg = createConfiguration();
+        NACChannel channel = new NACChannel(
             serverConfig.getHost(),
             serverConfig.getPort(),
             serverConfig.getPackager(),
             null // no TPDU header
         );
+        channel.setConfiguration(cfg);
 
         ISOServer server = new ISOServer(
             serverConfig.getPort(),
@@ -65,7 +66,7 @@ public class ISOServerConfig extends QBeanSupport {
             new ThreadPool(1, 100)
         );
 
-        server.setConfiguration(createConfiguration());
+        server.setConfiguration(cfg);
         server.addISORequestListener(new TransactionRequestListener());
 
         NameRegistrar.register(&quot;iso-server&quot;, server);
@@ -75,11 +76,7 @@ public class ISOServerConfig extends QBeanSupport {
 
     private org.jpos.core.Configuration createConfiguration() throws ISOException {
         org.jpos.core.Configuration cfg = new org.jpos.core.SimpleConfiguration();
-        cfg.put(&quot;port&quot;, String.valueOf(serverConfig.getPort()));
-        cfg.put(&quot;channel&quot;, &quot;org.jpos.iso.channel.NACChannel&quot;);
-        cfg.put(&quot;packager&quot;, serverConfig.getPackager());
         cfg.put(&quot;timeout&quot;, &quot;300000&quot;);
-        cfg.put(&quot;max-connections&quot;, &quot;100&quot;);
         return cfg;
     }
 
@@ -104,7 +101,7 @@ public class ISOServerConfig extends QBeanSupport {
     }
 }</code></pre></figure>
 <p data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b10-aa28248a.mp3">This configuration class sets up an <code>ISOServer</code> using Spring's <code>@Configuration</code> and <code>@Bean</code> annotations. Let's break down the important parts:</p>
-<ol class="items"><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i1-67e64cf7.mp3">We create a <code>NACChannel</code> with the specified host, port, and packager.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i2-62b8ebf7.mp3">We instantiate an <code>ISOServer</code> with the port, channel, and a <code>ThreadPool</code> whose threads serve the connections.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i3-d98a3b28.mp3">We set the configuration for the server, including timeout and max connections.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i4-72fa7d2e.mp3">We add a <code>TransactionRequestListener</code> to handle incoming requests.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i5-84face99.mp3">We register the server with <code>NameRegistrar</code> for easy access in other parts of the application.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i6-457a861a.mp3">The <code>startService</code> and <code>stopService</code> methods handle the lifecycle of the server.</li></ol>
+<ol class="items"><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i1-67e64cf7.mp3">We create a <code>NACChannel</code> with the specified host, port, and packager.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i2-62b8ebf7.mp3">We instantiate an <code>ISOServer</code> with the port, channel, and a <code>ThreadPool</code> whose threads serve the connections.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i3-d98a3b28.mp3">We give the channel a read timeout and pass the same configuration to the server; the <code>ThreadPool</code>'s maximum of 100 threads is what caps concurrent connections.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i4-72fa7d2e.mp3">We add a <code>TransactionRequestListener</code> to handle incoming requests.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i5-84face99.mp3">We register the server with <code>NameRegistrar</code> for easy access in other parts of the application.</li><li data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b11.i6-457a861a.mp3">The <code>startService</code> and <code>stopService</code> methods handle the lifecycle of the server.</li></ol>
 <p data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b12-d674edf7.mp3">Now, let's create the <code>ServerConfiguration</code> class to hold our server settings:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-03-channel-management/jpos-server--unit-03.prose.b13-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOPackager;
