@@ -33,8 +33,8 @@ INGESTED = "2026-01-01"
 WRITTEN_HERE = ("archive", ".archive-staging")
 
 #: ⛔ What a copy leaves out by name is `validate`'s own `SKIP_DIRS`, and only at
-#: the corpus root, as `validate` asks it (W259). A nested store is copied, so
-#: `validate` refuses it by name in the copy (W271). No store name is typed here.
+#: the corpus root, as `validate` asks it. A nested store is copied, so
+#: `validate` refuses it by name in the copy. No store name is typed here.
 
 #: Said, never assumed, when there is no ignore declaration to read.
 UNDECLARED = (
@@ -67,7 +67,7 @@ def _left_out(
     ⭐ Asked once per directory, so an ignored directory is never walked, let
     alone copied. ⛔ A repository that stops answering part-way refuses the
     copy: a copy that quietly took everything is the defect this replaced.
-    ⛔ A nested store `validate` refuses is copied and never asked about (W271).
+    ⛔ A nested store `validate` refuses is copied and never asked about.
     """
     left: set[str] = set()
     if here == CORPUS_ROOT:
@@ -112,7 +112,7 @@ def test_two_runs_produce_the_same_bytes(tmp_path):
 
 
 def test_every_container_is_dated_with_its_documents(tmp_path):
-    # ⛔ One run, one date (INT-09/3). `emit` applies the run's date after `read`,
+    # ⛔ One run, one date. `emit` applies the run's date after `read`,
     # so a container map can never carry a date its documents were not given.
     root = _copy(tmp_path)
     emit(root, ingested=INGESTED)

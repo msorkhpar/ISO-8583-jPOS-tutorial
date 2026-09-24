@@ -5,7 +5,7 @@
 ## What this corpus declared
 
 - runtimes: `java`, `maven`
-- the directory the editor binds: `src` (§8.1 ruling 2)
+- the directory the editor binds: `src` — the sources alone (§8.1)
 - the practice workspaces the editor binds too: `practice`
 - the image the component builds: `EDITOR_IMAGE`
 - the runner a Submit runs in: `studyforge-runner-iso-8583-jpos-tutorial`, from `STUDYFORGE_RUNNER_IMAGE`
@@ -39,7 +39,7 @@ docker compose --env-file .studyforge/execution/runner.env -f .studyforge/execut
 ⛔ That one command starts the editor AND the runner. The study server never
 starts either and never holds the Docker socket (§8.3).
 
-⛔ §8.1 ruling 4 — these exist on the host before the start, or docker
+⛔ These exist on the host before the start (§8.1), or docker
 creates them root-owned and the container can never write them:
 
 - `src`
@@ -64,4 +64,4 @@ brought up from its own checkout, by its own compose files:
 - `compose.yaml`
 
 ⚠️ Its contract declares no per-project keys, so a consumer cannot render it
-without inventing a host port and a volume name (`SK-09/2`).
+without inventing a host port and a volume name.

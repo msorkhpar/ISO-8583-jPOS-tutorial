@@ -36,7 +36,7 @@ def _installed():
     except ImportError:
         raise AssertionError(
             FRAMEWORK + ' is not installed in the Python running these checks; '
-            'install the pinned version (ONBOARDING.md says how)'
+            'install the pinned version (docs/archive/ONBOARDING.md says how)'
         ) from None
     return library, documents
 

@@ -35,7 +35,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    `studyforge serve` still keeps their place, because a read mark is the
    reader's own assertion and needs nobody's agreement to be true. ⚠️ The
    served half is a different fact: a PASS is established by a grader run and
-   is written where it was established (SF-21, spec §8.5). ⛔ **A read mark is
+   is written where it was established (spec §8.5). ⛔ **A read mark is
    never a pass**, and nothing here can produce one — this file has no notion
    of a practice, a grader or a result at all.
 
@@ -54,7 +54,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    key with the reading record.
 
    ⛔ **No clock.** A timestamp is a second fact nobody asked for, and it turns
-   `SK-06`'s merge from a set union into an ordering problem. Nothing here
+   the personal archive's merge from a set union into an ordering problem. Nothing here
    reads `Date`, and the marks are kept sorted so the stored text is stable
    under re-marking rather than ordered by when somebody pressed a button.
 
@@ -84,8 +84,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var MARKS_KEY = 'studyforge.read.v1';
   var DISPLAY_KEY = 'studyforge.display.v1';
 
-  /* ⛔ THE BOOT CACHE, AND IT IS A DIFFERENT STORAGE AREA ON PURPOSE — `W388`
-     stage 5. ⚠️ `page.html` carries a synchronous boot in the `<head>` so a
+  /* ⛔ THE BOOT CACHE, AND IT IS A DIFFERENT STORAGE AREA ON PURPOSE.
+     ⚠️ `page.html` carries a synchronous boot in the `<head>` so a
      reader who chose a theme is not shown the other one for a frame. That boot
      ran against `localStorage`, and it is the EARLIEST a document can touch
      that area: a document that binds it before the previous page's write has
@@ -303,10 +303,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 /* The reader's choice of theme: light, dark, or whatever their system says.
 
    ⛔ **The user asked for BOTH THEMES to be reachable from the page**
-   (`W388` stage 2, 2026-09-19: *"have the both dark and light themes in
-   studyforge as well"*). `palette.css` has carried both since `W362` and the
-   guards `[data-theme="light"]` and `[data-theme="dark"]` since then; until now
-   nothing wrote either, so a reader whose system said light could not read the
+   (2026-09-19: *"have the both dark and light themes in
+   studyforge as well"*). `palette.css` carried both, behind the guards
+   `[data-theme="light"]` and `[data-theme="dark"]`, but nothing wrote
+   either, so a reader whose system said light could not read the
    dark page at all.
 
    ⛔ **THREE STATES, AND THE THIRD IS THE DEFAULT.** *System* is not the same
@@ -338,8 +338,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    painted.
 
    ⛔ **AND THAT BOOT READS `sessionStorage`, NEVER `localStorage`, WHICH IS
-   `W388` STAGE 5 AND IS A MEASURED DEFECT RATHER THAN A PREFERENCE.** The boot
-   as stage 2 shipped it read the display record out of `localStorage` in the
+   A MEASURED DEFECT RATHER THAN A PREFERENCE.** The boot
+   as it first shipped read the display record out of `localStorage` in the
    `<head>` — the document's FIRST touch of that area, far earlier than any
    build before it. ⚠️ Measured on this host at `-n 16`: with that boot, a mark
    written on one page and read on the next was MISSING in 14 of 35 runs; with
@@ -486,7 +486,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    nothing. */
 
 (function () {
-  /* ⛔ The fallback names the key THIS machine uses (`W362`, K4): it said
+  /* ⛔ The fallback names the key THIS machine uses: it said
      "Press ⌘C" to every reader, which is wrong everywhere but a Mac. */
   function copyKey() {
     var platform = (navigator.userAgentData && navigator.userAgentData.platform) ||
@@ -647,7 +647,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 /* The narration transport: play, advance, and the highlight that tracks what is spoken.
 
    ⛔ **One clip per speech unit, and the granularity is the whole design.**
-   `SF-16` chose the speech unit precisely so a highlight can track playback with
+   Spec §8.2 chose the speech unit precisely so a highlight can track playback with
    no word-level timing data anywhere: the audio element already knows which clip
    it is playing, so *which passage is lit* is the same question as *which clip is
    loaded*, and no timing table has to be kept in step with anything.
@@ -695,7 +695,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      reaches* declares.
 
      ⚠️ **`data-speech-id` is deliberately NOT read here.** The positional id is
-     what a *structure* edit must not renumber (`SF-16`), and the player has no
+     what a *structure* edit must not renumber (spec §8.2), and the player has no
      question it answers: which clip is loaded already says which passage is lit.
      ⛔ Reading it to key something the DOM order already keys would be a second
      ordering, agreeing today and disagreeing the day one of them is wrong. */
@@ -724,7 +724,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var audio = document.getElementById(NARRATOR);
   if (!player || !audio) { return; }
 
-  /* ⛔ THE WHOLE DOCUMENT, NOT `#content` (`W407`). A unit page is headed by its
+  /* ⛔ THE WHOLE DOCUMENT, NOT `#content`. A unit page is headed by its
      material's own opening heading, and that heading sits in the `<header>`
      above the content — it is a narrated passage like every other one. Scoped to
      `#content` the transport skipped the first passage of every page while the
@@ -890,7 +890,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      exact failure R6 is here to prevent. `begin` clears the status before it
      starts, so there is nothing left for a success to clear.
 
-     ⛔ **`W276`: a clip that is not on disk fires `error` AND rejects `play()`, in
+     ⛔ **A clip that is not on disk fires `error` AND rejects `play()`, in
      either order.** The rejection stands down when the passage it started is no
      longer playable, so an `error` that arrived first keeps its sentence; one that
      arrives second overwrites the blocked one on its own. */
@@ -1013,7 +1013,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      three buttons that do nothing. */
   showFace(PAUSED);
   if (anyPlayable()) {
-    /* ⛔ `W369`: the first passage is where narration WILL start, and the
+    /* ⛔ The first passage is where narration WILL start, and the
        transport's own line says so; nothing on the page is lit until the
        reader starts it. `load` lights a passage, and only a press reaches it. */
     at = firstPlayable();
@@ -1053,23 +1053,23 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    simply never match anything with nothing failing anywhere.
 
    ⛔ **Nothing is written to browser storage.** A run's outcome is the SERVER's
-   record (`SF-21`), written where it was established; a page that also
+   record (spec §8.5), written where it was established; a page that also
    remembered would be a second answer to *did this pass?*. ⭐ So nothing here
    has to be namespaced against the one storage origin every `file://` page
    shares.
 
-   ## ⭐ THE TWO EDITOR WINDOWS ARE `practice-editor.js`'s (`AX-09`)
+   ## ⭐ THE TWO EDITOR WINDOWS ARE `practice-editor.js`'s
 
    ⚠️ **This file stood at `399` of R11's `400`** and the breakdown below had to
    go somewhere. ⛔ **Neither a size exception nor a trim of four other rows'
-   prose was an honest answer** (`W422`'s second clause), so the split was taken
-   at the seam `W431` named: the frames, their tablist and the one reload a cold
+   prose was an honest answer**, so the split was taken
+   at the seam by subject: the frames, their tablist and the one reload a cold
    instance needs are *the editor*, and this file is *the controls, the run and
    what the run reported*. ⭐ The two share nothing but the markup.
 
-   ## ⛔ THE BREAKDOWN IS READ OFF THIS RUN'S OWN STREAM, NOT FETCHED (`AX-02`)
+   ## ⛔ THE BREAKDOWN IS READ OFF THIS RUN'S OWN STREAM, NOT FETCHED
 
-   ⛔ **A built page may name no API and no origin** (R8, `W370`), so there is no
+   ⛔ **A built page may name no API and no origin** (R8), so there is no
    asking the state namespace where the recorded breakdown lives. ⭐ **The run's
    response body is the one thing the server already hands this page**, and the
    verdicts are said on it — one framed `--- case <id>: passed|failed ---` per
@@ -1120,7 +1120,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var FAILED = 'failed';
 
   /* Every word the breakdown says, kept where the markup is. ⭐ The same reason
-     the maximise control's second word lives in its template (`W431`): a label
+     the maximise control's second word lives in its template: a label
      spelled in the script too would be a second place for it to drift. */
   var SAYS = {
     done: 'data-practice-ask-done',
@@ -1174,14 +1174,14 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return 'That could not be started.';
   }
 
-  /* ⭐ **MAXIMISE: the PANEL'S OWN GEOMETRY, never a reparent** (`W431`) — the
+  /* ⭐ **MAXIMISE: the PANEL'S OWN GEOMETRY, never a reparent** — the
      panel already holds all of it, so the move is one attribute on the section.
 
      ⛔ **A frame is never moved to another parent.** An `iframe` REPARENTED IN
      THE DOM RELOADS, so nothing below appends, removes or replaces a node.
 
-     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (`W431/1`,
-     measured and argued where the rule is, in `practice.css`).
+     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (measured
+     and argued where the rule is, in `practice.css`).
 
      ⛔ **No keyboard exit would make this a trap.** A real button, focus into
      the expanded practice and back on restore, Escape on the DOCUMENT (focus
@@ -1307,8 +1307,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
        Stop, a disabled element drops focus to the document AT ONCE, and the
        run then settles a moment later with focus already on `<body>` — so the
        question *did the panel have focus?* answers no and the keyboard reader
-       is left at the top of the page. ⚠️ **Measured in a browser by `W417`,
-       the first reading this panel ever had on a served origin**; the ordinary
+       is left at the top of the page. ⚠️ **Measured in a browser, in the
+       first reading this panel ever had on a served origin**; the ordinary
        end-of-run path was correct and only this one was not. */
     var handedBack = false;
 
@@ -1386,9 +1386,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
 /* The practice panel's two editor windows: where each one is, and the tablist over them.
 
-   ⛔ **Split out of `practice.js` at the seam `W431` named**, and the split is
-   its own act rather than a passenger (`W422`): that file stood at `399` of
-   R11's `400` and `AX-09` had behaviour to add to the panel. ⭐ The seam is the
+   ⛔ **Split out of `practice.js` at its seam**, and the split is
+   its own act rather than a passenger: that file stood at `399` of
+   R11's `400` and the Submit breakdown had behaviour to add to the panel. ⭐ The seam is the
    SUBJECT — `practice.js` is *the controls, the run and what the run reported*,
    and this is *the two windows of the editor* — and the two share nothing but
    the markup, which is why neither has to reach into the other.
@@ -1404,7 +1404,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    consent to run one. The slot carries the sentence saying it is not running
    and how to start it, so a reader sees a statement rather than a blank frame —
    ⭐ and when the server answers where this practice's two windows are, the
-   frames replace that sentence (`W416`, `W429`). ⛔ **Every URL is the SERVER's
+   frames replace that sentence. ⛔ **Every URL is the SERVER's
    answer, never a name in this file**: a built page may name no origin and no
    port (R8), the editor's host port is per-project, and the absolute path a
    window opens is a path inside somebody else's container.
@@ -1413,7 +1413,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    editor enforces that itself, out of the workspace settings the server writes
    — a guard here would be a second, weaker copy of a rule the editor keeps.
 
-   ## ⛔ ONE reload, and only a genuinely COLD instance can ever need it (`W430`)
+   ## ⛔ ONE reload, and only a genuinely COLD instance can ever need it
 
    ⭐ **What a served page may frame is composed from the editor origins the
    SERVING INSTANCE has discovered**, and a cold instance has discovered none
@@ -1747,7 +1747,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    returned to the user with explanation if needed"*. ⭐ So this file reads
    which option the reader chose, hands the choices to `window.studyforge.quiz`
    — which the SERVING PROCESS adds to a served page and a built page never
-   names (R8, `W370`) — and shows what came back: right or wrong per question,
+   names (R8) — and shows what came back: right or wrong per question,
    the chosen option's sentence, the count, and whether the quiz is complete.
    ⛔ **The completion rule is the server's** (`exercise.quiz.completes`, applied
    once, in Python); this file shows `complete` and never re-derives it.
@@ -1763,8 +1763,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    Nothing is sent from a file page — there is no origin to send it to.
 
    ⛔ **A quiz has no file, no command and no grader to submit to, so it renders
-   no Run and no Submit — and not disabled ones** (`AX-05/3`, `SF-24`'s standing
-   rule about a dead button).
+   no Run and no Submit — and not disabled ones**: a dead button is never
+   rendered.
 
    ⛔ **Nothing is written to browser storage, and the server records nothing
    either.** What a reader answered is the page's for as long as they are on
@@ -1773,7 +1773,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    run verdict, which a quiz does not produce.
 
    ⭐ **Every word this file says is read off the markup**, where Python put it —
-   the same two-sided spelling every hook on this page has (`W431`). */
+   the same two-sided spelling every hook on this page has. */
 
 (function () {
   'use strict';
@@ -1893,7 +1893,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
 /* Where the reader is: the Up next slip, the progress line and strip, the tick
    of the unit up next, the filter and the two expand controls, and the rail's
-   fold on a narrow screen (`W362`, the plan's §6).
+   fold on a narrow screen.
 
    ⛔ **Every word a reader sees is markup.** The index and container renderers
    write each sentence with its numbers at zero and its alternatives hidden;
@@ -1902,7 +1902,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
    ⛔ **Joined by the unit key and nothing else**, as `read-mark.js` is: a row
    on the index or a container page carries its key as its `id`, a rail row
-   carries it as `data-unit` (`W368`), and the store holds keys. Nothing here
+   carries it as `data-unit`, and the store holds keys. Nothing here
    derives a key from an href or a position.
 
    ⭐ **Progressive enhancement.** With no script the slip names the first unit
@@ -1922,7 +1922,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var LISTS = 'nav[aria-label="Contents"] li[id], nav[aria-label="Units"] li[id]';
   var RAIL_UNITS = 'nav[aria-label="Containers"] li[data-unit]';
   var MARKED = 'data-marked';
-  /* The hidden words a read row speaks (`W383`): markup, shown or hidden here
+  /* The hidden words a read row speaks: markup, shown or hidden here
      from the store's answer, so a screen reader hears what the tick shows. */
   var SAID = 'span[data-kind="read-state"]';
 
@@ -1950,7 +1950,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      the button: moving it would take the reader somewhere they did not ask to
      go. ⚠️ Here and not in `read-mark.js`, which must never reach for scrolling
      (a mark is an explicit act and nothing about scrolling may infer one). */
-  /* --- the rail shows what the reader marked (`W368`) --------------------- */
+  /* --- the rail shows what the reader marked ------------------------------ */
 
   /* ⭐ On every page that carries a rail, a row whose key the store holds is
      marked, and one it does not hold is cleared — so an unmark shows too.
@@ -2098,7 +2098,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   }
 
   /* ⚠️ A row's text without its read words: filtering for "read" must not
-     match every row the reader finished (`W383`). */
+     match every row the reader finished. */
   function searchable(row) {
     var copy = row.cloneNode(true);
     [].slice.call(copy.querySelectorAll(SAID)).forEach(function (words) {
@@ -2168,7 +2168,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    shown nothing rather than a control that cannot do anything: a control that
    does nothing is worse than no control.
 
-   ⛔ **Joined by the address and nothing else** (SF-01). The control carries
+   ⛔ **Joined by the address and nothing else**. The control carries
    the unit key `Address.unit_key` minted in Python; a row on the root index or
    on a container page carries that same key as its `id`, which is also its
    deep-link anchor. Nothing here composes a key, derives one from a position,
