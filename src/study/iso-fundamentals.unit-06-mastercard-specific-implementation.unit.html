@@ -172,7 +172,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -188,11 +190,11 @@ public class MastercardTransactionServiceTest {
     public void testCreatePurchaseRequest() throws Exception {
         ISOMsg purchaseRequest = transactionService.createPurchaseRequest(&quot;1234567890123456&quot;, &quot;100000&quot;, &quot;MERCHANT01&quot;);
 
-        assertThat(purchaseRequest.getMTI()).isEqualTo(&quot;0200&quot;);
-        assertThat(purchaseRequest.getString(2)).isEqualTo(&quot;1234567890123456&quot;);
-        assertThat(purchaseRequest.getString(3)).isEqualTo(MastercardProcessingCode.PURCHASE.getCode());
-        assertThat(purchaseRequest.getString(4)).isEqualTo(&quot;100000&quot;);
-        assertThat(purchaseRequest.getString(42)).isEqualTo(&quot;MERCHANT01&quot;);
+        assertEquals(&quot;0200&quot;, purchaseRequest.getMTI());
+        assertEquals(&quot;1234567890123456&quot;, purchaseRequest.getString(2));
+        assertEquals(MastercardProcessingCode.PURCHASE.getCode(), purchaseRequest.getString(3));
+        assertEquals(&quot;100000&quot;, purchaseRequest.getString(4));
+        assertEquals(&quot;MERCHANT01&quot;, purchaseRequest.getString(42));
 
         verify(dataElementHandler).setAdditionalData(purchaseRequest, &quot;Additional data for purchase&quot;);
         verify(dataElementHandler).setPOSData(purchaseRequest, &quot;POS data for purchase&quot;);
@@ -203,11 +205,11 @@ public class MastercardTransactionServiceTest {
     public void testCreateCashAdvanceRequest() throws Exception {
         ISOMsg cashAdvanceRequest = transactionService.createCashAdvanceRequest(&quot;1234567890123456&quot;, &quot;50000&quot;, &quot;MERCHANT01&quot;);
 
-        assertThat(cashAdvanceRequest.getMTI()).isEqualTo(&quot;0200&quot;);
-        assertThat(cashAdvanceRequest.getString(2)).isEqualTo(&quot;1234567890123456&quot;);
-        assertThat(cashAdvanceRequest.getString(3)).isEqualTo(MastercardProcessingCode.CASH_ADVANCE.getCode());
-        assertThat(cashAdvanceRequest.getString(4)).isEqualTo(&quot;50000&quot;);
-        assertThat(cashAdvanceRequest.getString(42)).isEqualTo(&quot;MERCHANT01&quot;);
+        assertEquals(&quot;0200&quot;, cashAdvanceRequest.getMTI());
+        assertEquals(&quot;1234567890123456&quot;, cashAdvanceRequest.getString(2));
+        assertEquals(MastercardProcessingCode.CASH_ADVANCE.getCode(), cashAdvanceRequest.getString(3));
+        assertEquals(&quot;50000&quot;, cashAdvanceRequest.getString(4));
+        assertEquals(&quot;MERCHANT01&quot;, cashAdvanceRequest.getString(42));
 
         verify(dataElementHandler).setAdditionalData(cashAdvanceRequest, &quot;Additional data for cash advance&quot;);
         verify(dataElementHandler).setPOSData(cashAdvanceRequest, &quot;POS data for cash advance&quot;);
@@ -218,12 +220,12 @@ public class MastercardTransactionServiceTest {
     public void testCreateRefundRequest() throws Exception {
         ISOMsg refundRequest = transactionService.createRefundRequest(&quot;1234567890123456&quot;, &quot;25000&quot;, &quot;MERCHANT01&quot;, &quot;123456789&quot;);
 
-        assertThat(refundRequest.getMTI()).isEqualTo(&quot;0200&quot;);
-        assertThat(refundRequest.getString(2)).isEqualTo(&quot;1234567890123456&quot;);
-        assertThat(refundRequest.getString(3)).isEqualTo(MastercardProcessingCode.REFUND.getCode());
-        assertThat(refundRequest.getString(4)).isEqualTo(&quot;25000&quot;);
-        assertThat(refundRequest.getString(42)).isEqualTo(&quot;MERCHANT01&quot;);
-        assertThat(refundRequest.getString(37)).isEqualTo(&quot;123456789&quot;);
+        assertEquals(&quot;0200&quot;, refundRequest.getMTI());
+        assertEquals(&quot;1234567890123456&quot;, refundRequest.getString(2));
+        assertEquals(MastercardProcessingCode.REFUND.getCode(), refundRequest.getString(3));
+        assertEquals(&quot;25000&quot;, refundRequest.getString(4));
+        assertEquals(&quot;MERCHANT01&quot;, refundRequest.getString(42));
+        assertEquals(&quot;123456789&quot;, refundRequest.getString(37));
 
         verify(dataElementHandler).setAdditionalData(refundRequest, &quot;Additional data for refund&quot;);
         verify(dataElementHandler).setPOSData(refundRequest, &quot;POS data for refund&quot;);
@@ -238,8 +240,8 @@ public class MastercardTransactionServiceTest {
         ISOMsg declinedResponse = new ISOMsg();
         declinedResponse.set(39, &quot;05&quot;);
 
-        assertThat(transactionService.isApproved(approvedResponse)).isTrue();
-        assertThat(transactionService.isApproved(declinedResponse)).isFalse();
+        assertTrue(transactionService.isApproved(approvedResponse));
+        assertFalse(transactionService.isApproved(declinedResponse));
     }
 }</code></pre></figure>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b25-f30a2356.mp3">This implementation covers the main aspects of Mastercard-specific ISO-8583 message handling, including:</p>

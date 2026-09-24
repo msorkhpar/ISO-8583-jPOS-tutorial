@@ -77,7 +77,9 @@ public class CustomSMAdapter extends BaseSMAdapter&lt;SecureDESKey&gt; {
 }</code></pre></figure>
 <h2 id="prose-b5" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b6-ad3068f8.mp3">7.2 JCE Security Module</h2>
 <p data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b7-39c37e00.mp3">The JCE (Java Cryptography Extension) Security Module provides a concrete implementation of the <code>SMAdapter</code> interface using Java's built-in cryptography features.</p>
-<figure class="code" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b8-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.security.jceadapter.JCESecurityModule;
+<figure class="code" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b8-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.security.jceadapter.JCESecurityModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -149,16 +151,17 @@ public class KeyRotationService {
         // Generate a new key (the HSM returns it already encrypted under the LMK, ready for storage)
         SecureDESKey newKey = securityModule.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZPK);
 
-        // Store the new key
-        keyRepository.storeKey(&quot;ZPK&quot;, newKey);
-
         // Optionally, you might want to keep the old key for a period to handle in-flight transactions
         keyRepository.archiveKey(&quot;ZPK&quot;, keyRepository.getKey(&quot;ZPK&quot;));
+
+        // Store the new key
+        keyRepository.storeKey(&quot;ZPK&quot;, newKey);
     }
 }</code></pre></figure>
 <h2 id="prose-b14" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b15-154b42ae.mp3">7.5 Secure Communication Channel</h2>
-<p data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b16-efc64e1c.mp3">To ensure secure communication between the client and server, we can use SSL/TLS. jPOS provides the <code>NACChannel</code> for this purpose:</p>
-<figure class="code" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b17-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.channel.NACChannel;
+<p data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b16-efc64e1c.mp3">To ensure secure communication between the client and server, we can use SSL/TLS. A jPOS channel such as <code>NACChannel</code> runs over SSL/TLS when you give it an SSL socket factory, <code>SunJSSESocketFactory</code>:</p>
+<figure class="code" data-audio="audio/jpos-server.unit-07-security-and-encryption/jpos-server--unit-07.prose.b17-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.SunJSSESocketFactory;
+import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -168,8 +171,13 @@ public class ChannelConfig {
 
     @Bean
     public NACChannel secureChannel() throws Exception {
-        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
-        channel.setSocketFactory(new SSLSocketFactory());
+        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager(), null);
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore(&quot;path/to/keystore.jks&quot;);
+        sslFactory.setPassword(&quot;keystorePassword&quot;);
+        sslFactory.setKeyPassword(&quot;keyPassword&quot;);
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
         return channel;
     }
 }</code></pre></figure>

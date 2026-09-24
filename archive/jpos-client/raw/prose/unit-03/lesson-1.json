@@ -18,12 +18,12 @@
     },
     {
       "type": "para",
-      "text": "Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: ISO Client and SSL Channel."
+      "text": "Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: a client channel and SSL/TLS on that channel."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "3.1 ISO Client (org.jpos.iso.ISOClient)"
+      "text": "3.1 Client Channel (org.jpos.iso.channel.ASCIIChannel)"
     },
     {
       "type": "para",
@@ -69,7 +69,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOClientPool {\n    private final GenericObjectPool<ISOChannel> pool;\n\n    public ISOClientPool(String host, int port, int maxTotal) {\n        pool = new GenericObjectPool<>(new ISOClientFactory(host, port));\n        pool.setMaxTotal(maxTotal);\n    }\n\n    public ISOChannel borrowClient() throws Exception {\n        return pool.borrowObject();\n    }\n\n    public void returnClient(ISOChannel client) {\n        pool.returnObject(client);\n    }\n\n    private static class ISOClientFactory extends BasePooledObjectFactory<ISOChannel> {\n        private final String host;\n        private final int port;\n\n        public ISOClientFactory(String host, int port) {\n            this.host = host;\n            this.port = port;\n        }\n\n        @Override\n        public ISOChannel create() {\n            return new ASCIIChannel(host, port, new ISO87APackager());\n        }\n\n        @Override\n        public PooledObject<ISOChannel> wrap(ISOChannel client) {\n            return new DefaultPooledObject<>(client);\n        }\n\n        @Override\n        public void activateObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().connect();\n        }\n\n        @Override\n        public void passivateObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}"
+      "text": "import org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOClientPool {\n    private final GenericObjectPool<ISOChannel> pool;\n\n    public ISOClientPool(String host, int port, int maxTotal) {\n        pool = new GenericObjectPool<>(new ISOClientFactory(host, port));\n        pool.setMaxTotal(maxTotal);\n    }\n\n    public ISOChannel borrowClient() throws Exception {\n        return pool.borrowObject();\n    }\n\n    public void returnClient(ISOChannel client) {\n        pool.returnObject(client);\n    }\n\n    private static class ISOClientFactory extends BasePooledObjectFactory<ISOChannel> {\n        private final String host;\n        private final int port;\n\n        public ISOClientFactory(String host, int port) {\n            this.host = host;\n            this.port = port;\n        }\n\n        @Override\n        public ISOChannel create() throws Exception {\n            ISOChannel client = new ASCIIChannel(host, port, new ISO87APackager());\n            client.connect();\n            return client;\n        }\n\n        @Override\n        public PooledObject<ISOChannel> wrap(ISOChannel client) {\n            return new DefaultPooledObject<>(client);\n        }\n\n        @Override\n        public void destroyObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}"
     },
     {
       "type": "para",
@@ -83,7 +83,7 @@
     {
       "type": "heading",
       "level": 2,
-      "text": "3.2 SSL Channel (org.jpos.iso.channel.NACChannel)"
+      "text": "3.2 SSL/TLS on a Channel (org.jpos.iso.channel.NACChannel)"
     },
     {
       "type": "para",
@@ -92,7 +92,7 @@
     {
       "type": "heading",
       "level": 3,
-      "text": "3.2.1 SSL Channel Configuration"
+      "text": "3.2.1 SSL Socket Factory Configuration"
     },
     {
       "type": "para",
@@ -106,7 +106,7 @@
     {
       "type": "heading",
       "level": 3,
-      "text": "3.2.2 Using SSL Channel with ISOClient"
+      "text": "3.2.2 Using the SSL-Configured Channel as the Client"
     },
     {
       "type": "para",
@@ -120,7 +120,7 @@
     {
       "type": "heading",
       "level": 3,
-      "text": "3.2.3 Spring Configuration for SSL Channel"
+      "text": "3.2.3 Spring Configuration for the SSL-Configured Channel"
     },
     {
       "type": "para",
@@ -152,5 +152,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "904f46987f6a7ec561305181dc0f96238373e31cd8e9983cee8110755d2e9300"
+  "content_sha256": "11ef74bc173e03cfea79428339dcece3d863cf11b82601ddf828a601468d113a"
 }

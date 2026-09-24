@@ -106,7 +106,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class MessageCreator {\n\n    public ISOMsg createAuthorizationRequest(String pan, String amount) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        message.set(2, pan);\n        message.set(3, \"000000\");\n        message.set(4, amount);\n        message.set(7, String.format(\"%010d\", System.currentTimeMillis() / 1000));\n        message.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        message.set(41, \"12345678\");\n        message.set(42, \"MERCHANT_ID_123\");\n        return message;\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\n\n@Component\npublic class MessageCreator {\n\n    public ISOMsg createAuthorizationRequest(String pan, String amount) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        message.set(2, pan);\n        message.set(3, \"000000\");\n        message.set(4, amount);\n        message.set(7, DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC).format(Instant.now()));\n        message.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        message.set(41, \"12345678\");\n        message.set(42, \"MERCHANT_ID_123\");\n        return message;\n    }\n}"
     },
     {
       "type": "heading",
@@ -157,5 +157,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "98b94cfc5d2fe998c0f2211a16e2cd2c24bcd9f3e2ca29fd55715ab3255bf804"
+  "content_sha256": "6be4e302461b5d6eb4f6ceacc602108f11fd2ea6a754660bb3323bee85b0fcb4"
 }

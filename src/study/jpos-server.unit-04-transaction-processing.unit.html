@@ -30,7 +30,9 @@
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b4-02bb2b1e.mp3">The TransactionManager is responsible for coordinating the execution of a series of participants for each transaction. It manages the transaction lifecycle, including commit and rollback operations.</p>
 <h3 id="prose-b4" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b5-1cff7713.mp3">Implementation</h3>
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b6-c19716d2.mp3">Let's implement a basic TransactionManager configuration:</p>
-<figure class="code" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b7-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.q2.QBeanSupport;
+<figure class="code" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b7-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.q2.QBeanSupport;
 import org.jpos.transaction.TransactionManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,18 +41,21 @@ import org.springframework.context.annotation.Configuration;
 public class TransactionManagerConfig extends QBeanSupport {
 
     @Bean
-    public TransactionManager transactionManager() {
+    public TransactionManager transactionManager() throws ConfigurationException {
         TransactionManager txnManager = new TransactionManager();
         txnManager.setName(&quot;txnManager&quot;);
-        txnManager.setQueue(&quot;txnQueue&quot;);
-        txnManager.setMaxSessions(10);
-        txnManager.setMaxActiveSessions(5);
-        txnManager.setDebug(true);
+        // A TransactionManager reads its settings from a jPOS Configuration
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;queue&quot;, &quot;txnQueue&quot;);
+        cfg.put(&quot;max-sessions&quot;, &quot;5&quot;);
+        cfg.put(&quot;max-active-sessions&quot;, &quot;10&quot;);
+        cfg.put(&quot;debug&quot;, &quot;true&quot;);
+        txnManager.setConfiguration(cfg);
         return txnManager;
     }
 }</code></pre></figure>
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b8-dcd070a9.mp3">In this configuration, we're setting up a TransactionManager bean with the following properties:</p>
-<ul class="items"><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i1-847a2a03.mp3">Name: &quot;txnManager&quot;</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i2-d4bbe805.mp3">Queue: &quot;txnQueue&quot; (where transactions will be queued)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i3-212bbdcf.mp3">MaxSessions: 10 (maximum number of concurrent sessions)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i4-a2a8e33c.mp3">MaxActiveSessions: 5 (maximum number of active sessions)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i5-34f113b8.mp3">Debug: true (for logging purposes)</li></ul>
+<ul class="items"><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i1-847a2a03.mp3">Name: &quot;txnManager&quot;</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i2-d4bbe805.mp3">Queue: &quot;txnQueue&quot; (where transactions will be queued)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i3-212bbdcf.mp3">MaxSessions: 5 (maximum number of concurrent sessions)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i4-a2a8e33c.mp3">MaxActiveSessions: 10 (maximum number of active sessions; jPOS requires it to be at least MaxSessions)</li><li data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b9.i5-34f113b8.mp3">Debug: true (for logging purposes)</li></ul>
 <h2 id="prose-b9" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b10-a4492187.mp3">4.2 Transaction Participant</h2>
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b11-e1117349.mp3">TransactionParticipants are the building blocks of transaction processing in jPOS. Each participant performs a specific task in the transaction flow.</p>
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b12-75105425.mp3">Let's create a simple TransactionParticipant that validates a transaction:</p>
@@ -60,28 +65,30 @@ import org.jpos.core.ConfigurationException;
 import org.jpos.transaction.Context;
 import org.jpos.transaction.TransactionParticipant;
 
+import java.io.Serializable;
+
 public class TransactionValidator implements TransactionParticipant, Configurable {
 
     private Configuration cfg;
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         // Validate the transaction
-        if (isValidTransaction(context)) {
+        if (isValidTransaction((Context) context)) {
             return PREPARED | READONLY;
         }
         return ABORTED;
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Nothing to commit for this participant
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle abort scenario
-        context.put(&quot;error&quot;, &quot;Transaction validation failed&quot;);
+        ((Context) context).put(&quot;error&quot;, &quot;Transaction validation failed&quot;);
     }
 
     @Override
@@ -175,63 +182,82 @@ public class MastercardTransactionParticipant implements TransactionParticipant 
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b24-b146631b.mp3">Let's create a test to verify our transaction flow:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b25-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.SimpleConfiguration;
 import org.jpos.transaction.Context;
-import org.jpos.transaction.TransactionManager;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.transaction.TransactionParticipant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import java.util.ArrayList;
+import java.util.List;
 
-@SpringBootTest
-public class TransactionFlowTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
-    @Autowired
-    private TransactionManager transactionManager;
+public class TransactionFlowTest implements TransactionConstants {
+
+    private VisaTransactionParticipant visa;
+    private MastercardTransactionParticipant mastercard;
+    private List&lt;TransactionParticipant&gt; participants;
 
     @BeforeEach
     public void setup() throws Exception {
-        // Configure participants
-        transactionManager.setConfiguration(new SimpleConfiguration());
-        transactionManager.addParticipant(new TransactionValidator());
-        transactionManager.addParticipant(new VisaTransactionParticipant());
-        transactionManager.addParticipant(new MastercardTransactionParticipant());
+        // Configure participants, in the order the txnmgr descriptor lists them
+        TransactionValidator validator = new TransactionValidator();
+        validator.setConfiguration(new SimpleConfiguration());
+        visa = spy(new VisaTransactionParticipant());
+        mastercard = spy(new MastercardTransactionParticipant());
+        participants = List.of(validator, visa, mastercard);
+    }
+
+    // Runs one transaction the way the TransactionManager does: prepare each participant
+    // in order, then commit the ones that joined, or abort them if one aborted
+    private int process(long id, Context context) {
+        List&lt;TransactionParticipant&gt; joined = new ArrayList&lt;&gt;();
+        for (TransactionParticipant p : participants) {
+            int action = p.prepare(id, context);
+            if ((action &amp; NO_JOIN) == 0) {
+                joined.add(p);
+            }
+            if ((action &amp; PREPARED) == 0) {
+                joined.forEach(j -&gt; j.abort(id, context));
+                return ABORTED;
+            }
+        }
+        joined.forEach(j -&gt; j.commit(id, context));
+        return PREPARED;
     }
 
     @Test
     public void testVisaTransaction() {
         Context context = new Context();
         context.put(&quot;amount&quot;, &quot;100.00&quot;);
+        context.put(&quot;cardNumber&quot;, &quot;4111111111111111&quot;);
         context.put(&quot;pan&quot;, &quot;4111111111111111&quot;);
 
-        long id = transactionManager.queue(context);
-        
-        // Wait for transaction to complete
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        assertEquals(PREPARED, process(1L, context));
 
-        assertThat(context.get(&quot;network&quot;)).isEqualTo(&quot;VISA&quot;);
+        assertEquals(&quot;VISA&quot;, context.get(&quot;network&quot;));
+        verify(visa).commit(eq(1L), any());
+        verify(mastercard, never()).commit(anyLong(), any());
     }
 
     @Test
     public void testMastercardTransaction() {
         Context context = new Context();
         context.put(&quot;amount&quot;, &quot;200.00&quot;);
+        context.put(&quot;cardNumber&quot;, &quot;5555555555554444&quot;);
         context.put(&quot;pan&quot;, &quot;5555555555554444&quot;);
 
-        long id = transactionManager.queue(context);
-        
-        // Wait for transaction to complete
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        assertEquals(PREPARED, process(2L, context));
 
-        assertThat(context.get(&quot;network&quot;)).isEqualTo(&quot;MASTERCARD&quot;);
+        assertEquals(&quot;MASTERCARD&quot;, context.get(&quot;network&quot;));
+        verify(mastercard).commit(eq(2L), any());
+        verify(visa, never()).commit(anyLong(), any());
     }
 }</code></pre></figure>
 <p data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b26-de7e255f.mp3">This test class verifies that our transaction flow correctly identifies Visa and Mastercard transactions based on the PAN.</p>

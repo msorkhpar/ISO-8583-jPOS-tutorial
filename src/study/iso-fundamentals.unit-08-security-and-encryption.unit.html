@@ -103,23 +103,22 @@ public class PINBlockGenerator {
 <h3 id="prose-b16" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b17-b5ef0035.mp3">8.2.1. Master keys</h3>
 <ul class="items"><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b18.i1-61f04deb.mp3">Also known as Key Encryption Keys (KEKs)</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b18.i2-c824dee1.mp3">Used to encrypt other keys</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b18.i3-1c22096b.mp3">Typically distributed manually or through a secure out-of-band method</li></ul>
 <h3 id="prose-b18" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b19-a7ef4e5a.mp3">8.2.2. Session keys</h3>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i1-246daf46.mp3">Temporary keys used for a single session or a limited time</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i2-654a9016.mp3">Generated and exchanged using the master key</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i3-099a8854.mp3">Provide forward secrecy, as compromising one session key doesn't compromise past or future sessions</li></ul>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i1-246daf46.mp3">Temporary keys used for a single session or a limited time</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i2-654a9016.mp3">Generated and exchanged using the master key</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b20.i3-099a8854.mp3">Limit exposure, as compromising one session key doesn't compromise past or future sessions</li></ul>
 <h3 id="prose-b20" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b21-33bdbf39.mp3">8.2.3. Working keys</h3>
 <ul class="items"><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b22.i1-524767a8.mp3">Used for actual data encryption (e.g., PIN encryption)</li><li data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b22.i2-15bec065.mp3">Often derived from session keys</li></ul>
 <p data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b23-23d4ced6.mp3">Let's implement a basic key management system using jPOS:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b24-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.security.SMAdapter;
+<figure class="code" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b24-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.SimpleConfiguration;
+import org.jpos.security.SMAdapter;
+import org.jpos.security.SMException;
+import org.jpos.security.SecureDESKey;
 import org.jpos.security.SecureKeyStore;
 import org.jpos.security.SimpleKeyFile;
 import org.jpos.security.jceadapter.JCESecurityModule;
 import org.jpos.util.Logger;
 import org.jpos.util.SimpleLogListener;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.security.NoSuchAlgorithmException;
-
 public class KeyManager {
-    private final SMAdapter sm;
+    private final SMAdapter&lt;SecureDESKey&gt; sm;
     private final SecureKeyStore ks;
 
     public KeyManager() throws Exception {
@@ -127,35 +126,33 @@ public class KeyManager {
         logger.addListener(new SimpleLogListener(System.out));
 
         ks = new SimpleKeyFile(&quot;keystore.ks&quot;);
-        sm = new JCESecurityModule(&quot;jce&quot;, logger);
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;lmk&quot;, &quot;lmk&quot;); // the Local Master Keys file that protects every key the module holds
+        sm = new JCESecurityModule(cfg, logger, &quot;jce&quot;);
     }
 
-    public SecretKey generateMasterKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance(&quot;DES&quot;);
-        keyGen.init(168); // Use Triple DES (112-bit) key
-        return keyGen.generateKey();
+    public SecureDESKey generateMasterKey() throws SMException {
+        return sm.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZMK); // Use Triple DES (112-bit) key
     }
 
-    public SecretKey generateSessionKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance(&quot;DES&quot;);
-        keyGen.init(56); // Use single DES key for session
-        return keyGen.generateKey();
+    public SecureDESKey generateSessionKey() throws SMException {
+        return sm.generateKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK); // Use single DES key for session
     }
 
-    public byte[] encryptSessionKey(SecretKey masterKey, SecretKey sessionKey) throws Exception {
-        return sm.encryptKey(masterKey, sessionKey);
+    public byte[] encryptSessionKey(SecureDESKey masterKey, SecureDESKey sessionKey) throws SMException {
+        return sm.exportKey(sessionKey, masterKey);
     }
 
-    public SecretKey decryptSessionKey(SecretKey masterKey, byte[] encryptedSessionKey) throws Exception {
-        return sm.decryptKey(masterKey, encryptedSessionKey, &quot;DES&quot;);
+    public SecureDESKey decryptSessionKey(SecureDESKey masterKey, byte[] encryptedSessionKey) throws SMException {
+        return sm.importKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK, encryptedSessionKey, masterKey, true);
     }
 
-    public void storeMasterKey(String alias, SecretKey masterKey) throws Exception {
+    public void storeMasterKey(String alias, SecureDESKey masterKey) throws Exception {
         ks.setKey(alias, masterKey);
     }
 
-    public SecretKey retrieveMasterKey(String alias) throws Exception {
-        return (SecretKey) ks.getKey(alias);
+    public SecureDESKey retrieveMasterKey(String alias) throws Exception {
+        return ks.getKey(alias);
     }
 }</code></pre></figure>
 <h2 id="prose-b24" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b25-0a2de5a9.mp3">8.3. Secure messaging</h2>
@@ -163,12 +160,11 @@ public class KeyManager {
 <h3 id="prose-b26" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b27-c8e69385.mp3">8.3.1. MAC (Message Authentication Code)</h3>
 <p data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b28-128fbefc.mp3">MAC is used to verify the integrity of the message and authenticate the sender.</p>
 <p data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b29-ba8c98a0.mp3">Let's implement MAC generation and verification:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b30-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOUtil;
-
-import javax.crypto.Mac;
+<figure class="code" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b30-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class MACGenerator {
@@ -181,7 +177,7 @@ public class MACGenerator {
 
     public static boolean verifyMAC(byte[] message, byte[] receivedMAC, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {
         byte[] calculatedMAC = generateMAC(message, key);
-        return ISOUtil.equals(calculatedMAC, receivedMAC);
+        return MessageDigest.isEqual(calculatedMAC, receivedMAC);
     }
 }</code></pre></figure>
 <h3 id="prose-b30" data-audio="audio/iso-fundamentals.unit-08-security-and-encryption/iso-fundamentals--unit-08.prose.b31-b2d4471e.mp3">8.3.2. DUKPT (Derived Unique Key Per Transaction)</h3>

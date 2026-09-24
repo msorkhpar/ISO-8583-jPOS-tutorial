@@ -46,7 +46,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SecurityConfig {\n\n    @Bean\n    public JCESecurityModule jceSecurityModule() throws ConfigurationException {\n        JCESecurityModule module = new JCESecurityModule();\n        org.jpos.core.Configuration cfg = new SimpleConfiguration();\n        cfg.put(\"provider\", \"SunJCE\");\n        cfg.put(\"lmk\", \"src/main/resources/lmk.key\");\n        module.setConfiguration(cfg);\n        return module;\n    }\n}"
+      "text": "import org.jpos.core.ConfigurationException;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SecurityConfig {\n\n    @Bean\n    public JCESecurityModule jceSecurityModule() throws ConfigurationException {\n        JCESecurityModule module = new JCESecurityModule();\n        org.jpos.core.Configuration cfg = new SimpleConfiguration();\n        cfg.put(\"provider\", \"SunJCE\");\n        cfg.put(\"lmk\", \"src/main/resources/lmk.key\");\n        module.setConfiguration(cfg);\n        return module;\n    }\n}"
     },
     {
       "type": "heading",
@@ -74,7 +74,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.scheduling.annotation.Scheduled;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class KeyRotationService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    @Autowired\n    private KeyRepository keyRepository;\n\n    @Scheduled(cron = \"0 0 0 1 * ?\")  // Run at midnight on the first day of every month\n    public void rotateKeys() throws SMException {\n        // Generate a new key (the HSM returns it already encrypted under the LMK, ready for storage)\n        SecureDESKey newKey = securityModule.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZPK);\n\n        // Store the new key\n        keyRepository.storeKey(\"ZPK\", newKey);\n\n        // Optionally, you might want to keep the old key for a period to handle in-flight transactions\n        keyRepository.archiveKey(\"ZPK\", keyRepository.getKey(\"ZPK\"));\n    }\n}"
+      "text": "import org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.scheduling.annotation.Scheduled;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class KeyRotationService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    @Autowired\n    private KeyRepository keyRepository;\n\n    @Scheduled(cron = \"0 0 0 1 * ?\")  // Run at midnight on the first day of every month\n    public void rotateKeys() throws SMException {\n        // Generate a new key (the HSM returns it already encrypted under the LMK, ready for storage)\n        SecureDESKey newKey = securityModule.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZPK);\n\n        // Optionally, you might want to keep the old key for a period to handle in-flight transactions\n        keyRepository.archiveKey(\"ZPK\", keyRepository.getKey(\"ZPK\"));\n\n        // Store the new key\n        keyRepository.storeKey(\"ZPK\", newKey);\n    }\n}"
     },
     {
       "type": "heading",
@@ -83,12 +83,12 @@
     },
     {
       "type": "para",
-      "text": "To ensure secure communication between the client and server, we can use SSL/TLS. jPOS provides the `NACChannel` for this purpose:"
+      "text": "To ensure secure communication between the client and server, we can use SSL/TLS. A jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ChannelConfig {\n\n    @Bean\n    public NACChannel secureChannel() throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager());\n        channel.setSocketFactory(new SSLSocketFactory());\n        return channel;\n    }\n}"
+      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ChannelConfig {\n\n    @Bean\n    public NACChannel secureChannel() throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n        return channel;\n    }\n}"
     },
     {
       "type": "heading",
@@ -136,5 +136,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "69b3e3a78ba85ec0ee21b59ee4f997fbc31f500ed5990d512a1608075c4b8946"
+  "content_sha256": "542edf28f48b8371f49c7b1dbd7ce789069cd2afe0bbed0957dbba154cd162bd"
 }

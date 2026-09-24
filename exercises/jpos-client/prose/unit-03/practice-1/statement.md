@@ -1,6 +1,7 @@
 A pool of connections is there so a request does not pay for a connect. The page's pool
-connects a client every time it is borrowed and disconnects it every time it is returned, so
-every request still opens a fresh connection, and the pool saves nothing.
+connects a channel once, when it makes it, and disconnects it only when the pool destroys it,
+so a request borrows a connection that is already open. Connect on every borrow instead, and
+every request opens a fresh connection and the pool saves nothing.
 
 Write `ChannelPool` on Apache Commons Pool 2 (`org.apache.commons.pool2`), built from a
 `Supplier<ISOChannel>` that makes a new, unconnected channel, and the most channels it may hold.

@@ -167,24 +167,16 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
     }
 }</code></pre></figure>
 <h3 id="prose-b13" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b14-5fd45ea0.mp3">4. Configure Transaction Manager</h3>
-<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b15-bb687d85.mp3">To use these participants in the transaction flow, configure them in the Spring context:</p>
-<figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b16-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;bean id=&quot;txnmgr&quot; class=&quot;org.jpos.transaction.TransactionManager&quot;&gt;
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b15-bb687d85.mp3">To use these participants in the transaction flow, configure them in the TransactionManager's Q2 deploy descriptor:</p>
+<figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b16-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;txnmgr class=&quot;org.jpos.transaction.TransactionManager&quot; logger=&quot;Q2&quot;&gt;
     &lt;property name=&quot;queue&quot; value=&quot;txnqueue&quot;/&gt;
     &lt;property name=&quot;sessions&quot; value=&quot;2&quot;/&gt;
     &lt;property name=&quot;max-sessions&quot; value=&quot;128&quot;/&gt;
-    &lt;property name=&quot;participants&quot;&gt;
-        &lt;list&gt;
-            &lt;ref bean=&quot;cardTypeIdentifier&quot;/&gt;
-            &lt;ref bean=&quot;visaAuthorizationParticipant&quot;/&gt;
-            &lt;ref bean=&quot;mastercardAuthorizationParticipant&quot;/&gt;
-            &lt;!-- Other participants --&gt;
-        &lt;/list&gt;
-    &lt;/property&gt;
-&lt;/bean&gt;
-
-&lt;bean id=&quot;cardTypeIdentifier&quot; class=&quot;com.example.CardTypeIdentifierParticipant&quot;/&gt;
-&lt;bean id=&quot;visaAuthorizationParticipant&quot; class=&quot;com.example.VisaAuthorizationParticipant&quot;/&gt;
-&lt;bean id=&quot;mastercardAuthorizationParticipant&quot; class=&quot;com.example.MastercardAuthorizationParticipant&quot;/&gt;</code></pre></figure>
+    &lt;participant class=&quot;com.example.CardTypeIdentifierParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;participant class=&quot;com.example.VisaAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;participant class=&quot;com.example.MastercardAuthorizationParticipant&quot; logger=&quot;Q2&quot;/&gt;
+    &lt;!-- Other participants --&gt;
+&lt;/txnmgr&gt;</code></pre></figure>
 <h3 id="prose-b16" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b17-1a8850d9.mp3">5. Implement Card Type Identifier</h3>
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b18-a148dfea.mp3">To determine which participant should process the transaction, create a <code>CardTypeIdentifierParticipant</code>:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b19-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.transaction.TransactionParticipant;
@@ -236,7 +228,7 @@ import org.junit.jupiter.api.Test;
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.jpos.transaction.Context;
-import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class VisaAuthorizationParticipantTest {
 
@@ -259,16 +251,16 @@ class VisaAuthorizationParticipantTest {
     @Test
     void testValidVisaTransaction() {
         participant.prepare(1L, context);
-        assertThat(context.get(&quot;VISA_TRANSACTION_VALID&quot;)).isEqualTo(true);
-        assertThat(context.get(&quot;VISA_ERROR&quot;)).isNull();
+        assertEquals(Boolean.TRUE, context.get(&quot;VISA_TRANSACTION_VALID&quot;));
+        assertNull(context.get(&quot;VISA_ERROR&quot;));
     }
 
     @Test
     void testInvalidVisaTransaction() throws ISOException {
         msg.unset(42);
         participant.prepare(1L, context);
-        assertThat(context.get(&quot;VISA_TRANSACTION_VALID&quot;)).isEqualTo(false);
-        assertThat(context.get(&quot;VISA_ERROR&quot;)).isNotNull();
+        assertEquals(Boolean.FALSE, context.get(&quot;VISA_TRANSACTION_VALID&quot;));
+        assertNotNull(context.get(&quot;VISA_ERROR&quot;));
     }
 }
 
@@ -293,16 +285,16 @@ class MastercardAuthorizationParticipantTest {
     @Test
     void testValidMastercardTransaction() {
         participant.prepare(1L, context);
-        assertThat(context.get(&quot;MASTERCARD_TRANSACTION_VALID&quot;)).isEqualTo(true);
-        assertThat(context.get(&quot;MASTERCARD_ERROR&quot;)).isNull();
+        assertEquals(Boolean.TRUE, context.get(&quot;MASTERCARD_TRANSACTION_VALID&quot;));
+        assertNull(context.get(&quot;MASTERCARD_ERROR&quot;));
     }
 
     @Test
     void testInvalidMastercardTransaction() throws ISOException {
         msg.unset(61);
         participant.prepare(1L, context);
-        assertThat(context.get(&quot;MASTERCARD_TRANSACTION_VALID&quot;)).isEqualTo(false);
-        assertThat(context.get(&quot;MASTERCARD_ERROR&quot;)).isNotNull();
+        assertEquals(Boolean.FALSE, context.get(&quot;MASTERCARD_TRANSACTION_VALID&quot;));
+        assertNotNull(context.get(&quot;MASTERCARD_ERROR&quot;));
     }
 }</code></pre></figure>
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b23-d08ef11d.mp3">This implementation provides a solid foundation for processing Visa and Mastercard transactions in a jPOS server. The custom participants handle the specific requirements for each card network, while the <code>CardTypeIdentifierParticipant</code> ensures that the correct participant is used for each transaction.</p>

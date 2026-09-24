@@ -28,7 +28,7 @@
 <h2 id="prose-b1" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b2-b605350b.mp3">Introduction</h2>
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b3-d5433001.mp3">Setting up a jPOS client involves configuring the Spring framework and Q2, which is jPOS's deployment and runtime environment. This setup allows you to create a robust and flexible ISO-8583 client application.</p>
 <h2 id="prose-b3" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b4-bb77719f.mp3">1.1 Spring Configuration</h2>
-<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b5-15560dee.mp3">Spring is used to manage dependencies and configure the application context. We'll use <code>org.jpos.q2.spring.SpringContainer</code> to integrate Spring with jPOS.</p>
+<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b5-15560dee.mp3">Spring is used to manage dependencies and configure the application context. jPOS 2.1.7 has no Spring container for Q2, so the main application class in section 1.3 doubles as a small QBean that starts the Spring context inside Q2.</p>
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b6-c016bf92.mp3">First, let's set up the necessary dependencies in your <code>pom.xml</code>:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b7-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;dependencies&gt;
     &lt;dependency&gt;
@@ -63,7 +63,7 @@ public class JposConfig {
 }</code></pre></figure>
 <h2 id="prose-b9" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b10-227a8c8e.mp3">1.2 Q2 Configuration</h2>
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b11-410c4492.mp3">Q2 is configured using XML files. Create a file named <code>05_spring_client_context.xml</code> in the <code>deploy</code> directory:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b12-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;spring-context class=&quot;org.jpos.q2.spring.SpringContainer&quot;&gt;
+<figure class="code" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b12-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;spring-context class=&quot;com.example.jpos.JposClientApplication&quot;&gt;
     &lt;property name=&quot;config&quot; value=&quot;classpath:applicationContext.xml&quot; /&gt;
 &lt;/spring-context&gt;</code></pre></figure>
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b13-0ea0e1e9.mp3">Now, create the <code>applicationContext.xml</code> file in the <code>src/main/resources</code> directory:</p>
@@ -83,15 +83,29 @@ public class JposConfig {
 
 &lt;/beans&gt;</code></pre></figure>
 <h2 id="prose-b14" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b15-fdc0427f.mp3">1.3 Creating the Main Application</h2>
-<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b16-29551c37.mp3">Now, let's create the main application class that will start the Q2 container:</p>
+<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b16-29551c37.mp3">Now, let's create the main application class. Its <code>main</code> starts the Q2 container, and Q2 runs the same class as the QBean in <code>05_spring_client_context.xml</code>, which starts the Spring context:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b17-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos;
 
 import org.jpos.q2.Q2;
+import org.jpos.q2.QBeanSupport;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-public class JposClientApplication {
+public class JposClientApplication extends QBeanSupport {
+    private ClassPathXmlApplicationContext context;
+
     public static void main(String[] args) {
         Q2 q2 = new Q2();
         q2.start();
+    }
+
+    @Override
+    protected void startService() {
+        context = new ClassPathXmlApplicationContext(cfg.get(&quot;config&quot;));
+    }
+
+    @Override
+    protected void stopService() {
+        context.close();
     }
 }</code></pre></figure>
 <h2 id="prose-b17" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b18-b00efe1a.mp3">1.4 Setting up the Client Channel</h2>

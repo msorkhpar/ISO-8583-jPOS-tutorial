@@ -40,7 +40,7 @@
     {
       "type": "heading",
       "level": 2,
-      "text": "3.2 SSL Channel"
+      "text": "3.2 NAC Channel"
     },
     {
       "type": "para",
@@ -53,7 +53,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.ServerChannel;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOServerConfig extends QBeanSupport {\n\n    @Autowired\n    private ServerConfiguration serverConfig;\n\n    @Bean\n    public ISOServer isoServer() throws ConfigurationException {\n        ServerChannel channel = new NACChannel(\n            serverConfig.getHost(),\n            serverConfig.getPort(),\n            serverConfig.getPackager()\n        );\n\n        ISOServer server = new ISOServer(\n            serverConfig.getPort(),\n            channel,\n            null\n        );\n\n        server.setConfiguration(createConfiguration());\n        server.addISORequestListener(new TransactionRequestListener());\n\n        NameRegistrar.register(\"iso-server\", server);\n\n        return server;\n    }\n\n    private Configuration createConfiguration() {\n        Configuration cfg = new org.jpos.core.SimpleConfiguration();\n        cfg.put(\"port\", String.valueOf(serverConfig.getPort()));\n        cfg.put(\"channel\", \"org.jpos.iso.channel.NACChannel\");\n        cfg.put(\"packager\", serverConfig.getPackager());\n        cfg.put(\"timeout\", \"300000\");\n        cfg.put(\"max-connections\", \"100\");\n        return cfg;\n    }\n\n    @Override\n    protected void startService() {\n        try {\n            ISOServer server = isoServer();\n            server.start();\n        } catch (Exception e) {\n            getLog().error(\"Error starting ISO server\", e);\n        }\n    }\n\n    @Override\n    protected void stopService() {\n        try {\n            ISOServer server = NameRegistrar.get(\"iso-server\");\n            server.shutdown();\n        } catch (NameRegistrar.NotFoundException e) {\n            getLog().error(\"ISO server not found for shutdown\", e);\n        }\n    }\n}"
+      "text": "import org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.ServerChannel;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\nimport org.jpos.util.ThreadPool;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOServerConfig extends QBeanSupport {\n\n    @Autowired\n    private ServerConfiguration serverConfig;\n\n    @Bean\n    public ISOServer isoServer() throws ConfigurationException, ISOException {\n        ServerChannel channel = new NACChannel(\n            serverConfig.getHost(),\n            serverConfig.getPort(),\n            serverConfig.getPackager(),\n            null // no TPDU header\n        );\n\n        ISOServer server = new ISOServer(\n            serverConfig.getPort(),\n            channel,\n            new ThreadPool(1, 100)\n        );\n\n        server.setConfiguration(createConfiguration());\n        server.addISORequestListener(new TransactionRequestListener());\n\n        NameRegistrar.register(\"iso-server\", server);\n\n        return server;\n    }\n\n    private org.jpos.core.Configuration createConfiguration() throws ISOException {\n        org.jpos.core.Configuration cfg = new org.jpos.core.SimpleConfiguration();\n        cfg.put(\"port\", String.valueOf(serverConfig.getPort()));\n        cfg.put(\"channel\", \"org.jpos.iso.channel.NACChannel\");\n        cfg.put(\"packager\", serverConfig.getPackager());\n        cfg.put(\"timeout\", \"300000\");\n        cfg.put(\"max-connections\", \"100\");\n        return cfg;\n    }\n\n    @Override\n    protected void startService() {\n        try {\n            ISOServer server = isoServer();\n            new Thread(server).start();\n        } catch (Exception e) {\n            getLog().error(\"Error starting ISO server\", e);\n        }\n    }\n\n    @Override\n    protected void stopService() {\n        try {\n            ISOServer server = NameRegistrar.get(\"iso-server\");\n            server.shutdown();\n        } catch (NameRegistrar.NotFoundException e) {\n            getLog().error(\"ISO server not found for shutdown\", e);\n        }\n    }\n}"
     },
     {
       "type": "para",
@@ -64,7 +64,7 @@
       "ordered": true,
       "items": [
         "We create a `NACChannel` with the specified host, port, and packager.",
-        "We instantiate an `ISOServer` with the port, channel, and a null space (which can be used for shared memory between connections).",
+        "We instantiate an `ISOServer` with the port, channel, and a `ThreadPool` whose threads serve the connections.",
         "We set the configuration for the server, including timeout and max connections.",
         "We add a `TransactionRequestListener` to handle incoming requests.",
         "We register the server with `NameRegistrar` for easy access in other parts of the application.",
@@ -78,7 +78,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOPackager;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\nimport java.io.IOException;\n\n@Configuration\npublic class ServerConfiguration {\n\n    @Value(\"${iso.server.host}\")\n    private String host;\n\n    @Value(\"${iso.server.port}\")\n    private int port;\n\n    @Value(\"${iso.server.packager}\")\n    private String packagerPath;\n\n    public String getHost() {\n        return host;\n    }\n\n    public int getPort() {\n        return port;\n    }\n\n    @Bean\n    public ISOPackager getPackager() throws IOException {\n        return new GenericPackager(packagerPath);\n    }\n}"
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ServerConfiguration {\n\n    @Value(\"${iso.server.host}\")\n    private String host;\n\n    @Value(\"${iso.server.port}\")\n    private int port;\n\n    @Value(\"${iso.server.packager}\")\n    private String packagerPath;\n\n    public String getHost() {\n        return host;\n    }\n\n    public int getPort() {\n        return port;\n    }\n\n    @Bean\n    public ISOPackager getPackager() throws ISOException {\n        return new GenericPackager(packagerPath);\n    }\n}"
     },
     {
       "type": "para",
@@ -127,5 +127,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "4dc5e0e51cd31ae9de59e2c7669ac818e425b1c9fe7af05719c3123a9acc6bfc"
+  "content_sha256": "b4bcb52f0bd1f89ecde9b93c1d351e9de0db5bbaacf09c4ad57b9ff3cf5f1ea4"
 }

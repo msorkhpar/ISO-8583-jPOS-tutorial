@@ -124,12 +124,11 @@ public class ChargebackService {
         chargebackRequest.set(11, transaction.getSystemTraceAuditNumber());
         chargebackRequest.set(37, transaction.getRetrievalReferenceNumber());
         chargebackRequest.set(38, transaction.getAuthorizationIdResponse());
-        chargebackRequest.set(39, &quot;05&quot;);  // Chargeback reason code
-        chargebackRequest.set(56, reason);  // Additional chargeback information
+        chargebackRequest.set(25, reason);  // Message reason code (n4), the chargeback reason
 
         ISOMsg response = qmux.request(chargebackRequest, 30000);
 
-        if (response != null &amp;&amp; &quot;00&quot;.equals(response.getString(39))) {
+        if (response != null &amp;&amp; &quot;000&quot;.equals(response.getString(39))) {  // action code 000: approved
             transaction.setStatus(TransactionStatus.CHARGEBACK_INITIATED);
             transactionRepository.save(transaction);
         } else {
@@ -138,15 +137,14 @@ public class ChargebackService {
     }
 }</code></pre></figure>
 <p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b19-365685c1.mp3">This service initiates a chargeback by sending a chargeback advice (MTI 1422 in ISO 8583:1993, where x4x0 is a reversal and x4x2 an issuer's chargeback; in ISO 8583:1987 the 04xx class holds reversals only, and each network specifies how it carries chargebacks) with the original transaction details and the chargeback reason.</p>
-<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b20-9912b08f.mp3">To test these implementations, we can use JUnit, Mockito, and AssertJ:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b21-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">@RunWith(SpringRunner.class)
-@SpringBootTest
+<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b20-9912b08f.mp3">To test these implementations, we can use JUnit and Mockito:</p>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b21-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">@ExtendWith(MockitoExtension.class)
 public class AuthorizationServiceTest {
 
-    @MockBean
+    @Mock
     private QMUX qmux;
 
-    @Autowired
+    @InjectMocks
     private AuthorizationService authorizationService;
 
     @Test
@@ -167,8 +165,8 @@ public class AuthorizationServiceTest {
         ISOMsg result = authorizationService.processAuthorization(request);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getString(39)).isEqualTo(&quot;00&quot;);
+        assertNotNull(result);
+        assertEquals(&quot;00&quot;, result.getString(39));
     }
 
     @Test
@@ -189,11 +187,11 @@ public class AuthorizationServiceTest {
         ISOMsg result = authorizationService.processAuthorization(request);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getString(39)).isEqualTo(&quot;05&quot;);
+        assertNotNull(result);
+        assertEquals(&quot;05&quot;, result.getString(39));
     }
 }</code></pre></figure>
-<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b22-10414c08.mp3">This test class demonstrates how to unit test the <code>AuthorizationService</code> using Mockito to mock the <code>QMUX</code> component and AssertJ for fluent assertions.</p>
+<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b22-10414c08.mp3">This test class demonstrates how to unit test the <code>AuthorizationService</code> using Mockito to mock the <code>QMUX</code> component and JUnit's assertions.</p>
 <p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b23-86c35718.mp3">In a real-world scenario, you would need to implement more comprehensive error handling, logging, and security measures. Additionally, you'd need to integrate with actual payment networks and comply with PCI-DSS requirements for handling sensitive card data.</p>
 <p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b24-b4baf7cd.mp3">The transaction flow in ISO-8583 is complex and involves multiple parties. The examples provided here are simplified for illustration purposes. In a production environment, you would need to handle various edge cases, implement retry mechanisms, and ensure proper security measures are in place.</p>
 </section>
