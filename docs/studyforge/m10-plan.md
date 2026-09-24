@@ -402,6 +402,20 @@ grader.
   - ⚠️ Code was graded in host mode, through a scratch `mvn` shim that runs the pinned runner
     image offline. See `ISO-M10/13`.
 
+### ISO-27 — The tutorial's own page defects, fixed (the user's ruling: "fix them")
+**Milestone** M10 · 10.4 · **Depends on** ISO-23 · **Team** solo · **Status** done on
+`int/m10-iso-23`, handed back to the register; not merged. Handoff
+`docs/studyforge/handoffs/ISO-27.md`
+
+The defects ISO-23's authors found on 16 source pages (`src/6`, `7`, `8`, `11`, `12`, `13`;
+`c1`–`c4`; `s2`–`s7`) are fixed minimally.
+- Headings and fence ordinals are unchanged.
+- Every changed fence is proven against `java-build/pom.xml`, offline.
+- The 15 exercises on those pages are re-gated: 2 re-authored, 4 with the statement only, and the
+  rest byte-identical.
+- By the user's second ruling, `spring-web` 5.3.20 is declared, and the runner is rebuilt and
+  recorded as `…-7a5a2f2aacba`.
+
 ### ISO-24 — What `AX-11` reads here, named and dry-read before it runs
 **Milestone** M10 · 10.4 → 10.5 · **Depends on** ISO-23; framework `AX-11` (not started) ·
 **Team** solo · **Status** blocked on ISO-23

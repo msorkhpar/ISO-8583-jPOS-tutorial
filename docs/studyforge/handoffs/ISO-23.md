@@ -186,9 +186,10 @@ Carried from ISO-25 and ISO-26, still open:
 - **W453/1**: an aspect's link to its exercise is recorded, not gated.
 - `Q2` is unstable between readings, which is why it is taken twice.
 
-**Page defects the authors found**, for the corpus's owner. These are content findings: the
-source is read-only here (R3), so each exercise teaches what jPOS 2.1.7 actually does and is
-verified by running. Nothing on a page was changed.
+**Page defects the authors found.** ⭐ **The user ruled "fix them" (2026-09-23), and `ISO-27`
+fixed every one** of those listed below; see `handoffs/ISO-27.md` for each page's fix and proof.
+At ISO-23 the pages were left unchanged, and each exercise taught what jPOS 2.1.7 actually does,
+verified by running.
 
 - `src/6.md`: two-digit processing codes.
 - `src/7.md`: chargeback uses `0400`.
