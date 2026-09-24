@@ -50,7 +50,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    — and a preference that fails to parse cannot take every mark with it.
    ⚠️ The floor declares no display preference yet; the record exists because
    the INDEPENDENCE is the ruling, and the first consumer is expected to be
-   `SF-18`'s transport (a speed, a volume), which has no business sharing a
+   the narration transport (a speed, a volume), which has no business sharing a
    key with the reading record.
 
    ⛔ **No clock.** A timestamp is a second fact nobody asked for, and it turns
@@ -1473,7 +1473,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   }
 
   /* ⛔ **A FRAME NEVER TAKES FOCUS THE READER DID NOT GIVE IT, AND THE PAGE
-     NEVER MOVES ON ITS OWN** (`W449`, the user's report of 2026-09-23).
+     NEVER MOVES ON ITS OWN** (the user's report of 2026-09-23).
 
      ⚠️ **The mechanism, measured in a real browser and not guessed.** A
      workbench focuses its editor as it starts — `restoreParts()` calls
@@ -1742,7 +1742,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 /* The quiz: what a reader chose, and what the local study server said about it.
 
    ⛔ **THE KEY IS NOT IN THE PAGE, AND THIS FILE DOES NOT GRADE** — the user's
-   ruling of 2026-09-23 (`W451`): *"a test with the correct answer residing on
+   ruling of 2026-09-23: *"a test with the correct answer residing on
    the server side. When user answers it will get validated and result will be
    returned to the user with explanation if needed"*. ⭐ So this file reads
    which option the reader chose, hands the choices to `window.studyforge.quiz`
@@ -1752,8 +1752,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    ⛔ **The completion rule is the server's** (`exercise.quiz.completes`, applied
    once, in Python); this file shows `complete` and never re-derives it.
 
-   ⚠️ **Superseded, and kept readable so it is not re-derived:** until `W451`
-   this file graded in the page from a key every option carried, identically
+   ⚠️ **Superseded, and kept readable so it is not re-derived:** until that
+   ruling this file graded in the page from a key every option carried, identically
    over `file://`, on the stance that an offline page cannot hide the key it grades
    with. The ruling removes the key from the page instead.
 
