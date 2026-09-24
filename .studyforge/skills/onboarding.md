@@ -1,6 +1,6 @@
 # Skill — onboarding (pinned)
 
-pin: de1ea776d242819a75c5a6a511ff77c6a3ed04ae
+pin: 39f12d4e9cce4860bde002cc3bbf473623014790
 version: 0.1.0
 
 The procedure ships inside the installed `studyforge` library, at the
