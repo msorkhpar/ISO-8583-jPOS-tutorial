@@ -1113,21 +1113,21 @@ public class MastercardDataElementHandler {
 
 ### 6.3. Mastercard processing codes
 
-Mastercard uses specific processing codes to identify the type of transaction. Here are some common processing codes:
+Mastercard uses processing codes to identify the type of transaction. The processing code (field 3) is six digits: the transaction type (2), the from-account type (2) and the to-account type (2). The transaction-type values vary by network, so take them from your network's specification. The codes below are examples, with both account types 00 (default account):
 
-1. Purchase: 00
-2. Cash Advance: 01
-3. Void: 02
-4. Refund: 20
+1. Purchase: 000000
+2. Cash Advance: 010000
+3. Void: 020000
+4. Refund: 200000
 
 Let's implement a Java enum to represent these processing codes:
 
 ```java
 public enum MastercardProcessingCode {
-    PURCHASE("00"),
-    CASH_ADVANCE("01"),
-    VOID("02"),
-    REFUND("20");
+    PURCHASE("000000"),
+    CASH_ADVANCE("010000"),
+    VOID("020000"),
+    REFUND("200000");
 
     private final String code;
 
@@ -1224,13 +1224,14 @@ Now, let's create a test class to verify the functionality of our Mastercard tra
 
 ```java
 import org.jpos.iso.ISOMsg;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -1246,11 +1247,11 @@ public class MastercardTransactionServiceTest {
     public void testCreatePurchaseRequest() throws Exception {
         ISOMsg purchaseRequest = transactionService.createPurchaseRequest("1234567890123456", "100000", "MERCHANT01");
 
-        assertThat(purchaseRequest.getMTI()).isEqualTo("0200");
-        assertThat(purchaseRequest.getString(2)).isEqualTo("1234567890123456");
-        assertThat(purchaseRequest.getString(3)).isEqualTo(MastercardProcessingCode.PURCHASE.getCode());
-        assertThat(purchaseRequest.getString(4)).isEqualTo("100000");
-        assertThat(purchaseRequest.getString(42)).isEqualTo("MERCHANT01");
+        assertEquals("0200", purchaseRequest.getMTI());
+        assertEquals("1234567890123456", purchaseRequest.getString(2));
+        assertEquals(MastercardProcessingCode.PURCHASE.getCode(), purchaseRequest.getString(3));
+        assertEquals("100000", purchaseRequest.getString(4));
+        assertEquals("MERCHANT01", purchaseRequest.getString(42));
 
         verify(dataElementHandler).setAdditionalData(purchaseRequest, "Additional data for purchase");
         verify(dataElementHandler).setPOSData(purchaseRequest, "POS data for purchase");
@@ -1261,11 +1262,11 @@ public class MastercardTransactionServiceTest {
     public void testCreateCashAdvanceRequest() throws Exception {
         ISOMsg cashAdvanceRequest = transactionService.createCashAdvanceRequest("1234567890123456", "50000", "MERCHANT01");
 
-        assertThat(cashAdvanceRequest.getMTI()).isEqualTo("0200");
-        assertThat(cashAdvanceRequest.getString(2)).isEqualTo("1234567890123456");
-        assertThat(cashAdvanceRequest.getString(3)).isEqualTo(MastercardProcessingCode.CASH_ADVANCE.getCode());
-        assertThat(cashAdvanceRequest.getString(4)).isEqualTo("50000");
-        assertThat(cashAdvanceRequest.getString(42)).isEqualTo("MERCHANT01");
+        assertEquals("0200", cashAdvanceRequest.getMTI());
+        assertEquals("1234567890123456", cashAdvanceRequest.getString(2));
+        assertEquals(MastercardProcessingCode.CASH_ADVANCE.getCode(), cashAdvanceRequest.getString(3));
+        assertEquals("50000", cashAdvanceRequest.getString(4));
+        assertEquals("MERCHANT01", cashAdvanceRequest.getString(42));
 
         verify(dataElementHandler).setAdditionalData(cashAdvanceRequest, "Additional data for cash advance");
         verify(dataElementHandler).setPOSData(cashAdvanceRequest, "POS data for cash advance");
@@ -1276,12 +1277,12 @@ public class MastercardTransactionServiceTest {
     public void testCreateRefundRequest() throws Exception {
         ISOMsg refundRequest = transactionService.createRefundRequest("1234567890123456", "25000", "MERCHANT01", "123456789");
 
-        assertThat(refundRequest.getMTI()).isEqualTo("0200");
-        assertThat(refundRequest.getString(2)).isEqualTo("1234567890123456");
-        assertThat(refundRequest.getString(3)).isEqualTo(MastercardProcessingCode.REFUND.getCode());
-        assertThat(refundRequest.getString(4)).isEqualTo("25000");
-        assertThat(refundRequest.getString(42)).isEqualTo("MERCHANT01");
-        assertThat(refundRequest.getString(37)).isEqualTo("123456789");
+        assertEquals("0200", refundRequest.getMTI());
+        assertEquals("1234567890123456", refundRequest.getString(2));
+        assertEquals(MastercardProcessingCode.REFUND.getCode(), refundRequest.getString(3));
+        assertEquals("25000", refundRequest.getString(4));
+        assertEquals("MERCHANT01", refundRequest.getString(42));
+        assertEquals("123456789", refundRequest.getString(37));
 
         verify(dataElementHandler).setAdditionalData(refundRequest, "Additional data for refund");
         verify(dataElementHandler).setPOSData(refundRequest, "POS data for refund");
@@ -1296,8 +1297,8 @@ public class MastercardTransactionServiceTest {
         ISOMsg declinedResponse = new ISOMsg();
         declinedResponse.set(39, "05");
 
-        assertThat(transactionService.isApproved(approvedResponse)).isTrue();
-        assertThat(transactionService.isApproved(declinedResponse)).isFalse();
+        assertTrue(transactionService.isApproved(approvedResponse));
+        assertFalse(transactionService.isApproved(declinedResponse));
     }
 }
 ```
@@ -1306,7 +1307,7 @@ This implementation covers the main aspects of Mastercard-specific ISO-8583 mess
 
 1. Creating purchase, cash advance, and refund requests
 2. Handling Mastercard-specific data elements (fields 48, 61, and 63)
-3. Using the correct processing codes for different transaction types
+3. Using processing codes to identify different transaction types
 4. Checking the approval status of a response message
 
 ## 7. Transaction Flow
@@ -1434,18 +1435,24 @@ public class ChargebackService {
             .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
 
         ISOMsg chargebackRequest = new ISOMsg();
-        chargebackRequest.setMTI("0400");  // Reversal message type
+        chargebackRequest.setMTI("1422");  // Chargeback advice (ISO 8583:1993); networks define their own
         chargebackRequest.set(2, transaction.getCardNumber());
         chargebackRequest.set(4, transaction.getAmount().toString());
         chargebackRequest.set(11, transaction.getSystemTraceAuditNumber());
         chargebackRequest.set(37, transaction.getRetrievalReferenceNumber());
         chargebackRequest.set(38, transaction.getAuthorizationIdResponse());
-        chargebackRequest.set(39, "05");  // Chargeback reason code
-        chargebackRequest.set(56, reason);  // Additional chargeback information
+        chargebackRequest.set(25, reason);  // Message reason code (n4), the chargeback reason
+        // Original data elements (LLVAR n..35): original MTI (4), STAN (6),
+        // date and time local transaction (12, YYMMDDhhmmss), acquiring institution ID (LL + up to 11)
+        String acquirerId = transaction.getAcquiringInstitutionId();
+        chargebackRequest.set(56, transaction.getMti()
+            + transaction.getSystemTraceAuditNumber()
+            + transaction.getLocalDateTime()
+            + String.format("%02d", acquirerId.length()) + acquirerId);
 
         ISOMsg response = qmux.request(chargebackRequest, 30000);
 
-        if (response != null && "00".equals(response.getString(39))) {
+        if (response != null && "000".equals(response.getString(39))) {  // action code 000: approved
             transaction.setStatus(TransactionStatus.CHARGEBACK_INITIATED);
             transactionRepository.save(transaction);
         } else {
@@ -1455,19 +1462,18 @@ public class ChargebackService {
 }
 ```
 
-This service initiates a chargeback by creating a reversal message (MTI 0400) with the original transaction details and the chargeback reason.
+This service initiates a chargeback by sending a chargeback advice (MTI 1422 in ISO 8583:1993, where x4x0 is a reversal and x4x2 an issuer's chargeback; in ISO 8583:1987 the 04xx class holds reversals only, and each network specifies how it carries chargebacks) with the original transaction details and the chargeback reason.
 
-To test these implementations, we can use JUnit, Mockito, and AssertJ:
+To test these implementations, we can use JUnit and Mockito:
 
 ```java
-@RunWith(SpringRunner.class)
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 public class AuthorizationServiceTest {
 
-    @MockBean
+    @Mock
     private QMUX qmux;
 
-    @Autowired
+    @InjectMocks
     private AuthorizationService authorizationService;
 
     @Test
@@ -1488,8 +1494,8 @@ public class AuthorizationServiceTest {
         ISOMsg result = authorizationService.processAuthorization(request);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getString(39)).isEqualTo("00");
+        assertNotNull(result);
+        assertEquals("00", result.getString(39));
     }
 
     @Test
@@ -1510,13 +1516,13 @@ public class AuthorizationServiceTest {
         ISOMsg result = authorizationService.processAuthorization(request);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getString(39)).isEqualTo("05");
+        assertNotNull(result);
+        assertEquals("05", result.getString(39));
     }
 }
 ```
 
-This test class demonstrates how to unit test the `AuthorizationService` using Mockito to mock the `QMUX` component and AssertJ for fluent assertions.
+This test class demonstrates how to unit test the `AuthorizationService` using Mockito to mock the `QMUX` component and JUnit's assertions.
 
 In a real-world scenario, you would need to implement more comprehensive error handling, logging, and security measures. Additionally, you'd need to integrate with actual payment networks and comply with PCI-DSS requirements for handling sensitive card data.
 
@@ -1533,25 +1539,25 @@ PIN (Personal Identification Number) encryption is a critical security measure i
 
 This is the most widely used format.
 
-- Structure: `0 || PIN length || PIN || Padding`
-- The PIN is left-justified and padded with 'F'
-- Example: For PIN "1234", the block would be "041234FFFFFFFFFF"
+- Structure: `0 || PIN length || PIN || Padding`, XORed with the PAN field `0000 || 12 rightmost PAN digits`
+- The PIN is left-justified and padded with 'F'; the 12 PAN digits exclude the check digit
+- Example: For PIN "1234" and PAN "43219876543210987", the PIN field "041234FFFFFFFFFF" XORed with the PAN field "0000987654321098" gives the block "0412AC89ABCDEF67"
 
 ### 8.1.2. ISO Format 1
 
-This format incorporates the PAN (Primary Account Number) for added security.
+This format does not use the PAN (Primary Account Number), so it suits cases where the PAN is not available.
 
-- Structure: `1 || PIN length || PIN ⊕ PAN || Padding`
-- The PIN is XORed with the rightmost 12 digits of the PAN
-- Example: For PIN "1234" and PAN "1234567890123456", the block might be "141234567890FFFF"
+- Structure: `1 || PIN length || PIN || Transaction field`
+- The PIN is left-justified and padded with hex digits (0-F) unique to the transaction, such as random ones
+- Example: For PIN "1234", the block might be "1412347B09E3A5C1"
 
 ### 8.1.3. ISO Format 3
 
 This format is similar to Format 0 but uses a different padding method.
 
-- Structure: `3 || PIN length || PIN || Random padding`
-- The PIN is left-justified and padded with random digits
-- Example: For PIN "1234", the block could be "341234987654321"
+- Structure: `3 || PIN length || PIN || Random padding`, XORed with the PAN field as in Format 0
+- The PIN is left-justified and padded with random hex digits from A to F
+- Example: For PIN "1234", the PIN field could be "341234CEDBAFCADE" before the XOR with the PAN field
 
 Let's implement a PIN block generator for these formats using jPOS:
 
@@ -1559,54 +1565,62 @@ Let's implement a PIN block generator for these formats using jPOS:
 import org.jpos.iso.ISOUtil;
 import org.jpos.security.SMException;
 
+import java.security.SecureRandom;
+
 public class PINBlockGenerator {
 
-    public static String generateFormat0(String pin) throws SMException {
-        if (pin.length() < 4 || pin.length() > 12) {
-            throw new SMException("PIN must be between 4 and 12 digits");
-        }
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    public static String generateFormat0(String pin, String pan) throws SMException {
+        checkPin(pin);
         StringBuilder block = new StringBuilder();
         block.append("0");
-        block.append(String.format("%01d", pin.length()));
+        block.append(Integer.toHexString(pin.length()).toUpperCase());
         block.append(pin);
         while (block.length() < 16) {
             block.append("F");
         }
+        return xorWithPanField(block.toString(), pan);
+    }
+
+    public static String generateFormat1(String pin) throws SMException {
+        checkPin(pin);
+        StringBuilder block = new StringBuilder();
+        block.append("1");
+        block.append(Integer.toHexString(pin.length()).toUpperCase());
+        block.append(pin);
+        while (block.length() < 16) {
+            block.append(Integer.toHexString(RANDOM.nextInt(16)).toUpperCase());
+        }
         return block.toString();
     }
 
-    public static String generateFormat1(String pin, String pan) throws SMException {
+    public static String generateFormat3(String pin, String pan) throws SMException {
+        checkPin(pin);
+        StringBuilder block = new StringBuilder();
+        block.append("3");
+        block.append(Integer.toHexString(pin.length()).toUpperCase());
+        block.append(pin);
+        while (block.length() < 16) {
+            block.append((char) ('A' + RANDOM.nextInt(6)));
+        }
+        return xorWithPanField(block.toString(), pan);
+    }
+
+    private static void checkPin(String pin) throws SMException {
         if (pin.length() < 4 || pin.length() > 12) {
             throw new SMException("PIN must be between 4 and 12 digits");
         }
+    }
+
+    // PAN field: 0000 followed by the 12 rightmost PAN digits, excluding the check digit
+    private static String xorWithPanField(String pinField, String pan) throws SMException {
         if (pan.length() < 13 || pan.length() > 19) {
             throw new SMException("PAN must be between 13 and 19 digits");
         }
-        StringBuilder block = new StringBuilder();
-        block.append("1");
-        block.append(String.format("%01d", pin.length()));
-        
-        String panPart = pan.substring(pan.length() - 13, pan.length() - 1);
-        String pinPadded = String.format("%-12s", pin).replace(' ', 'F');
-        
-        byte[] xoredPart = ISOUtil.xor(pinPadded.getBytes(), panPart.getBytes());
-        block.append(ISOUtil.hexString(xoredPart));
-        
-        return block.toString();
-    }
-
-    public static String generateFormat3(String pin) throws SMException {
-        if (pin.length() < 4 || pin.length() > 12) {
-            throw new SMException("PIN must be between 4 and 12 digits");
-        }
-        StringBuilder block = new StringBuilder();
-        block.append("3");
-        block.append(String.format("%01d", pin.length()));
-        block.append(pin);
-        while (block.length() < 16) {
-            block.append(String.valueOf((int) (Math.random() * 10)));
-        }
-        return block.toString();
+        String panField = "0000" + pan.substring(pan.length() - 13, pan.length() - 1);
+        byte[] xored = ISOUtil.xor(ISOUtil.hex2byte(pinField), ISOUtil.hex2byte(panField));
+        return ISOUtil.hexString(xored);
     }
 }
 ```
@@ -1625,7 +1639,7 @@ Key management is crucial for maintaining the security of encrypted communicatio
 
 - Temporary keys used for a single session or a limited time
 - Generated and exchanged using the master key
-- Provide forward secrecy, as compromising one session key doesn't compromise past or future sessions
+- Limit exposure, as compromising one session key doesn't compromise past or future sessions
 
 ### 8.2.3. Working keys
 
@@ -1635,19 +1649,18 @@ Key management is crucial for maintaining the security of encrypted communicatio
 Let's implement a basic key management system using jPOS:
 
 ```java
+import org.jpos.core.SimpleConfiguration;
 import org.jpos.security.SMAdapter;
+import org.jpos.security.SMException;
+import org.jpos.security.SecureDESKey;
 import org.jpos.security.SecureKeyStore;
 import org.jpos.security.SimpleKeyFile;
 import org.jpos.security.jceadapter.JCESecurityModule;
 import org.jpos.util.Logger;
 import org.jpos.util.SimpleLogListener;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.security.NoSuchAlgorithmException;
-
 public class KeyManager {
-    private final SMAdapter sm;
+    private final SMAdapter<SecureDESKey> sm;
     private final SecureKeyStore ks;
 
     public KeyManager() throws Exception {
@@ -1655,38 +1668,38 @@ public class KeyManager {
         logger.addListener(new SimpleLogListener(System.out));
 
         ks = new SimpleKeyFile("keystore.ks");
-        sm = new JCESecurityModule("jce", logger);
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put("lmk", "lmk"); // the Local Master Keys file that protects every key the module holds
+        sm = new JCESecurityModule(cfg, logger, "jce");
     }
 
-    public SecretKey generateMasterKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("DES");
-        keyGen.init(168); // Use Triple DES (112-bit) key
-        return keyGen.generateKey();
+    public SecureDESKey generateMasterKey() throws SMException {
+        return sm.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZMK); // Use Triple DES (112-bit) key
     }
 
-    public SecretKey generateSessionKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("DES");
-        keyGen.init(56); // Use single DES key for session
-        return keyGen.generateKey();
+    public SecureDESKey generateSessionKey() throws SMException {
+        return sm.generateKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK); // Use single DES key for session
     }
 
-    public byte[] encryptSessionKey(SecretKey masterKey, SecretKey sessionKey) throws Exception {
-        return sm.encryptKey(masterKey, sessionKey);
+    public byte[] encryptSessionKey(SecureDESKey masterKey, SecureDESKey sessionKey) throws SMException {
+        return sm.exportKey(sessionKey, masterKey);
     }
 
-    public SecretKey decryptSessionKey(SecretKey masterKey, byte[] encryptedSessionKey) throws Exception {
-        return sm.decryptKey(masterKey, encryptedSessionKey, "DES");
+    public SecureDESKey decryptSessionKey(SecureDESKey masterKey, byte[] encryptedSessionKey) throws SMException {
+        return sm.importKey(SMAdapter.LENGTH_DES, SMAdapter.TYPE_ZPK, encryptedSessionKey, masterKey, true);
     }
 
-    public void storeMasterKey(String alias, SecretKey masterKey) throws Exception {
+    public void storeMasterKey(String alias, SecureDESKey masterKey) throws Exception {
         ks.setKey(alias, masterKey);
     }
 
-    public SecretKey retrieveMasterKey(String alias) throws Exception {
-        return (SecretKey) ks.getKey(alias);
+    public SecureDESKey retrieveMasterKey(String alias) throws Exception {
+        return ks.getKey(alias);
     }
 }
 ```
+
+`JCESecurityModule` loads its Local Master Keys from the `lmk` file, and it fails if that file does not exist. Create the file once, before the first run, by constructing a `JCESecurityModule` with the same `lmk` setting and `rebuildlmk` set to `true`. With no `provider` setting, jPOS 2.1.7 loads the SunJCE provider by its class name, `com.sun.crypto.provider.SunJCE`, which Java 17 and later do not open to other code. So run the JVM with `--add-exports java.base/com.sun.crypto.provider=ALL-UNNAMED`.
 
 ## 8.3. Secure messaging
 
@@ -1699,12 +1712,10 @@ MAC is used to verify the integrity of the message and authenticate the sender.
 Let's implement MAC generation and verification:
 
 ```java
-import org.jpos.iso.ISOUtil;
-
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class MACGenerator {
@@ -1717,7 +1728,7 @@ public class MACGenerator {
 
     public static boolean verifyMAC(byte[] message, byte[] receivedMAC, SecretKey key) throws NoSuchAlgorithmException, InvalidKeyException {
         byte[] calculatedMAC = generateMAC(message, key);
-        return ISOUtil.equals(calculatedMAC, receivedMAC);
+        return MessageDigest.isEqual(calculatedMAC, receivedMAC);
     }
 }
 ```
@@ -1729,52 +1740,71 @@ DUKPT is a key management scheme that generates a unique key for each transactio
 Here's a basic implementation of DUKPT key derivation:
 
 ```java
-import org.jpos.security.SMException;
-import org.jpos.security.jceadapter.JCEHandler;
+import org.jpos.iso.ISOUtil;
 
+import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.security.GeneralSecurityException;
+import java.util.Arrays;
 
+// ANSI X9.24-1 TDES DUKPT: derives the PIN encryption key for one KSN
 public class DUKPTKeyDerivation {
     private static final byte[] KSN_MASK = ISOUtil.hex2byte("FFFFFFFFFFFFFFE00000");
-    private static final byte[] DATA_MASK = ISOUtil.hex2byte("0000000000FF00000000000000000000");
+    private static final byte[] KEY_MASK = ISOUtil.hex2byte("C0C0C0C000000000C0C0C0C000000000");
+    private static final byte[] PIN_VARIANT = ISOUtil.hex2byte("00000000000000FF00000000000000FF");
 
-    public static SecretKey deriveKey(SecretKey bdk, byte[] ksn) throws SMException, NoSuchAlgorithmException, InvalidKeyException {
-        JCEHandler jceHandler = new JCEHandler();
-        
-        // Initial PIN Encryption Key (IPEK)
-        byte[] ipek = jceHandler.encryptDES(bdk, ksn);
-        
+    public static SecretKey deriveKey(SecretKey bdk, byte[] ksn) throws GeneralSecurityException {
+        byte[] baseKsn = new byte[10];
+        for (int i = 0; i < 10; i++) {
+            baseKsn[i] = (byte) (ksn[i] & KSN_MASK[i]);
+        }
+
+        // Initial PIN Encryption Key (IPEK), from the KSN with its 21-bit counter cleared
+        byte[] bdkBytes = bdk.getEncoded();
+        byte[] ipekData = Arrays.copyOfRange(baseKsn, 0, 8);
+        byte[] ipek = new byte[16];
+        System.arraycopy(encryptTDES(bdkBytes, ipekData), 0, ipek, 0, 8);
+        System.arraycopy(encryptTDES(ISOUtil.xor(bdkBytes, KEY_MASK), ipekData), 0, ipek, 8, 8);
+
+        // One non-reversible derivation per counter bit that is set, highest bit first
         byte[] derivedKey = ipek;
-        byte[] counter = new byte[3];
-        System.arraycopy(ksn, 7, counter, 0, 3);
-        
-        for (int i = 0; i < 21; i++) {
-            if ((counter[i / 8] & (1 << (i % 8))) != 0) {
-                byte[] ksnRegister = ISOUtil.xor(ksn, KSN_MASK);
-                ksnRegister[7] &= 0xE0;
-                ksnRegister[8] = 0x00;
-                ksnRegister[9] = 0x00;
-                
-                byte[] data = ISOUtil.xor(derivedKey, DATA_MASK);
-                byte[] leftKey = new byte[8];
-                byte[] rightKey = new byte[8];
-                System.arraycopy(derivedKey, 0, leftKey, 0, 8);
-                System.arraycopy(derivedKey, 8, rightKey, 0, 8);
-                
-                byte[] leftData = jceHandler.encryptDES(new SecretKeySpec(leftKey, "DES"), data);
-                byte[] rightData = ISOUtil.xor(leftData, rightKey);
-                
-                System.arraycopy(leftData, 0, derivedKey, 0, 8);
-                System.arraycopy(rightData, 0, derivedKey, 8, 8);
-                
-                ksnRegister[i / 8] |= (1 << (i % 8));
+        byte[] ksnRegister = Arrays.copyOfRange(baseKsn, 2, 10);
+        int counter = ((ksn[7] & 0x1F) << 16) | ((ksn[8] & 0xFF) << 8) | (ksn[9] & 0xFF);
+        for (int bit = 0x100000; bit > 0; bit >>= 1) {
+            if ((counter & bit) != 0) {
+                ksnRegister[5] |= (byte) (bit >> 16);
+                ksnRegister[6] |= (byte) (bit >> 8);
+                ksnRegister[7] |= (byte) bit;
+                derivedKey = deriveNonReversibleKey(derivedKey, ksnRegister);
             }
         }
-        
-        return new SecretKeySpec(derivedKey, "DES");
+
+        return new SecretKeySpec(ISOUtil.xor(derivedKey, PIN_VARIANT), "DESede");
+    }
+
+    private static byte[] deriveNonReversibleKey(byte[] key, byte[] data) throws GeneralSecurityException {
+        byte[] result = new byte[16];
+        System.arraycopy(deriveHalf(ISOUtil.xor(key, KEY_MASK), data), 0, result, 0, 8);
+        System.arraycopy(deriveHalf(key, data), 0, result, 8, 8);
+        return result;
+    }
+
+    private static byte[] deriveHalf(byte[] key, byte[] data) throws GeneralSecurityException {
+        byte[] leftKey = Arrays.copyOfRange(key, 0, 8);
+        byte[] rightKey = Arrays.copyOfRange(key, 8, 16);
+        Cipher des = Cipher.getInstance("DES/ECB/NoPadding");
+        des.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(leftKey, "DES"));
+        return ISOUtil.xor(des.doFinal(ISOUtil.xor(data, rightKey)), rightKey);
+    }
+
+    private static byte[] encryptTDES(byte[] key16, byte[] data) throws GeneralSecurityException {
+        byte[] key24 = new byte[24];
+        System.arraycopy(key16, 0, key24, 0, 16);
+        System.arraycopy(key16, 0, key24, 16, 8);
+        Cipher tdes = Cipher.getInstance("DESede/ECB/NoPadding");
+        tdes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key24, "DESede"));
+        return tdes.doFinal(data);
     }
 }
 ```
@@ -2435,8 +2465,11 @@ public class TransactionLogger implements LogListener {
     @Override
     public LogEvent log(LogEvent ev) {
         if (ev.getTag().equals("TX")) {
-            ISOMsg msg = (ISOMsg) ev.getPayload();
-            logger.info("Transaction: {}", msg);
+            for (Object payload : ev.getPayLoad()) {
+                if (payload instanceof ISOMsg) {
+                    logger.info("Transaction: {}", payload);
+                }
+            }
         }
         return ev;
     }
@@ -2614,7 +2647,6 @@ public class PaymentGatewayService {
         request.setAmount(isoMsg.getString(4));
         request.setCardNumber(isoMsg.getString(2));
         request.setExpirationDate(isoMsg.getString(14));
-        request.setCvv(isoMsg.getString(52));
         request.setTransactionType(mapTransactionType(isoMsg.getString(3)));
         return request;
     }
@@ -2641,6 +2673,7 @@ Sometimes, data formats in ISO-8583 messages don't match the expected format of 
 ```java
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public class DataTransformationUtil {
 
@@ -2654,7 +2687,7 @@ public class DataTransformationUtil {
         // ISO-8583 format: Amount in cents without decimal point
         // API expected format: Amount with decimal point
         long amountInCents = Long.parseLong(isoAmount);
-        return String.format("%.2f", amountInCents / 100.0);
+        return String.format(Locale.ROOT, "%.2f", amountInCents / 100.0);
     }
 
     public static String transformDate(String isoDate) {
@@ -2683,7 +2716,6 @@ private PaymentRequest mapIsoMsgToPaymentRequest(ISOMsg isoMsg) {
     request.setAmount(DataTransformationUtil.transformAmount(isoMsg.getString(4)));
     request.setCardNumber(isoMsg.getString(2));
     request.setExpirationDate(DataTransformationUtil.transformExpirationDate(isoMsg.getString(14)));
-    request.setCvv(isoMsg.getString(52));
     request.setTransactionType(mapTransactionType(isoMsg.getString(3)));
     request.setTransactionDate(DataTransformationUtil.transformDate(isoMsg.getString(13)));
     return request;
@@ -2702,7 +2734,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
 
 import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentGatewayServiceTest {
@@ -2726,7 +2758,6 @@ class PaymentGatewayServiceTest {
         isoMsg.set(4, "100000"); // $1000.00
         isoMsg.set(13, "0531"); // May 31st
         isoMsg.set(14, "2405"); // Expires May 2024
-        isoMsg.set(52, "123"); // CVV
 
         GatewayResponse mockResponse = new GatewayResponse();
         mockResponse.setStatus("SUCCESS");
@@ -2739,17 +2770,19 @@ class PaymentGatewayServiceTest {
         GatewayResponse result = paymentGatewayService.processPayment(isoMsg);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo("SUCCESS");
-        assertThat(result.getTransactionId()).isEqualTo("123456");
+        assertNotNull(result);
+        assertEquals("SUCCESS", result.getStatus());
+        assertEquals("123456", result.getTransactionId());
 
-        verify(restTemplate).postForObject(eq("https://api.paymentgateway.com/process"), argThat(request -> {
-            assertThat(request.getAmount()).isEqualTo("1000.00");
-            assertThat(request.getCardNumber()).isEqualTo("4111111111111111");
-            assertThat(request.getExpirationDate()).isEqualTo("05/24");
-            assertThat(request.getCvv()).isEqualTo("123");
-            assertThat(request.getTransactionType()).isEqualTo("PURCHASE");
-            assertThat(request.getTransactionDate()).isEqualTo(LocalDate.now().withMonth(5).withDayOfMonth(31).toString());
+        LocalDate may31 = LocalDate.now().withMonth(5).withDayOfMonth(31);
+        String expectedDate = (may31.isAfter(LocalDate.now()) ? may31.minusYears(1) : may31).toString();
+
+        verify(restTemplate).postForObject(eq("https://api.paymentgateway.com/process"), argThat((PaymentRequest request) -> {
+            assertEquals("1000.00", request.getAmount());
+            assertEquals("4111111111111111", request.getCardNumber());
+            assertEquals("05/24", request.getExpirationDate());
+            assertEquals("PURCHASE", request.getTransactionType());
+            assertEquals(expectedDate, request.getTransactionDate());
             return true;
         }), eq(GatewayResponse.class));
     }
@@ -2825,14 +2858,14 @@ Test for the PANMasker:
 
 ```java
 import org.junit.jupiter.api.Test;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PANMaskerTest {
     @Test
     void testMaskPAN() {
         String pan = "1234567890123456";
         String maskedPan = PANMasker.maskPAN(pan);
-        assertThat(maskedPan).isEqualTo("123456******3456");
+        assertEquals("123456______3456", maskedPan);
     }
 }
 ```

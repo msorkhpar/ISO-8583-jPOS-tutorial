@@ -6,7 +6,7 @@ Setting up a jPOS client involves configuring the Spring framework and Q2, which
 
 ## 1.1 Spring Configuration
 
-Spring is used to manage dependencies and configure the application context. We'll use `org.jpos.q2.spring.SpringContainer` to integrate Spring with jPOS.
+Spring is used to manage dependencies and configure the application context. jPOS 2.1.7 has no Spring container for Q2, so the main application class in section 1.3 doubles as a small QBean that starts the Spring context inside Q2.
 
 First, let's set up the necessary dependencies in your `pom.xml`:
 
@@ -30,6 +30,7 @@ Now, let's create a Spring configuration class:
 ```java
 package com.example.jpos.config;
 
+import org.jpos.iso.MUX;
 import org.jpos.q2.iso.QMUX;
 import org.jpos.util.NameRegistrar;
 import org.springframework.context.annotation.Bean;
@@ -39,7 +40,7 @@ import org.springframework.context.annotation.Configuration;
 public class JposConfig {
 
     @Bean
-    public QMUX qmux() throws NameRegistrar.NotFoundException {
+    public MUX qmux() throws NameRegistrar.NotFoundException {
         return QMUX.getMUX("mux");
     }
 
@@ -52,7 +53,7 @@ public class JposConfig {
 Q2 is configured using XML files. Create a file named `05_spring_client_context.xml` in the `deploy` directory:
 
 ```xml
-<spring-context class="org.jpos.q2.spring.SpringContainer">
+<spring-context class="com.example.jpos.JposClientApplication">
     <property name="config" value="classpath:applicationContext.xml" />
 </spring-context>
 ```
@@ -79,17 +80,31 @@ Now, create the `applicationContext.xml` file in the `src/main/resources` direct
 
 ## 1.3 Creating the Main Application
 
-Now, let's create the main application class that will start the Q2 container:
+Now, let's create the main application class. Its `main` starts the Q2 container, and Q2 runs the same class as the QBean in `05_spring_client_context.xml`, which starts the Spring context:
 
 ```java
 package com.example.jpos;
 
 import org.jpos.q2.Q2;
+import org.jpos.q2.QBeanSupport;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-public class JposClientApplication {
+public class JposClientApplication extends QBeanSupport {
+    private ClassPathXmlApplicationContext context;
+
     public static void main(String[] args) {
         Q2 q2 = new Q2();
         q2.start();
+    }
+
+    @Override
+    protected void startService() {
+        context = new ClassPathXmlApplicationContext(cfg.get("config"));
+    }
+
+    @Override
+    protected void stopService() {
+        context.close();
     }
 }
 ```
@@ -103,7 +118,7 @@ To communicate with the server, we need to set up a client channel. Create a fil
  <channel class="org.jpos.iso.channel.NACChannel" packager="org.jpos.iso.packager.GenericPackager">
    <property name="host" value="localhost" />
    <property name="port" value="10000" />
-   <property name="packager-config" value="cfg/packager/iso87ascii.xml" />
+   <property name="packager-config" value="jar:packager/iso87ascii.xml" />
  </channel>
  <in>send</in>
  <out>receive</out>
@@ -131,17 +146,17 @@ package com.example.jpos.service;
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
-import org.jpos.q2.iso.QMUX;
+import org.jpos.iso.MUX;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IsoClientService {
 
-    private final QMUX qmux;
+    private final MUX qmux;
 
     @Autowired
-    public IsoClientService(QMUX qmux) {
+    public IsoClientService(MUX qmux) {
         this.qmux = qmux;
     }
 
@@ -162,34 +177,35 @@ import com.example.jpos.service.IsoClientService;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
 public class JposClientApplicationTests {
-
-    @Autowired
-    private IsoClientService isoClientService;
 
     @Test
     public void testSendMessage() throws ISOException {
-        ISOMsg message = new ISOMsg();
-        message.setMTI("0800");
-        message.set(7, "0110122359");
-        message.set(11, "000001");
-        message.set(70, "301");
+        try (ClassPathXmlApplicationContext context =
+                     new ClassPathXmlApplicationContext("applicationContext.xml")) {
+            IsoClientService isoClientService = context.getBean(IsoClientService.class);
 
-        ISOMsg response = isoClientService.sendMessage(message);
+            ISOMsg message = new ISOMsg();
+            message.setMTI("0800");
+            message.set(7, "0110122359");
+            message.set(11, "000001");
+            message.set(70, "301");
 
-        assertThat(response).isNotNull();
-        assertThat(response.getMTI()).isEqualTo("0810");
+            ISOMsg response = isoClientService.sendMessage(message);
+
+            assertNotNull(response);
+            assertEquals("0810", response.getMTI());
+        }
     }
 }
 ```
 
-This test assumes you have a server running that can respond to the 0800 message with a 0810 message.
+This test assumes Q2 is running with the channel and QMUX above deployed, and a server that can respond to the 0800 message with a 0810 message.
 
 ## Conclusion
 
@@ -238,20 +254,18 @@ In this example, we create a new `ISOMsg` object and set various fields using th
 
 ## 2.2 Message Factory
 
-While creating messages manually is possible, it's often more efficient and less error-prone to use a `MsgFactory`. The `MsgFactory` allows you to create predefined message templates and reuse them.
+While creating messages manually is possible, it's often more efficient and less error-prone to use a message factory of your own. jPOS 2.1.7 has no `MsgFactory` type, so the factory is a plain class that builds each `ISOMsg` with `setMTI` and `set`, and lets you create predefined message templates and reuse them.
 
-Here's an example of how to implement a `MsgFactory`:
+Here's an example of how to implement such a factory:
 
 ```java
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
-import org.jpos.iso.MsgFactory;
 import org.springframework.stereotype.Component;
 
 @Component
-public class CustomMsgFactory implements MsgFactory {
+public class CustomMsgFactory {
 
-    @Override
     public ISOMsg create(String mti) throws ISOException {
         ISOMsg msg = new ISOMsg();
         msg.setMTI(mti);
@@ -307,6 +321,7 @@ In a real-world scenario, you'll need to handle different types of messages (e.g
 ```java
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -351,7 +366,7 @@ public class MessageCreationService {
 
 ## 2.4 Testing Message Creation
 
-It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5, Mockito, and AssertJ:
+It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5 and Mockito:
 
 ```java
 import org.jpos.iso.ISOMsg;
@@ -360,7 +375,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 class MessageCreationServiceTest {
@@ -380,48 +395,49 @@ class MessageCreationServiceTest {
     void testCreateAuthorizationRequest() throws ISOException {
         // Arrange
         ISOMsg mockMsg = new ISOMsg();
+        mockMsg.setMTI("0100");
         when(msgFactory.create("0100")).thenReturn(mockMsg);
 
         // Act
         ISOMsg result = messageCreationService.createAuthorizationRequest("4111111111111111", "000000010000");
 
         // Assert
-        assertThat(result.getMTI()).isEqualTo("0100");
-        assertThat(result.getString(2)).isEqualTo("4111111111111111");
-        assertThat(result.getString(3)).isEqualTo("000000");
-        assertThat(result.getString(4)).isEqualTo("000000010000");
-        assertThat(result.getString(49)).isEqualTo("840");
+        assertEquals("0100", result.getMTI());
+        assertEquals("4111111111111111", result.getString(2));
+        assertEquals("000000", result.getString(3));
+        assertEquals("000000010000", result.getString(4));
+        assertEquals("840", result.getString(49));
     }
 }
 ```
 
 This test verifies that the `createAuthorizationRequest` method correctly sets the MTI and required fields for an authorization request.
 
-In conclusion, creating ISO-8583 messages using jPOS involves using the `ISOMsg` class, potentially implementing a custom `MsgFactory`, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application.
+In conclusion, creating ISO-8583 messages using jPOS involves using the `ISOMsg` class, potentially implementing a message factory of your own, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application.
 
 
 # 3. Channel Management for jPOS Client
 
-Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: ISO Client and SSL Channel.
+Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: a client channel and SSL/TLS on that channel.
 
-## 3.1 ISO Client (org.jpos.iso.ISOClient)
+## 3.1 Client Channel (org.jpos.iso.channel.ASCIIChannel)
 
-The `ISOClient` is a key component in jPOS for establishing and managing connections to an ISO-8583 server. It provides methods for connecting, sending messages, and receiving responses.
+jPOS 2.1.7 has no `ISOClient` class. A client connects to an ISO-8583 server through an `ISOChannel`, such as `ASCIIChannel`, which provides methods for connecting, sending messages, and receiving responses.
 
 ### 3.1.1 Basic Implementation
 
-Here's a basic example of how to set up an `ISOClient`:
+Here's a basic example of how to set up a client channel:
 
 ```java
-import org.jpos.iso.ISOClient;
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class BasicISOClientExample {
     public static void main(String[] args) throws Exception {
-        // Create a new ISOClient
-        ISOClient client = new ISOClient("localhost", 7000, new ASCIIChannel(new ISO87APackager()));
+        // Create a new client channel
+        ASCIIChannel client = new ASCIIChannel("localhost", 7000, new ISO87APackager());
+        client.setTimeout(30000); // 30 seconds timeout
 
         // Connect to the server
         client.connect();
@@ -435,7 +451,8 @@ public class BasicISOClientExample {
         msg.set(70, "301");
 
         // Send the message and receive the response
-        ISOMsg response = client.request(msg, 30000); // 30 seconds timeout
+        client.send(msg);
+        ISOMsg response = client.receive();
 
         // Process the response
         if (response != null) {
@@ -452,10 +469,9 @@ public class BasicISOClientExample {
 
 ### 3.1.2 Spring Configuration
 
-In a Spring-based application, you can configure the `ISOClient` as a bean:
+In a Spring-based application, you can configure the client channel as a bean:
 
 ```java
-import org.jpos.iso.ISOClient;
 import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
@@ -465,42 +481,42 @@ import org.springframework.context.annotation.Configuration;
 public class ISOClientConfig {
 
     @Bean
-    public ISOClient isoClient() {
-        return new ISOClient("localhost", 7000, new ASCIIChannel(new ISO87APackager()));
+    public ASCIIChannel isoClient() {
+        return new ASCIIChannel("localhost", 7000, new ISO87APackager());
     }
 }
 ```
 
 ### 3.1.3 Advanced Usage with Connection Pool
 
-For better performance and resource management, you can use a connection pool with `ISOClient`. Here's an example using Apache Commons Pool:
+For better performance and resource management, you can use a connection pool of client channels. Here's an example using Apache Commons Pool:
 
 ```java
 import org.apache.commons.pool2.BasePooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.jpos.iso.ISOClient;
+import org.jpos.iso.ISOChannel;
 import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class ISOClientPool {
-    private final GenericObjectPool<ISOClient> pool;
+    private final GenericObjectPool<ISOChannel> pool;
 
     public ISOClientPool(String host, int port, int maxTotal) {
         pool = new GenericObjectPool<>(new ISOClientFactory(host, port));
         pool.setMaxTotal(maxTotal);
     }
 
-    public ISOClient borrowClient() throws Exception {
+    public ISOChannel borrowClient() throws Exception {
         return pool.borrowObject();
     }
 
-    public void returnClient(ISOClient client) {
+    public void returnClient(ISOChannel client) {
         pool.returnObject(client);
     }
 
-    private static class ISOClientFactory extends BasePooledObjectFactory<ISOClient> {
+    private static class ISOClientFactory extends BasePooledObjectFactory<ISOChannel> {
         private final String host;
         private final int port;
 
@@ -510,22 +526,19 @@ public class ISOClientPool {
         }
 
         @Override
-        public ISOClient create() {
-            return new ISOClient(host, port, new ASCIIChannel(new ISO87APackager()));
+        public ISOChannel create() throws Exception {
+            ISOChannel client = new ASCIIChannel(host, port, new ISO87APackager());
+            client.connect();
+            return client;
         }
 
         @Override
-        public PooledObject<ISOClient> wrap(ISOClient client) {
+        public PooledObject<ISOChannel> wrap(ISOChannel client) {
             return new DefaultPooledObject<>(client);
         }
 
         @Override
-        public void activateObject(PooledObject<ISOClient> p) throws Exception {
-            p.getObject().connect();
-        }
-
-        @Override
-        public void passivateObject(PooledObject<ISOClient> p) throws Exception {
+        public void destroyObject(PooledObject<ISOChannel> p) throws Exception {
             p.getObject().disconnect();
         }
     }
@@ -537,37 +550,41 @@ Usage of the `ISOClientPool`:
 ```java
 ISOClientPool clientPool = new ISOClientPool("localhost", 7000, 10);
 
-ISOClient client = clientPool.borrowClient();
+ISOChannel client = clientPool.borrowClient();
 try {
     // Use the client
-    ISOMsg response = client.request(msg, 30000);
+    client.send(msg);
+    ISOMsg response = client.receive();
     // Process response
 } finally {
     clientPool.returnClient(client);
 }
 ```
 
-## 3.2 SSL Channel (org.jpos.iso.channel.NACChannel)
+## 3.2 SSL/TLS on a Channel (org.jpos.iso.channel.NACChannel)
 
-For secure communications, jPOS provides the `NACChannel`, which supports SSL/TLS encryption. Here's how to set up and use an SSL channel:
+For secure communications, a jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`. Here's how to set up and use a channel over SSL/TLS:
 
-### 3.2.1 SSL Channel Configuration
+### 3.2.1 SSL Socket Factory Configuration
 
-First, you need to set up your SSL certificates and keystore. Then, you can create an `NACChannel` like this:
+First, you need to set up your SSL certificates and keystore. Then, you can create an `NACChannel` with an SSL socket factory like this:
 
 ```java
+import org.jpos.iso.SunJSSESocketFactory;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class SSLChannelExample {
     public static void main(String[] args) throws Exception {
-        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager());
+        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager(), null);
         
         // Set SSL properties
-        channel.setKeyStore("path/to/keystore.jks");
-        channel.setKeyStorePassword("keystorePassword");
-        channel.setTrustStore("path/to/truststore.jks");
-        channel.setTrustStorePassword("truststorePassword");
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore("path/to/keystore.jks");
+        sslFactory.setPassword("keystorePassword");
+        sslFactory.setKeyPassword("keyPassword");
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
         
         // Connect
         channel.connect();
@@ -581,41 +598,42 @@ public class SSLChannelExample {
 }
 ```
 
-### 3.2.2 Using SSL Channel with ISOClient
+### 3.2.2 Using the SSL-Configured Channel as the Client
 
-You can use the `NACChannel` with `ISOClient` for secure communications:
+jPOS 2.1.7 has no `ISOClient`, so the SSL-configured `NACChannel` is itself the client:
 
 ```java
-import org.jpos.iso.ISOClient;
+import org.jpos.iso.SunJSSESocketFactory;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class SecureISOClientExample {
     public static void main(String[] args) throws Exception {
-        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager());
-        channel.setKeyStore("path/to/keystore.jks");
-        channel.setKeyStorePassword("keystorePassword");
-        channel.setTrustStore("path/to/truststore.jks");
-        channel.setTrustStorePassword("truststorePassword");
+        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager(), null);
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore("path/to/keystore.jks");
+        sslFactory.setPassword("keystorePassword");
+        sslFactory.setKeyPassword("keyPassword");
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
 
-        ISOClient client = new ISOClient(channel);
-
-        // Connect and use the client
-        client.connect();
+        // Connect and use the channel as the client
+        channel.connect();
 
         // Send and receive messages
         // ...
 
-        client.disconnect();
+        channel.disconnect();
     }
 }
 ```
 
-### 3.2.3 Spring Configuration for SSL Channel
+### 3.2.3 Spring Configuration for the SSL-Configured Channel
 
-In a Spring-based application, you can configure the SSL channel as a bean:
+In a Spring-based application, you can configure the channel over SSL/TLS as a bean:
 
 ```java
+import org.jpos.iso.SunJSSESocketFactory;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
@@ -625,23 +643,25 @@ import org.springframework.context.annotation.Configuration;
 public class SSLChannelConfig {
 
     @Bean
-    public NACChannel nacChannel() {
-        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager());
-        channel.setKeyStore("path/to/keystore.jks");
-        channel.setKeyStorePassword("keystorePassword");
-        channel.setTrustStore("path/to/truststore.jks");
-        channel.setTrustStorePassword("truststorePassword");
-        return channel;
+    public SunJSSESocketFactory sslSocketFactory() {
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore("path/to/keystore.jks");
+        sslFactory.setPassword("keystorePassword");
+        sslFactory.setKeyPassword("keyPassword");
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        return sslFactory;
     }
 
     @Bean
-    public ISOClient secureISOClient(NACChannel nacChannel) {
-        return new ISOClient(nacChannel);
+    public NACChannel nacChannel(SunJSSESocketFactory sslSocketFactory) {
+        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager(), null);
+        channel.setSocketFactory(sslSocketFactory);
+        return channel;
     }
 }
 ```
 
-This covers the essential aspects of Channel Management for a jPOS client, including the implementation of `ISOClient` and the use of SSL channels for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers.
+This covers the essential aspects of Channel Management for a jPOS client, including the client channel that takes the place of `ISOClient` and the use of channels over SSL/TLS for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers.
 
 # 4. Transaction Sending
 
@@ -653,17 +673,15 @@ QMUX is a Q2 adaptor that implements the MUX interface. It's designed to multipl
 
 ### 4.1.1 Configuration
 
-To set up QMUX in your jPOS client, you need to add a configuration in your `deploy/05_spring_client_context.xml`:
+To set up QMUX in your jPOS client, you need to add a Q2 deploy descriptor, such as `deploy/20_mux.xml`:
 
 ```xml
-<bean id="clientQMUX" class="org.jpos.q2.iso.QMUX" init-method="start" destroy-method="stop">
-    <property name="name" value="client-mux"/>
-    <property name="space" ref="tspace"/>
-    <property name="in" value="send"/>
-    <property name="out" value="receive"/>
-    <property name="unhandled" value="unhandled"/>
-    <property name="ready" value="ready"/>
-</bean>
+<mux class="org.jpos.q2.iso.QMUX" logger="Q2" name="client-mux">
+    <in>receive</in>
+    <out>send</out>
+    <unhandled>unhandled</unhandled>
+    <ready>client-channel.ready</ready>
+</mux>
 ```
 
 ### 4.1.2 Usage
@@ -699,7 +717,7 @@ MUX is an interface that defines methods for sending ISO messages and receiving 
 ### 4.2.1 Key Methods
 
 - `request(ISOMsg m, long timeout)`: Sends a message and waits for a response.
-- `request(ISOMsg m, long timeout, ISOResponseListener rl)`: Sends a message and registers a listener for the response.
+- `request(ISOMsg m, long timeout, ISOResponseListener rl, Object handBack)`: Sends a message and registers a listener for the response; `handBack` is passed back to the listener.
 - `send(ISOMsg m)`: Sends a message without expecting a response.
 
 ### 4.2.2 Example: Asynchronous Transaction Sending
@@ -726,15 +744,15 @@ public class AsyncTransactionSender {
         long timeout = 30000; // 30 seconds timeout
         mux.request(message, timeout, new ISOResponseListener() {
             @Override
-            public void expired(long id) {
+            public void expired(Object id) {
                 System.out.println("Request " + id + " expired");
             }
 
             @Override
-            public void response(ISOMsg response, long id) {
+            public void responseReceived(ISOMsg response, Object id) {
                 System.out.println("Received response for " + id + ": " + response);
             }
-        });
+        }, message.getString(11));
     }
 }
 ```
@@ -748,6 +766,10 @@ import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+
 @Component
 public class MessageCreator {
 
@@ -757,7 +779,7 @@ public class MessageCreator {
         message.set(2, pan);
         message.set(3, "000000");
         message.set(4, amount);
-        message.set(7, String.format("%010d", System.currentTimeMillis() / 1000));
+        message.set(7, DateTimeFormatter.ofPattern("MMddHHmmss").withZone(ZoneOffset.UTC).format(Instant.now()));
         message.set(11, String.format("%06d", (int) (Math.random() * 1000000)));
         message.set(41, "12345678");
         message.set(42, "MERCHANT_ID_123");
@@ -807,7 +829,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -844,8 +866,8 @@ class TransactionServiceTest {
         ISOMsg result = service.performAuthorization("1234567890123456", "100000");
 
         // Assert
-        assertThat(result.getMTI()).isEqualTo("0110");
-        assertThat(result.getString(39)).isEqualTo("00");
+        assertEquals("0110", result.getMTI());
+        assertEquals("00", result.getString(39));
     }
 }
 ```

@@ -171,64 +171,62 @@ With this basic setup, you have a foundation for building a jPOS server integrat
 
 # 2. ISO-8583 Message Handling
 
-ISO-8583 message handling is at the core of jPOS functionality. It involves creating, parsing, and manipulating ISO-8583 messages. The key components in this process are the ISO Factory, Message Factory, and Generic Packager.
+ISO-8583 message handling is at the core of jPOS functionality. It involves creating, parsing, and manipulating ISO-8583 messages. The key components in this process are the ISO components themselves (channels, packagers, fields), message templates built from `ISOMsg`, and the Generic Packager.
 
 ## 2.1 ISO Factory
 
-The `ISOFactory` is a utility class in jPOS that helps create ISO components such as channels, packagers, and fields. While it's not directly used for message handling, it's an important part of the jPOS ecosystem.
+jPOS 2.1.7 has no `ISOFactory` class. ISO components such as channels, packagers, and fields are created directly with their constructors (or declared in Q2 XML configuration).
 
 Example usage:
 
 ```java
-import org.jpos.iso.ISOFactory;
+import org.jpos.iso.ISOField;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class ISOFactoryExample {
     public void demonstrateISOFactory() throws Exception {
-        // Create a channel
-        NACChannel channel = (NACChannel) ISOFactory.newChannel("org.jpos.iso.channel.NACChannel", "localhost:8000");
-        
         // Create a packager
-        ISO87APackager packager = (ISO87APackager) ISOFactory.newPackager("org.jpos.iso.packager.ISO87APackager", "");
-        
+        ISO87APackager packager = new ISO87APackager();
+
+        // Create a channel (host, port, packager, TPDU)
+        NACChannel channel = new NACChannel("localhost", 8000, packager, null);
+
         // Create a field
-        ISOField field = (ISOField) ISOFactory.newField(2, "4111111111111111");
+        ISOField field = new ISOField(2, "4111111111111111");
     }
 }
 ```
 
 ## 2.2 Message Factory
 
-The `MsgFactory` is used to create ISO messages based on predefined templates. This is particularly useful when you need to create similar messages repeatedly with slight variations.
+jPOS 2.1.7 has no `MsgFactory` class. To create ISO messages based on predefined templates, build a template `ISOMsg` once and `clone()` it for each new message. This is particularly useful when you need to create similar messages repeatedly with slight variations.
 
-Here's an example of how to use `MsgFactory`:
+Here's an example of a template-based message factory:
 
 ```java
+import org.jpos.iso.ISODate;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
-import org.jpos.iso.MsgFactory;
 import org.jpos.iso.packager.ISO87APackager;
 
+import java.util.Date;
+
 public class MessageFactoryExample {
-    private MsgFactory msgFactory;
+    private final ISOMsg purchaseTemplate;
 
     public MessageFactoryExample() throws ISOException {
-        msgFactory = new MsgFactory();
-        msgFactory.setPackager(new ISO87APackager());
-        
         // Define a template for a purchase transaction
-        ISOMsg purchaseTemplate = new ISOMsg();
+        purchaseTemplate = new ISOMsg();
+        purchaseTemplate.setPackager(new ISO87APackager()); // so msg.pack() works on every copy
         purchaseTemplate.setMTI("0200");
         purchaseTemplate.set(3, "000000"); // Processing code for purchase
         purchaseTemplate.set(25, "00"); // POS Condition Code
         purchaseTemplate.set(41, "12345678"); // Terminal ID
-        
-        msgFactory.add("purchase", purchaseTemplate);
     }
 
     public ISOMsg createPurchaseMessage(String pan, String amount) throws ISOException {
-        ISOMsg msg = msgFactory.newMsg("purchase");
+        ISOMsg msg = (ISOMsg) purchaseTemplate.clone();
         msg.set(2, pan); // Primary Account Number
         msg.set(4, amount); // Transaction Amount
         msg.set(7, ISODate.getDateTime(new Date())); // Transmission Date & Time
@@ -299,10 +297,10 @@ The XML configuration file (`iso87ascii.xml`) might look something like this:
 Now, let's create a comprehensive example that uses all these components together:
 
 ```java
+import org.jpos.iso.ISODate;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOUtil;
-import org.jpos.iso.MsgFactory;
 import org.jpos.iso.packager.GenericPackager;
 import org.jpos.util.LogEvent;
 import org.jpos.util.Logger;
@@ -310,19 +308,17 @@ import org.jpos.util.SimpleLogListener;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ISO8583MessageHandler {
-    private final MsgFactory msgFactory;
+    private final Map<String, ISOMsg> templates = new HashMap<>();
     private final GenericPackager packager;
     private final Logger logger;
 
     public ISO8583MessageHandler() throws ISOException, IOException {
         // Initialize packager
         packager = new GenericPackager("config/iso87ascii.xml");
-
-        // Initialize message factory
-        msgFactory = new MsgFactory();
-        msgFactory.setPackager(packager);
 
         // Define templates
         defineMessageTemplates();
@@ -335,23 +331,25 @@ public class ISO8583MessageHandler {
     private void defineMessageTemplates() throws ISOException {
         // Purchase request template
         ISOMsg purchaseTemplate = new ISOMsg();
+        purchaseTemplate.setPackager(packager);
         purchaseTemplate.setMTI("0200");
         purchaseTemplate.set(3, "000000");
         purchaseTemplate.set(25, "00");
         purchaseTemplate.set(41, "12345678");
-        msgFactory.add("purchase", purchaseTemplate);
+        templates.put("purchase", purchaseTemplate);
 
         // Balance inquiry template
         ISOMsg balanceTemplate = new ISOMsg();
+        balanceTemplate.setPackager(packager);
         balanceTemplate.setMTI("0100");
         balanceTemplate.set(3, "310000");
         balanceTemplate.set(25, "00");
         balanceTemplate.set(41, "12345678");
-        msgFactory.add("balance", balanceTemplate);
+        templates.put("balance", balanceTemplate);
     }
 
     public ISOMsg createPurchaseMessage(String pan, String amount) throws ISOException {
-        ISOMsg msg = msgFactory.newMsg("purchase");
+        ISOMsg msg = (ISOMsg) templates.get("purchase").clone();
         msg.set(2, pan);
         msg.set(4, amount);
         msg.set(7, ISODate.getDateTime(new Date()));
@@ -360,7 +358,7 @@ public class ISO8583MessageHandler {
     }
 
     public ISOMsg createBalanceInquiryMessage(String pan) throws ISOException {
-        ISOMsg msg = msgFactory.newMsg("balance");
+        ISOMsg msg = (ISOMsg) templates.get("balance").clone();
         msg.set(2, pan);
         msg.set(7, ISODate.getDateTime(new Date()));
         msg.set(11, String.format("%06d", (int) (Math.random() * 1000000)));
@@ -378,7 +376,7 @@ public class ISO8583MessageHandler {
     }
 
     public void logMessage(ISOMsg msg, String direction) {
-        LogEvent ev = new LogEvent(this, "iso-message");
+        LogEvent ev = new LogEvent("iso-message");
         ev.addMessage(direction);
         ev.addMessage(msg);
         logger.log(ev);
@@ -414,7 +412,7 @@ public class ISO8583MessageHandler {
 This comprehensive example demonstrates:
 
 1. Initializing the `GenericPackager` with an XML configuration file.
-2. Setting up a `MsgFactory` with predefined templates for different transaction types.
+2. Keeping predefined `ISOMsg` templates for different transaction types, cloned for each new message.
 3. Creating purchase and balance inquiry messages using the templates.
 4. Packaging and unpackaging messages.
 5. Logging messages for debugging purposes.
@@ -428,26 +426,26 @@ This implementation provides a solid foundation for handling ISO-8583 messages i
 Channel management in jPOS is crucial for handling ISO-8583 message communication between different systems. The two main components we'll focus on are:
 
 1. ISO Server (`org.jpos.iso.ISOServer`)
-2. SSL Channel (`org.jpos.iso.channel.NACChannel`)
+2. NAC Channel (`org.jpos.iso.channel.NACChannel`)
 
 ## 3.1 ISO Server
 
 The `ISOServer` is responsible for listening to incoming connections and handling ISO-8583 messages. It can be configured to use different types of channels and can handle multiple connections simultaneously.
 
-## 3.2 SSL Channel
+## 3.2 NAC Channel
 
-The `NACChannel` (Network Application Channel) is an implementation of an SSL-enabled channel in jPOS. It provides secure communication for ISO-8583 messages.
+The `NACChannel` is a plain TCP channel in jPOS: it frames each ISO-8583 message with a 2-byte binary length header and a TPDU. It does not encrypt anything by itself; SSL/TLS is added separately by giving the channel (or the server) an SSL socket factory such as `org.jpos.iso.SunJSSESocketFactory`.
 
 Now, let's implement a jPOS server with channel management using Spring and Java 21.
 
 ```java
-import org.jpos.core.Configuration;
 import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOServer;
-import org.jpos.iso.ServerChannel;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.q2.QBeanSupport;
 import org.jpos.util.NameRegistrar;
+import org.jpos.util.ThreadPool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -459,20 +457,23 @@ public class ISOServerConfig extends QBeanSupport {
     private ServerConfiguration serverConfig;
 
     @Bean
-    public ISOServer isoServer() throws ConfigurationException {
-        ServerChannel channel = new NACChannel(
+    public ISOServer isoServer() throws ConfigurationException, ISOException {
+        org.jpos.core.Configuration cfg = createConfiguration();
+        NACChannel channel = new NACChannel(
             serverConfig.getHost(),
             serverConfig.getPort(),
-            serverConfig.getPackager()
+            serverConfig.getPackager(),
+            null // no TPDU header
         );
+        channel.setConfiguration(cfg);
 
         ISOServer server = new ISOServer(
             serverConfig.getPort(),
             channel,
-            null
+            new ThreadPool(1, 100)
         );
 
-        server.setConfiguration(createConfiguration());
+        server.setConfiguration(cfg);
         server.addISORequestListener(new TransactionRequestListener());
 
         NameRegistrar.register("iso-server", server);
@@ -480,13 +481,9 @@ public class ISOServerConfig extends QBeanSupport {
         return server;
     }
 
-    private Configuration createConfiguration() {
-        Configuration cfg = new org.jpos.core.SimpleConfiguration();
-        cfg.put("port", String.valueOf(serverConfig.getPort()));
-        cfg.put("channel", "org.jpos.iso.channel.NACChannel");
-        cfg.put("packager", serverConfig.getPackager());
+    private org.jpos.core.Configuration createConfiguration() throws ISOException {
+        org.jpos.core.Configuration cfg = new org.jpos.core.SimpleConfiguration();
         cfg.put("timeout", "300000");
-        cfg.put("max-connections", "100");
         return cfg;
     }
 
@@ -494,7 +491,7 @@ public class ISOServerConfig extends QBeanSupport {
     protected void startService() {
         try {
             ISOServer server = isoServer();
-            server.start();
+            new Thread(server).start();
         } catch (Exception e) {
             getLog().error("Error starting ISO server", e);
         }
@@ -515,8 +512,8 @@ public class ISOServerConfig extends QBeanSupport {
 This configuration class sets up an `ISOServer` using Spring's `@Configuration` and `@Bean` annotations. Let's break down the important parts:
 
 1. We create a `NACChannel` with the specified host, port, and packager.
-2. We instantiate an `ISOServer` with the port, channel, and a null space (which can be used for shared memory between connections).
-3. We set the configuration for the server, including timeout and max connections.
+2. We instantiate an `ISOServer` with the port, channel, and a `ThreadPool` whose threads serve the connections.
+3. We give the channel a read timeout and pass the same configuration to the server; the `ThreadPool`'s maximum of 100 threads is what caps concurrent connections.
 4. We add a `TransactionRequestListener` to handle incoming requests.
 5. We register the server with `NameRegistrar` for easy access in other parts of the application.
 6. The `startService` and `stopService` methods handle the lifecycle of the server.
@@ -524,13 +521,12 @@ This configuration class sets up an `ISOServer` using Spring's `@Configuration` 
 Now, let's create the `ServerConfiguration` class to hold our server settings:
 
 ```java
+import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOPackager;
 import org.jpos.iso.packager.GenericPackager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.io.IOException;
 
 @Configuration
 public class ServerConfiguration {
@@ -553,7 +549,7 @@ public class ServerConfiguration {
     }
 
     @Bean
-    public ISOPackager getPackager() throws IOException {
+    public ISOPackager getPackager() throws ISOException {
         return new GenericPackager(packagerPath);
     }
 }
@@ -603,7 +599,7 @@ iso.server.port=8000
 iso.server.packager=path/to/your/packager.xml
 ```
 
-This implementation provides a solid foundation for a jPOS server with channel management. It uses SSL for secure communication, handles multiple connections, and can be easily extended to include more complex business logic in the `TransactionRequestListener`.
+This implementation provides a solid foundation for a jPOS server with channel management. It handles multiple connections, and can be easily extended to include more complex business logic in the `TransactionRequestListener`.
 
 
 # 4. Transaction Processing
@@ -619,6 +615,8 @@ The TransactionManager is responsible for coordinating the execution of a series
 Let's implement a basic TransactionManager configuration:
 
 ```java
+import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
 import org.jpos.q2.QBeanSupport;
 import org.jpos.transaction.TransactionManager;
 import org.springframework.context.annotation.Bean;
@@ -628,13 +626,16 @@ import org.springframework.context.annotation.Configuration;
 public class TransactionManagerConfig extends QBeanSupport {
 
     @Bean
-    public TransactionManager transactionManager() {
+    public TransactionManager transactionManager() throws ConfigurationException {
         TransactionManager txnManager = new TransactionManager();
         txnManager.setName("txnManager");
-        txnManager.setQueue("txnQueue");
-        txnManager.setMaxSessions(10);
-        txnManager.setMaxActiveSessions(5);
-        txnManager.setDebug(true);
+        // A TransactionManager reads its settings from a jPOS Configuration
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put("queue", "txnQueue");
+        cfg.put("max-sessions", "5");
+        cfg.put("max-active-sessions", "10");
+        cfg.put("debug", "true");
+        txnManager.setConfiguration(cfg);
         return txnManager;
     }
 }
@@ -643,8 +644,8 @@ public class TransactionManagerConfig extends QBeanSupport {
 In this configuration, we're setting up a TransactionManager bean with the following properties:
 - Name: "txnManager"
 - Queue: "txnQueue" (where transactions will be queued)
-- MaxSessions: 10 (maximum number of concurrent sessions)
-- MaxActiveSessions: 5 (maximum number of active sessions)
+- MaxSessions: 5 (maximum number of concurrent sessions)
+- MaxActiveSessions: 10 (maximum number of active sessions; jPOS requires it to be at least MaxSessions)
 - Debug: true (for logging purposes)
 
 ## 4.2 Transaction Participant
@@ -660,28 +661,30 @@ import org.jpos.core.ConfigurationException;
 import org.jpos.transaction.Context;
 import org.jpos.transaction.TransactionParticipant;
 
+import java.io.Serializable;
+
 public class TransactionValidator implements TransactionParticipant, Configurable {
 
     private Configuration cfg;
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         // Validate the transaction
-        if (isValidTransaction(context)) {
+        if (isValidTransaction((Context) context)) {
             return PREPARED | READONLY;
         }
         return ABORTED;
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Nothing to commit for this participant
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle abort scenario
-        context.put("error", "Transaction validation failed");
+        ((Context) context).put("error", "Transaction validation failed");
     }
 
     @Override
@@ -707,23 +710,24 @@ Now, let's create specific participants for Visa and Mastercard transactions:
 public class VisaTransactionParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         // Visa-specific validation and processing
         if (isValidVisaTransaction(context)) {
             context.put("network", "VISA");
             return PREPARED;
         }
-        return ABORTED;
+        return PREPARED | NO_JOIN | READONLY; // not a Visa card: pass it through, never abort it
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Commit Visa transaction
         // For example, send to Visa network
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle Visa transaction abort
     }
 
@@ -737,23 +741,24 @@ public class VisaTransactionParticipant implements TransactionParticipant {
 public class MastercardTransactionParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         // Mastercard-specific validation and processing
         if (isValidMastercardTransaction(context)) {
             context.put("network", "MASTERCARD");
             return PREPARED;
         }
-        return ABORTED;
+        return PREPARED | NO_JOIN | READONLY; // not a Mastercard card: pass it through, never abort it
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Commit Mastercard transaction
         // For example, send to Mastercard network
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle Mastercard transaction abort
     }
 
@@ -775,9 +780,9 @@ To tie everything together, we need to configure the transaction flow. This is t
 <txnmgr class="org.jpos.transaction.TransactionManager" logger="Q2">
   <property name="queue" value="txnQueue"/>
   <property name="sessions" value="2"/>
-  <participant class="com.example.TransactionValidator" logger="Q2"/>
-  <participant class="com.example.VisaTransactionParticipant" logger="Q2"/>
-  <participant class="com.example.MastercardTransactionParticipant" logger="Q2"/>
+  <participant class="TransactionValidator" logger="Q2"/>
+  <participant class="VisaTransactionParticipant" logger="Q2"/>
+  <participant class="MastercardTransactionParticipant" logger="Q2"/>
   <!-- Add more participants as needed -->
 </txnmgr>
 ```
@@ -791,63 +796,82 @@ Let's create a test to verify our transaction flow:
 ```java
 import org.jpos.core.SimpleConfiguration;
 import org.jpos.transaction.Context;
-import org.jpos.transaction.TransactionManager;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.transaction.TransactionParticipant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import java.util.ArrayList;
+import java.util.List;
 
-@SpringBootTest
-public class TransactionFlowTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
-    @Autowired
-    private TransactionManager transactionManager;
+public class TransactionFlowTest implements TransactionConstants {
+
+    private VisaTransactionParticipant visa;
+    private MastercardTransactionParticipant mastercard;
+    private List<TransactionParticipant> participants;
 
     @BeforeEach
     public void setup() throws Exception {
-        // Configure participants
-        transactionManager.setConfiguration(new SimpleConfiguration());
-        transactionManager.addParticipant(new TransactionValidator());
-        transactionManager.addParticipant(new VisaTransactionParticipant());
-        transactionManager.addParticipant(new MastercardTransactionParticipant());
+        // Configure participants, in the order the txnmgr descriptor lists them
+        TransactionValidator validator = new TransactionValidator();
+        validator.setConfiguration(new SimpleConfiguration());
+        visa = spy(new VisaTransactionParticipant());
+        mastercard = spy(new MastercardTransactionParticipant());
+        participants = List.of(validator, visa, mastercard);
+    }
+
+    // Runs one transaction the way the TransactionManager does: prepare each participant
+    // in order, then commit the ones that joined, or abort them if one aborted
+    private int process(long id, Context context) {
+        List<TransactionParticipant> joined = new ArrayList<>();
+        for (TransactionParticipant p : participants) {
+            int action = p.prepare(id, context);
+            if ((action & NO_JOIN) == 0) {
+                joined.add(p);
+            }
+            if ((action & PREPARED) == 0) {
+                joined.forEach(j -> j.abort(id, context));
+                return ABORTED;
+            }
+        }
+        joined.forEach(j -> j.commit(id, context));
+        return PREPARED;
     }
 
     @Test
     public void testVisaTransaction() {
         Context context = new Context();
         context.put("amount", "100.00");
+        context.put("cardNumber", "4111111111111111");
         context.put("pan", "4111111111111111");
 
-        long id = transactionManager.queue(context);
-        
-        // Wait for transaction to complete
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        assertEquals(PREPARED, process(1L, context));
 
-        assertThat(context.get("network")).isEqualTo("VISA");
+        assertEquals("VISA", context.get("network"));
+        verify(visa).commit(eq(1L), any());
+        verify(mastercard, never()).commit(anyLong(), any());
     }
 
     @Test
     public void testMastercardTransaction() {
         Context context = new Context();
         context.put("amount", "200.00");
+        context.put("cardNumber", "5555555555554444");
         context.put("pan", "5555555555554444");
 
-        long id = transactionManager.queue(context);
-        
-        // Wait for transaction to complete
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        assertEquals(PREPARED, process(2L, context));
 
-        assertThat(context.get("network")).isEqualTo("MASTERCARD");
+        assertEquals("MASTERCARD", context.get("network"));
+        verify(mastercard).commit(eq(2L), any());
+        verify(visa, never()).commit(anyLong(), any());
     }
 }
 ```
@@ -876,6 +900,8 @@ import org.jpos.core.Configurable;
 import org.jpos.core.Configuration;
 import org.jpos.core.ConfigurationException;
 
+import java.io.Serializable;
+
 public abstract class AbstractCardParticipant implements TransactionParticipant, Configurable {
     protected Configuration cfg;
 
@@ -885,18 +911,18 @@ public abstract class AbstractCardParticipant implements TransactionParticipant,
     }
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         // Common preparation logic
         return PREPARED | NO_JOIN | READONLY;
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Common commit logic
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Common abort logic
     }
 
@@ -919,15 +945,20 @@ Now, let's create a concrete Visa participant:
 ```java
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
+import org.jpos.transaction.Context;
 import org.springframework.stereotype.Component;
+
+import java.io.Serializable;
 
 @Component
 public class VisaAuthorizationParticipant extends VisaParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields(context);
+        if ("VISA".equals(((Context) context).get("CARD_TYPE"))) { // only Visa cards; any other card passes through untouched
+            processSpecificFields((Context) context);
+        }
         return result;
     }
 
@@ -948,7 +979,7 @@ public class VisaAuthorizationParticipant extends VisaParticipant {
                 context.put("VISA_ERROR", "Invalid Visa transaction data");
             }
 
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put("VISA_TRANSACTION_VALID", false);
             context.put("VISA_ERROR", "Error processing Visa fields: " + e.getMessage());
         }
@@ -968,15 +999,20 @@ Similarly, let's create a concrete Mastercard participant:
 ```java
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
+import org.jpos.transaction.Context;
 import org.springframework.stereotype.Component;
+
+import java.io.Serializable;
 
 @Component
 public class MastercardAuthorizationParticipant extends MastercardParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields(context);
+        if ("MASTERCARD".equals(((Context) context).get("CARD_TYPE"))) { // only Mastercard cards; any other card passes through untouched
+            processSpecificFields((Context) context);
+        }
         return result;
     }
 
@@ -997,7 +1033,7 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
                 context.put("MASTERCARD_ERROR", "Invalid Mastercard transaction data");
             }
 
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put("MASTERCARD_TRANSACTION_VALID", false);
             context.put("MASTERCARD_ERROR", "Error processing Mastercard fields: " + e.getMessage());
         }
@@ -1012,26 +1048,18 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
 
 ### 4. Configure Transaction Manager
 
-To use these participants in the transaction flow, configure them in the Spring context:
+To use these participants in the transaction flow, configure them in the TransactionManager's Q2 deploy descriptor:
 
 ```xml
-<bean id="txnmgr" class="org.jpos.transaction.TransactionManager">
+<txnmgr class="org.jpos.transaction.TransactionManager" logger="Q2">
     <property name="queue" value="txnqueue"/>
     <property name="sessions" value="2"/>
     <property name="max-sessions" value="128"/>
-    <property name="participants">
-        <list>
-            <ref bean="cardTypeIdentifier"/>
-            <ref bean="visaAuthorizationParticipant"/>
-            <ref bean="mastercardAuthorizationParticipant"/>
-            <!-- Other participants -->
-        </list>
-    </property>
-</bean>
-
-<bean id="cardTypeIdentifier" class="com.example.CardTypeIdentifierParticipant"/>
-<bean id="visaAuthorizationParticipant" class="com.example.VisaAuthorizationParticipant"/>
-<bean id="mastercardAuthorizationParticipant" class="com.example.MastercardAuthorizationParticipant"/>
+    <participant class="CardTypeIdentifierParticipant" logger="Q2"/>
+    <participant class="VisaAuthorizationParticipant" logger="Q2"/>
+    <participant class="MastercardAuthorizationParticipant" logger="Q2"/>
+    <!-- Other participants -->
+</txnmgr>
 ```
 
 ### 5. Implement Card Type Identifier
@@ -1045,17 +1073,20 @@ import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
+
 @Component
 public class CardTypeIdentifierParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         ISOMsg msg = (ISOMsg) context.get("REQUEST");
         try {
             String pan = msg.getString(2);
             String cardType = identifyCardType(pan);
             context.put("CARD_TYPE", cardType);
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put("CARD_TYPE_ERROR", "Error identifying card type: " + e.getMessage());
         }
         return PREPARED | NO_JOIN | READONLY;
@@ -1073,10 +1104,10 @@ public class CardTypeIdentifierParticipant implements TransactionParticipant {
     }
 
     @Override
-    public void commit(long id, Context context) {}
+    public void commit(long id, Serializable context) {}
 
     @Override
-    public void abort(long id, Context context) {}
+    public void abort(long id, Serializable context) {}
 }
 ```
 
@@ -1090,7 +1121,7 @@ import org.junit.jupiter.api.Test;
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.jpos.transaction.Context;
-import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class VisaAuthorizationParticipantTest {
 
@@ -1108,21 +1139,22 @@ class VisaAuthorizationParticipantTest {
         msg.set(43, "VISA_MERCHANT_NAME_LOCATION");
         msg.set(48, "ADDITIONAL_DATA");
         context.put("REQUEST", msg);
+        context.put("CARD_TYPE", "VISA");
     }
 
     @Test
     void testValidVisaTransaction() {
         participant.prepare(1L, context);
-        assertThat(context.get("VISA_TRANSACTION_VALID")).isEqualTo(true);
-        assertThat(context.get("VISA_ERROR")).isNull();
+        assertEquals(Boolean.TRUE, context.get("VISA_TRANSACTION_VALID"));
+        assertNull(context.get("VISA_ERROR"));
     }
 
     @Test
     void testInvalidVisaTransaction() throws ISOException {
         msg.unset(42);
         participant.prepare(1L, context);
-        assertThat(context.get("VISA_TRANSACTION_VALID")).isEqualTo(false);
-        assertThat(context.get("VISA_ERROR")).isNotNull();
+        assertEquals(Boolean.FALSE, context.get("VISA_TRANSACTION_VALID"));
+        assertNotNull(context.get("VISA_ERROR"));
     }
 }
 
@@ -1142,21 +1174,22 @@ class MastercardAuthorizationParticipantTest {
         msg.set(61, "POS_DATA");
         msg.set(63, "NETWORK_DATA");
         context.put("REQUEST", msg);
+        context.put("CARD_TYPE", "MASTERCARD");
     }
 
     @Test
     void testValidMastercardTransaction() {
         participant.prepare(1L, context);
-        assertThat(context.get("MASTERCARD_TRANSACTION_VALID")).isEqualTo(true);
-        assertThat(context.get("MASTERCARD_ERROR")).isNull();
+        assertEquals(Boolean.TRUE, context.get("MASTERCARD_TRANSACTION_VALID"));
+        assertNull(context.get("MASTERCARD_ERROR"));
     }
 
     @Test
     void testInvalidMastercardTransaction() throws ISOException {
         msg.unset(61);
         participant.prepare(1L, context);
-        assertThat(context.get("MASTERCARD_TRANSACTION_VALID")).isEqualTo(false);
-        assertThat(context.get("MASTERCARD_ERROR")).isNotNull();
+        assertEquals(Boolean.FALSE, context.get("MASTERCARD_TRANSACTION_VALID"));
+        assertNotNull(context.get("MASTERCARD_ERROR"));
     }
 }
 ```
@@ -1268,10 +1301,13 @@ import org.jpos.iso.ISOException;
 import org.jpos.transaction.Context;
 import org.jpos.transaction.TransactionParticipant;
 
+import java.io.Serializable;
+
 public class DataElementHandler implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         try {
             ISOMsg request = (ISOMsg) context.get("REQUEST");
             if (request != null) {
@@ -1306,12 +1342,12 @@ public class DataElementHandler implements TransactionParticipant {
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Nothing to commit in this example
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle abort scenario if needed
     }
 }
@@ -1324,19 +1360,15 @@ In this `DataElementHandler`:
 3. The `processIncomingMessage` method demonstrates how to access and log specific fields from the incoming message.
 4. The `prepareResponse` method shows how to create a response message by cloning the request, setting it as a response MTI, and adding necessary fields.
 
-To use this `DataElementHandler` in your jPOS server, you would configure it as part of your transaction manager in your Spring configuration:
+To use this `DataElementHandler` in your jPOS server, you would configure it as part of your transaction manager in its Q2 deploy descriptor:
 
 ```xml
-<bean id="txnmgr" class="org.jpos.transaction.TransactionManager">
+<txnmgr class="org.jpos.transaction.TransactionManager" logger="Q2">
     <property name="queue" value="txnqueue"/>
     <property name="sessions" value="2"/>
-    <property name="participants">
-        <list>
-            <bean class="com.yourcompany.iso.DataElementHandler"/>
-            <!-- Other participants -->
-        </list>
-    </property>
-</bean>
+    <participant class="DataElementHandler" logger="Q2"/>
+    <!-- Other participants -->
+</txnmgr>
 ```
 
 This configuration ensures that your `DataElementHandler` is part of the transaction processing flow in your jPOS server.
@@ -1353,39 +1385,49 @@ Security is paramount when dealing with financial transactions. jPOS provides ro
 The `SMAdapter` interface defines methods for various security operations. Here's an overview of its key features:
 
 ```java
-import org.jpos.security.SMAdapter;
+import org.jpos.security.BaseSMAdapter;
+import org.jpos.security.SMException;
 import org.jpos.security.SecureKeyStore;
 import org.jpos.security.SecureDESKey;
+import org.jpos.security.SimpleKeyFile;
 import org.jpos.core.Configuration;
 import org.jpos.core.ConfigurationException;
 
-public class CustomSMAdapter implements SMAdapter {
+// BaseSMAdapter implements SMAdapter<SecureDESKey>; override the operations your HSM supports
+public class CustomSMAdapter extends BaseSMAdapter<SecureDESKey> {
     private SecureKeyStore keyStore;
 
     @Override
     public void setConfiguration(Configuration cfg) throws ConfigurationException {
+        super.setConfiguration(cfg);
         // Initialize the key store
-        this.keyStore = new SecureKeyStore(cfg.get("keystore.path"), cfg.get("keystore.password"));
+        try {
+            this.keyStore = new SimpleKeyFile(cfg.get("keystore.path"));
+        } catch (SecureKeyStore.SecureKeyStoreException e) {
+            throw new ConfigurationException(e);
+        }
     }
 
     @Override
-    public byte[] generateKey(short keyLength, String keyType) throws SMException {
-        // Implementation for key generation
+    public SecureDESKey generateKey(short keyLength, String keyType) throws SMException {
+        // Implementation for key generation, returning the new key encrypted under the Local Master Key (LMK)
         // This is just a placeholder, actual implementation would use secure random number generation
-        return new byte[keyLength / 8];
+        return new SecureDESKey(keyLength, keyType, new byte[keyLength / 8], new byte[3]);
     }
 
     @Override
-    public SecureDESKey generateKey(short keyLength, String keyType, SecureDESKey kek) throws SMException {
-        byte[] keyBytes = generateKey(keyLength, keyType);
-        return encryptToLMK(keyBytes, keyType, kek);
+    public SecureDESKey importKey(short keyLength, String keyType, byte[] encryptedKey,
+                                  SecureDESKey kek, boolean checkParity) throws SMException {
+        // Implementation for re-encrypting a key received under a KEK so it is under the LMK
+        // This is a simplified version, real implementation would use actual decryption and encryption
+        return new SecureDESKey(keyLength, keyType, encryptedKey, new byte[3]);
     }
 
     @Override
-    public SecureDESKey encryptToLMK(byte[] clearKeyBytes, String keyType, SecureDESKey kek) throws SMException {
-        // Implementation for encrypting a key under the Local Master Key (LMK)
+    public byte[] exportKey(SecureDESKey key, SecureDESKey kek) throws SMException {
+        // Implementation for re-encrypting a key from under the LMK to under a KEK, for sending
         // This is a simplified version, real implementation would use actual encryption
-        return new SecureDESKey(keyType, clearKeyBytes, "Encrypted" + new String(clearKeyBytes));
+        return key.getKeyBytes();
     }
 
     // Other methods from SMAdapter interface...
@@ -1397,6 +1439,8 @@ public class CustomSMAdapter implements SMAdapter {
 The JCE (Java Cryptography Extension) Security Module provides a concrete implementation of the `SMAdapter` interface using Java's built-in cryptography features.
 
 ```java
+import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
 import org.jpos.security.jceadapter.JCESecurityModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -1423,7 +1467,9 @@ One of the most critical security operations in payment systems is PIN encryptio
 ```java
 import org.jpos.iso.ISOMsg;
 import org.jpos.security.EncryptedPIN;
+import org.jpos.security.SMAdapter;
 import org.jpos.security.SMException;
+import org.jpos.security.SecureDESKey;
 import org.jpos.security.jceadapter.JCESecurityModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -1434,12 +1480,16 @@ public class PINEncryptionService {
     @Autowired
     private JCESecurityModule securityModule;
 
+    @Autowired
+    private SecureDESKey zpk;  // Zone PIN Key shared with the next hop, stored under the LMK
+
     public ISOMsg encryptPIN(ISOMsg msg, String clearPIN) throws SMException {
         String pan = msg.getString(2);  // Primary Account Number
-        String pinBlockFormat = "01";   // ISO Format 1
+        byte pinBlockFormat = SMAdapter.FORMAT05;   // ISO Format 1
 
-        EncryptedPIN encryptedPIN = securityModule.encryptPIN(clearPIN, pan, pinBlockFormat);
-        msg.set(52, encryptedPIN.getEncoded());
+        EncryptedPIN pinUnderLmk = securityModule.encryptPIN(clearPIN, pan);
+        EncryptedPIN encryptedPIN = securityModule.exportPIN(pinUnderLmk, zpk, pinBlockFormat);
+        msg.set(52, encryptedPIN.getPINBlock());
 
         return msg;
     }
@@ -1451,8 +1501,11 @@ public class PINEncryptionService {
 Proper key management is crucial for maintaining the security of the system. Here's an example of how to implement key rotation:
 
 ```java
+import org.jpos.security.SMAdapter;
 import org.jpos.security.SecureDESKey;
 import org.jpos.security.SMException;
+import org.jpos.security.jceadapter.JCESecurityModule;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -1467,26 +1520,24 @@ public class KeyRotationService {
 
     @Scheduled(cron = "0 0 0 1 * ?")  // Run at midnight on the first day of every month
     public void rotateKeys() throws SMException {
-        // Generate a new key
-        SecureDESKey newKey = securityModule.generateKey(128, "ZPK");
-
-        // Encrypt the new key for storage
-        SecureDESKey encryptedKey = securityModule.encryptToLMK(newKey.getKeyBytes(), "ZPK", null);
-
-        // Store the new key
-        keyRepository.storeKey("ZPK", encryptedKey);
+        // Generate a new key (the HSM returns it already encrypted under the LMK, ready for storage)
+        SecureDESKey newKey = securityModule.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZPK);
 
         // Optionally, you might want to keep the old key for a period to handle in-flight transactions
         keyRepository.archiveKey("ZPK", keyRepository.getKey("ZPK"));
+
+        // Store the new key
+        keyRepository.storeKey("ZPK", newKey);
     }
 }
 ```
 
 ## 7.5 Secure Communication Channel
 
-To ensure secure communication between the client and server, we can use SSL/TLS. jPOS provides the `NACChannel` for this purpose:
+To ensure secure communication between the client and server, we can use SSL/TLS. A jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`:
 
 ```java
+import org.jpos.iso.SunJSSESocketFactory;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
@@ -1497,8 +1548,13 @@ public class ChannelConfig {
 
     @Bean
     public NACChannel secureChannel() throws Exception {
-        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager());
-        channel.setSocketFactory(new SSLSocketFactory());
+        NACChannel channel = new NACChannel("localhost", 7000, new ISO87APackager(), null);
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore("path/to/keystore.jks");
+        sslFactory.setPassword("keystorePassword");
+        sslFactory.setKeyPassword("keyPassword");
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
         return channel;
     }
 }
@@ -1506,11 +1562,14 @@ public class ChannelConfig {
 
 ## 7.6 Testing Security Features
 
-Here's an example of how to test the PIN encryption service using JUnit, Mockito, and AssertJ:
+Here's an example of how to test the PIN encryption service using JUnit and Mockito:
 
 ```java
 import org.jpos.iso.ISOMsg;
+import org.jpos.security.EncryptedPIN;
+import org.jpos.security.SMAdapter;
 import org.jpos.security.SMException;
+import org.jpos.security.SecureDESKey;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -1518,8 +1577,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.jpos.security.jceadapter.JCESecurityModule;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -1527,6 +1587,9 @@ class PINEncryptionServiceTest {
 
     @Mock
     private JCESecurityModule securityModule;
+
+    @Mock
+    private SecureDESKey zpk;
 
     @InjectMocks
     private PINEncryptionService pinEncryptionService;
@@ -1538,14 +1601,17 @@ class PINEncryptionServiceTest {
         msg.set(2, "1234567890123456");
         String clearPIN = "1234";
         byte[] encryptedPINBlock = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
+        EncryptedPIN pinUnderLmk = new EncryptedPIN(new byte[8], SMAdapter.FORMAT01, "1234567890123456");
 
-        when(securityModule.encryptPIN(any(), any(), any())).thenReturn(new EncryptedPIN(encryptedPINBlock, "01"));
+        when(securityModule.encryptPIN(any(), any())).thenReturn(pinUnderLmk);
+        when(securityModule.exportPIN(any(), any(), anyByte()))
+            .thenReturn(new EncryptedPIN(encryptedPINBlock, SMAdapter.FORMAT05, "1234567890123456"));
 
         // Act
         ISOMsg result = pinEncryptionService.encryptPIN(msg, clearPIN);
 
         // Assert
-        assertThat(result.getBytes(52)).isEqualTo(encryptedPINBlock);
+        assertArrayEquals(encryptedPINBlock, result.getBytes(52));
     }
 }
 ```
