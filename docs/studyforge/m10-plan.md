@@ -427,6 +427,16 @@ The corpus is re-pinned to `de1ea776`, and the pass ran at that pin with the led
 place: nothing was dropped, and only the fixed pages' rows changed. jpos-server unit 3's origin
 follows its renamed heading. validate (check 20 included) is GREEN, and so is the suite.
 
+### ISO-29 — The third "fix them" pass
+**Milestone** M10 · 10.4 · **Depends on** ISO-28 · **Team** solo · **Status** done on
+`int/m10-iso-23`, handed back to the register; not merged. Handoff
+`docs/studyforge/handoffs/ISO-29.md`
+
+Every open ISO-28 finding is fixed across 9 pages, with no heading changes. `src/6.md`'s codes
+could not be confirmed, so they are now network-specific examples. The corpus is re-pinned to
+`39f12d4e`, and the pass ran there with the ledger kept: nothing was dropped, and only the fixed
+pages' rows changed. validate (check 20 included) is GREEN, and so is the suite.
+
 ### ISO-24 — What `AX-11` reads here, named and dry-read before it runs
 **Milestone** M10 · 10.4 → 10.5 · **Depends on** ISO-23; framework `AX-11` (not started) ·
 **Team** solo · **Status** blocked on ISO-23
