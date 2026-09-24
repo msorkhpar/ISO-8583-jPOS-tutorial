@@ -20,6 +20,7 @@ import pytest
 from studyforge.cli.plan import plan_for
 from studyforge.corpus.manifest import MANIFEST_FILENAME, parse
 from studyforge.corpus.manifest.edits import reads_as_content
+from studyforge.skills.execution import generated_here
 from studyforge.skills.reconnaissance.installed import generated
 
 
@@ -91,7 +92,7 @@ def _touched(code, where, origin):
 
 
 def _undeclared(root, plan, touched):
-    """Which of `touched` nothing declares: not the plan, the record, or the manifest."""
+    """Which of `touched` nothing declares: the plan, a record, a skill, the manifest."""
     files = {where for where in plan.paths if not where.endswith('/')}
     files |= generated(root)
     files |= set(PERMITTED)
@@ -102,6 +103,7 @@ def _undeclared(root, plan, touched):
             for where in touched
             if where not in files
             and not [at for at in under if where.startswith(at)]
+            and not generated_here(root, where)
         }
     )
 
@@ -160,5 +162,5 @@ def test_nothing_that_already_existed_changed_but_what_is_declared():
         'generation is additive (R3); these files already existed and were '
         'rewritten, removed or moved, and nothing declares them — not this '
         "corpus's permitted_edits, not the plan's output, not the install "
-        'record: ' + repr(undeclared)
+        "record, not the execution skill's output: " + repr(undeclared)
     )

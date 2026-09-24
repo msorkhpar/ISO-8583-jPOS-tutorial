@@ -23,21 +23,23 @@ python3 docker/editor/build.py --runtimes java,maven --print-tag
 ⛔ Never pin a tag you did not compute: a tag is a function of the build's
 inputs. Read the set back from `the image label org.studyforge.editor.runtimes`.
 
-## Record the runner's tag
+## Record both tags
 
-⭐ The skill records it: its record step runs `python3 docker/minimal/build.py --runtimes java,maven --print-tag`
-with the prime above, in the pinned checkout, and writes `.studyforge/execution/runner.env`.
-⛔ Never type it, and never edit that file: re-run the step when the
+⭐ The skill records them: its record step runs `python3 docker/minimal/build.py --runtimes java,maven --print-tag`
+with the prime above, in the pinned checkout, and writes `.studyforge/execution/runner.env`;
+then `python3 docker/editor/build.py --runtimes java,maven --print-tag`, and writes `.studyforge/execution/editor.env`.
+⛔ Never type a tag, and never edit either file: re-run the step when the
 component's pin, the prime or the host's architecture moves.
 
 ## Bring it up
 
 ```
-docker compose --env-file .studyforge/execution/runner.env -f .studyforge/execution/compose.yaml up -d --wait
+docker compose --env-file .studyforge/execution/runner.env --env-file .studyforge/execution/editor.env -f .studyforge/execution/compose.yaml up -d --wait
 ```
 
-⛔ That one command starts the editor AND the runner. The study server never
-starts either and never holds the Docker socket (§8.3).
+⛔ That one command starts the editor AND the runner, each from the tag the
+corpus recorded. The study server never starts either and never holds the
+Docker socket (§8.3).
 
 ⛔ These exist on the host before the start (§8.1), or docker
 creates them root-owned and the container can never write them:
