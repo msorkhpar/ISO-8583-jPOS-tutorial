@@ -13,9 +13,11 @@ shapes and `studyforge.archive.markdown` for the block vocabulary.
 
 ## ⛔ The curriculum is recorded in `README.md`, and it STOPS at a label
 
-⚠️ **`README.md` is two documents in one file.** Lines 1-310 record this
-corpus: three series, their entries, their titles, their ordinals and the file
-each one is served from. Everything from line 310 down is an **outline of
+⚠️ **`README.md` is two documents in one file.** Everything above the label
+linking `TestCases.md` records this corpus: three series, their entries, their
+titles, their ordinals and the file each one is served from. The reader's
+introduction under the first title is prose with no entry and no label, so it
+is skipped. Everything from that label down is an **outline of
 `TestCases.md`** — 361 heading lines reproducing that document's heading tree,
 which this corpus declares `not_material`.
 

@@ -1,5 +1,94 @@
 # ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide
 
+A tutorial in three series: the ISO-8583 message standard as Visa and
+Mastercard use it, a jPOS server, and a jPOS client. The chapters are the
+Markdown files under `src/`, listed under *Contents* below.
+
+The repository also carries a study site built from those chapters with
+[studyforge](#reading-it-as-a-study-site): reading pages, narration,
+contents, progress, and graded Java practices and quizzes on some chapters.
+
+## Reading it as a study site
+
+### What you need
+
+- Python 3.14.
+- The `studyforge` library, installed into the Python that runs the commands
+  below. It is not published to a package index. Build a wheel from the
+  studyforge framework at the version and commit this repository pins in
+  `.studyforge/pin.json`, then install it with
+  `python3 -m pip install --no-index <the wheel>`.
+- Docker, only for the practices' isolated runner and their in-browser editor
+  (see [What needs Docker](#what-needs-docker)).
+
+Check that the installed library is the pinned version:
+
+```
+python3 -m studyforge.skills.onboarding.verify .
+```
+
+### Open it
+
+The site is already built and committed: open `index.html` in a browser.
+Pages, narration, contents, navigation and progress all work from the file,
+with nothing running.
+
+### Serve it
+
+Run and Submit on a practice, checking a quiz answer, and recording a
+practice's outcome need the local server. From this repository's root:
+
+```
+python3 -m studyforge.cli serve . --site .
+```
+
+It listens on loopback only (port 8765 unless you pass `--port`). Stop it
+with Ctrl-C. Pass `--no-narration` to both `build` and `serve` to read the
+course without voices; nothing is deleted.
+
+### Rebuild it
+
+After changing a chapter, re-read it into the archive, check it and rebuild
+the site in place:
+
+```
+python3 -m ingest .
+python3 -m studyforge.cli validate .
+python3 -m studyforge.cli build . --out .
+```
+
+The narration clips are committed, so rebuilding does not need a narration
+service. A chapter whose words changed is reported by `validate` as narration
+out of date; re-narrating it needs the `narrate-service` component, which
+`python3 -m studyforge.skills.documents buildserve` describes.
+
+### What needs Docker
+
+| what | needs Docker |
+|---|---|
+| reading, narration, contents, progress, quizzes | no |
+| Run and Submit on a practice | no, but without the runner container the code runs directly on your machine with whatever Java and Maven it has |
+| running practice code isolated, with the pinned Java and Maven toolchain | yes: the runner container |
+| editing a practice in the browser | yes: the editor container |
+
+Both containers are built locally from the `code-server-toolchain` component
+and started with one `docker compose` command. [EXECUTION.md](EXECUTION.md)
+gives the build commands, the image tags and the compose command. The editor
+listens on 127.0.0.1 only and has no password, so do not bind it to any other
+address.
+
+### The procedures
+
+Each step above has a written procedure inside the installed library. List
+them, and print one by name:
+
+```
+python3 -m studyforge.skills.documents
+python3 -m studyforge.skills.documents buildserve
+```
+
+## Contents
+
 1. [Introduction to ISO-8583](src/1.md)
 - 1.1. What is ISO-8583?
   - 1.1.1. Definition and purpose
