@@ -196,14 +196,14 @@ public class TransactionService {
 <ol class="items"><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.prose.b29.i1-6adccb6b.mp3">Creating a centralized <code>ErrorHandler</code> using Spring's <code>@ControllerAdvice</code> and <code>@ExceptionHandler</code>.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.prose.b29.i2-bd2bfa2d.mp3">Defining custom exceptions for application-specific scenarios.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.prose.b29.i3-9a0aabd3.mp3">Properly logging exceptions for debugging and monitoring.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.prose.b29.i4-428a05d3.mp3">Writing unit tests to ensure exception handlers work correctly.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.prose.b29.i5-6ed914e3.mp3">Integrating the error handling mechanism with the jPOS client code.</li></ol>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Turn every failure into the response its caller should see">
-<h2 id="practice-prose-b0">Problem statement</h2>
-<p>A jPOS client fails in a handful of distinct ways: the message itself is wrong (<code>ISOException</code>), the network let you down (<code>IOException</code>), the host never answered (<code>TimeoutException</code>), or the host answered and declined. Whoever called the client needs to know which of these happened, because each one calls for a different reaction: fix the request, try again later, or tell the cardholder. Handling them in one place keeps that decision consistent across the whole application.</p>
-<p>Write <code>ErrorHandler.handle(Throwable failure)</code>, returning an <code>ErrorResponse</code> with a type, a message and an HTTP-style status:</p>
-<ul class="items"><li><code>ISOException</code>: type <code>ISO-8583 Error</code>, the exception's own message, status 400;</li><li><code>IOException</code>: type <code>Network Error</code>, message <code>Failed to communicate with the server</code>, status 503;</li><li><code>TimeoutException</code>: type <code>Timeout Error</code>, message <code>The operation timed out</code>, status 408;</li><li><code>TransactionDeclinedException</code>: type <code>Transaction Declined</code>, message <code>Transaction was declined with response code: &lt;code&gt;</code>, status 402;</li><li>anything else: type <code>Internal Server Error</code>, message <code>An unexpected error occurred</code>, status 500.</li></ul>
-<p><code>TransactionDeclinedException</code> is yours to write too, as a nested class: an unchecked exception that carries the host's response code.</p>
-<ul class="items"><li>A narrower kind of failure belongs with its family: a refused connection is an <code>IOException</code>, so it is a network error.</li><li>An unexpected failure says nothing about its cause. Its message may carry internals a caller has no business seeing.</li></ul>
-<h2 id="practice-prose-b6">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b2-e02b9698.mp3">A jPOS client fails in a handful of distinct ways: the message itself is wrong (<code>ISOException</code>), the network let you down (<code>IOException</code>), the host never answered (<code>TimeoutException</code>), or the host answered and declined. Whoever called the client needs to know which of these happened, because each one calls for a different reaction: fix the request, try again later, or tell the cardholder. Handling them in one place keeps that decision consistent across the whole application.</p>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b3-7a8fee94.mp3">Write <code>ErrorHandler.handle(Throwable failure)</code>, returning an <code>ErrorResponse</code> with a type, a message and an HTTP-style status:</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b4.i1-d876f6d9.mp3"><code>ISOException</code>: type <code>ISO-8583 Error</code>, the exception's own message, status 400;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b4.i2-986f6af0.mp3"><code>IOException</code>: type <code>Network Error</code>, message <code>Failed to communicate with the server</code>, status 503;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b4.i3-ecdea48a.mp3"><code>TimeoutException</code>: type <code>Timeout Error</code>, message <code>The operation timed out</code>, status 408;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b4.i4-6b009dc8.mp3"><code>TransactionDeclinedException</code>: type <code>Transaction Declined</code>, message <code>Transaction was declined with response code: &lt;code&gt;</code>, status 402;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b4.i5-1b18f56e.mp3">anything else: type <code>Internal Server Error</code>, message <code>An unexpected error occurred</code>, status 500.</li></ul>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b5-e37ece98.mp3"><code>TransactionDeclinedException</code> is yours to write too, as a nested class: an unchecked exception that carries the host's response code.</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b6.i1-632a13e9.mp3">A narrower kind of failure belongs with its family: a refused connection is an <code>IOException</code>, so it is a network error.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b6.i2-e9786a97.mp3">An unexpected failure says nothing about its cause. Its message may carry internals a caller has no business seeing.</li></ul>
+<h2 id="practice-prose-b6" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b7-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -263,8 +263,8 @@ public final class ErrorHandler {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b8">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b8" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b9-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 /** One place that decides what a caller sees when the client fails. */
 public final class ErrorHandler {
@@ -331,14 +331,14 @@ public final class ErrorHandler {
 <pre data-practice-part="output" tabindex="0" hidden></pre>
 </section>
 <section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Raise the right exception for a missing or declining reply">
-<h2 id="practice-prose-2-b0">Problem statement</h2>
-<p><code>mux.request(request, timeout)</code> gives back the host's reply, or <code>null</code> when no reply came in time. A reply is not an approval either: the host says yes or no in field 39, the response code, and only <code>00</code> means approved. A client that hands every reply back as if it were a success lets a declined purchase through; a client that trips over <code>null</code> turns a slow host into a crash. Raising a specific exception for each outcome lets one error handler answer each one properly.</p>
-<p>Write <code>TransactionService</code>, built from a jPOS <code>MUX</code> and a timeout in milliseconds, with <code>ISOMsg send(ISOMsg request)</code>:</p>
-<ul class="items"><li>it asks the MUX for a reply, using that timeout;</li><li>an approved reply (<code>00</code>) is returned as it is;</li><li>any other response code raises <code>TransactionDeclinedException</code>, a nested unchecked exception carrying that response code;</li><li>an <code>ISOException</code> from the MUX reaches the caller unchanged.</li></ul>
-<p>Edge cases:</p>
-<ul class="items"><li>No reply at all raises <code>java.util.concurrent.TimeoutException</code>: nobody declined anything.</li><li>A reply with no response code is not an approval. Decline it, with a <code>null</code> code.</li></ul>
-<h2 id="practice-prose-2-b6">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b0" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b2-1ed6175a.mp3"><code>mux.request(request, timeout)</code> gives back the host's reply, or <code>null</code> when no reply came in time. A reply is not an approval either: the host says yes or no in field 39, the response code, and only <code>00</code> means approved. A client that hands every reply back as if it were a success lets a declined purchase through; a client that trips over <code>null</code> turns a slow host into a crash. Raising a specific exception for each outcome lets one error handler answer each one properly.</p>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b3-380b3466.mp3">Write <code>TransactionService</code>, built from a jPOS <code>MUX</code> and a timeout in milliseconds, with <code>ISOMsg send(ISOMsg request)</code>:</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b4.i1-f6838757.mp3">it asks the MUX for a reply, using that timeout;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b4.i2-a37c477a.mp3">an approved reply (<code>00</code>) is returned as it is;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b4.i3-d808a892.mp3">any other response code raises <code>TransactionDeclinedException</code>, a nested unchecked exception carrying that response code;</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b4.i4-71cd2717.mp3">an <code>ISOException</code> from the MUX reaches the caller unchanged.</li></ul>
+<p data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b5-dc7dfddf.mp3">Edge cases:</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b6.i1-7a4960ea.mp3">No reply at all raises <code>java.util.concurrent.TimeoutException</code>: nobody declined anything.</li><li data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b6.i2-4005f5bc.mp3">A reply with no response code is not an approval. Decline it, with a <code>null</code> code.</li></ul>
+<h2 id="practice-prose-2-b6" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b7-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.concurrent.TimeoutException;
 import org.jpos.iso.ISOException;
@@ -384,8 +384,8 @@ public final class TransactionService {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-2-b8">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b8" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b9-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/jpos-client.unit-09-error-handling/jpos-client--unit-09.practice-prose-2.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.concurrent.TimeoutException;
 import org.jpos.iso.ISOException;

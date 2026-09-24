@@ -298,13 +298,13 @@ public class TransactionTracker {
 <p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.prose.b39-03140d6c.mp3">By implementing these troubleshooting and error handling mechanisms, you'll be better equipped to identify and resolve issues in your ISO-8583 and jPOS-based systems, ensuring more reliable and accurate transaction processing.</p>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Find where a bitmap and its message disagree">
-<h2 id="practice-prose-b0">Problem statement</h2>
-<p>A message reached your switch with its primary bitmap captured separately, in a trace, as sixteen hexadecimal digits. Before anybody trusts the parsed fields, you want to know where the bitmap and the message disagree.</p>
-<p>Write <code>BitmapCheck.mismatches(String bitmapHex, ISOMsg message)</code>. It returns, in ascending order, every data element from 2 to 64 whose bit in the bitmap says one thing while the message says the other: a bit set for a field the message does not carry, or a field the message carries whose bit is clear. A message that matches its bitmap gives an empty list.</p>
-<ul class="items"><li>Bit 1 is not a data element. It flags that a secondary bitmap follows, so it is never reported, whatever it says.</li><li>A bitmap that is not exactly sixteen hexadecimal digits is refused with an <code>IllegalArgumentException</code>.</li></ul>
-<p>Bits are counted from 1, most significant first: bit <em>n</em> stands for data element <em>n</em>.</p>
-<h2 id="practice-prose-b5">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b2-c4fae490.mp3">A message reached your switch with its primary bitmap captured separately, in a trace, as sixteen hexadecimal digits. Before anybody trusts the parsed fields, you want to know where the bitmap and the message disagree.</p>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b3-dd0574c7.mp3">Write <code>BitmapCheck.mismatches(String bitmapHex, ISOMsg message)</code>. It returns, in ascending order, every data element from 2 to 64 whose bit in the bitmap says one thing while the message says the other: a bit set for a field the message does not carry, or a field the message carries whose bit is clear. A message that matches its bitmap gives an empty list.</p>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b4.i1-9ea13b73.mp3">Bit 1 is not a data element. It flags that a secondary bitmap follows, so it is never reported, whatever it says.</li><li data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b4.i2-31412dd6.mp3">A bitmap that is not exactly sixteen hexadecimal digits is refused with an <code>IllegalArgumentException</code>.</li></ul>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b5-061e11a5.mp3">Bits are counted from 1, most significant first: bit <em>n</em> stands for data element <em>n</em>.</p>
+<h2 id="practice-prose-b5" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b6-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b7-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -333,8 +333,8 @@ public final class BitmapCheck {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b7">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b7" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b8-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose.b9-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.List;
 import org.jpos.iso.ISOMsg;
@@ -378,13 +378,13 @@ public final class BitmapCheck {
 <pre data-practice-part="output" tabindex="0" hidden></pre>
 </section>
 <section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Reconcile a business day">
-<h2 id="practice-prose-2-b0">Problem statement</h2>
-<p>At the end of a business day the network sends you a settlement file: the total it expects you to have processed and the ids of the transactions it counted. You have your own record of what you processed, id by id, with each amount.</p>
-<p>Write <code>Reconciliation.check(BigDecimal expectedTotal, List&lt;String&gt; expectedIds, Map&lt;String, BigDecimal&gt; processed)</code>. It returns a <code>Result</code> with:</p>
-<ul class="items"><li><code>balanced</code>: whether the processed amounts add up to the expected total;</li><li><code>difference</code>: the expected total minus the processed total;</li><li><code>missingIds</code>: the expected ids you have no record of, in ascending order.</li></ul>
-<p>Amounts are compared as numbers, so <code>100.0</code> and <code>100.00</code> are the same amount. Only an expected id can be missing: a transaction you processed that the network did not count is a different problem, and it is not reported here.</p>
-<h2 id="practice-prose-2-b5">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b0" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b2-8c9d41d8.mp3">At the end of a business day the network sends you a settlement file: the total it expects you to have processed and the ids of the transactions it counted. You have your own record of what you processed, id by id, with each amount.</p>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b3-dc731a4b.mp3">Write <code>Reconciliation.check(BigDecimal expectedTotal, List&lt;String&gt; expectedIds, Map&lt;String, BigDecimal&gt; processed)</code>. It returns a <code>Result</code> with:</p>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b4.i1-ceca5c56.mp3"><code>balanced</code>: whether the processed amounts add up to the expected total;</li><li data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b4.i2-e5f3ac03.mp3"><code>difference</code>: the expected total minus the processed total;</li><li data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b4.i3-b31152ce.mp3"><code>missingIds</code>: the expected ids you have no record of, in ascending order.</li></ul>
+<p data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b5-59e90720.mp3">Amounts are compared as numbers, so <code>100.0</code> and <code>100.00</code> are the same amount. Only an expected id can be missing: a transaction you processed that the network did not count is a different problem, and it is not reported here.</p>
+<h2 id="practice-prose-2-b5" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b6-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b7-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -412,8 +412,8 @@ public final class Reconciliation {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-2-b7">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b7" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b8-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-15-troubleshooting-and-common-issues/iso-fundamentals--unit-15.practice-prose-2.b9-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.math.BigDecimal;
 import java.util.List;

@@ -171,7 +171,7 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
     }
 }</code></pre></figure>
 <h3 id="prose-b13" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b14-5fd45ea0.mp3">4. Configure Transaction Manager</h3>
-<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b15-bb687d85.mp3">To use these participants in the transaction flow, configure them in the TransactionManager's Q2 deploy descriptor:</p>
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b15-2bab4b03.mp3">To use these participants in the transaction flow, configure them in the TransactionManager's Q2 deploy descriptor:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b16-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;txnmgr class=&quot;org.jpos.transaction.TransactionManager&quot; logger=&quot;Q2&quot;&gt;
     &lt;property name=&quot;queue&quot; value=&quot;txnqueue&quot;/&gt;
     &lt;property name=&quot;sessions&quot; value=&quot;2&quot;/&gt;
@@ -307,15 +307,15 @@ class MastercardAuthorizationParticipantTest {
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b24-f03b5745.mp3">The modular design allows for easy extension and modification of the processing logic for each card network. The unit tests ensure that the participants behave correctly for both valid and invalid transactions.</p>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Check each card against its own network&#39;s rules">
-<h2 id="practice-prose-b0">Problem statement</h2>
-<p>Visa and Mastercard ask for different data elements in an authorization, so a server first works out which network a card belongs to and then checks the request against that network's rules. The page does it with three participants in a row. Here you do both steps in one jPOS <code>TransactionParticipant</code>, in the same order.</p>
-<p>Write <code>CardNetworkCheck</code>. Its <code>prepare</code> reads the request <code>ISOMsg</code> from the <code>Context</code> under <code>&quot;REQUEST&quot;</code> and:</p>
-<ul class="items"><li>puts <code>&quot;CARD_TYPE&quot;</code>: <code>&quot;VISA&quot;</code> when the card number (field 2) starts with <code>4</code>, <code>&quot;MASTERCARD&quot;</code> when it starts with <code>51</code> to <code>55</code>, and <code>&quot;UNKNOWN&quot;</code> otherwise;</li><li>for a Visa card, puts <code>&quot;VISA_TRANSACTION_VALID&quot;</code>: <code>true</code> when fields 42, 43 and 48 are all present, else <code>false</code> together with a <code>&quot;VISA_ERROR&quot;</code> saying what is wrong;</li><li>for a Mastercard card, does the same with fields 48, 61 and 63, under <code>&quot;MASTERCARD_TRANSACTION_VALID&quot;</code> and <code>&quot;MASTERCARD_ERROR&quot;</code>;</li><li>always returns <code>PREPARED | NO_JOIN | READONLY</code>. An invalid request is a verdict for the participants after this one to act on, not a reason to throw.</li></ul>
-<p>Watch for:</p>
-<ul class="items"><li>a card starting <code>56</code> (or <code>50</code>) is not Mastercard. An unknown card gets no network verdict at all;</li><li>a request with no card number is <code>&quot;UNKNOWN&quot;</code>, and the participant must not crash on it.</li></ul>
-<p>In jPOS 2.1.7 <code>prepare</code> is declared as <code>int prepare(long id, Serializable context)</code>; the page's <code>Context</code> parameter comes from a later version, so cast it yourself.</p>
-<h2 id="practice-prose-b7">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b2-6cbea09e.mp3">Visa and Mastercard ask for different data elements in an authorization, so a server first works out which network a card belongs to and then checks the request against that network's rules. The page does it with three participants in a row. Here you do both steps in one jPOS <code>TransactionParticipant</code>, in the same order.</p>
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b3-f2d4ad68.mp3">Write <code>CardNetworkCheck</code>. Its <code>prepare</code> reads the request <code>ISOMsg</code> from the <code>Context</code> under <code>&quot;REQUEST&quot;</code> and:</p>
+<ul class="items"><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b4.i1-97bf0e56.mp3">puts <code>&quot;CARD_TYPE&quot;</code>: <code>&quot;VISA&quot;</code> when the card number (field 2) starts with <code>4</code>, <code>&quot;MASTERCARD&quot;</code> when it starts with <code>51</code> to <code>55</code>, and <code>&quot;UNKNOWN&quot;</code> otherwise;</li><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b4.i2-a8759a1c.mp3">for a Visa card, puts <code>&quot;VISA_TRANSACTION_VALID&quot;</code>: <code>true</code> when fields 42, 43 and 48 are all present, else <code>false</code> together with a <code>&quot;VISA_ERROR&quot;</code> saying what is wrong;</li><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b4.i3-f3a44e99.mp3">for a Mastercard card, does the same with fields 48, 61 and 63, under <code>&quot;MASTERCARD_TRANSACTION_VALID&quot;</code> and <code>&quot;MASTERCARD_ERROR&quot;</code>;</li><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b4.i4-8f7ce071.mp3">always returns <code>PREPARED | NO_JOIN | READONLY</code>. An invalid request is a verdict for the participants after this one to act on, not a reason to throw.</li></ul>
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b5-89563f93.mp3">Watch for:</p>
+<ul class="items"><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b6.i1-627fd4cc.mp3">a card starting <code>56</code> (or <code>50</code>) is not Mastercard. An unknown card gets no network verdict at all;</li><li data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b6.i2-e854df9b.mp3">a request with no card number is <code>&quot;UNKNOWN&quot;</code>, and the participant must not crash on it.</li></ul>
+<p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b7-d4266688.mp3">In jPOS 2.1.7 <code>prepare</code> is declared as <code>int prepare(long id, Serializable context)</code>; the page's <code>Context</code> parameter comes from a later version, so cast it yourself.</p>
+<h2 id="practice-prose-b7" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b8-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b9-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -371,8 +371,8 @@ public class CardNetworkCheck implements TransactionParticipant {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b9">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b9" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b10-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.practice-prose.b11-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.io.Serializable;
 import org.jpos.transaction.TransactionParticipant;

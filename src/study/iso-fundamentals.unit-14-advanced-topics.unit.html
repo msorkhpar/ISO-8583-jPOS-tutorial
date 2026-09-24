@@ -248,13 +248,13 @@ public class ThreeDSecure2Handler {
 }</code></pre></figure>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Read the EMV tags out of field 55">
-<h2 id="practice-prose-b0">Problem statement</h2>
-<p>A chip card authorization reaches your host with the card's EMV data in field 55, the ICC system related data. The field is binary: one tag-length-value item after another, with no separators. Before your risk rules can look at the Application Interchange Profile (tag <code>82</code>) or the Terminal Verification Results (tag <code>95</code>), something has to split the field into its items, and a mistake there silently feeds the rules the wrong bytes.</p>
-<p>Write <code>ChipData.tags(ISOMsg message)</code>. It returns a map from each tag to its value, both as upper-case hexadecimal, in the order the items appear in field 55. Each item is:</p>
-<ul class="items"><li>the tag: one byte, unless the low five bits of that byte are all set (<code>0x1F</code>), in which case the tag is two bytes, so <code>9F 26</code> is the single tag <code>9F26</code>;</li><li>the length: one byte, the number of value bytes that follow;</li><li>the value: exactly that many bytes.</li></ul>
-<p>A message without field 55 is not an error: it simply has no chip data, and you return an empty map. A field whose last item claims more bytes than are left is damaged; refuse it with an <code>ISOException</code> rather than return a value cut short.</p>
-<h2 id="practice-prose-b5">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b2-fbc2deb7.mp3">A chip card authorization reaches your host with the card's EMV data in field 55, the ICC system related data. The field is binary: one tag-length-value item after another, with no separators. Before your risk rules can look at the Application Interchange Profile (tag <code>82</code>) or the Terminal Verification Results (tag <code>95</code>), something has to split the field into its items, and a mistake there silently feeds the rules the wrong bytes.</p>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b3-80f45ed4.mp3">Write <code>ChipData.tags(ISOMsg message)</code>. It returns a map from each tag to its value, both as upper-case hexadecimal, in the order the items appear in field 55. Each item is:</p>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b4.i1-3f6cc5b0.mp3">the tag: one byte, unless the low five bits of that byte are all set (<code>0x1F</code>), in which case the tag is two bytes, so <code>9F 26</code> is the single tag <code>9F26</code>;</li><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b4.i2-ac03f40c.mp3">the length: one byte, the number of value bytes that follow;</li><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b4.i3-254bbf7f.mp3">the value: exactly that many bytes.</li></ul>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b5-598d05c7.mp3">A message without field 55 is not an error: it simply has no chip data, and you return an empty map. A field whose last item claims more bytes than are left is damaged; refuse it with an <code>ISOException</code> rather than return a value cut short.</p>
+<h2 id="practice-prose-b5" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b6-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b7-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -295,8 +295,8 @@ public final class ChipData {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b7">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b7" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b8-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose.b9-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.Map;
 import org.jpos.iso.ISOException;
@@ -341,14 +341,14 @@ public final class ChipData {
 <pre data-practice-part="output" tabindex="0" hidden></pre>
 </section>
 <section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Swap the card number in field 2 for a token, and back">
-<h2 id="practice-prose-2-b0">Problem statement</h2>
-<p>Your acquirer wants card numbers out of every system that does not strictly need them. Messages leaving the secure zone should carry a token in field 2 instead of the PAN, and only the vault, inside the secure zone, may turn a token back into the card number. The token has to look like a card number, because routing, logging and receipts downstream still expect one.</p>
-<p>Write the class <code>PanVault</code> with two methods, each working on field 2 of the message in place:</p>
-<ul class="items"><li><code>protect(ISOMsg message)</code> replaces the PAN with a token: the same length, digits only, the first six digits (the BIN, which routing needs) and the last four (what the cardholder sees on a receipt) kept, the digits between replaced. A token equal to the card number protects nothing, so never hand one out.</li><li><code>reveal(ISOMsg message)</code> replaces a token this vault issued with the card number it stands for.</li></ul>
-<p>Why the edges matter:</p>
-<ul class="items"><li>The same card must always get the same token, or reports and fraud checks downstream see one card as many.</li><li>A token the vault never issued is refused with an <code>ISOException</code>, and field 2 is left exactly as it was. Passing along an empty or unchanged field 2 would send a message on with no real card number in it.</li></ul>
-<h2 id="practice-prose-2-b6">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b0" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b2-17b1b37d.mp3">Your acquirer wants card numbers out of every system that does not strictly need them. Messages leaving the secure zone should carry a token in field 2 instead of the PAN, and only the vault, inside the secure zone, may turn a token back into the card number. The token has to look like a card number, because routing, logging and receipts downstream still expect one.</p>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b3-5cf1e588.mp3">Write the class <code>PanVault</code> with two methods, each working on field 2 of the message in place:</p>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b4.i1-6c8d5616.mp3"><code>protect(ISOMsg message)</code> replaces the PAN with a token: the same length, digits only, the first six digits (the BIN, which routing needs) and the last four (what the cardholder sees on a receipt) kept, the digits between replaced. A token equal to the card number protects nothing, so never hand one out.</li><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b4.i2-5ed29468.mp3"><code>reveal(ISOMsg message)</code> replaces a token this vault issued with the card number it stands for.</li></ul>
+<p data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b5-8fdb0f00.mp3">Why the edges matter:</p>
+<ul class="items"><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b6.i1-9f4b8d56.mp3">The same card must always get the same token, or reports and fraud checks downstream see one card as many.</li><li data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b6.i2-6e547a97.mp3">A token the vault never issued is refused with an <code>ISOException</code>, and field 2 is left exactly as it was. Passing along an empty or unchanged field 2 would send a message on with no real card number in it.</li></ul>
+<h2 id="practice-prose-2-b6" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b7-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -396,8 +396,8 @@ public final class PanVault {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-2-b8">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-2-b8" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b9-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/iso-fundamentals.unit-14-advanced-topics/iso-fundamentals--unit-14.practice-prose-2.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;

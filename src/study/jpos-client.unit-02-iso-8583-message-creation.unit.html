@@ -49,8 +49,8 @@ public class ISOMessageCreator {
 }</code></pre></figure>
 <p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b7-36f3767d.mp3">In this example, we create a new <code>ISOMsg</code> object and set various fields using the <code>set</code> method. The first argument is the field number, and the second is the field value.</p>
 <h2 id="prose-b7" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b8-3c4df884.mp3">2.2 Message Factory</h2>
-<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b9-c50946cc.mp3">While creating messages manually is possible, it's often more efficient and less error-prone to use a message factory of your own. jPOS 2.1.7 has no <code>MsgFactory</code> type, so the factory is a plain class that builds each <code>ISOMsg</code> with <code>setMTI</code> and <code>set</code>, and lets you create predefined message templates and reuse them.</p>
-<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b10-f70dbaac.mp3">Here's an example of how to implement such a factory:</p>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b9-31c6bef5.mp3">While creating messages manually is possible, it's often more efficient and less error-prone to use a message factory of your own. jPOS 2.1.7 has no <code>MsgFactory</code> type, so the factory is a plain class that builds each <code>ISOMsg</code> with <code>setMTI</code> and <code>set</code>, and lets you create predefined message templates and reuse them.</p>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b10-2ed8e9a6.mp3">Here's an example of how to implement such a factory:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b11-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.stereotype.Component;
@@ -146,7 +146,7 @@ public class MessageCreationService {
     }
 }</code></pre></figure>
 <h2 id="prose-b16" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b17-0e3e1cb3.mp3">2.4 Testing Message Creation</h2>
-<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b18-574d5571.mp3">It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5 and Mockito:</p>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b18-9760fbbf.mp3">It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5 and Mockito:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b19-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.junit.jupiter.api.BeforeEach;
@@ -188,17 +188,17 @@ class MessageCreationServiceTest {
     }
 }</code></pre></figure>
 <p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b20-d1476b75.mp3">This test verifies that the <code>createAuthorizationRequest</code> method correctly sets the MTI and required fields for an authorization request.</p>
-<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b21-705453d9.mp3">In conclusion, creating ISO-8583 messages using jPOS involves using the <code>ISOMsg</code> class, potentially implementing a message factory of your own, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application.</p>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.prose.b21-20b8d614.mp3">In conclusion, creating ISO-8583 messages using jPOS involves using the <code>ISOMsg</code> class, potentially implementing a message factory of your own, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application.</p>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Build each request type on one factory of common fields">
-<h2 id="practice-prose-b0">Problem statement</h2>
-<p>The page's factory stamps the fields every request shares, so a message type only adds what is its own. But its trace number is a fixed <code>&quot;123456&quot;</code> and its date is a constant. A host matches a response, and later a reversal, to the request by these fields; two requests with the same trace number are two requests nobody can tell apart.</p>
-<p>Write <code>RequestFactory</code>, built from a terminal id, a <code>java.time.Clock</code> and the last trace number already used (<code>0</code> for a fresh start).</p>
-<ul class="items"><li><code>create(mti)</code> returns an <code>ISOMsg</code> with that MTI, field 7 as the clock's time in UTC formatted <code>MMddHHmmss</code>, field 11 as the next trace number (six digits, zero-padded) and field 41 as the terminal id.</li><li><code>authorization(pan, amountMinor)</code> is an <code>0100</code> and <code>financial(pan, amountMinor)</code> an <code>0200</code>; both carry field 2 (the PAN), field 3 <code>000000</code>, field 4 (the amount in minor units, twelve digits zero-padded) and field 49 <code>840</code>.</li><li><code>reversal(original)</code> is an <code>0400</code> carrying the original's fields 2, 3, 4 and 49, and field 90: the original's MTI, then its field 11, then its field 7, then 22 zeros (42 digits in all).</li></ul>
-<p>Edge cases:</p>
-<ul class="items"><li>After <code>999999</code> the trace number starts again at <code>000001</code>; <code>000000</code> is never used.</li><li>A reversal is a new message: it takes its own trace number, not the original's.</li></ul>
-<h2 id="practice-prose-b6">Lesson</h2>
-<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b2-9e1cbd6a.mp3">The page's factory stamps the fields every request shares, so a message type only adds what is its own. But its trace number is a fixed <code>&quot;123456&quot;</code> and its date is a constant. A host matches a response, and later a reversal, to the request by these fields; two requests with the same trace number are two requests nobody can tell apart.</p>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b3-b47692a4.mp3">Write <code>RequestFactory</code>, built from a terminal id, a <code>java.time.Clock</code> and the last trace number already used (<code>0</code> for a fresh start).</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b4.i1-39036d0a.mp3"><code>create(mti)</code> returns an <code>ISOMsg</code> with that MTI, field 7 as the clock's time in UTC formatted <code>MMddHHmmss</code>, field 11 as the next trace number (six digits, zero-padded) and field 41 as the terminal id.</li><li data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b4.i2-08ec55b1.mp3"><code>authorization(pan, amountMinor)</code> is an <code>0100</code> and <code>financial(pan, amountMinor)</code> an <code>0200</code>; both carry field 2 (the PAN), field 3 <code>000000</code>, field 4 (the amount in minor units, twelve digits zero-padded) and field 49 <code>840</code>.</li><li data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b4.i3-eb85c61f.mp3"><code>reversal(original)</code> is an <code>0400</code> carrying the original's fields 2, 3, 4 and 49, and field 90: the original's MTI, then its field 11, then its field 7, then 22 zeros (42 digits in all).</li></ul>
+<p data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b5-dc7dfddf.mp3">Edge cases:</p>
+<ul class="items"><li data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b6.i1-39314a42.mp3">After <code>999999</code> the trace number starts again at <code>000001</code>; <code>000000</code> is never used.</li><li data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b6.i2-18c27360.mp3">A reversal is a new message: it takes its own trace number, not the original's.</li></ul>
+<h2 id="practice-prose-b6" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b7-6e2b26d9.mp3">Lesson</h2>
+<details class="disclosure"><summary data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -264,8 +264,8 @@ public final class RequestFactory {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b8">Starting code</h2>
-<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b8" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b9-efa73569.mp3">Starting code</h2>
+<figure class="code" data-audio="audio/jpos-client.unit-02-iso-8583-message-creation/jpos-client--unit-02.practice-prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.time.Clock;
 import org.jpos.iso.ISOException;
