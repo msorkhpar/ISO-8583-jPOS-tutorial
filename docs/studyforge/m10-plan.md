@@ -416,6 +416,17 @@ The defects ISO-23's authors found on 16 source pages (`src/6`, `7`, `8`, `11`, 
 - By the user's second ruling, `spring-web` 5.3.20 is declared, and the runner is rebuilt and
   recorded as `…-7a5a2f2aacba`.
 
+### ISO-28 — The second "fix them" pass, headings included
+**Milestone** M10 · 10.4 · **Depends on** ISO-27; framework `W456` (pin `de1ea776`) · **Team**
+solo · **Status** done on `int/m10-iso-23`, handed back to the register; not merged. Handoff
+`docs/studyforge/handoffs/ISO-28.md`
+
+Every defect ISO-27 recorded but did not edit is fixed across 12 pages, and 6 wrong-claim headings
+are renamed (c3 ×5, s3 ×1). `src/6.md`'s "Void 02" and "cash advance 01" are left unconfirmed.
+The corpus is re-pinned to `de1ea776`, and the pass ran at that pin with the ledger merged in
+place: nothing was dropped, and only the fixed pages' rows changed. jpos-server unit 3's origin
+follows its renamed heading. validate (check 20 included) is GREEN, and so is the suite.
+
 ### ISO-24 — What `AX-11` reads here, named and dry-read before it runs
 **Milestone** M10 · 10.4 → 10.5 · **Depends on** ISO-23; framework `AX-11` (not started) ·
 **Team** solo · **Status** blocked on ISO-23
