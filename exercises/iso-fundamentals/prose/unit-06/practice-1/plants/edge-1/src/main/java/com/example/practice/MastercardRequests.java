@@ -8,10 +8,10 @@ public final class MastercardRequests {
 
     /** The transaction types and the processing codes that carry them. */
     public enum ProcessingCode {
-        PURCHASE("00"),
-        CASH_ADVANCE("01"),
-        VOID("02"),
-        REFUND("20");
+        PURCHASE("000000"),
+        CASH_ADVANCE("010000"),
+        VOID("020000"),
+        REFUND("200000");
 
         private final String code;
 
@@ -23,10 +23,19 @@ public final class MastercardRequests {
             return code;
         }
 
-        /** The type a processing code stands for. */
+        /** The transaction type: the first two digits of the code. */
+        public String transactionType() {
+            return code.substring(0, 2);
+        }
+
+        /** The type a six-digit processing code stands for, named by its first two digits. */
         public static ProcessingCode fromCode(String code) {
+            if (code == null || !code.matches("\\d{6}")) {
+                return null;
+            }
+            String transactionType = code.substring(0, 2);
             for (ProcessingCode type : values()) {
-                if (type.code.equals(code)) {
+                if (type.transactionType().equals(transactionType)) {
                     return type;
                 }
             }

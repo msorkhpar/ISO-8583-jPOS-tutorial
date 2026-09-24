@@ -5,10 +5,11 @@ participant whose vote does not carry `NO_JOIN` joins the transaction. As soon a
 `PREPARED`, `commit` is called on every participant that joined; otherwise `abort` is called
 on every participant that joined, including the one that voted `ABORTED`.
 
-The page's flow is a validator, then a Visa participant, then a Mastercard participant. Look
-at what its Visa participant votes for a Mastercard card: the whole transaction aborts before
-the Mastercard participant is ever asked. Every participant votes on the whole transaction,
-not just on the part it cares about.
+The page's flow is a validator, then a Visa participant, then a Mastercard participant, and
+each network's participant steps aside for the other network's cards. That is the point: every
+participant votes on the whole transaction, not just on the part it cares about, so a Visa
+participant that voted `ABORTED` for a Mastercard card would abort the transaction before the
+Mastercard participant were ever asked.
 
 Write `NetworkRouting` with two nested participants (both `org.jpos.transaction.TransactionParticipant`,
 working on an `org.jpos.transaction.Context`):

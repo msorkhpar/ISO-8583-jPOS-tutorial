@@ -45,6 +45,7 @@
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b8-6a79eee1.mp3">Now, let's create a Spring configuration class:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b9-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.config;
 
+import org.jpos.iso.MUX;
 import org.jpos.q2.iso.QMUX;
 import org.jpos.util.NameRegistrar;
 import org.springframework.context.annotation.Bean;
@@ -54,7 +55,7 @@ import org.springframework.context.annotation.Configuration;
 public class JposConfig {
 
     @Bean
-    public QMUX qmux() throws NameRegistrar.NotFoundException {
+    public MUX qmux() throws NameRegistrar.NotFoundException {
         return QMUX.getMUX(&quot;mux&quot;);
     }
 
@@ -117,17 +118,17 @@ public class JposClientApplication {
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
-import org.jpos.q2.iso.QMUX;
+import org.jpos.iso.MUX;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IsoClientService {
 
-    private final QMUX qmux;
+    private final MUX qmux;
 
     @Autowired
-    public IsoClientService(QMUX qmux) {
+    public IsoClientService(MUX qmux) {
         this.qmux = qmux;
     }
 
@@ -143,32 +144,33 @@ import com.example.jpos.service.IsoClientService;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
 public class JposClientApplicationTests {
-
-    @Autowired
-    private IsoClientService isoClientService;
 
     @Test
     public void testSendMessage() throws ISOException {
-        ISOMsg message = new ISOMsg();
-        message.setMTI(&quot;0800&quot;);
-        message.set(7, &quot;0110122359&quot;);
-        message.set(11, &quot;000001&quot;);
-        message.set(70, &quot;301&quot;);
+        try (ClassPathXmlApplicationContext context =
+                     new ClassPathXmlApplicationContext(&quot;applicationContext.xml&quot;)) {
+            IsoClientService isoClientService = context.getBean(IsoClientService.class);
 
-        ISOMsg response = isoClientService.sendMessage(message);
+            ISOMsg message = new ISOMsg();
+            message.setMTI(&quot;0800&quot;);
+            message.set(7, &quot;0110122359&quot;);
+            message.set(11, &quot;000001&quot;);
+            message.set(70, &quot;301&quot;);
 
-        assertThat(response).isNotNull();
-        assertThat(response.getMTI()).isEqualTo(&quot;0810&quot;);
+            ISOMsg response = isoClientService.sendMessage(message);
+
+            assertNotNull(response);
+            assertEquals(&quot;0810&quot;, response.getMTI());
+        }
     }
 }</code></pre></figure>
-<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b30-6ebe0ba7.mp3">This test assumes you have a server running that can respond to the 0800 message with a 0810 message.</p>
+<p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b30-6ebe0ba7.mp3">This test assumes Q2 is running with the channel and QMUX above deployed, and a server that can respond to the 0800 message with a 0810 message.</p>
 <h2 id="prose-b30" data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b31-89db2ad8.mp3">Conclusion</h2>
 <p data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b32-04671e9c.mp3">This setup provides a basic foundation for a jPOS client using Spring and Q2. It includes:</p>
 <ol class="items"><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i1-9d482051.mp3">Spring configuration for dependency injection</li><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i2-552461ac.mp3">Q2 configuration for the jPOS runtime environment</li><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i3-d2dfe8d6.mp3">A client channel setup for communication</li><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i4-b53c8bed.mp3">A QMUX configuration for message multiplexing</li><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i5-84db798a.mp3">A simple service for sending ISO-8583 messages</li><li data-audio="audio/jpos-client.unit-01-basic-setup/jpos-client--unit-01.prose.b33.i6-874bd71f.mp3">A basic test to verify the setup</li></ol>

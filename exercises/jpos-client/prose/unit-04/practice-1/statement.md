@@ -6,8 +6,7 @@ result that will never arrive.
 
 In jPOS 2.1.7 the listener is `ISOResponseListener`, with `responseReceived(ISOMsg response,
 Object handBack)` and a default `expired(Object handBack)` that calls `responseReceived` with a
-`null` response; the asynchronous request is `request(msg, timeout, listener, handBack)`. (The
-page's listener signatures are not the 2.1.7 ones.)
+`null` response; the asynchronous request is `request(msg, timeout, listener, handBack)`.
 
 Write `AuthorizationSender`, built from a `MUX` and a timeout in milliseconds, and the nested
 enum `Outcome { APPROVED, DECLINED, NO_ANSWER }`.

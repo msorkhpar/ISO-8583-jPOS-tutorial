@@ -58,7 +58,6 @@ public class PaymentGatewayService {
         request.setAmount(isoMsg.getString(4));
         request.setCardNumber(isoMsg.getString(2));
         request.setExpirationDate(isoMsg.getString(14));
-        request.setCvv(isoMsg.getString(52));
         request.setTransactionType(mapTransactionType(isoMsg.getString(3)));
         return request;
     }
@@ -79,6 +78,7 @@ public class PaymentGatewayService {
 <p data-audio="audio/iso-fundamentals.unit-12-integration-with-payment-gateways/iso-fundamentals--unit-12.prose.b15-e6e70a6b.mp3">Sometimes, data formats in ISO-8583 messages don't match the expected format of the payment gateway API. Let's create a utility class to handle these transformations:</p>
 <figure class="code" data-audio="audio/iso-fundamentals.unit-12-integration-with-payment-gateways/iso-fundamentals--unit-12.prose.b16-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public class DataTransformationUtil {
 
@@ -92,7 +92,7 @@ public class DataTransformationUtil {
         // ISO-8583 format: Amount in cents without decimal point
         // API expected format: Amount with decimal point
         long amountInCents = Long.parseLong(isoAmount);
-        return String.format(&quot;%.2f&quot;, amountInCents / 100.0);
+        return String.format(Locale.ROOT, &quot;%.2f&quot;, amountInCents / 100.0);
     }
 
     public static String transformDate(String isoDate) {
@@ -117,7 +117,6 @@ public class DataTransformationUtil {
     request.setAmount(DataTransformationUtil.transformAmount(isoMsg.getString(4)));
     request.setCardNumber(isoMsg.getString(2));
     request.setExpirationDate(DataTransformationUtil.transformExpirationDate(isoMsg.getString(14)));
-    request.setCvv(isoMsg.getString(52));
     request.setTransactionType(mapTransactionType(isoMsg.getString(3)));
     request.setTransactionDate(DataTransformationUtil.transformDate(isoMsg.getString(13)));
     return request;
@@ -132,7 +131,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
 
 import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentGatewayServiceTest {
@@ -156,7 +155,6 @@ class PaymentGatewayServiceTest {
         isoMsg.set(4, &quot;100000&quot;); // $1000.00
         isoMsg.set(13, &quot;0531&quot;); // May 31st
         isoMsg.set(14, &quot;2405&quot;); // Expires May 2024
-        isoMsg.set(52, &quot;123&quot;); // CVV
 
         GatewayResponse mockResponse = new GatewayResponse();
         mockResponse.setStatus(&quot;SUCCESS&quot;);
@@ -169,17 +167,19 @@ class PaymentGatewayServiceTest {
         GatewayResponse result = paymentGatewayService.processPayment(isoMsg);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(&quot;SUCCESS&quot;);
-        assertThat(result.getTransactionId()).isEqualTo(&quot;123456&quot;);
+        assertNotNull(result);
+        assertEquals(&quot;SUCCESS&quot;, result.getStatus());
+        assertEquals(&quot;123456&quot;, result.getTransactionId());
 
-        verify(restTemplate).postForObject(eq(&quot;https://api.paymentgateway.com/process&quot;), argThat(request -&gt; {
-            assertThat(request.getAmount()).isEqualTo(&quot;1000.00&quot;);
-            assertThat(request.getCardNumber()).isEqualTo(&quot;4111111111111111&quot;);
-            assertThat(request.getExpirationDate()).isEqualTo(&quot;05/24&quot;);
-            assertThat(request.getCvv()).isEqualTo(&quot;123&quot;);
-            assertThat(request.getTransactionType()).isEqualTo(&quot;PURCHASE&quot;);
-            assertThat(request.getTransactionDate()).isEqualTo(LocalDate.now().withMonth(5).withDayOfMonth(31).toString());
+        LocalDate may31 = LocalDate.now().withMonth(5).withDayOfMonth(31);
+        String expectedDate = (may31.isAfter(LocalDate.now()) ? may31.minusYears(1) : may31).toString();
+
+        verify(restTemplate).postForObject(eq(&quot;https://api.paymentgateway.com/process&quot;), argThat((PaymentRequest request) -&gt; {
+            assertEquals(&quot;1000.00&quot;, request.getAmount());
+            assertEquals(&quot;4111111111111111&quot;, request.getCardNumber());
+            assertEquals(&quot;05/24&quot;, request.getExpirationDate());
+            assertEquals(&quot;PURCHASE&quot;, request.getTransactionType());
+            assertEquals(expectedDate, request.getTransactionDate());
             return true;
         }), eq(GatewayResponse.class));
     }

@@ -118,7 +118,7 @@ public class ChargebackService {
             .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Transaction not found&quot;));
 
         ISOMsg chargebackRequest = new ISOMsg();
-        chargebackRequest.setMTI(&quot;0400&quot;);  // Reversal message type
+        chargebackRequest.setMTI(&quot;1422&quot;);  // Chargeback advice (ISO 8583:1993); networks define their own
         chargebackRequest.set(2, transaction.getCardNumber());
         chargebackRequest.set(4, transaction.getAmount().toString());
         chargebackRequest.set(11, transaction.getSystemTraceAuditNumber());
@@ -137,7 +137,7 @@ public class ChargebackService {
         }
     }
 }</code></pre></figure>
-<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b19-365685c1.mp3">This service initiates a chargeback by creating a reversal message (MTI 0400) with the original transaction details and the chargeback reason.</p>
+<p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b19-365685c1.mp3">This service initiates a chargeback by sending a chargeback advice (MTI 1422 in ISO 8583:1993, where x4x0 is a reversal and x4x2 an issuer's chargeback; in ISO 8583:1987 the 04xx class holds reversals only, and each network specifies how it carries chargebacks) with the original transaction details and the chargeback reason.</p>
 <p data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b20-9912b08f.mp3">To test these implementations, we can use JUnit, Mockito, and AssertJ:</p>
 <figure class="code" data-audio="audio/iso-fundamentals.unit-07-transaction-flow/iso-fundamentals--unit-07.prose.b21-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">@RunWith(SpringRunner.class)
 @SpringBootTest

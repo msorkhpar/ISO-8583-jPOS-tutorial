@@ -36,12 +36,12 @@
     },
     {
       "type": "para",
-      "text": "To set up QMUX in your jPOS client, you need to add a configuration in your `deploy/05_spring_client_context.xml`:"
+      "text": "To set up QMUX in your jPOS client, you need to add a Q2 deploy descriptor, such as `deploy/20_mux.xml`:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<bean id=\"clientQMUX\" class=\"org.jpos.q2.iso.QMUX\" init-method=\"start\" destroy-method=\"stop\">\n    <property name=\"name\" value=\"client-mux\"/>\n    <property name=\"space\" ref=\"tspace\"/>\n    <property name=\"in\" value=\"send\"/>\n    <property name=\"out\" value=\"receive\"/>\n    <property name=\"unhandled\" value=\"unhandled\"/>\n    <property name=\"ready\" value=\"ready\"/>\n</bean>"
+      "text": "<mux class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\" name=\"client-mux\">\n    <in>receive</in>\n    <out>send</out>\n    <unhandled>unhandled</unhandled>\n    <ready>client-channel.ready</ready>\n</mux>"
     },
     {
       "type": "heading",
@@ -76,7 +76,7 @@
       "ordered": false,
       "items": [
         "`request(ISOMsg m, long timeout)`: Sends a message and waits for a response.",
-        "`request(ISOMsg m, long timeout, ISOResponseListener rl)`: Sends a message and registers a listener for the response.",
+        "`request(ISOMsg m, long timeout, ISOResponseListener rl, Object handBack)`: Sends a message and registers a listener for the response; `handBack` is passed back to the listener.",
         "`send(ISOMsg m)`: Sends a message without expecting a response."
       ]
     },
@@ -92,7 +92,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class AsyncTransactionSender {\n\n    private final MUX mux;\n\n    public AsyncTransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public void sendTransactionAsync(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        mux.request(message, timeout, new ISOResponseListener() {\n            @Override\n            public void expired(long id) {\n                System.out.println(\"Request \" + id + \" expired\");\n            }\n\n            @Override\n            public void response(ISOMsg response, long id) {\n                System.out.println(\"Received response for \" + id + \": \" + response);\n            }\n        });\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class AsyncTransactionSender {\n\n    private final MUX mux;\n\n    public AsyncTransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public void sendTransactionAsync(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        mux.request(message, timeout, new ISOResponseListener() {\n            @Override\n            public void expired(Object id) {\n                System.out.println(\"Request \" + id + \" expired\");\n            }\n\n            @Override\n            public void responseReceived(ISOMsg response, Object id) {\n                System.out.println(\"Received response for \" + id + \": \" + response);\n            }\n        }, message.getString(11));\n    }\n}"
     },
     {
       "type": "heading",
@@ -134,7 +134,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass TransactionServiceTest {\n\n    @Mock\n    private TransactionSender sender;\n\n    @Mock\n    private MessageCreator creator;\n\n    private TransactionService service;\n\n    @BeforeEach\n    void setUp() {\n        service = new TransactionService(sender, creator);\n    }\n\n    @Test\n    void testPerformAuthorization() throws Exception {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        \n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");\n\n        when(creator.createAuthorizationRequest(\"1234567890123456\", \"100000\")).thenReturn(request);\n        when(sender.sendTransaction(any(ISOMsg.class))).thenReturn(response);\n\n        // Act\n        ISOMsg result = service.performAuthorization(\"1234567890123456\", \"100000\");\n\n        // Assert\n        assertThat(result.getMTI()).isEqualTo(\"0110\");\n        assertThat(result.getString(39)).isEqualTo(\"00\");\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass TransactionServiceTest {\n\n    @Mock\n    private TransactionSender sender;\n\n    @Mock\n    private MessageCreator creator;\n\n    private TransactionService service;\n\n    @BeforeEach\n    void setUp() {\n        service = new TransactionService(sender, creator);\n    }\n\n    @Test\n    void testPerformAuthorization() throws Exception {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        \n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");\n\n        when(creator.createAuthorizationRequest(\"1234567890123456\", \"100000\")).thenReturn(request);\n        when(sender.sendTransaction(any(ISOMsg.class))).thenReturn(response);\n\n        // Act\n        ISOMsg result = service.performAuthorization(\"1234567890123456\", \"100000\");\n\n        // Assert\n        assertEquals(\"0110\", result.getMTI());\n        assertEquals(\"00\", result.getString(39));\n    }\n}"
     },
     {
       "type": "para",
@@ -157,5 +157,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "76f4167953c3c81e748b2cbd061c92a5d9564adcecacb93d6e3eccda7c0480a4"
+  "content_sha256": "98b94cfc5d2fe998c0f2211a16e2cd2c24bcd9f3e2ca29fd55715ab3255bf804"
 }

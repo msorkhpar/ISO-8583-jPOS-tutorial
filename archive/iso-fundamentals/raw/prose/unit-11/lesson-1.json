@@ -82,7 +82,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "@Component\npublic class TransactionLogger implements LogListener {\n    private static final Logger logger = LoggerFactory.getLogger(TransactionLogger.class);\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        if (ev.getTag().equals(\"TX\")) {\n            ISOMsg msg = (ISOMsg) ev.getPayload();\n            logger.info(\"Transaction: {}\", msg);\n        }\n        return ev;\n    }\n}\n\n@Configuration\npublic class LoggingConfig {\n    @Bean\n    public Logger logger() {\n        Logger logger = new Logger();\n        logger.addListener(new TransactionLogger());\n        return logger;\n    }\n}"
+      "text": "@Component\npublic class TransactionLogger implements LogListener {\n    private static final Logger logger = LoggerFactory.getLogger(TransactionLogger.class);\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        if (ev.getTag().equals(\"TX\")) {\n            for (Object payload : ev.getPayLoad()) {\n                if (payload instanceof ISOMsg) {\n                    logger.info(\"Transaction: {}\", payload);\n                }\n            }\n        }\n        return ev;\n    }\n}\n\n@Configuration\npublic class LoggingConfig {\n    @Bean\n    public Logger logger() {\n        Logger logger = new Logger();\n        logger.addListener(new TransactionLogger());\n        return logger;\n    }\n}"
     },
     {
       "type": "heading",
@@ -176,5 +176,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "42f70973ba3e72b98d5aa71c7455ada826a1f4983cb545a6a9a427086bff384e"
+  "content_sha256": "339b1919eadf3c5272f0d41467f8b8755f581466be2a195d88086fa3e59920f5"
 }

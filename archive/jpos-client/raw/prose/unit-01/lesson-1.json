@@ -50,7 +50,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.config;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class JposConfig {\n\n    @Bean\n    public QMUX qmux() throws NameRegistrar.NotFoundException {\n        return QMUX.getMUX(\"mux\");\n    }\n\n    // Add more beans as needed\n}"
+      "text": "package com.example.jpos.config;\n\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class JposConfig {\n\n    @Bean\n    public MUX qmux() throws NameRegistrar.NotFoundException {\n        return QMUX.getMUX(\"mux\");\n    }\n\n    // Add more beans as needed\n}"
     },
     {
       "type": "heading",
@@ -129,7 +129,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class IsoClientService {\n\n    private final QMUX qmux;\n\n    @Autowired\n    public IsoClientService(QMUX qmux) {\n        this.qmux = qmux;\n    }\n\n    public ISOMsg sendMessage(ISOMsg message) throws ISOException {\n        return qmux.request(message, 30000);\n    }\n}"
+      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class IsoClientService {\n\n    private final MUX qmux;\n\n    @Autowired\n    public IsoClientService(MUX qmux) {\n        this.qmux = qmux;\n    }\n\n    public ISOMsg sendMessage(ISOMsg message) throws ISOException {\n        return qmux.request(message, 30000);\n    }\n}"
     },
     {
       "type": "heading",
@@ -143,11 +143,11 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos;\n\nimport com.example.jpos.service.IsoClientService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class JposClientApplicationTests {\n\n    @Autowired\n    private IsoClientService isoClientService;\n\n    @Test\n    public void testSendMessage() throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0800\");\n        message.set(7, \"0110122359\");\n        message.set(11, \"000001\");\n        message.set(70, \"301\");\n\n        ISOMsg response = isoClientService.sendMessage(message);\n\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0810\");\n    }\n}"
+      "text": "package com.example.jpos;\n\nimport com.example.jpos.service.IsoClientService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.context.support.ClassPathXmlApplicationContext;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertNotNull;\n\npublic class JposClientApplicationTests {\n\n    @Test\n    public void testSendMessage() throws ISOException {\n        try (ClassPathXmlApplicationContext context =\n                     new ClassPathXmlApplicationContext(\"applicationContext.xml\")) {\n            IsoClientService isoClientService = context.getBean(IsoClientService.class);\n\n            ISOMsg message = new ISOMsg();\n            message.setMTI(\"0800\");\n            message.set(7, \"0110122359\");\n            message.set(11, \"000001\");\n            message.set(70, \"301\");\n\n            ISOMsg response = isoClientService.sendMessage(message);\n\n            assertNotNull(response);\n            assertEquals(\"0810\", response.getMTI());\n        }\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This test assumes you have a server running that can respond to the 0800 message with a 0810 message."
+      "text": "This test assumes Q2 is running with the channel and QMUX above deployed, and a server that can respond to the 0800 message with a 0810 message."
     },
     {
       "type": "heading",
@@ -187,5 +187,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "9df310546a786bb4d8123d547474190f2c34b94ca86f0b66d7f6c047d07f01bb"
+  "content_sha256": "f83398a445028d1a9a80b58e38cdb7709e14667bd0ea495bd9c362daf07b6783"
 }

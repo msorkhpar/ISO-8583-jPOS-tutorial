@@ -27,7 +27,7 @@
     },
     {
       "type": "para",
-      "text": "The `ISOClient` is a key component in jPOS for establishing and managing connections to an ISO-8583 server. It provides methods for connecting, sending messages, and receiving responses."
+      "text": "jPOS 2.1.7 has no `ISOClient` class. A client connects to an ISO-8583 server through an `ISOChannel`, such as `ASCIIChannel`, which provides methods for connecting, sending messages, and receiving responses."
     },
     {
       "type": "heading",
@@ -36,12 +36,12 @@
     },
     {
       "type": "para",
-      "text": "Here's a basic example of how to set up an `ISOClient`:"
+      "text": "Here's a basic example of how to set up a client channel:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOClient;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class BasicISOClientExample {\n    public static void main(String[] args) throws Exception {\n        // Create a new ISOClient\n        ISOClient client = new ISOClient(\"localhost\", 7000, new ASCIIChannel(new ISO87APackager()));\n\n        // Connect to the server\n        client.connect();\n\n        // Create a sample ISO message\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0800\");\n        msg.set(3, \"000000\");\n        msg.set(11, \"000001\");\n        msg.set(41, \"12345678\");\n        msg.set(70, \"301\");\n\n        // Send the message and receive the response\n        ISOMsg response = client.request(msg, 30000); // 30 seconds timeout\n\n        // Process the response\n        if (response != null) {\n            System.out.println(\"Received response: \" + response.getMTI());\n        } else {\n            System.out.println(\"No response received\");\n        }\n\n        // Disconnect\n        client.disconnect();\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class BasicISOClientExample {\n    public static void main(String[] args) throws Exception {\n        // Create a new client channel\n        ASCIIChannel client = new ASCIIChannel(\"localhost\", 7000, new ISO87APackager());\n        client.setTimeout(30000); // 30 seconds timeout\n\n        // Connect to the server\n        client.connect();\n\n        // Create a sample ISO message\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0800\");\n        msg.set(3, \"000000\");\n        msg.set(11, \"000001\");\n        msg.set(41, \"12345678\");\n        msg.set(70, \"301\");\n\n        // Send the message and receive the response\n        client.send(msg);\n        ISOMsg response = client.receive();\n\n        // Process the response\n        if (response != null) {\n            System.out.println(\"Received response: \" + response.getMTI());\n        } else {\n            System.out.println(\"No response received\");\n        }\n\n        // Disconnect\n        client.disconnect();\n    }\n}"
     },
     {
       "type": "heading",
@@ -50,12 +50,12 @@
     },
     {
       "type": "para",
-      "text": "In a Spring-based application, you can configure the `ISOClient` as a bean:"
+      "text": "In a Spring-based application, you can configure the client channel as a bean:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOClient;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOClientConfig {\n\n    @Bean\n    public ISOClient isoClient() {\n        return new ISOClient(\"localhost\", 7000, new ASCIIChannel(new ISO87APackager()));\n    }\n}"
+      "text": "import org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOClientConfig {\n\n    @Bean\n    public ASCIIChannel isoClient() {\n        return new ASCIIChannel(\"localhost\", 7000, new ISO87APackager());\n    }\n}"
     },
     {
       "type": "heading",
@@ -64,12 +64,12 @@
     },
     {
       "type": "para",
-      "text": "For better performance and resource management, you can use a connection pool with `ISOClient`. Here's an example using Apache Commons Pool:"
+      "text": "For better performance and resource management, you can use a connection pool of client channels. Here's an example using Apache Commons Pool:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOClient;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOClientPool {\n    private final GenericObjectPool<ISOClient> pool;\n\n    public ISOClientPool(String host, int port, int maxTotal) {\n        pool = new GenericObjectPool<>(new ISOClientFactory(host, port));\n        pool.setMaxTotal(maxTotal);\n    }\n\n    public ISOClient borrowClient() throws Exception {\n        return pool.borrowObject();\n    }\n\n    public void returnClient(ISOClient client) {\n        pool.returnObject(client);\n    }\n\n    private static class ISOClientFactory extends BasePooledObjectFactory<ISOClient> {\n        private final String host;\n        private final int port;\n\n        public ISOClientFactory(String host, int port) {\n            this.host = host;\n            this.port = port;\n        }\n\n        @Override\n        public ISOClient create() {\n            return new ISOClient(host, port, new ASCIIChannel(new ISO87APackager()));\n        }\n\n        @Override\n        public PooledObject<ISOClient> wrap(ISOClient client) {\n            return new DefaultPooledObject<>(client);\n        }\n\n        @Override\n        public void activateObject(PooledObject<ISOClient> p) throws Exception {\n            p.getObject().connect();\n        }\n\n        @Override\n        public void passivateObject(PooledObject<ISOClient> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}"
+      "text": "import org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOClientPool {\n    private final GenericObjectPool<ISOChannel> pool;\n\n    public ISOClientPool(String host, int port, int maxTotal) {\n        pool = new GenericObjectPool<>(new ISOClientFactory(host, port));\n        pool.setMaxTotal(maxTotal);\n    }\n\n    public ISOChannel borrowClient() throws Exception {\n        return pool.borrowObject();\n    }\n\n    public void returnClient(ISOChannel client) {\n        pool.returnObject(client);\n    }\n\n    private static class ISOClientFactory extends BasePooledObjectFactory<ISOChannel> {\n        private final String host;\n        private final int port;\n\n        public ISOClientFactory(String host, int port) {\n            this.host = host;\n            this.port = port;\n        }\n\n        @Override\n        public ISOChannel create() {\n            return new ASCIIChannel(host, port, new ISO87APackager());\n        }\n\n        @Override\n        public PooledObject<ISOChannel> wrap(ISOChannel client) {\n            return new DefaultPooledObject<>(client);\n        }\n\n        @Override\n        public void activateObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().connect();\n        }\n\n        @Override\n        public void passivateObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}"
     },
     {
       "type": "para",
@@ -78,7 +78,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "ISOClientPool clientPool = new ISOClientPool(\"localhost\", 7000, 10);\n\nISOClient client = clientPool.borrowClient();\ntry {\n    // Use the client\n    ISOMsg response = client.request(msg, 30000);\n    // Process response\n} finally {\n    clientPool.returnClient(client);\n}"
+      "text": "ISOClientPool clientPool = new ISOClientPool(\"localhost\", 7000, 10);\n\nISOChannel client = clientPool.borrowClient();\ntry {\n    // Use the client\n    client.send(msg);\n    ISOMsg response = client.receive();\n    // Process response\n} finally {\n    clientPool.returnClient(client);\n}"
     },
     {
       "type": "heading",
@@ -87,7 +87,7 @@
     },
     {
       "type": "para",
-      "text": "For secure communications, jPOS provides the `NACChannel`, which supports SSL/TLS encryption. Here's how to set up and use an SSL channel:"
+      "text": "For secure communications, a jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`. Here's how to set up and use an SSL channel:"
     },
     {
       "type": "heading",
@@ -96,12 +96,12 @@
     },
     {
       "type": "para",
-      "text": "First, you need to set up your SSL certificates and keystore. Then, you can create an `NACChannel` like this:"
+      "text": "First, you need to set up your SSL certificates and keystore. Then, you can create an `NACChannel` with an SSL socket factory like this:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SSLChannelExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager());\n        \n        // Set SSL properties\n        channel.setKeyStore(\"path/to/keystore.jks\");\n        channel.setKeyStorePassword(\"keystorePassword\");\n        channel.setTrustStore(\"path/to/truststore.jks\");\n        channel.setTrustStorePassword(\"truststorePassword\");\n        \n        // Connect\n        channel.connect();\n        \n        // Use the channel for communication\n        // ...\n        \n        // Disconnect\n        channel.disconnect();\n    }\n}"
+      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SSLChannelExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        \n        // Set SSL properties\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n        \n        // Connect\n        channel.connect();\n        \n        // Use the channel for communication\n        // ...\n        \n        // Disconnect\n        channel.disconnect();\n    }\n}"
     },
     {
       "type": "heading",
@@ -110,12 +110,12 @@
     },
     {
       "type": "para",
-      "text": "You can use the `NACChannel` with `ISOClient` for secure communications:"
+      "text": "jPOS 2.1.7 has no `ISOClient`, so the SSL-configured `NACChannel` is itself the client:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOClient;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SecureISOClientExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager());\n        channel.setKeyStore(\"path/to/keystore.jks\");\n        channel.setKeyStorePassword(\"keystorePassword\");\n        channel.setTrustStore(\"path/to/truststore.jks\");\n        channel.setTrustStorePassword(\"truststorePassword\");\n\n        ISOClient client = new ISOClient(channel);\n\n        // Connect and use the client\n        client.connect();\n\n        // Send and receive messages\n        // ...\n\n        client.disconnect();\n    }\n}"
+      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SecureISOClientExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n\n        // Connect and use the channel as the client\n        channel.connect();\n\n        // Send and receive messages\n        // ...\n\n        channel.disconnect();\n    }\n}"
     },
     {
       "type": "heading",
@@ -129,11 +129,11 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SSLChannelConfig {\n\n    @Bean\n    public NACChannel nacChannel() {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager());\n        channel.setKeyStore(\"path/to/keystore.jks\");\n        channel.setKeyStorePassword(\"keystorePassword\");\n        channel.setTrustStore(\"path/to/truststore.jks\");\n        channel.setTrustStorePassword(\"truststorePassword\");\n        return channel;\n    }\n\n    @Bean\n    public ISOClient secureISOClient(NACChannel nacChannel) {\n        return new ISOClient(nacChannel);\n    }\n}"
+      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SSLChannelConfig {\n\n    @Bean\n    public SunJSSESocketFactory sslSocketFactory() {\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        return sslFactory;\n    }\n\n    @Bean\n    public NACChannel nacChannel(SunJSSESocketFactory sslSocketFactory) {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        channel.setSocketFactory(sslSocketFactory);\n        return channel;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This covers the essential aspects of Channel Management for a jPOS client, including the implementation of `ISOClient` and the use of SSL channels for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers."
+      "text": "This covers the essential aspects of Channel Management for a jPOS client, including the client channel that takes the place of `ISOClient` and the use of SSL channels for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers."
     }
   ],
   "video": null,
@@ -152,5 +152,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "e6052f443b2427b919ba751bf08262ef73937ebd28c46045337d59e80c212419"
+  "content_sha256": "904f46987f6a7ec561305181dc0f96238373e31cd8e9983cee8110755d2e9300"
 }

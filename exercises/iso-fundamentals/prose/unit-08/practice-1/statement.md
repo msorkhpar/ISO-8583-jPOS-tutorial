@@ -1,8 +1,7 @@
 A PIN never travels in the clear, and it never travels alone: before it is encrypted it is
 laid out in a fixed sixteen-digit block and mixed with the card number, so a block captured
-from one card is useless with another. The page shows the two halves separately, the padded
-PIN layout under Format 0 and the XOR with the card number under Format 1. In ISO 9564 the
-block that combines both is what Format 0 actually is, and that is the block you build here.
+from one card is useless with another. Format 0 is the block that does both: the padded PIN
+field XOR the PAN field, and that is the block you build here.
 
 Write `PinBlock`, working in upper-case hexadecimal strings:
 

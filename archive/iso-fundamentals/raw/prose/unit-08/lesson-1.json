@@ -38,9 +38,9 @@
       "type": "list",
       "ordered": false,
       "items": [
-        "Structure: `0 || PIN length || PIN || Padding`",
-        "The PIN is left-justified and padded with 'F'",
-        "Example: For PIN \"1234\", the block would be \"041234FFFFFFFFFF\""
+        "Structure: `0 || PIN length || PIN || Padding`, XORed with the PAN field `0000 || 12 rightmost PAN digits`",
+        "The PIN is left-justified and padded with 'F'; the 12 PAN digits exclude the check digit",
+        "Example: For PIN \"1234\" and PAN \"43219876543210987\", the PIN field \"041234FFFFFFFFFF\" XORed with the PAN field \"0000987654321098\" gives the block \"0412AC89ABCDEF67\""
       ]
     },
     {
@@ -50,15 +50,15 @@
     },
     {
       "type": "para",
-      "text": "This format incorporates the PAN (Primary Account Number) for added security."
+      "text": "This format does not use the PAN (Primary Account Number), so it suits cases where the PAN is not available."
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "Structure: `1 || PIN length || PIN ⊕ PAN || Padding`",
-        "The PIN is XORed with the rightmost 12 digits of the PAN",
-        "Example: For PIN \"1234\" and PAN \"1234567890123456\", the block might be \"141234567890FFFF\""
+        "Structure: `1 || PIN length || PIN || Transaction field`",
+        "The PIN is left-justified and padded with hex digits (0-F) unique to the transaction, such as random ones",
+        "Example: For PIN \"1234\", the block might be \"1412347B09E3A5C1\""
       ]
     },
     {
@@ -74,9 +74,9 @@
       "type": "list",
       "ordered": false,
       "items": [
-        "Structure: `3 || PIN length || PIN || Random padding`",
-        "The PIN is left-justified and padded with random digits",
-        "Example: For PIN \"1234\", the block could be \"341234987654321\""
+        "Structure: `3 || PIN length || PIN || Random padding`, XORed with the PAN field as in Format 0",
+        "The PIN is left-justified and padded with random hex digits from A to F",
+        "Example: For PIN \"1234\", the PIN field could be \"341234CEDBAFCADE\" before the XOR with the PAN field"
       ]
     },
     {
@@ -86,7 +86,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOUtil;\nimport org.jpos.security.SMException;\n\npublic class PINBlockGenerator {\n\n    public static String generateFormat0(String pin) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"0\");\n        block.append(String.format(\"%01d\", pin.length()));\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(\"F\");\n        }\n        return block.toString();\n    }\n\n    public static String generateFormat1(String pin, String pan) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        if (pan.length() < 13 || pan.length() > 19) {\n            throw new SMException(\"PAN must be between 13 and 19 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"1\");\n        block.append(String.format(\"%01d\", pin.length()));\n        \n        String panPart = pan.substring(pan.length() - 13, pan.length() - 1);\n        String pinPadded = String.format(\"%-12s\", pin).replace(' ', 'F');\n        \n        byte[] xoredPart = ISOUtil.xor(pinPadded.getBytes(), panPart.getBytes());\n        block.append(ISOUtil.hexString(xoredPart));\n        \n        return block.toString();\n    }\n\n    public static String generateFormat3(String pin) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n        StringBuilder block = new StringBuilder();\n        block.append(\"3\");\n        block.append(String.format(\"%01d\", pin.length()));\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(String.valueOf((int) (Math.random() * 10)));\n        }\n        return block.toString();\n    }\n}"
+      "text": "import org.jpos.iso.ISOUtil;\nimport org.jpos.security.SMException;\n\nimport java.security.SecureRandom;\n\npublic class PINBlockGenerator {\n\n    private static final SecureRandom RANDOM = new SecureRandom();\n\n    public static String generateFormat0(String pin, String pan) throws SMException {\n        checkPin(pin);\n        StringBuilder block = new StringBuilder();\n        block.append(\"0\");\n        block.append(Integer.toHexString(pin.length()).toUpperCase());\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(\"F\");\n        }\n        return xorWithPanField(block.toString(), pan);\n    }\n\n    public static String generateFormat1(String pin) throws SMException {\n        checkPin(pin);\n        StringBuilder block = new StringBuilder();\n        block.append(\"1\");\n        block.append(Integer.toHexString(pin.length()).toUpperCase());\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append(Integer.toHexString(RANDOM.nextInt(16)).toUpperCase());\n        }\n        return block.toString();\n    }\n\n    public static String generateFormat3(String pin, String pan) throws SMException {\n        checkPin(pin);\n        StringBuilder block = new StringBuilder();\n        block.append(\"3\");\n        block.append(Integer.toHexString(pin.length()).toUpperCase());\n        block.append(pin);\n        while (block.length() < 16) {\n            block.append((char) ('A' + RANDOM.nextInt(6)));\n        }\n        return xorWithPanField(block.toString(), pan);\n    }\n\n    private static void checkPin(String pin) throws SMException {\n        if (pin.length() < 4 || pin.length() > 12) {\n            throw new SMException(\"PIN must be between 4 and 12 digits\");\n        }\n    }\n\n    // PAN field: 0000 followed by the 12 rightmost PAN digits, excluding the check digit\n    private static String xorWithPanField(String pinField, String pan) throws SMException {\n        if (pan.length() < 13 || pan.length() > 19) {\n            throw new SMException(\"PAN must be between 13 and 19 digits\");\n        }\n        String panField = \"0000\" + pan.substring(pan.length() - 13, pan.length() - 1);\n        byte[] xored = ISOUtil.xor(ISOUtil.hex2byte(pinField), ISOUtil.hex2byte(panField));\n        return ISOUtil.hexString(xored);\n    }\n}"
     },
     {
       "type": "heading",
@@ -190,7 +190,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCEHandler;\n\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\nimport java.security.InvalidKeyException;\nimport java.security.NoSuchAlgorithmException;\n\npublic class DUKPTKeyDerivation {\n    private static final byte[] KSN_MASK = ISOUtil.hex2byte(\"FFFFFFFFFFFFFFE00000\");\n    private static final byte[] DATA_MASK = ISOUtil.hex2byte(\"0000000000FF00000000000000000000\");\n\n    public static SecretKey deriveKey(SecretKey bdk, byte[] ksn) throws SMException, NoSuchAlgorithmException, InvalidKeyException {\n        JCEHandler jceHandler = new JCEHandler();\n        \n        // Initial PIN Encryption Key (IPEK)\n        byte[] ipek = jceHandler.encryptDES(bdk, ksn);\n        \n        byte[] derivedKey = ipek;\n        byte[] counter = new byte[3];\n        System.arraycopy(ksn, 7, counter, 0, 3);\n        \n        for (int i = 0; i < 21; i++) {\n            if ((counter[i / 8] & (1 << (i % 8))) != 0) {\n                byte[] ksnRegister = ISOUtil.xor(ksn, KSN_MASK);\n                ksnRegister[7] &= 0xE0;\n                ksnRegister[8] = 0x00;\n                ksnRegister[9] = 0x00;\n                \n                byte[] data = ISOUtil.xor(derivedKey, DATA_MASK);\n                byte[] leftKey = new byte[8];\n                byte[] rightKey = new byte[8];\n                System.arraycopy(derivedKey, 0, leftKey, 0, 8);\n                System.arraycopy(derivedKey, 8, rightKey, 0, 8);\n                \n                byte[] leftData = jceHandler.encryptDES(new SecretKeySpec(leftKey, \"DES\"), data);\n                byte[] rightData = ISOUtil.xor(leftData, rightKey);\n                \n                System.arraycopy(leftData, 0, derivedKey, 0, 8);\n                System.arraycopy(rightData, 0, derivedKey, 8, 8);\n                \n                ksnRegister[i / 8] |= (1 << (i % 8));\n            }\n        }\n        \n        return new SecretKeySpec(derivedKey, \"DES\");\n    }\n}"
+      "text": "import org.jpos.iso.ISOUtil;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\nimport java.security.GeneralSecurityException;\nimport java.util.Arrays;\n\n// ANSI X9.24-1 TDES DUKPT: derives the PIN encryption key for one KSN\npublic class DUKPTKeyDerivation {\n    private static final byte[] KSN_MASK = ISOUtil.hex2byte(\"FFFFFFFFFFFFFFE00000\");\n    private static final byte[] KEY_MASK = ISOUtil.hex2byte(\"C0C0C0C000000000C0C0C0C000000000\");\n    private static final byte[] PIN_VARIANT = ISOUtil.hex2byte(\"00000000000000FF00000000000000FF\");\n\n    public static SecretKey deriveKey(SecretKey bdk, byte[] ksn) throws GeneralSecurityException {\n        byte[] baseKsn = new byte[10];\n        for (int i = 0; i < 10; i++) {\n            baseKsn[i] = (byte) (ksn[i] & KSN_MASK[i]);\n        }\n\n        // Initial PIN Encryption Key (IPEK), from the KSN with its 21-bit counter cleared\n        byte[] bdkBytes = bdk.getEncoded();\n        byte[] ipekData = Arrays.copyOfRange(baseKsn, 0, 8);\n        byte[] ipek = new byte[16];\n        System.arraycopy(encryptTDES(bdkBytes, ipekData), 0, ipek, 0, 8);\n        System.arraycopy(encryptTDES(ISOUtil.xor(bdkBytes, KEY_MASK), ipekData), 0, ipek, 8, 8);\n\n        // One non-reversible derivation per counter bit that is set, highest bit first\n        byte[] derivedKey = ipek;\n        byte[] ksnRegister = Arrays.copyOfRange(baseKsn, 2, 10);\n        int counter = ((ksn[7] & 0x1F) << 16) | ((ksn[8] & 0xFF) << 8) | (ksn[9] & 0xFF);\n        for (int bit = 0x100000; bit > 0; bit >>= 1) {\n            if ((counter & bit) != 0) {\n                ksnRegister[5] |= (byte) (bit >> 16);\n                ksnRegister[6] |= (byte) (bit >> 8);\n                ksnRegister[7] |= (byte) bit;\n                derivedKey = deriveNonReversibleKey(derivedKey, ksnRegister);\n            }\n        }\n\n        return new SecretKeySpec(ISOUtil.xor(derivedKey, PIN_VARIANT), \"DESede\");\n    }\n\n    private static byte[] deriveNonReversibleKey(byte[] key, byte[] data) throws GeneralSecurityException {\n        byte[] result = new byte[16];\n        System.arraycopy(deriveHalf(ISOUtil.xor(key, KEY_MASK), data), 0, result, 0, 8);\n        System.arraycopy(deriveHalf(key, data), 0, result, 8, 8);\n        return result;\n    }\n\n    private static byte[] deriveHalf(byte[] key, byte[] data) throws GeneralSecurityException {\n        byte[] leftKey = Arrays.copyOfRange(key, 0, 8);\n        byte[] rightKey = Arrays.copyOfRange(key, 8, 16);\n        Cipher des = Cipher.getInstance(\"DES/ECB/NoPadding\");\n        des.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(leftKey, \"DES\"));\n        return ISOUtil.xor(des.doFinal(ISOUtil.xor(data, rightKey)), rightKey);\n    }\n\n    private static byte[] encryptTDES(byte[] key16, byte[] data) throws GeneralSecurityException {\n        byte[] key24 = new byte[24];\n        System.arraycopy(key16, 0, key24, 0, 16);\n        System.arraycopy(key16, 0, key24, 16, 8);\n        Cipher tdes = Cipher.getInstance(\"DESede/ECB/NoPadding\");\n        tdes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key24, \"DESede\"));\n        return tdes.doFinal(data);\n    }\n}"
     },
     {
       "type": "para",
@@ -217,5 +217,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "3481823d83486cc07d47cbd678d2ee2e6ed646bd55fb484d43e9d6973309daac"
+  "content_sha256": "c6456083a11c969a2d807235ad1986a743e3af46ad8a7412b13064a03691ea63"
 }

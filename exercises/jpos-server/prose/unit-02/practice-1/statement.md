@@ -3,8 +3,7 @@ always carries the same MTI, processing code, POS condition code and terminal id
 card, the amount and the trace number change. The page keeps one template per kind and builds
 every message from it, then hands the message to a packager for the wire.
 
-The page's `MsgFactory` is not part of jPOS 2.1.7, so you build the same idea on `ISOMsg`.
-Write `MessageTemplates`:
+Write `MessageTemplates`, the same idea built on `ISOMsg`:
 
 - `new MessageTemplates(ISOPackager packager)` keeps the packager it is given.
 - `define(String name, ISOMsg template)` remembers a template under a name.

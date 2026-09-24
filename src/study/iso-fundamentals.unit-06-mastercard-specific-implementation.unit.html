@@ -70,14 +70,14 @@ public class MastercardDataElementHandler {
     }
 }</code></pre></figure>
 <h3 id="prose-b15" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b16-6dd5c27c.mp3">6.3. Mastercard processing codes</h3>
-<p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b17-943e28a1.mp3">Mastercard uses specific processing codes to identify the type of transaction. Here are some common processing codes:</p>
-<ol class="items"><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i1-8008ec8c.mp3">Purchase: 00</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i2-7116747b.mp3">Cash Advance: 01</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i3-542da757.mp3">Void: 02</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i4-96e1c83c.mp3">Refund: 20</li></ol>
+<p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b17-943e28a1.mp3">Mastercard uses specific processing codes to identify the type of transaction. The processing code (field 3) is six digits: the transaction type (2), the from-account type (2) and the to-account type (2). Here are some common processing codes, with both account types 00 (default account):</p>
+<ol class="items"><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i1-8008ec8c.mp3">Purchase: 000000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i2-7116747b.mp3">Cash Advance: 010000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i3-542da757.mp3">Void: 020000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i4-96e1c83c.mp3">Refund: 200000</li></ol>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b19-9c86f083.mp3">Let's implement a Java enum to represent these processing codes:</p>
 <figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">public enum MastercardProcessingCode {
-    PURCHASE(&quot;00&quot;),
-    CASH_ADVANCE(&quot;01&quot;),
-    VOID(&quot;02&quot;),
-    REFUND(&quot;20&quot;);
+    PURCHASE(&quot;000000&quot;),
+    CASH_ADVANCE(&quot;010000&quot;),
+    VOID(&quot;020000&quot;),
+    REFUND(&quot;200000&quot;);
 
     private final String code;
 
@@ -247,11 +247,11 @@ public class MastercardTransactionServiceTest {
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Build Mastercard requests from their processing codes">
 <h2 id="practice-prose-b0">Problem statement</h2>
-<p>On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not.</p>
-<p>Write <code>MastercardRequests</code>, using its nested enum <code>ProcessingCode</code> with the page's codes: <code>PURCHASE</code> <code>00</code>, <code>CASH_ADVANCE</code> <code>01</code>, <code>VOID</code> <code>02</code>, <code>REFUND</code> <code>20</code>.</p>
-<ul class="items"><li><code>ProcessingCode.fromCode(String code)</code> returns the type a code stands for.</li><li><code>request(ProcessingCode type, String pan, String amount, String merchantId)</code> builds an <code>0200</code> with the card number in field 2, the type's code in field 3, the amount in field 4 and the merchant id in field 42.</li><li><code>refund(String pan, String amount, String merchantId, String originalReference)</code> builds the same request for <code>REFUND</code>, and also carries the original transaction's reference in field 37.</li><li><code>typeOf(ISOMsg message)</code> reads a message's type back from its field 3.</li><li><code>isApproved(ISOMsg response)</code> says whether the response approves the transaction: its field 39 is <code>00</code>.</li></ul>
+<p>On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. That code is six digits: two for the transaction type, two for the account the money comes from and two for the account it goes to. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not.</p>
+<p>Write <code>MastercardRequests</code>, using its nested enum <code>ProcessingCode</code> with the page's codes, both account types left at <code>00</code>: <code>PURCHASE</code> <code>000000</code>, <code>CASH_ADVANCE</code> <code>010000</code>, <code>VOID</code> <code>020000</code>, <code>REFUND</code> <code>200000</code>.</p>
+<ul class="items"><li><code>ProcessingCode.fromCode(String code)</code> returns the type a six-digit code stands for. The type is named by the code's first two digits.</li><li><code>request(ProcessingCode type, String pan, String amount, String merchantId)</code> builds an <code>0200</code> with the card number in field 2, the type's six-digit code in field 3, the amount in field 4 and the merchant id in field 42.</li><li><code>refund(String pan, String amount, String merchantId, String originalReference)</code> builds the same request for <code>REFUND</code>, and also carries the original transaction's reference in field 37.</li><li><code>typeOf(ISOMsg message)</code> reads a message's type back from its field 3.</li><li><code>isApproved(ISOMsg response)</code> says whether the response approves the transaction: its field 39 is <code>00</code>.</li></ul>
 <p>Edge cases to handle:</p>
-<ul class="items"><li>A code that is not one of the four is refused with an <code>IllegalArgumentException</code>, whether it reaches <code>fromCode</code> directly or through <code>typeOf</code>.</li><li>A response with no field 39 at all is not approved, and <code>isApproved</code> answers <code>false</code> rather than failing.</li></ul>
+<ul class="items"><li>A code that is not six digits, or whose first two digits are not one of the four types, is refused with an <code>IllegalArgumentException</code>, whether it reaches <code>fromCode</code> directly or through <code>typeOf</code>.</li><li>The account-type digits do not change the transaction: a code that starts with <code>20</code> is a refund whatever its last four digits are.</li><li>A response with no field 39 at all is not approved, and <code>isApproved</code> answers <code>false</code> rather than failing.</li></ul>
 <h2 id="practice-prose-b6">Lesson</h2>
 <details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
@@ -263,10 +263,10 @@ public final class MastercardRequests {
 
     /** The transaction types and the processing codes that carry them. */
     public enum ProcessingCode {
-        PURCHASE(&quot;00&quot;),
-        CASH_ADVANCE(&quot;01&quot;),
-        VOID(&quot;02&quot;),
-        REFUND(&quot;20&quot;);
+        PURCHASE(&quot;000000&quot;),
+        CASH_ADVANCE(&quot;010000&quot;),
+        VOID(&quot;020000&quot;),
+        REFUND(&quot;200000&quot;);
 
         private final String code;
 
@@ -278,10 +278,19 @@ public final class MastercardRequests {
             return code;
         }
 
-        /** The type a processing code stands for. */
+        /** The transaction type: the first two digits of the code. */
+        public String transactionType() {
+            return code.substring(0, 2);
+        }
+
+        /** The type a six-digit processing code stands for, named by its first two digits. */
         public static ProcessingCode fromCode(String code) {
+            if (code == null || !code.matches(&quot;\\d{6}&quot;)) {
+                throw new IllegalArgumentException(&quot;not a six-digit processing code: &quot; + code);
+            }
+            String transactionType = code.substring(0, 2);
             for (ProcessingCode type : values()) {
-                if (type.code.equals(code)) {
+                if (type.transactionType().equals(transactionType)) {
                     return type;
                 }
             }
@@ -334,10 +343,10 @@ public final class MastercardRequests {
 
     /** The transaction types and the processing codes that carry them. */
     public enum ProcessingCode {
-        PURCHASE(&quot;00&quot;),
-        CASH_ADVANCE(&quot;01&quot;),
-        VOID(&quot;02&quot;),
-        REFUND(&quot;20&quot;);
+        PURCHASE(&quot;000000&quot;),
+        CASH_ADVANCE(&quot;010000&quot;),
+        VOID(&quot;020000&quot;),
+        REFUND(&quot;200000&quot;);
 
         private final String code;
 
@@ -349,7 +358,12 @@ public final class MastercardRequests {
             return code;
         }
 
-        /** The type a processing code stands for. */
+        /** The transaction type: the first two digits of the code. */
+        public String transactionType() {
+            return code.substring(0, 2);
+        }
+
+        /** The type a six-digit processing code stands for, named by its first two digits. */
         public static ProcessingCode fromCode(String code) {
             throw new UnsupportedOperationException(&quot;write fromCode&quot;);
         }
@@ -401,7 +415,7 @@ public final class MastercardRequests {
 <p data-practice-part="summary"></p>
 <ul data-practice-part="cases">
 <li data-practice-case="com.example.practice.MastercardRequestsTest#buildsRequestsAndReadsTheirType" data-practice-case-kind="main"><span data-practice-part="verdict"></span>builds 0200 purchase and refund requests with the right fields, reads a message's type back from field 3, and approves only on 00</li>
-<li data-practice-case="com.example.practice.MastercardRequestsTest#refusesAnUnknownProcessingCode" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a processing code the scheme does not define is refused, not mapped to null</li>
+<li data-practice-case="com.example.practice.MastercardRequestsTest#refusesAnUnknownProcessingCode" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a code that is not six digits, or whose transaction type the scheme does not define, is refused rather than mapped to null, while other account-type digits leave a known type unchanged</li>
 <li data-practice-case="com.example.practice.MastercardRequestsTest#aResponseWithoutField39IsNotApproved" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a response that carries no field 39 is not approved, and asking does not fail</li>
 </ul>
 </div>

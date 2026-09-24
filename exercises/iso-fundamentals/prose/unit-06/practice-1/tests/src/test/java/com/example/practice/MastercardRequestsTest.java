@@ -23,7 +23,7 @@ class MastercardRequestsTest {
         ISOMsg advance = MastercardRequests.request(ProcessingCode.CASH_ADVANCE, "5413330089020011", "50000", "MERCHANT01");
         assertEquals("0200", advance.getMTI());
         assertEquals("5413330089020011", advance.getString(2));
-        assertEquals("01", advance.getString(3));
+        assertEquals("010000", advance.getString(3));
         assertEquals("50000", advance.getString(4));
         assertEquals("MERCHANT01", advance.getString(42));
         assertFalse(advance.hasField(37));
@@ -31,13 +31,13 @@ class MastercardRequestsTest {
 
         ISOMsg refund = MastercardRequests.refund("5413330089020011", "25000", "MERCHANT01", "123456789012");
         assertEquals("0200", refund.getMTI());
-        assertEquals("20", refund.getString(3));
+        assertEquals("200000", refund.getString(3));
         assertEquals("25000", refund.getString(4));
         assertEquals("123456789012", refund.getString(37));
         assertEquals(ProcessingCode.REFUND, MastercardRequests.typeOf(refund));
 
-        assertEquals(ProcessingCode.VOID, ProcessingCode.fromCode("02"));
-        assertEquals(ProcessingCode.PURCHASE, ProcessingCode.fromCode("00"));
+        assertEquals(ProcessingCode.VOID, ProcessingCode.fromCode("020000"));
+        assertEquals(ProcessingCode.PURCHASE, ProcessingCode.fromCode("000000"));
 
         assertTrue(MastercardRequests.isApproved(responseWith("00")));
         assertFalse(MastercardRequests.isApproved(responseWith("05")));
@@ -45,11 +45,15 @@ class MastercardRequestsTest {
 
     @Test
     void refusesAnUnknownProcessingCode() throws Exception {
-        assertThrows(IllegalArgumentException.class, () -> ProcessingCode.fromCode("99"));
+        assertThrows(IllegalArgumentException.class, () -> ProcessingCode.fromCode("990000"));
+        assertThrows(IllegalArgumentException.class, () -> ProcessingCode.fromCode("20"));
         ISOMsg odd = new ISOMsg();
         odd.setMTI("0200");
-        odd.set(3, "31");
+        odd.set(3, "310000");
         assertThrows(IllegalArgumentException.class, () -> MastercardRequests.typeOf(odd));
+
+        assertEquals(ProcessingCode.REFUND, ProcessingCode.fromCode("201000"));
+        assertEquals(ProcessingCode.PURCHASE, ProcessingCode.fromCode("000030"));
     }
 
     @Test

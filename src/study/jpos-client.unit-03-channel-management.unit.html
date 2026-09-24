@@ -27,18 +27,18 @@
 <section id="s-prose" data-section="prose" data-kind="lesson" data-label="Channel Management">
 <p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b2-4783e410.mp3">Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: ISO Client and SSL Channel.</p>
 <h2 id="prose-b2" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b3-9e0250fc.mp3">3.1 ISO Client (org.jpos.iso.ISOClient)</h2>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b4-d1a94665.mp3">The <code>ISOClient</code> is a key component in jPOS for establishing and managing connections to an ISO-8583 server. It provides methods for connecting, sending messages, and receiving responses.</p>
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b4-d1a94665.mp3">jPOS 2.1.7 has no <code>ISOClient</code> class. A client connects to an ISO-8583 server through an <code>ISOChannel</code>, such as <code>ASCIIChannel</code>, which provides methods for connecting, sending messages, and receiving responses.</p>
 <h3 id="prose-b4" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b5-88cf9c90.mp3">3.1.1 Basic Implementation</h3>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b6-db72ef71.mp3">Here's a basic example of how to set up an <code>ISOClient</code>:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b7-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOClient;
-import org.jpos.iso.ISOMsg;
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b6-db72ef71.mp3">Here's a basic example of how to set up a client channel:</p>
+<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b7-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class BasicISOClientExample {
     public static void main(String[] args) throws Exception {
-        // Create a new ISOClient
-        ISOClient client = new ISOClient(&quot;localhost&quot;, 7000, new ASCIIChannel(new ISO87APackager()));
+        // Create a new client channel
+        ASCIIChannel client = new ASCIIChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
+        client.setTimeout(30000); // 30 seconds timeout
 
         // Connect to the server
         client.connect();
@@ -52,7 +52,8 @@ public class BasicISOClientExample {
         msg.set(70, &quot;301&quot;);
 
         // Send the message and receive the response
-        ISOMsg response = client.request(msg, 30000); // 30 seconds timeout
+        client.send(msg);
+        ISOMsg response = client.receive();
 
         // Process the response
         if (response != null) {
@@ -66,9 +67,8 @@ public class BasicISOClientExample {
     }
 }</code></pre></figure>
 <h3 id="prose-b7" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b8-eb111c4f.mp3">3.1.2 Spring Configuration</h3>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b9-32e0d1a5.mp3">In a Spring-based application, you can configure the <code>ISOClient</code> as a bean:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOClient;
-import org.jpos.iso.channel.ASCIIChannel;
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b9-32e0d1a5.mp3">In a Spring-based application, you can configure the client channel as a bean:</p>
+<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -77,37 +77,37 @@ import org.springframework.context.annotation.Configuration;
 public class ISOClientConfig {
 
     @Bean
-    public ISOClient isoClient() {
-        return new ISOClient(&quot;localhost&quot;, 7000, new ASCIIChannel(new ISO87APackager()));
+    public ASCIIChannel isoClient() {
+        return new ASCIIChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
     }
 }</code></pre></figure>
 <h3 id="prose-b10" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b11-70db932e.mp3">3.1.3 Advanced Usage with Connection Pool</h3>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b12-0a2129f6.mp3">For better performance and resource management, you can use a connection pool with <code>ISOClient</code>. Here's an example using Apache Commons Pool:</p>
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b12-0a2129f6.mp3">For better performance and resource management, you can use a connection pool of client channels. Here's an example using Apache Commons Pool:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b13-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.apache.commons.pool2.BasePooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.jpos.iso.ISOClient;
+import org.jpos.iso.ISOChannel;
 import org.jpos.iso.channel.ASCIIChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class ISOClientPool {
-    private final GenericObjectPool&lt;ISOClient&gt; pool;
+    private final GenericObjectPool&lt;ISOChannel&gt; pool;
 
     public ISOClientPool(String host, int port, int maxTotal) {
         pool = new GenericObjectPool&lt;&gt;(new ISOClientFactory(host, port));
         pool.setMaxTotal(maxTotal);
     }
 
-    public ISOClient borrowClient() throws Exception {
+    public ISOChannel borrowClient() throws Exception {
         return pool.borrowObject();
     }
 
-    public void returnClient(ISOClient client) {
+    public void returnClient(ISOChannel client) {
         pool.returnObject(client);
     }
 
-    private static class ISOClientFactory extends BasePooledObjectFactory&lt;ISOClient&gt; {
+    private static class ISOClientFactory extends BasePooledObjectFactory&lt;ISOChannel&gt; {
         private final String host;
         private final int port;
 
@@ -117,22 +117,22 @@ public class ISOClientPool {
         }
 
         @Override
-        public ISOClient create() {
-            return new ISOClient(host, port, new ASCIIChannel(new ISO87APackager()));
+        public ISOChannel create() {
+            return new ASCIIChannel(host, port, new ISO87APackager());
         }
 
         @Override
-        public PooledObject&lt;ISOClient&gt; wrap(ISOClient client) {
+        public PooledObject&lt;ISOChannel&gt; wrap(ISOChannel client) {
             return new DefaultPooledObject&lt;&gt;(client);
         }
 
         @Override
-        public void activateObject(PooledObject&lt;ISOClient&gt; p) throws Exception {
+        public void activateObject(PooledObject&lt;ISOChannel&gt; p) throws Exception {
             p.getObject().connect();
         }
 
         @Override
-        public void passivateObject(PooledObject&lt;ISOClient&gt; p) throws Exception {
+        public void passivateObject(PooledObject&lt;ISOChannel&gt; p) throws Exception {
             p.getObject().disconnect();
         }
     }
@@ -140,30 +140,34 @@ public class ISOClientPool {
 <p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b14-3524cdbe.mp3">Usage of the <code>ISOClientPool</code>:</p>
 <figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b15-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">ISOClientPool clientPool = new ISOClientPool(&quot;localhost&quot;, 7000, 10);
 
-ISOClient client = clientPool.borrowClient();
+ISOChannel client = clientPool.borrowClient();
 try {
     // Use the client
-    ISOMsg response = client.request(msg, 30000);
+    client.send(msg);
+    ISOMsg response = client.receive();
     // Process response
 } finally {
     clientPool.returnClient(client);
 }</code></pre></figure>
 <h2 id="prose-b15" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b16-9caacd35.mp3">3.2 SSL Channel (org.jpos.iso.channel.NACChannel)</h2>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b17-ef4fae3d.mp3">For secure communications, jPOS provides the <code>NACChannel</code>, which supports SSL/TLS encryption. Here's how to set up and use an SSL channel:</p>
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b17-ef4fae3d.mp3">For secure communications, a jPOS channel such as <code>NACChannel</code> runs over SSL/TLS when you give it an SSL socket factory, <code>SunJSSESocketFactory</code>. Here's how to set up and use an SSL channel:</p>
 <h3 id="prose-b17" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b18-8a20fdbb.mp3">3.2.1 SSL Channel Configuration</h3>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b19-0c73a17a.mp3">First, you need to set up your SSL certificates and keystore. Then, you can create an <code>NACChannel</code> like this:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.channel.NACChannel;
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b19-0c73a17a.mp3">First, you need to set up your SSL certificates and keystore. Then, you can create an <code>NACChannel</code> with an SSL socket factory like this:</p>
+<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.SunJSSESocketFactory;
+import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class SSLChannelExample {
     public static void main(String[] args) throws Exception {
-        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
+        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager(), null);
         
         // Set SSL properties
-        channel.setKeyStore(&quot;path/to/keystore.jks&quot;);
-        channel.setKeyStorePassword(&quot;keystorePassword&quot;);
-        channel.setTrustStore(&quot;path/to/truststore.jks&quot;);
-        channel.setTrustStorePassword(&quot;truststorePassword&quot;);
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore(&quot;path/to/keystore.jks&quot;);
+        sslFactory.setPassword(&quot;keystorePassword&quot;);
+        sslFactory.setKeyPassword(&quot;keyPassword&quot;);
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
         
         // Connect
         channel.connect();
@@ -176,33 +180,34 @@ public class SSLChannelExample {
     }
 }</code></pre></figure>
 <h3 id="prose-b20" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b21-f02118cf.mp3">3.2.2 Using SSL Channel with ISOClient</h3>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b22-946f5df9.mp3">You can use the <code>NACChannel</code> with <code>ISOClient</code> for secure communications:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b23-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOClient;
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b22-946f5df9.mp3">jPOS 2.1.7 has no <code>ISOClient</code>, so the SSL-configured <code>NACChannel</code> is itself the client:</p>
+<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b23-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.SunJSSESocketFactory;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 
 public class SecureISOClientExample {
     public static void main(String[] args) throws Exception {
-        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
-        channel.setKeyStore(&quot;path/to/keystore.jks&quot;);
-        channel.setKeyStorePassword(&quot;keystorePassword&quot;);
-        channel.setTrustStore(&quot;path/to/truststore.jks&quot;);
-        channel.setTrustStorePassword(&quot;truststorePassword&quot;);
+        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager(), null);
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore(&quot;path/to/keystore.jks&quot;);
+        sslFactory.setPassword(&quot;keystorePassword&quot;);
+        sslFactory.setKeyPassword(&quot;keyPassword&quot;);
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        channel.setSocketFactory(sslFactory);
 
-        ISOClient client = new ISOClient(channel);
-
-        // Connect and use the client
-        client.connect();
+        // Connect and use the channel as the client
+        channel.connect();
 
         // Send and receive messages
         // ...
 
-        client.disconnect();
+        channel.disconnect();
     }
 }</code></pre></figure>
 <h3 id="prose-b23" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b24-ff752da1.mp3">3.2.3 Spring Configuration for SSL Channel</h3>
 <p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b25-abca0578.mp3">In a Spring-based application, you can configure the SSL channel as a bean:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b26-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.channel.NACChannel;
+<figure class="code" data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b26-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.SunJSSESocketFactory;
+import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.ISO87APackager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -211,21 +216,23 @@ import org.springframework.context.annotation.Configuration;
 public class SSLChannelConfig {
 
     @Bean
-    public NACChannel nacChannel() {
-        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager());
-        channel.setKeyStore(&quot;path/to/keystore.jks&quot;);
-        channel.setKeyStorePassword(&quot;keystorePassword&quot;);
-        channel.setTrustStore(&quot;path/to/truststore.jks&quot;);
-        channel.setTrustStorePassword(&quot;truststorePassword&quot;);
-        return channel;
+    public SunJSSESocketFactory sslSocketFactory() {
+        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();
+        sslFactory.setKeyStore(&quot;path/to/keystore.jks&quot;);
+        sslFactory.setPassword(&quot;keystorePassword&quot;);
+        sslFactory.setKeyPassword(&quot;keyPassword&quot;);
+        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates
+        return sslFactory;
     }
 
     @Bean
-    public ISOClient secureISOClient(NACChannel nacChannel) {
-        return new ISOClient(nacChannel);
+    public NACChannel nacChannel(SunJSSESocketFactory sslSocketFactory) {
+        NACChannel channel = new NACChannel(&quot;localhost&quot;, 7000, new ISO87APackager(), null);
+        channel.setSocketFactory(sslSocketFactory);
+        return channel;
     }
 }</code></pre></figure>
-<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b27-4b24df4d.mp3">This covers the essential aspects of Channel Management for a jPOS client, including the implementation of <code>ISOClient</code> and the use of SSL channels for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers.</p>
+<p data-audio="audio/jpos-client.unit-03-channel-management/jpos-client--unit-03.prose.b27-4b24df4d.mp3">This covers the essential aspects of Channel Management for a jPOS client, including the client channel that takes the place of <code>ISOClient</code> and the use of SSL channels for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers.</p>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Pool channels so they stay connected between uses">
 <h2 id="practice-prose-b0">Problem statement</h2>

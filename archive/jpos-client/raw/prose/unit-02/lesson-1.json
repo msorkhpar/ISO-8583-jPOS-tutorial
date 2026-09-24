@@ -49,16 +49,16 @@
     },
     {
       "type": "para",
-      "text": "While creating messages manually is possible, it's often more efficient and less error-prone to use a `MsgFactory`. The `MsgFactory` allows you to create predefined message templates and reuse them."
+      "text": "While creating messages manually is possible, it's often more efficient and less error-prone to use a message factory of your own. jPOS 2.1.7 has no `MsgFactory` type, so the factory is a plain class that builds each `ISOMsg` with `setMTI` and `set`, and lets you create predefined message templates and reuse them."
     },
     {
       "type": "para",
-      "text": "Here's an example of how to implement a `MsgFactory`:"
+      "text": "Here's an example of how to implement such a factory:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.MsgFactory;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class CustomMsgFactory implements MsgFactory {\n\n    @Override\n    public ISOMsg create(String mti) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(mti);\n        \n        // Set common fields for all messages\n        msg.set(7, getCurrentDateTime());\n        msg.set(11, generateSystemTraceAuditNumber());\n        msg.set(41, \"12345678\");  // Card Acceptor Terminal ID\n        \n        return msg;\n    }\n\n    private String getCurrentDateTime() {\n        // Implementation to get current date and time in MMDDhhmmss format\n        return \"0701104321\";  // Example static value\n    }\n\n    private String generateSystemTraceAuditNumber() {\n        // Implementation to generate a unique STAN\n        return \"123456\";  // Example static value\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class CustomMsgFactory {\n\n    public ISOMsg create(String mti) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(mti);\n        \n        // Set common fields for all messages\n        msg.set(7, getCurrentDateTime());\n        msg.set(11, generateSystemTraceAuditNumber());\n        msg.set(41, \"12345678\");  // Card Acceptor Terminal ID\n        \n        return msg;\n    }\n\n    private String getCurrentDateTime() {\n        // Implementation to get current date and time in MMDDhhmmss format\n        return \"0701104321\";  // Example static value\n    }\n\n    private String generateSystemTraceAuditNumber() {\n        // Implementation to generate a unique STAN\n        return \"123456\";  // Example static value\n    }\n}"
     },
     {
       "type": "para",
@@ -90,12 +90,12 @@
     },
     {
       "type": "para",
-      "text": "It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5, Mockito, and AssertJ:"
+      "text": "It's crucial to test your message creation logic to ensure correctness. Here's an example of how you might write a test using JUnit 5 and Mockito:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.mockito.Mock;\nimport org.mockito.MockitoAnnotations;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.when;\n\nclass MessageCreationServiceTest {\n\n    @Mock\n    private CustomMsgFactory msgFactory;\n\n    private MessageCreationService messageCreationService;\n\n    @BeforeEach\n    void setUp() {\n        MockitoAnnotations.openMocks(this);\n        messageCreationService = new MessageCreationService(msgFactory);\n    }\n\n    @Test\n    void testCreateAuthorizationRequest() throws ISOException {\n        // Arrange\n        ISOMsg mockMsg = new ISOMsg();\n        when(msgFactory.create(\"0100\")).thenReturn(mockMsg);\n\n        // Act\n        ISOMsg result = messageCreationService.createAuthorizationRequest(\"4111111111111111\", \"000000010000\");\n\n        // Assert\n        assertThat(result.getMTI()).isEqualTo(\"0100\");\n        assertThat(result.getString(2)).isEqualTo(\"4111111111111111\");\n        assertThat(result.getString(3)).isEqualTo(\"000000\");\n        assertThat(result.getString(4)).isEqualTo(\"000000010000\");\n        assertThat(result.getString(49)).isEqualTo(\"840\");\n    }\n}"
+      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.mockito.Mock;\nimport org.mockito.MockitoAnnotations;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.mockito.Mockito.when;\n\nclass MessageCreationServiceTest {\n\n    @Mock\n    private CustomMsgFactory msgFactory;\n\n    private MessageCreationService messageCreationService;\n\n    @BeforeEach\n    void setUp() {\n        MockitoAnnotations.openMocks(this);\n        messageCreationService = new MessageCreationService(msgFactory);\n    }\n\n    @Test\n    void testCreateAuthorizationRequest() throws ISOException {\n        // Arrange\n        ISOMsg mockMsg = new ISOMsg();\n        mockMsg.setMTI(\"0100\");\n        when(msgFactory.create(\"0100\")).thenReturn(mockMsg);\n\n        // Act\n        ISOMsg result = messageCreationService.createAuthorizationRequest(\"4111111111111111\", \"000000010000\");\n\n        // Assert\n        assertEquals(\"0100\", result.getMTI());\n        assertEquals(\"4111111111111111\", result.getString(2));\n        assertEquals(\"000000\", result.getString(3));\n        assertEquals(\"000000010000\", result.getString(4));\n        assertEquals(\"840\", result.getString(49));\n    }\n}"
     },
     {
       "type": "para",
@@ -103,7 +103,7 @@
     },
     {
       "type": "para",
-      "text": "In conclusion, creating ISO-8583 messages using jPOS involves using the `ISOMsg` class, potentially implementing a custom `MsgFactory`, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application."
+      "text": "In conclusion, creating ISO-8583 messages using jPOS involves using the `ISOMsg` class, potentially implementing a message factory of your own, and creating service classes to handle different types of messages. By following these practices and thoroughly testing your implementation, you can ensure reliable ISO-8583 message creation in your jPOS client application."
     }
   ],
   "video": null,
@@ -122,5 +122,5 @@
     "html": 0,
     "disclosures": 0
   },
-  "content_sha256": "eabe287dbc8b21a11d4ab844968818f1effff6ca9f1572c1853d8f14e9ffa40e"
+  "content_sha256": "1735e521bdfebdc4046e216ba588d252f24c49cb32733f7e2263bf1cbe706194"
 }

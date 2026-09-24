@@ -36,6 +36,8 @@ import org.jpos.core.Configurable;
 import org.jpos.core.Configuration;
 import org.jpos.core.ConfigurationException;
 
+import java.io.Serializable;
+
 public abstract class AbstractCardParticipant implements TransactionParticipant, Configurable {
     protected Configuration cfg;
 
@@ -45,18 +47,18 @@ public abstract class AbstractCardParticipant implements TransactionParticipant,
     }
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         // Common preparation logic
         return PREPARED | NO_JOIN | READONLY;
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Common commit logic
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Common abort logic
     }
 
@@ -74,15 +76,18 @@ public abstract class MastercardParticipant extends AbstractCardParticipant {
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b9-2f2da7e3.mp3">Now, let's create a concrete Visa participant:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
+import org.jpos.transaction.Context;
 import org.springframework.stereotype.Component;
+
+import java.io.Serializable;
 
 @Component
 public class VisaAuthorizationParticipant extends VisaParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields(context);
+        processSpecificFields((Context) context);
         return result;
     }
 
@@ -103,7 +108,7 @@ public class VisaAuthorizationParticipant extends VisaParticipant {
                 context.put(&quot;VISA_ERROR&quot;, &quot;Invalid Visa transaction data&quot;);
             }
 
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put(&quot;VISA_TRANSACTION_VALID&quot;, false);
             context.put(&quot;VISA_ERROR&quot;, &quot;Error processing Visa fields: &quot; + e.getMessage());
         }
@@ -118,15 +123,18 @@ public class VisaAuthorizationParticipant extends VisaParticipant {
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b12-36cc8e78.mp3">Similarly, let's create a concrete Mastercard participant:</p>
 <figure class="code" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b13-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
+import org.jpos.transaction.Context;
 import org.springframework.stereotype.Component;
+
+import java.io.Serializable;
 
 @Component
 public class MastercardAuthorizationParticipant extends MastercardParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable context) {
         int result = super.prepare(id, context);
-        processSpecificFields(context);
+        processSpecificFields((Context) context);
         return result;
     }
 
@@ -147,7 +155,7 @@ public class MastercardAuthorizationParticipant extends MastercardParticipant {
                 context.put(&quot;MASTERCARD_ERROR&quot;, &quot;Invalid Mastercard transaction data&quot;);
             }
 
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put(&quot;MASTERCARD_TRANSACTION_VALID&quot;, false);
             context.put(&quot;MASTERCARD_ERROR&quot;, &quot;Error processing Mastercard fields: &quot; + e.getMessage());
         }
@@ -185,17 +193,20 @@ import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
+
 @Component
 public class CardTypeIdentifierParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         ISOMsg msg = (ISOMsg) context.get(&quot;REQUEST&quot;);
         try {
             String pan = msg.getString(2);
             String cardType = identifyCardType(pan);
             context.put(&quot;CARD_TYPE&quot;, cardType);
-        } catch (ISOException e) {
+        } catch (RuntimeException e) {
             context.put(&quot;CARD_TYPE_ERROR&quot;, &quot;Error identifying card type: &quot; + e.getMessage());
         }
         return PREPARED | NO_JOIN | READONLY;
@@ -213,10 +224,10 @@ public class CardTypeIdentifierParticipant implements TransactionParticipant {
     }
 
     @Override
-    public void commit(long id, Context context) {}
+    public void commit(long id, Serializable context) {}
 
     @Override
-    public void abort(long id, Context context) {}
+    public void abort(long id, Serializable context) {}
 }</code></pre></figure>
 <h3 id="prose-b19" data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b20-ecc857f4.mp3">6. Testing</h3>
 <p data-audio="audio/jpos-server.unit-05-visa-and-mastercard-specific-processing/jpos-server--unit-05.prose.b21-2d4065bf.mp3">To ensure our Visa and Mastercard specific processing works correctly, let's create unit tests:</p>

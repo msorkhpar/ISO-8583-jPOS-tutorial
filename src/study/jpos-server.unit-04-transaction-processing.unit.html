@@ -101,23 +101,24 @@ public class TransactionValidator implements TransactionParticipant, Configurabl
 <figure class="code" data-audio="audio/jpos-server.unit-04-transaction-processing/jpos-server--unit-04.prose.b17-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">public class VisaTransactionParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         // Visa-specific validation and processing
         if (isValidVisaTransaction(context)) {
             context.put(&quot;network&quot;, &quot;VISA&quot;);
             return PREPARED;
         }
-        return ABORTED;
+        return PREPARED | NO_JOIN | READONLY; // not a Visa card: pass it through, never abort it
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Commit Visa transaction
         // For example, send to Visa network
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle Visa transaction abort
     }
 
@@ -131,23 +132,24 @@ public class TransactionValidator implements TransactionParticipant, Configurabl
 public class MastercardTransactionParticipant implements TransactionParticipant {
 
     @Override
-    public int prepare(long id, Context context) {
+    public int prepare(long id, Serializable serializable) {
+        Context context = (Context) serializable;
         // Mastercard-specific validation and processing
         if (isValidMastercardTransaction(context)) {
             context.put(&quot;network&quot;, &quot;MASTERCARD&quot;);
             return PREPARED;
         }
-        return ABORTED;
+        return PREPARED | NO_JOIN | READONLY; // not a Mastercard card: pass it through, never abort it
     }
 
     @Override
-    public void commit(long id, Context context) {
+    public void commit(long id, Serializable context) {
         // Commit Mastercard transaction
         // For example, send to Mastercard network
     }
 
     @Override
-    public void abort(long id, Context context) {
+    public void abort(long id, Serializable context) {
         // Handle Mastercard transaction abort
     }
 
@@ -238,7 +240,7 @@ public class TransactionFlowTest {
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Write the participants of a card-network flow">
 <h2 id="practice-prose-b0">Problem statement</h2>
 <p>A jPOS <code>TransactionManager</code> runs a transaction through its participants in the order they are declared, in two phases. First it calls <code>prepare</code> on each in turn, and each one votes. A participant whose vote does not carry <code>NO_JOIN</code> joins the transaction. As soon as one votes <code>ABORTED</code>, the participants after it are not prepared at all. Then, if every vote carried <code>PREPARED</code>, <code>commit</code> is called on every participant that joined; otherwise <code>abort</code> is called on every participant that joined, including the one that voted <code>ABORTED</code>.</p>
-<p>The page's flow is a validator, then a Visa participant, then a Mastercard participant. Look at what its Visa participant votes for a Mastercard card: the whole transaction aborts before the Mastercard participant is ever asked. Every participant votes on the whole transaction, not just on the part it cares about.</p>
+<p>The page's flow is a validator, then a Visa participant, then a Mastercard participant, and each network's participant steps aside for the other network's cards. That is the point: every participant votes on the whole transaction, not just on the part it cares about, so a Visa participant that voted <code>ABORTED</code> for a Mastercard card would abort the transaction before the Mastercard participant were ever asked.</p>
 <p>Write <code>NetworkRouting</code> with two nested participants (both <code>org.jpos.transaction.TransactionParticipant</code>, working on an <code>org.jpos.transaction.Context</code>):</p>
 <ul class="items"><li><code>NetworkRouting.Validator</code>: prepares the transaction when the context holds both <code>&quot;amount&quot;</code> and <code>&quot;pan&quot;</code>, and changes nothing in the context when it does; otherwise it votes <code>ABORTED</code>. When it is aborted it puts a message under <code>&quot;error&quot;</code> saying the transaction was incomplete.</li><li><code>new NetworkRouting.NetworkParticipant(String network, String panPrefix)</code>: for a card whose <code>&quot;pan&quot;</code> starts with <code>panPrefix</code> it puts <code>network</code> under <code>&quot;network&quot;</code> and prepares. When it is committed it records that the card went to its network: it appends <code>network</code> to the <code>List&lt;String&gt;</code> under <code>&quot;sent&quot;</code>, creating the list if there is none yet. For any other card it steps aside: it must not abort the transaction, and it must not be committed for it.</li></ul>
 <p>The tests play the transaction manager's part, as described above, with the flow <code>Validator</code>, <code>NetworkParticipant(&quot;VISA&quot;, &quot;4&quot;)</code>, <code>NetworkParticipant(&quot;MASTERCARD&quot;, &quot;5&quot;)</code>.</p>
