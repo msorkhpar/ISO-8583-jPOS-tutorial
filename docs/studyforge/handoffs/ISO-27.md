@@ -92,7 +92,11 @@ declared `spring-web` 5.3.20: `TEST: OK`, with fence 4's test run against fence 
 
 15 exercises originate on the 16 fixed pages (`jpos-client` unit 1 is a zero plan).
 
-- The fixed units were removed together with the ledger. The **archive was re-emitted before
+- The fixed units' `exercises/` and `practice/` directories were removed. (At the pinned
+  framework `6d0b8dc6`, the pass refuses to rewrite an existing ledger, so this office's driver
+  set it aside for each full 38-page pass and diffed the result. ⛔ This is not a method to
+  follow: with `W456` the pass merges the ledger in place, and the ledger is never deleted.) The
+  **archive was re-emitted before
   the pass**, so the stale `practice-1` in the archive was not read as the source's own
   practice (ISO-23's F2). A first attempt without that step numbered them `practice-2`; it was
   undone and never committed.

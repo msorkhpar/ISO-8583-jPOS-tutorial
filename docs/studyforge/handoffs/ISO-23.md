@@ -116,8 +116,10 @@ knowledge answers them, and no honest quiz makes the page necessary.
 
 ⭐ **The register ruled (reversibly, as corpus data) that the unit plans zero** (`dda566b`).
 Every aspect and every unexercised fence carries that reason, and the unit has no shortfall. To
-reverse it, give the unit's aspects an exercise again in the plan, remove the unit's directory
-and the ledger, and run the pass over all 38 pages.
+reverse it, give the unit's aspects an exercise again in the plan, remove only the unit's
+`exercises/` directory (and its `practice/` workspace, if any), and run the pass. ⛔ Never delete
+`exercises/ledger.json`: that is what caused `ISO-M10/11`, and a framework with `W456` merges the
+ledger in place.
 
 ## The gate records
 
