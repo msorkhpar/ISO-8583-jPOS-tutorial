@@ -18,6 +18,7 @@ import subprocess
 from studyforge.cli.plan import plan_for
 from studyforge.corpus.manifest import MANIFEST_FILENAME, parse
 from studyforge.corpus.manifest.edits import reads_as_content
+from studyforge.skills.adapter.plan import PACKAGE
 from studyforge.skills.execution import generated_here
 from studyforge.skills.reconnaissance.installed import generated
 
@@ -46,6 +47,12 @@ MOVED = 'R'
 #: corpus's material, so what changes inside it is the framework's own
 #: writing — the narration record, the site cache, the pin.
 FRAMEWORK_DIR = '.studyforge/'
+
+#: The corpus's adapter, at the one directory the framework fixes for it.
+#: A person edits it (its reading step, its practice data) and no build
+#: writes it, so an uncommitted change there is the corpus's own work,
+#: never generation's.
+ADAPTER_DIR = PACKAGE + '/'
 
 #: Said, never assumed, when the plan will not say what a build writes.
 UNPLANNABLE = (
@@ -94,7 +101,8 @@ def _undeclared(root, plan, touched):
     files = {where for where in plan.paths if not where.endswith('/')}
     files |= generated(root)
     files |= set(PERMITTED)
-    under = (FRAMEWORK_DIR, *(w for w in plan.paths if w.endswith('/')))
+    planned = [where for where in plan.paths if where.endswith('/')]
+    under = (FRAMEWORK_DIR, ADAPTER_DIR, *planned)
     return sorted(
         {
             where

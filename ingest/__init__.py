@@ -4,7 +4,7 @@
 
 **How you use it.** `python3 -m ingest <corpus-root>` writes the archive and audits it. The exit code is the answer; there is no other agreement with the framework.
 
-**Depends on.** `studyforge` as a sibling checkout, and nothing else. ⛔ The framework never imports this package: the seam is on disk.
+**Depends on.** the installed `studyforge` library, at the version and commit onboarding pins, and nothing else. ⛔ The framework never imports this package: the seam is on disk.
 """
 
 from __future__ import annotations
