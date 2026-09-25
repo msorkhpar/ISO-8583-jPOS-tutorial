@@ -36,13 +36,17 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    reader's own assertion and needs nobody's agreement to be true. ⚠️ The
    served half is a different fact: a PASS is established by a grader run and
    is written where it was established (spec §8.5). ⛔ **A read mark is
-   never a pass**, and nothing here can produce one — this file has no notion
-   of a practice, a grader or a result at all.
+   never a pass**, and nothing here can produce a run's pass — this file knows
+   no grader and no run, and a quiz's pass is only kept here, never judged.
 
    ⛔ **An explicit act, never inferred.** Nothing here observes scrolling, the
    narration reaching the end, or the page having been opened. The store is
    written when the reader presses the control and at no other time. A record
    the reader cannot trust is worse than none.
+
+   ⭐ **A third record holds the quizzes the reader has answered wholly right**:
+   a quiz is graded in its own page, and nothing about it is a server's, so
+   its pass is the reader's own, like a mark. ⛔ It is never a run's pass.
 
    ⛔ **Two records, never one.** The marks and the reader's display
    preferences have different shapes and different lifetimes, so they are two
@@ -83,6 +87,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      the reader's browser put it. */
   var MARKS_KEY = 'studyforge.read.v1';
   var DISPLAY_KEY = 'studyforge.display.v1';
+  /* ⭐ The third record: the quizzes this reader has answered wholly right. */
+  var QUIZZES_KEY = 'studyforge.quizzes.v1';
 
   /* ⛔ THE BOOT CACHE, AND IT IS A DIFFERENT STORAGE AREA ON PURPOSE.
      ⚠️ `page.html` carries a synchronous boot in the `<head>` so a
@@ -108,6 +114,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      and a reader whose two machines disagree is the normal case. */
   var RECORD_VERSION = 1;
   var MARKS_FIELD = 'read';
+  var PASSED_FIELD = 'passed';
   var DISPLAY_FIELD = 'display';
 
   /* How long a thing this will keep. ⚠️ A bound rather than a grammar: the
@@ -251,6 +258,31 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return writeMarks(marks().filter(function (held) { return held !== key; }));
   }
 
+  /* ⭐ **A quiz passed, by its practice key** — the same machinery as the
+     marks, over its own key. ⛔ A quiz is graded in its page and the server
+     records nothing about it (the user's ruling), so its pass is the reader's
+     own record, kept where the read marks are; it is never a RUN's pass. */
+  function passes() {
+    var held = record(QUIZZES_KEY);
+    var listed = held && Array.isArray(held[PASSED_FIELD]) ? held[PASSED_FIELD] : [];
+    return listed.filter(function (entry, at) {
+      return usable(entry) && listed.indexOf(entry) === at;
+    }).sort();
+  }
+
+  function passedQuiz(key) {
+    return usable(key) && passes().indexOf(key) !== -1;
+  }
+
+  function passQuiz(key) {
+    if (!usable(key)) { return false; }
+    var kept = passes();
+    if (kept.indexOf(key) === -1) { kept.push(key); }
+    var body = { version: RECORD_VERSION };
+    body[PASSED_FIELD] = kept.sort();
+    return keep(QUIZZES_KEY, body);
+  }
+
   /* The second record, and it is deliberately the same machinery over a
      different key — never the same record with a second field in it. */
   function preferences() {
@@ -286,6 +318,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   window.studyforge.progress = {
     MARKS_KEY: MARKS_KEY,
     DISPLAY_KEY: DISPLAY_KEY,
+    QUIZZES_KEY: QUIZZES_KEY,
+    passedQuiz: passedQuiz,
+    passQuiz: passQuiz,
     supported: function () { return backed !== null; },
     marks: marks,
     marked: marked,
@@ -637,6 +672,61 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   window.__studyforgeVideoPlayers = players;
 }());
 
+/* Where a narrated passage the page is not showing is shown instead.
+
+   ⛔ **Split out of `narration.js` at its seam** (R11): that file is *the
+   transport and the highlight*; this is *where a passage stands when it is
+   hidden*. It defines one function and draws nothing.
+
+   ⭐ **A passage the page is not showing is spoken where the reader can see
+   it chosen.** An item inside a CLOSED entry — a code example, a disclosure —
+   stands in as that entry's summary, and one inside a practice the page keeps
+   under its *Practice (n)* list (`practice-workspace.js`) stands in as that
+   practice's card. `narration.js` marks the stand-in `data-speaking` beside
+   the passage, and scrolls to it rather than to a passage with no box.
+
+   ⛔ **The entry is NOT opened.** Opening a code example loads a full editor,
+   which only a reader's own hand may start (`code-links.js`), and a second,
+   quieter kind of opening would be a state that file has to tell apart from
+   the reader's. The summary names what is being read, and the reader opens it
+   if they want to see it. ⚠️ A passage the page shows answers `null`: it is
+   its own place. */
+
+(function () {
+  'use strict';
+
+  var CLOSED = 'details:not([open])';
+  var PRACTICE = 'section[data-kind="practice"][hidden]';
+  var CARD = 'data-practice-card';
+
+  /* ⚠️ Bounded: a stand-in may itself be hidden (an entry inside a closed
+     entry), and each step climbs one level, so a page can never loop here. */
+  var LEVELS = 8;
+
+  /* ⚠️ `checkVisibility` where the browser has it: the inside of a closed
+     `details` keeps its boxes (it is hidden by `content-visibility`), so a
+     count of boxes alone calls it shown. */
+  function shown(element) {
+    if (!element) { return false; }
+    return element.checkVisibility ? element.checkVisibility() : element.getClientRects().length > 0;
+  }
+
+  function standIn(passage) {
+    var target = passage;
+    for (var level = 0; target && !shown(target) && level < LEVELS; level += 1) {
+      var closed = target.parentElement && target.parentElement.closest(CLOSED);
+      var summary = closed && closed.querySelector('summary');
+      if (summary && !summary.contains(target)) { target = summary; continue; }
+      var practice = target.closest(PRACTICE);
+      target = practice ? document.querySelector('li[' + CARD + '="' + practice.id + '"]') : null;
+    }
+    return target && target !== passage ? target : null;
+  }
+
+  window.studyforge = window.studyforge || {};
+  window.studyforge.standIn = standIn;
+}());
+
 /* The narration transport: play, advance, and the highlight that tracks what is spoken.
 
    ⛔ **One clip per speech unit, and the granularity is the whole design.**
@@ -857,19 +947,22 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     }
   }
 
+  /* ⭐ A hidden passage is marked, and scrolled to, as its stand-in (`narration-stand-in.js`). */
+  var standIn = window.studyforge.standIn, standing = null;
+
   function highlight() {
     passages.forEach(function (passage, index) {
-      if (index === at) {
-        passage.setAttribute(SPEAKING, 'true');
-      } else {
-        passage.removeAttribute(SPEAKING);
-      }
+      if (index === at) { passage.setAttribute(SPEAKING, 'true'); } else { passage.removeAttribute(SPEAKING); }
     });
+    if (standing) { standing.removeAttribute(SPEAKING); }
+    standing = at === -1 ? null : standIn(passages[at]);
+    if (standing) { standing.setAttribute(SPEAKING, 'true'); }
   }
 
   function reveal(passage) {
-    if (!passage || !passage.scrollIntoView) { return; }
-    passage.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    var target = passage && (standIn(passage) || passage);
+    if (!target || !target.scrollIntoView) { return; }
+    target.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
   }
 
   /* ⛔ The one place `src` is assigned, and the value is the page's own. */
@@ -1107,11 +1200,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var STOP = 'stop';
   var TEST = 'test';
 
-  /* The maximised panel's own mark, and where the control's OTHER word is kept
-     — ⭐ both of its words are the template's, never this file's. */
-  var EXPANDED = 'data-practice-expanded';
-  var LABEL = 'data-practice-label';
-  var ESCAPE = 'Escape';
+  /* ⭐ What a finished run tells the rest of the page, raised on the panel: the
+     workspace reads the reader's record again after it (`practice-workspace.js`),
+     so a card says *passed* once the server has recorded a pass. */
+  var SETTLED = 'studyforge:practice-settled';
 
   /* One declared case, its kind, and the mark a verdict leaves on it. ⚠️ The
      verdict is an attribute AND a word: a breakdown told apart only by colour
@@ -1124,9 +1216,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var PASSED = 'passed';
   var FAILED = 'failed';
 
-  /* Every word the breakdown says, kept where the markup is. ⭐ The same reason
-     the maximise control's second word lives in its template: a label
-     spelled in the script too would be a second place for it to drift. */
+  /* Every word the breakdown says, kept where the markup is: a label spelled
+     in the script too would be a second place for it to drift. */
   var SAYS = {
     done: 'data-practice-ask-done',
     missed: 'data-practice-ask-missed',
@@ -1177,46 +1268,6 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       return 'Something is already running. Stop it first.';
     }
     return 'That could not be started.';
-  }
-
-  /* ⭐ **MAXIMISE: the PANEL'S OWN GEOMETRY, never a reparent** — the
-     panel already holds all of it, so the move is one attribute on the section.
-
-     ⛔ **A frame is never moved to another parent.** An `iframe` REPARENTED IN
-     THE DOM RELOADS, so nothing below appends, removes or replaces a node.
-
-     ⛔ **THE SCROLL POSITION IS REMEMBERED AND PUT BACK INSTANTLY** (argued
-     where the rule is, in `practice.css`).
-
-     ⛔ **No keyboard exit would make this a trap.** A real button, focus into
-     the expanded practice and back on restore, Escape on the DOCUMENT (focus
-     may rest on `<body>`, and inside the editor frame Escape is the editor's). */
-  function maximise(panel) {
-    var button = part(panel, 'expand');
-    if (!button) { return; }
-    var both = [button.textContent, button.getAttribute(LABEL) || button.textContent];
-    var wide = false;
-    var was = 0;
-
-    function set(open) {
-      if (open) { was = window.pageYOffset || 0; }
-      wide = open;
-      if (open) { panel.setAttribute(EXPANDED, ''); } else { panel.removeAttribute(EXPANDED); }
-      button.setAttribute('aria-expanded', open ? 'true' : 'false');
-      button.textContent = both[open ? 1 : 0];
-      (open ? panel : button).focus({ preventScroll: true });
-      /* ⛔ **`'instant'` is the repair, not a flourish**: `reset.css` sets
-         `scroll-behavior: smooth`, so a plain `scrollTo` ANIMATES and the page
-         is still gliding when whatever looks at it next does, anywhere from a
-         couple of pixels to the panel's whole height away. */
-      if (!open) { window.scrollTo({ top: was, left: 0, behavior: 'instant' }); }
-    }
-
-    show(button, true);
-    button.addEventListener('click', function () { set(!wide); });
-    document.addEventListener('keydown', function (event) {
-      if (wide && event.key === ESCAPE) { set(false); }
-    });
   }
 
   /* ⭐ **Every declared case, marked with what THIS run said about it.** ⛔ Drawn
@@ -1289,9 +1340,6 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'offline'), false);
     show(part(panel, 'editor'), true);
     show(controls, true);
-    /* ⚠️ Offered where there is something to maximise: over `file://` the panel
-       is one sentence, and making a sentence full-screen is a dead button. */
-    maximise(panel);
 
     var stop = null;
     var starters = [];
@@ -1338,6 +1386,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       /* ⛔ AFTER `live(false)`: the button that was pressed is disabled while
          the run is live, and focusing a disabled control does nothing at all. */
       if (keyboard && pressed) { pressed.focus(); }
+      panel.dispatchEvent(new CustomEvent(SETTLED, { bubbles: true }));
     }
 
     starters.forEach(function (button) {
@@ -1407,8 +1456,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    development environment with a shell, and opening a reading page is not
    consent to run one. The slot carries the sentence saying it is not running
    and how to start it, so a reader sees a statement rather than a blank frame —
-   ⭐ and when the server answers where this practice's two windows are, the
-   frames replace that sentence. ⛔ **Every URL is the SERVER's
+   ⭐ and when the server answers where this practice's two windows are, one
+   frame replaces that sentence, and each tab points it at its own window. ⛔ **Every URL is the SERVER's
    answer, never a name in this file**: a built page may name no origin and no
    port (R8), the editor's host port is per-project, and the absolute path a
    window opens is a path inside somebody else's container.
@@ -1456,10 +1505,16 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var TAB = 'data-practice-tab';
   var FRAME = 'data-practice-frame';
 
-  /* The two windows, and what each frame is called to a screen reader. ⚠️ These
+  /* ⭐ What the workspace says when it opens and closes a practice, raised on
+     the practice's panel, and the mark an open panel carries
+     (`practice-workspace.js`). */
+  var OPENED = 'studyforge:practice-opened';
+  var CLOSED = 'studyforge:practice-closed';
+  var OPEN = 'data-workspace-open';
+
+  /* The two windows, and what the frame is called to a screen reader. ⚠️ These
      are the framework's own words for its own controls, not the material's
      (R1) — the same status the panel's 'Running…' and 'Passed.' already have. */
-  var WINDOWS = ['main', 'test'];
   var TITLES = { main: 'Your code', test: 'Tests' };
 
   /* The directive a blocked editor frame is refused by, in the browser's own
@@ -1649,24 +1704,21 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     });
   }
 
-  /* ⭐ **Two frames of ONE editor, one visible at a time — never a split pane.**
-     The file a reader may type in and the file that judges it are two different
-     acts of reading, and standing them side by side halves the width of both.
+  /* ⭐ **Two windows of ONE editor, in ONE frame — never a split pane, and never
+     two frames.** The file a reader may type in and the file that judges it are
+     two different acts of reading; a tab picks which one the frame shows.
 
-     ⛔ **Each frame's URL is the SERVER's answer and is never built here**: the
+     ⛔ **One frame, because a page holds one editor at most** (the user's
+     ruling): a second workbench is a second language server, so the Tests tab
+     points the same frame at the other window's URL rather than building one.
+
+     ⛔ **Each window's URL is the SERVER's answer and is never built here**: the
      window's own URL is the only thing that can point two windows of one editor
      at two different files, because an extension cannot read its own window's
-     query string and both windows share one workspace settings file.
-
-     ⛔ **The TESTS frame is built LAZILY, on the first click of its tab.** A
-     second workbench is a second language server, and a reader who never opens
-     the tests should never pay for one. */
+     query string and both windows share one workspace settings file. */
   function windows(panel, where) {
-    var slots = {};
-    WINDOWS.forEach(function (name) {
-      slots[name] = panel.querySelector('[' + FRAME + '="' + name + '"]');
-    });
-    if (!slots.main) { return; }
+    var slot = panel.querySelector('[' + FRAME + '="main"]');
+    if (!slot) { return; }
     var tested = !!(where.test && where.test.url);
     var buttons = [].slice.call(panel.querySelectorAll('[' + TAB + ']')).filter(
       function (button) {
@@ -1675,7 +1727,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
         return keep;
       }
     );
-    var lazy = false;
+    var built = null;
 
     function select(name) {
       buttons.forEach(function (button) {
@@ -1683,17 +1735,20 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
         button.setAttribute('aria-selected', mine ? 'true' : 'false');
         button.tabIndex = mine ? 0 : -1;
       });
-      WINDOWS.forEach(function (one) { show(slots[one], one === name && !!slots[one]); });
-      if (name === 'test' && !lazy && tested) {
-        lazy = true;
-        frame(slots.test, where.test.url, TITLES.test);
+      var url = where[name].url;
+      if (!built) {
+        frame(slot, url, TITLES[name]);
+        built = slot.lastElementChild;
+      } else if (built.src !== url) {
+        built.title = TITLES[name];
+        built.src = url;
       }
+      show(slot, true);
     }
 
     /* ⛔ BEFORE the frame is added, because the violation it listens for is
        raised by adding it. */
     reloadWhenBlocked(where.main.url);
-    frame(slots.main, where.main.url, TITLES.main);
     buttons.forEach(function (button) {
       button.addEventListener('click', function () { select(button.getAttribute(TAB)); });
       /* ⚠️ Arrow keys move between tabs, which is what a tablist is announced
@@ -1715,63 +1770,89 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     show(part(panel, 'no-editor'), false);
   }
 
-  /* ⭐ Fill the editor slot when the server says where THIS PRACTICE's two
-     windows are, and leave the sentence standing when it does not. ⛔ Frames are
-     added only for an editor that is already up over this corpus's own files and
-     that actually holds this practice's file — the server decides both, this
-     asks.
+  /* ⭐ **Nothing is asked until the reader opens this practice** (the user's
+     ruling: no editor loads until a practice is opened), and the frame goes
+     when it is closed or another is opened — so the page holds one at most.
+     ⛔ Frames are added only for an editor that is already up over this
+     corpus's own files and that actually holds this practice's file — the
+     server decides both, this asks.
 
      ⚠️ **Asked for, never assumed.** A site BUILT by one version of this
      framework may be SERVED by another, and the client is the serving process's;
      a panel that called a function an older client does not publish would take
      the whole editor slot down with it. */
-  function ask(panel, run) {
+  var asking = 0;
+
+  function open(panel, run) {
     var key = panel.getAttribute(KEY);
     var corpus = panel.getAttribute(CORPUS);
     if (!key || !corpus || !run.practice) { return; }
+    var mine = asking += 1;
     run.practice(corpus, key).then(function (where) {
+      /* ⛔ A reader who moved on before the answer came gets no frame here. */
+      if (mine !== asking || !panel.hasAttribute(OPEN)) { return; }
       if (where && where.main && where.main.url) { windows(panel, where); }
     }, function () { return null; });
   }
 
-  var panels = [].slice.call(document.querySelectorAll(PANEL));
-  if (!panels.length) { return; }
+  /* ⭐ The panel goes back to what it shipped as: no frame, the sentence
+     standing, the tablist hidden. ⚠️ A clone of each tab replaces it, which is
+     the one way to drop the listeners the last opening added. */
+  function close(panel) {
+    asking += 1;
+    var slot = panel.querySelector('[' + FRAME + '="main"]');
+    if (slot) { while (slot.firstChild) { slot.removeChild(slot.firstChild); } show(slot, false); }
+    [].slice.call(panel.querySelectorAll('[' + TAB + ']')).forEach(function (button) {
+      var fresh = button.cloneNode(true);
+      fresh.hidden = false;
+      button.parentNode.replaceChild(fresh, button);
+    });
+    show(part(panel, 'tabs'), false);
+    show(part(panel, 'no-editor'), true);
+  }
+
+  /* ⭐ The frame and its one reload are PUBLISHED, so a lesson's code examples
+     (`code-links.js`) builds its windows with the same focus guard and the
+     same remedy for a cold instance, rather than a second copy of either. */
+  window.studyforge = window.studyforge || {};
+  window.studyforge.frames = { frame: frame, reloadWhenBlocked: reloadWhenBlocked };
+
   var run = window.studyforge && window.studyforge.run;
   if (!run || !run.available()) { return; }
-  panels.forEach(function (panel) { ask(panel, run); });
+  document.addEventListener(OPENED, function (event) {
+    if (event.target.matches && event.target.matches(PANEL)) { open(event.target, run); }
+  });
+  document.addEventListener(CLOSED, function (event) {
+    if (event.target.matches && event.target.matches(PANEL)) { close(event.target); }
+  });
 }());
 
-/* The quiz: what a reader chose, and what the local study server said about it.
+/* The quiz: what a reader chose, whether it was right, and why — graded in the page.
 
-   ⛔ **THE KEY IS NOT IN THE PAGE, AND THIS FILE DOES NOT GRADE**: the correct
-   answers stay on the local server, which validates each answer and returns
-   the result with its explanation. ⭐ So this file reads
-   which option the reader chose, hands the choices to `window.studyforge.quiz`
-   — which the SERVING PROCESS adds to a served page and a built page never
-   names (R8) — and shows what came back: right or wrong per question,
-   the chosen option's sentence, the count, and whether the quiz is complete.
-   ⛔ **The completion rule is the server's** (`exercise.quiz.completes`, applied
-   once, in Python); this file shows `complete` and never re-derives it.
+   ⭐ **The user's ruling (2026-09-25): the quiz answers remain in the page, in a
+   script local to that page, and nothing about a quiz is a server function.**
+   This reverses the ruling that kept the key on the local study server. ⭐ So
+   each quiz section carries its OWN key, as a JSON data block
+   (`<script type="application/json" data-practice-part="key">`, written by
+   `render/page/quiz.py`), and this file — shared by every page, and holding no
+   answer — reads it and grades in the browser. ⛔ **No request is made to
+   answer a quiz**, so the reading is the same over `file://` and served (R8).
 
-   ⚠️ **Superseded, and kept readable so it is not re-derived:** until that
-   ruling this file graded in the page from a key every option carried, identically
-   over `file://`, on the stance that an offline page cannot hide the key it grades
-   with. The ruling removes the key from the page instead.
+   ⭐ **The rule, in full**: a question is right when the chosen option is its
+   key; the chosen option's sentence is shown, right or wrong; and the quiz is
+   complete only when EVERY question is answered right — no pass mark, no
+   partial credit. ⚠️ A wrong answer shows its own sentence and never names
+   the key: a reader told why their choice fails can try again.
 
-   ⭐ **Over `file://` the questions and the options still show** and a reader
-   may still choose; the Check control stays `hidden` and the `offline`
-   sentence stays showing, exactly as Run and Submit do in the code panel. ⛔
-   Nothing is sent from a file page — there is no origin to send it to.
+   ⭐ **A complete quiz is recorded as passed in the reader's own browser store**
+   (`study-progress.js`, where "Mark as read" keeps its marks), so its card reads
+   *passed* after a reload. ⛔ Never on the server, and never as a run's pass.
+   ⚠️ The answers themselves are not kept: a reload clears the choices, and the
+   pass stays.
 
    ⛔ **A quiz has no file, no command and no grader to submit to, so it renders
-   no Run and no Submit — and not disabled ones**: a dead button is never
-   rendered.
-
-   ⛔ **Nothing is written to browser storage, and the server records nothing
-   either.** What a reader answered is the page's for as long as they are on
-   it; ⚠️ **so a reload clears the answers**, and recording a quiz's completion
-   in the reader's own state is not done here — and it would never be a
-   run verdict, which a quiz does not produce.
+   no Run and no Submit — and not disabled ones.** With no script at all, the
+   Check control stays hidden and the page says why.
 
    ⭐ **Every word this file says is read off the markup**, where Python put it —
    the same two-sided spelling every hook on this page has. */
@@ -1784,16 +1865,17 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var QUESTION = 'data-practice-question';
   var VERDICT = 'data-practice-verdict';
 
+  /* What a quiz says when it is graded, raised on its section, so the card over
+     it reads the reader's record again (`practice-workspace.js`). */
+  var SETTLED = 'studyforge:practice-settled';
+
   /* Where each of this file's own sentences is kept. ⚠️ `right` is read off two
      different elements and means two different things — the question's *Right.*
-     and the section's counting line — which is why it is asked for by element
-     rather than looked up in one table. */
+     and the section's counting line. */
   var RIGHT = 'data-practice-right';
   var WRONG = 'data-practice-wrong';
   var COMPLETE = 'data-practice-complete';
   var BLANK = 'data-practice-blank';
-  var CHECKING = 'data-practice-checking';
-  var FAILED = 'data-practice-failed';
 
   function part(root, name) {
     return root.querySelector('[' + PART + '="' + name + '"]');
@@ -1803,9 +1885,21 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return (element && element.getAttribute(name)) || '';
   }
 
-  /* What the reader chose, as `{question id: option id}`. ⚠️ Read off the DOM
-     rather than remembered: the radios ARE the state, and a second copy of them
-     would be a second answer to *what did they choose?*. */
+  /* This quiz's key, or null where the block is missing or is not one. ⛔ A
+     quiz with no key cannot be graded, and says nothing rather than guess. */
+  function keyOf(quiz) {
+    var block = part(quiz, 'key');
+    if (!block) { return null; }
+    try {
+      var key = JSON.parse(block.textContent);
+      return key && typeof key === 'object' && !Array.isArray(key) ? key : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /* What the reader chose, as `{question id: option id}`. ⚠️ Read off the DOM:
+     the radios ARE the state. */
   function chosen(quiz) {
     var answers = {};
     [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']')).forEach(function (question) {
@@ -1815,81 +1909,597 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return answers;
   }
 
-  /* One question's row of the server's verdict, drawn. ⭐ The sentence is the
-     one for whatever the reader CHOSE, right or wrong — a page that showed one
-     only for a wrong answer would teach half the material. ⛔ A question the
-     verdict says nobody answered shows nothing. */
-  function draw(question, row) {
+  /* One question graded and drawn; answers whether it is right. ⭐ The sentence
+     is the one for whatever the reader CHOSE, right or wrong. */
+  function draw(question, entry, answer) {
     var says = part(question, 'says');
-    if (!row || !row.answered) {
+    var hasSaid = entry && entry.says && Object.prototype.hasOwnProperty.call(entry.says, answer);
+    if (answer === undefined || !hasSaid) {
       question.removeAttribute(VERDICT);
       if (says) { says.textContent = ''; says.hidden = true; }
-      return;
+      return false;
     }
-    question.setAttribute(VERDICT, row.correct ? 'correct' : 'wrong');
+    var right = answer === entry.key;
+    question.setAttribute(VERDICT, right ? 'correct' : 'wrong');
     if (says) {
-      says.textContent = words(says, row.correct ? RIGHT : WRONG) + ' ' + (row.says || '');
+      /* ⚠️ The sentence is markup the BUILD rendered (`markup.inline`: escaped,
+         its inline code as code); the verdict's own word stays text. */
+      says.textContent = words(says, right ? RIGHT : WRONG) + ' ';
+      says.insertAdjacentHTML('beforeend', entry.says[answer]);
       says.hidden = false;
     }
+    return right;
   }
 
-  function show(quiz, verdict) {
-    var rows = {};
-    (verdict.questions || []).forEach(function (row) { rows[row.id] = row; });
-    [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']')).forEach(function (question) {
-      draw(question, rows[question.getAttribute(QUESTION)]);
-    });
+  function grade(quiz, key) {
+    var answers = chosen(quiz);
     var status = part(quiz, 'status');
-    if (!status) { return; }
-    /* ⛔ **Complete is the SERVER's word** and is EVERY question answered
-       correctly; the count is said in every other case so a reader is never
-       told only that they are not finished. */
-    status.textContent = verdict.complete === true
-      ? words(status, COMPLETE)
-      : words(status, RIGHT).replace('{right}', verdict.right).replace('{asked}', verdict.asked);
+    var questions = [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']'));
+    var right = 0;
+    questions.forEach(function (question) {
+      var id = question.getAttribute(QUESTION);
+      if (draw(question, key[id], answers[id])) { right += 1; }
+    });
+    /* ⛔ Complete is EVERY question answered right, and nothing less. */
+    var complete = questions.length > 0 && right === questions.length;
+    if (status) {
+      status.textContent = !Object.keys(answers).length ? words(status, BLANK)
+        : complete ? words(status, COMPLETE)
+          : words(status, RIGHT).replace('{right}', right).replace('{asked}', questions.length);
+    }
+    var store = window.studyforge && window.studyforge.progress;
+    if (complete && store) { store.passQuiz(quiz.getAttribute('data-practice-quiz')); }
+    quiz.dispatchEvent(new CustomEvent(SETTLED, { bubbles: true }));
   }
 
-  function wire(quiz, client) {
+  function wire(quiz) {
+    var key = keyOf(quiz);
     var check = part(quiz, 'check');
     var controls = part(quiz, 'controls');
     var offline = part(quiz, 'offline');
-    var status = part(quiz, 'status');
-    if (!check || !controls) { return; }
+    if (!key || !check || !controls) { return; }
     if (offline) { offline.hidden = true; }
     controls.hidden = false;
     var graded = false;
-    /* ⭐ Only the LATEST request may draw: a reader who changes an answer while
-       the previous one is still being checked must never see the older verdict
-       land on top of the newer choice. */
-    var asked = 0;
-
-    function grade() {
-      var answers = chosen(quiz);
-      var ticket = ++asked;
-      if (!Object.keys(answers).length) {
-        show(quiz, { questions: [], right: 0, asked: 0, complete: false });
-        if (status) { status.textContent = words(status, BLANK); }
-        return;
-      }
-      if (status) { status.textContent = words(status, CHECKING); }
-      client.grade(quiz.getAttribute('data-corpus'), quiz.getAttribute('data-practice-quiz'), answers)
-        .then(function (verdict) {
-          if (ticket === asked) { show(quiz, verdict); }
-        }, function () {
-          if (ticket === asked && status) { status.textContent = words(status, FAILED); }
-        });
-    }
-
     /* ⭐ Re-graded as soon as a reader changes an answer, once they have asked
        once, so the sentence under a question can never describe an option that
        is no longer chosen. */
-    check.addEventListener('click', function () { graded = true; grade(); });
-    quiz.addEventListener('change', function () { if (graded) { grade(); } });
+    check.addEventListener('click', function () { graded = true; grade(quiz, key); });
+    quiz.addEventListener('change', function () { if (graded) { grade(quiz, key); } });
   }
 
-  var client = window.studyforge && window.studyforge.quiz;
-  if (!client || !client.available()) { return; }
-  [].slice.call(document.querySelectorAll(QUIZ)).forEach(function (quiz) { wire(quiz, client); });
+  [].slice.call(document.querySelectorAll(QUIZ)).forEach(wire);
+}());
+
+/* A lesson's practices: the list of cards, and the one workspace a card opens in.
+
+   ⭐ **The user's ruling, whole.** A lesson's practices are one *Practice (n)*
+   list of titled cards; opening a card gives a full-screen workspace — the
+   problem statement on the left, always visible and scrollable, the editor, Run
+   and Submit on the right, Previous and Next between the lesson's practices, and
+   Close, which returns the reader to the same place in the lesson.
+
+   ⛔ **Nothing is moved, copied or re-rendered.** Each practice's own section and
+   panel are already on the page, under the list; this file HIDES them, and shows
+   the chosen pair in the workspace's geometry (`practice-workspace.css`) by one
+   attribute on each. ⭐ That is the whole reason the editor can live here: an
+   `iframe` MOVED TO ANOTHER PARENT RELOADS, and nothing below appends, removes or
+   replaces a node. ⚠️ With no script, nothing is hidden: the practices stay
+   readable under the list, which is the `file://` floor (R8).
+
+   ⛔ **No editor loads until a practice is opened, and one at most.** Opening a
+   practice raises `studyforge:practice-opened` on its panel, and closing it —
+   or opening another — raises `studyforge:practice-closed` first;
+   `practice-editor.js` builds the one frame on the first and drops it on the
+   second. This file never touches a frame.
+
+   ⛔ **The status is the reader's own record, never the page's.** A card's
+   status words are markup, hidden. A code card's are shown only where the
+   SERVED client answers what the reader's progress record holds
+   (`studyforge.run.practices`); a quiz card's from the reader's browser store
+   (`studyforge.progress`), where the quiz page records a pass — served or over
+   `file://`. Both are read again when a run or a quiz settles. ⭐ Where there
+   is no record to ask, a card says nothing rather than something wrong.
+
+   ⛔ **Close returns the reader to where they were**: the scroll position read
+   when the workspace opened is put back `instant` — `reset.css` makes every
+   scroll smooth, and a glide is a page still moving when the reader looks — and
+   focus goes back to the card that was opened, with `preventScroll`, so exactly
+   one thing decides where the page is. Escape closes too, read on the
+   DOCUMENT: inside the editor frame, Escape is the editor's.
+
+   ⭐ **An open practice is named in the address**, as its section's own
+   fragment, put there with `replaceState` so Back leaves the page as it always
+   did. ⚠️ That is what survives the ONE reload a cold editor needs
+   (`practice-editor.js`): the page comes back with the practice open, rather
+   than closed on a reader who had just opened it. */
+
+(function () {
+  'use strict';
+
+  /* The list, its cards, the workspace and its parts. ⚠️ Spelled here and in
+     `render/page/practices.py`, which is the single source for what is EMITTED. */
+  var REGION = 'section[data-practices]';
+  var CARD = 'li[data-practice-card]';
+  var CARD_SECTION = 'data-practice-card';
+  var CARD_KEY = 'data-practice-key';
+  var CARD_CORPUS = 'data-corpus';
+  var OPEN_LINK = 'a[data-practices-part="open"]';
+  var STATE = '[data-practices-part="state"]';
+  var STATE_WORD = 'data-practice-state';
+  var WORKSPACE = 'div[data-workspace]';
+  var PART = 'data-workspace-part';
+  var ACT = 'data-workspace-act';
+
+  /* The mark an open section and panel carry, and the one the document carries
+     while the workspace is up. ⛔ Also read by `practice-editor.js`. */
+  var OPEN = 'data-workspace-open';
+
+  /* ⭐ A quiz opens in ONE column: its intro above its questions, its check
+     and explanations below — there is no editor to set beside it. The mark on
+     the document chooses the column geometry, and `INTRO` carries the intro's
+     height so the questions start under it (`practice-workspace.css`). */
+  var KIND = 'data-practice-kind';
+  var QUIZ_OPEN = 'data-workspace-quiz';
+  var INTRO = '--workspace-intro';
+
+  function isQuiz(one) { return one.card.getAttribute(KIND) === 'quiz'; }
+
+  function column(one) {
+    var root = document.documentElement;
+    if (!one || !isQuiz(one)) {
+      root.removeAttribute(QUIZ_OPEN);
+      root.style.removeProperty(INTRO);
+      return;
+    }
+    root.setAttribute(QUIZ_OPEN, '');
+    root.style.setProperty(INTRO, Math.ceil(one.section.getBoundingClientRect().height) + 'px');
+  }
+  var LIVE = 'data-practices-live';
+
+  /* What the workspace says to the editor, and what a run says back. */
+  var OPENED = 'studyforge:practice-opened';
+  var CLOSED = 'studyforge:practice-closed';
+  var SETTLED = 'studyforge:practice-settled';
+  var ESCAPE = 'Escape';
+  var EXAMPLE = 'details[data-code-example][open]';
+
+  var region = document.querySelector(REGION);
+  var shell = document.querySelector(WORKSPACE);
+  if (!region || !shell) { return; }
+
+  function part(name) {
+    return shell.querySelector('[' + PART + '="' + name + '"]');
+  }
+
+  function act(name) {
+    return shell.querySelector('[' + ACT + '="' + name + '"]');
+  }
+
+  /* The panel a practice is worked in: the code panel or the quiz, named by the
+     practice's key, which both carry verbatim. */
+  function panelOf(key) {
+    var found = null;
+    [].slice.call(document.querySelectorAll('section[data-practice], section[data-practice-quiz]'))
+      .forEach(function (one) {
+        var said = one.getAttribute('data-practice') || one.getAttribute('data-practice-quiz');
+        if (said === key) { found = one; }
+      });
+    return found;
+  }
+
+  var practices = [].slice.call(region.querySelectorAll(CARD)).map(function (card) {
+    return {
+      card: card,
+      link: card.querySelector(OPEN_LINK),
+      section: document.getElementById(card.getAttribute(CARD_SECTION)),
+      panel: panelOf(card.getAttribute(CARD_KEY))
+    };
+  }).filter(function (one) { return one.link && one.section; });
+  if (!practices.length) { return; }
+
+  var current = -1;
+  var was = 0;
+
+  /* The address with no fragment, and with an open practice's own. */
+  /* ⭐ Where the reader was rides on this history entry's own state, beside
+     whatever else it holds, so the one reload brings Close back to it too. */
+  var WAS = 'studyforgeWorkspace';
+
+  function address(hash) {
+    try {
+      var state = Object.assign({}, history.state || {});
+      state[WAS] = hash ? was : null;
+      history.replaceState(state, '', location.pathname + location.search + hash);
+    } catch (ignored) { return; }
+  }
+
+  function each(one, visible) {
+    [one.section, one.panel].forEach(function (element) {
+      if (!element) { return; }
+      element.hidden = !visible;
+      if (visible) { element.setAttribute(OPEN, ''); } else { element.removeAttribute(OPEN); }
+    });
+  }
+
+  /* ⭐ **The page under the workspace is `inert`** while it is up, so Tab
+     moves through the bar, the statement and the panel and never under the
+     cover — the dialog's own focus ring, taken without moving a node. Every
+     sibling on the way up to `body` that holds none of the three is marked,
+     and exactly those are unmarked again. */
+  var stilled = [];
+
+  function still(one) {
+    var kept = [shell, one.section, one.panel].filter(Boolean);
+    for (var at = shell.parentElement; at && at !== document.documentElement; at = at.parentElement) {
+      [].slice.call(at.children).forEach(function (child) {
+        if (child.inert || kept.some(function (part) { return child.contains(part); })) { return; }
+        child.inert = true;
+        stilled.push(child);
+      });
+    }
+  }
+
+  function wake() {
+    stilled.forEach(function (child) { child.inert = false; });
+    stilled = [];
+  }
+
+  function say(name, one) {
+    if (one.panel) { one.panel.dispatchEvent(new CustomEvent(name, { bubbles: true })); }
+  }
+
+  function leave() {
+    if (current < 0) { return; }
+    var one = practices[current];
+    say(CLOSED, one);
+    each(one, false);
+    column(null);
+    wake();
+  }
+
+  function open(index) {
+    if (index < 0 || index >= practices.length) { return; }
+    if (current < 0) { was = window.pageYOffset || 0; }
+    leave();
+    current = index;
+    var one = practices[index];
+    each(one, true);
+    part('title').textContent = one.link.textContent;
+    act('previous').hidden = index === 0;
+    act('next').hidden = index === practices.length - 1;
+    shell.hidden = false;
+    document.documentElement.setAttribute(OPEN, '');
+    column(one);
+    still(one);
+    one.section.scrollTop = 0;
+    part('title').focus({ preventScroll: true });
+    address('#' + one.section.id);
+    /* ⛔ One editor on the page at most: an expanded code example is closed —
+       an attribute, so nothing moves — and `code-links.js` drops its frames. */
+    [].slice.call(document.querySelectorAll(EXAMPLE)).forEach(function (entry) { entry.open = false; });
+    say(OPENED, one);
+  }
+
+  function close() {
+    if (current < 0) { return; }
+    var one = practices[current];
+    leave();
+    current = -1;
+    shell.hidden = true;
+    document.documentElement.removeAttribute(OPEN);
+    address('');
+    /* ⛔ `'instant'`: the argument is at the top of this file. */
+    window.scrollTo({ top: was, left: 0, behavior: 'instant' });
+    one.link.focus({ preventScroll: true });
+  }
+
+  /* --- the list: every practice hidden under it, each card opening its own */
+  practices.forEach(function (one, index) {
+    each(one, false);
+    one.link.addEventListener('click', function (event) {
+      event.preventDefault();
+      open(index);
+    });
+  });
+  region.setAttribute(LIVE, '');
+  part('title').tabIndex = -1;
+
+  act('previous').addEventListener('click', function () { open(current - 1); });
+  act('next').addEventListener('click', function () { open(current + 1); });
+  act('close').addEventListener('click', close);
+  document.addEventListener('keydown', function (event) {
+    if (current >= 0 && event.key === ESCAPE) { close(); }
+  });
+  window.addEventListener('resize', function () { if (current >= 0) { column(practices[current]); } });
+
+  /* ⭐ A practice named in the address opens at once, and Close then returns
+     the reader to where the entry's state says they were — or, with none, to
+     the practice's card, which is where they would have chosen it. */
+  practices.forEach(function (one, index) {
+    if (location.hash !== '#' + one.section.id) { return; }
+    var kept = history.state && history.state[WAS];
+    open(index);
+    var box = one.card.getBoundingClientRect();
+    was = typeof kept === 'number'
+      ? kept : Math.max(0, box.top + (window.pageYOffset || 0) - window.innerHeight / 3);
+  });
+
+  /* --- the status: the reader's own record ------------------------------ */
+  /* ⭐ A code practice's pass is the served origin's (a run established it);
+     a quiz's is the reader's browser store, where the quiz page kept it (the
+     user's ruling: nothing about a quiz is a server's). */
+  var run = window.studyforge && window.studyforge.run;
+  var asks = run && run.available() && run.practices;
+  var store = window.studyforge && window.studyforge.progress;
+  function paint(card, passed) {
+    var slot = card.querySelector(STATE);
+    if (!slot) { return; }
+    [].slice.call(slot.querySelectorAll('[' + STATE_WORD + ']')).forEach(function (word) {
+      var mine = word.getAttribute(STATE_WORD) === (passed ? 'passed' : 'not-started');
+      word.hidden = !mine;
+    });
+    card.setAttribute(STATE_WORD, passed ? 'passed' : 'not-started');
+    slot.hidden = false;
+  }
+
+  /* ⭐ One question per page for the code cards: they share a unit, so its
+     record is read once. ⛔ An answer that is not one — no record, no such
+     unit, a server that could not say — paints nothing. A quiz card is read
+     from the store, served or not; with no store it says nothing. ⛔ A quiz's
+     own settling asks the server nothing: answering a quiz makes no request. */
+  function refresh(event) {
+    practices.forEach(function (one) {
+      if (isQuiz(one) && store && store.supported()) {
+        paint(one.card, store.passedQuiz(one.card.getAttribute(CARD_KEY) || ''));
+      }
+    });
+    var quizzed = !!event && event.target.hasAttribute('data-practice-quiz');
+    if (!asks || quizzed) { return; }
+    var first = practices[0].card;
+    var key = first.getAttribute(CARD_KEY) || '';
+    var unit = key.slice(0, key.lastIndexOf('/'));
+    run.practices(first.getAttribute(CARD_CORPUS), unit).then(function (held) {
+      if (!held) { return; }
+      practices.forEach(function (one) {
+        var own = one.card.getAttribute(CARD_KEY) || '';
+        if (!isQuiz(one) && one.card.querySelector(STATE)) {
+          paint(one.card, held[own.slice(own.lastIndexOf('/') + 1)] === true);
+        }
+      });
+    }, function () { return null; });
+  }
+
+  refresh();
+  document.addEventListener(SETTLED, refresh);
+}());
+
+/* A lesson's code examples: each one opens in the course's editor, in place.
+
+   ⭐ **An example is an entry the build drew** (`details[data-code-example]`,
+   `render/page/code.py`): a source and its paired test, named for the source,
+   with the page's own links to each file inside it. Served, with the corpus's
+   editor up, expanding the entry opens the example RIGHT THERE — the source
+   and the test in two windows of ONE editor, a tab for each, and a Run that
+   runs the test. ⛔ **Anything short of that leaves the entry as built**: no
+   server, no editor, a file the server will not open — each link is the file's
+   plain view, which is never broken, and the entry's sentence says why.
+
+   ⛔ **Nothing loads until an entry is expanded, and one entry at most is
+   live.** Expanding another closes the first, and a closed entry's frames are
+   removed, so a page never carries an example's editor it is not showing.
+
+   ⛔ **The page never moves.** No entry is scrolled to, and each window is
+   built by `window.studyforge.frames.frame`, which `practice-editor.js`
+   publishes — the focus guard that keeps a workbench from taking the reader's
+   focus or the page's position, and the one reload when a cold instance's
+   frame policy blocked the frame. ⛔ Neither is copied here.
+
+   ⛔ **This file draws; it never talks to the API.** Everything it asks goes
+   through `window.studyforge.run` — `editor`, `code`, `codeTest`, `stop` —
+   which the SERVING PROCESS adds to the page it answers, so a built text names
+   no API, no origin and no client file (R8).
+
+   ⭐ **The copy is said, not hidden**: shown only once the editor answered,
+   each entry's second sentence tells the reader the editor opens a COPY of the
+   code, where their changes and a run's output stay. */
+
+(function () {
+  'use strict';
+
+  /* ⚠️ Spelled here and in `render/page/code.py`, `code-examples.html` and
+     `code-example.html` — the two-sided spelling every hook on this page has. */
+  var EXAMPLES = 'div[data-code-examples]';
+  var ENTRY = 'details[data-code-example]';
+  var OPEN = 'data-code-open';
+  var CORPUS = 'data-corpus';
+  var PATH = 'data-code-path';
+  var PART = 'data-code-part';
+  var TAB = 'data-code-tab';
+  var FRAME = 'data-code-frame';
+  var ACT = 'data-code-act';
+  var WINDOWS = ['main', 'test'];
+  var TITLES = { main: 'Source', test: 'Test' };
+
+  var lists = [].slice.call(document.querySelectorAll(EXAMPLES));
+  if (!lists.length) { return; }
+  var run = window.studyforge && window.studyforge.run;
+  var frames = window.studyforge && window.studyforge.frames;
+  if (!run || !run.available() || !run.code || !run.editor || !frames) { return; }
+
+  var entries = [];
+  lists.forEach(function (list) {
+    [].slice.call(list.querySelectorAll(ENTRY)).forEach(function (details) {
+      entries.push({ details: details, corpus: list.getAttribute(CORPUS), where: null, built: {} });
+    });
+  });
+
+  function part(entry, name) { return entry.details.querySelector('[' + PART + '="' + name + '"]'); }
+  function show(element, visible) { if (element) { element.hidden = !visible; } }
+  function tabs(entry) { return [].slice.call(entry.details.querySelectorAll('[' + TAB + ']')); }
+  function slot(entry, name) { return entry.details.querySelector('[' + FRAME + '="' + name + '"]'); }
+
+  /* ⭐ The one live example, and the one answer it is waiting for. */
+  var live = null;
+  var asked = 0;
+
+  function select(entry, name) {
+    tabs(entry).forEach(function (button) {
+      var mine = button.getAttribute(TAB) === name;
+      button.setAttribute('aria-selected', mine ? 'true' : 'false');
+      button.tabIndex = mine ? 0 : -1;
+    });
+    WINDOWS.forEach(function (one) { show(slot(entry, one), one === name); });
+    var where = entry.where;
+    if (where && !entry.built[name] && where[name] && where[name].url) {
+      entry.built[name] = true;
+      var named = tabs(entry).filter(function (button) {
+        return button.getAttribute(TAB) === name;
+      })[0];
+      frames.frame(slot(entry, name), where[name].url, named ? named.textContent : TITLES[name]);
+    }
+  }
+
+  /* ⛔ Closing empties the windows: a closed entry holds no editor. */
+  function unload(entry) {
+    WINDOWS.forEach(function (name) { slot(entry, name).textContent = ''; });
+    entry.where = null;
+    entry.built = {};
+    show(part(entry, 'editor'), false);
+    show(part(entry, 'controls'), false);
+    part(entry, 'status').textContent = '';
+    show(part(entry, 'output'), false);
+    if (live === entry) { live = null; }
+  }
+
+  function draw(entry, where) {
+    entry.where = where;
+    entry.built = {};
+    frames.reloadWhenBlocked(where.main.url);
+    show(part(entry, 'editor'), true);
+    show(part(entry, 'controls'), !!where.runs);
+    select(entry, 'main');
+    setTimeout(function () { remember(null); }, 5000);
+  }
+
+  function load(entry) {
+    if (live === entry) { return; }
+    if (live) { var before = live; before.details.open = false; unload(before); }
+    live = entry;
+    var mine = ++asked;
+    remember(entries.indexOf(entry));
+    run.code(entry.corpus, entry.details.getAttribute(OPEN)).then(function (where) {
+      if (mine !== asked || live !== entry || !entry.details.open) { return; }
+      if (where) { draw(entry, where); } else { remember(null); }
+    }, function () { remember(null); });
+  }
+
+  /* ⚠️ A COLD instance's page is reloaded once, by `frames.reloadWhenBlocked`,
+     when its frame policy blocked the first frame — and a reload forgets the
+     expanded entry. ⭐ So the entry rides on this history entry's own state,
+     which a reload keeps and nothing else reads, until it is drawn; a page that
+     was just reloaded opens it again. ⛔ Not the browser's store: that is
+     `study-progress.js`'s alone. */
+  var REOPEN = 'studyforgeCode';
+
+  function remember(index) {
+    try {
+      var state = {};
+      state[REOPEN] = typeof index === 'number' && index >= 0
+        ? { entry: index, x: window.scrollX, y: window.scrollY } : null;
+      history.replaceState(state, '');
+    } catch (ignored) { return; }
+  }
+
+  function reopened() {
+    try {
+      var timing = performance.getEntriesByType('navigation');
+      var kept = history.state && history.state[REOPEN];
+      remember(null);
+      return timing.length && timing[0].type === 'reload' && kept && typeof kept.entry === 'number'
+        ? kept : null;
+    } catch (ignored) { return null; }
+  }
+
+  /* ⭐ The reload put the page wherever the browser restored it, before the
+     entry reopened; the reader is put back exactly where they clicked, once.
+     ⛔ This is the one place the page is moved, and only to where it WAS. */
+  function putBack(kept) {
+    window.scrollTo({ left: kept.x, top: kept.y, behavior: 'instant' });
+  }
+
+  function wire(entry) {
+    tabs(entry).forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (entry.where) { select(entry, button.getAttribute(TAB)); }
+      });
+    });
+    var act = entry.details.querySelector('[' + ACT + '="test"]');
+    var stop = entry.details.querySelector('[' + ACT + '="stop"]');
+    act.addEventListener('click', function () {
+      var where = entry.where;
+      if (!where || !where.runs) { return; }
+      var status = part(entry, 'status');
+      var output = part(entry, 'output');
+      act.disabled = true;
+      show(stop, true);
+      output.textContent = '';
+      show(output, true);
+      status.textContent = 'Running the test…';
+      run.codeTest(entry.corpus, where.runs, function (line) {
+        output.textContent += line + '\n';
+      }).then(function (verdict) {
+        status.textContent = verdict === 0 ? 'Passed.' : verdict === 'stopped' ? 'Stopped.'
+          : verdict === 'timeout' ? 'Timed out.' : 'Failed.';
+      }, function () {
+        status.textContent = 'The test could not be run.';
+      }).then(function () {
+        act.disabled = false;
+        show(stop, false);
+      });
+    });
+    stop.addEventListener('click', function () { run.stop(); });
+    entry.details.addEventListener('toggle', function () {
+      if (entry.details.open) { load(entry); } else if (live === entry) { unload(entry); }
+    });
+    /* ⭐ A link inside an open entry shows its own file's window, in place. */
+    entry.details.addEventListener('click', function (event) {
+      if (event.defaultPrevented || event.button !== 0) { return; }
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+      var anchor = event.target.closest ? event.target.closest('a[' + PATH + ']') : null;
+      var where = entry.where;
+      if (!anchor || !where) { return; }
+      var path = anchor.getAttribute(PATH);
+      var name = where.test && where.test.file === path ? 'test' : 'main';
+      if (where[name] && where[name].file === path) {
+        event.preventDefault();
+        select(entry, name);
+      }
+    });
+  }
+
+  /* ⭐ Only an editor that is UP makes an entry open the editor; until then
+     each entry is its lines and the built sentence, and every link is the
+     file's plain view. */
+  run.editor(entries[0].corpus).then(function (found) {
+    if (!found) { return; }
+    entries.forEach(function (entry) {
+      show(part(entry, 'plain'), false);
+      show(part(entry, 'copy'), true);
+      wire(entry);
+    });
+    var kept = reopened();
+    var again = kept ? entries[kept.entry] || null : null;
+    if (again) {
+      again.details.open = true;
+      requestAnimationFrame(function () { putBack(kept); });
+    }
+    entries.forEach(function (entry) {
+      if (entry.details.open && !live) { load(entry); } else if (entry.details.open) {
+        entry.details.open = false;
+      }
+    });
+  }, function () { return null; });
 }());
 
 /* Where the reader is: the Up next slip, the progress line and strip, the tick

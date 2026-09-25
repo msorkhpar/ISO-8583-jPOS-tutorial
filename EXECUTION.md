@@ -7,6 +7,7 @@
 - runtimes: `java`, `maven`
 - the directory the editor binds: `src` — the sources alone (§8.1)
 - the practice workspaces the editor binds too: `practice`
+- the copy of the corpus's code, which a lesson's code links open and a test runs in, so the author's files are never written: `.studyforge/execution/code`
 - the image the component builds: `EDITOR_IMAGE`
 - the runner a Submit runs in: `studyforge-runner-iso-8583-jpos-tutorial`, from `STUDYFORGE_RUNNER_IMAGE`
 
@@ -51,6 +52,7 @@ creates them root-owned and the container can never write them:
 
 - `src`
 - `practice`
+- `.studyforge/execution/code`
 
 ## The prime
 

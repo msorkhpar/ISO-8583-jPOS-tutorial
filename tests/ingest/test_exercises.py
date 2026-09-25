@@ -9,7 +9,7 @@ the pass left with nothing by plan.
 
 **How you use it.** `python3 -m pytest tests/ingest/test_exercises.py` from the corpus root.
 
-**Depends on.** `ingest.emit`, `ingest.exercises`, `studyforge.validate`, and the
+**Depends on.** `ingest.emit`, `studyforge.skills.adapter.practices`, `studyforge.validate`, and the
 bundle and gate-record formats. ⭐ The fixture's gate record is digested from the
 fixture's real files, as the framework's own bundle tests write theirs. The
 gates themselves are not run here: running them is the authoring pass's job,
@@ -33,7 +33,7 @@ from studyforge.skills.exercises import QUIZ_API, QUIZ_DOCUMENT, QUIZ_KEYS
 from studyforge.validate import validate
 
 from ingest.emit import emit
-from ingest.exercises import BundleRefused
+from studyforge.skills.adapter.practices import PracticeRefused as BundleRefused
 
 CORPUS_ROOT = Path(__file__).resolve().parents[2]
 INGESTED = "2026-01-01"
@@ -221,8 +221,8 @@ def test_an_authored_ordinal_that_collides_with_the_source_practice_is_refused(t
     root = _copy(tmp_path)
     _bundle(root, address="iso-fundamentals", unit=2, ordinal=1,
             section="2.2. Bitmaps", origin="src/2.md")
-    # ⭐ The pass's own practice-2 is committed beside it, so [2, 3] is needed.
-    with pytest.raises(BundleRefused, match=r"must be numbered \[2, 3\]"):
+    # ⭐ The framework's join refuses the collision at that ordinal by name.
+    with pytest.raises(BundleRefused, match="already returns a different practice"):
         emit(root, ingested=INGESTED)
 
 

@@ -135,13 +135,6 @@ def _practices():
     return practices
 
 
-def _exercises():
-    """Return the authored exercises' reader (`ISO-21`), imported the same deferred way."""
-    from ingest import exercises
-
-    return exercises
-
-
 def _record(root: Path) -> list[str]:
     """Return the record's lines, or refuse because there is no record."""
     path = Path(root) / RECORD
@@ -230,10 +223,6 @@ def containers(root: Path) -> list[Container]:
     """
     root = Path(root)
     attached_by = _practices().attachments(root)
-    # ⭐ Authored exercises (ISO-21) raise a unit's practice count after the
-    # source's own practice is attached, so W437's numbering is checked
-    # against what the archive already holds.
-    authored = _exercises().authored(root)
     found = []
     for label, entries in _grouped(_region(_record(root))):
         address, origin = CONTAINERS[label]
@@ -273,9 +262,9 @@ def containers(root: Path) -> list[Container]:
             units=tuple(units),
             origin=origin,
         )
-        found.append(
-            dataclasses.replace(container, units=_exercises().counted(authored, container))
-        )
+        # ⭐ The authored exercises are not counted here: `emit` joins them
+        # (`studyforge.skills.adapter.practices`) and raises each unit's count.
+        found.append(container)
     return found
 
 
@@ -321,7 +310,6 @@ def documents(root: Path, container: Container) -> list[dict]:
     counts alike.
     """
     root = Path(root)
-    authored = _exercises().authored(root)
     fields = []
     for unit in container.units:
         text = (root / unit.origin).read_text(encoding="utf-8")
@@ -347,8 +335,6 @@ def documents(root: Path, container: Container) -> list[dict]:
                     href=unit.practice_origin,
                 )
             )
-        # ⭐ Then the authored exercises on the same page, after the source's own.
-        fields.extend(_exercises().documents(root, authored, container, unit.n))
     return fields
 
 

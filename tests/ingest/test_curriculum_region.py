@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pytest
 
+from studyforge.skills.adapter.practices import authored
+
 from ingest import practices, read
 
 CORPUS_ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +57,21 @@ LAST_RECORDED = ("jpos-client", "src/c11.md")
 def _authored(address: str, unit: int) -> int:
     """How many exercises the authoring pass committed on `unit`: its bundle directories."""
     return len(list((CORPUS_ROOT / "exercises" / address / "prose" / f"unit-{unit:02d}").glob("practice-*")))
+
+
+def _joined() -> dict:
+    """Every container with its documents, the authored practices joined as `emit` joins them.
+
+    ⭐ `read` returns the source's own material only; the framework's join
+    (`studyforge.skills.adapter.practices`) adds the authoring pass's exercises.
+    """
+    held = authored(CORPUS_ROOT)
+    joined = {}
+    for container in read.containers(CORPUS_ROOT):
+        container, documents = held.joined(container, read.documents(CORPUS_ROOT, container))
+        joined[container.address.key] = (container, documents)
+    held.finish()
+    return joined
 
 
 def _material_copy(tmp_path: Path) -> Path:
@@ -84,7 +101,7 @@ def test_every_practice_is_declared_on_the_unit_it_practises():
     # ⛔ `W428`, and it is the user's own clause: a practice is part of its
     # topic page, so it reaches the reader as a second document of that unit
     # and never as a container of its own.
-    found = {c.address.key: c for c in read.containers(CORPUS_ROOT)}
+    found = {key: container for key, (container, _) in _joined().items()}
     for address, attached in PRACTICES.items():
         for ordinal, href in attached.items():
             unit = found[address].unit(ordinal)
@@ -120,10 +137,9 @@ def test_the_practice_document_is_the_whole_of_its_own_file():
     # ⛔ What the second declaration promises `check_completeness`: the
     # practice's headings are counted against the practice file, so a lesson
     # block that strayed in here would read as a short read on that file.
-    found = {c.address.key: c for c in read.containers(CORPUS_ROOT)}
+    found = _joined()
     for address, attached in PRACTICES.items():
-        container = found[address]
-        documents = read.documents(CORPUS_ROOT, container)
+        _, documents = found[address]
         for ordinal, href in attached.items():
             kinds = [d["kind"] for d in documents if d["unit"] == ordinal]
             authored = _authored(address, ordinal)
