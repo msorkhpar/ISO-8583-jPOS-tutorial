@@ -22,7 +22,7 @@ The commits, in order:
 
 ## The rule, and how it was applied
 
-The user's ruling of 2026-09-23 (framework `W453`), quoted in full in `m10-plan.md`'s ISO-23
+The register ruling of 2026-09-23 (framework `W453`), stated in full in `m10-plan.md`'s ISO-23
 row, works like this:
 
 - Each page is planned by its **important ideas** (aspects), prose and code. Related ideas share
@@ -38,8 +38,8 @@ Most pages ended with one exercise, seven with two, and three with none by plan.
   is practised on unit 3 (`pooled-channels`), and a second exercise on it would repeat unit 3.
 - `jpos-server` unit 1 (basic setup) plans zero. Its ideas are Q2 hosting Spring and jPOS parts
   wired as beans. Both are configuration, and they show only in a running Q2.
-- `iso-fundamentals` units 1 and 16 are quiz pages, with two questions each (the user: *"for sure
-  4 questions were a lot"*). Unit 1 keeps the version question and drops the dates.
+- `iso-fundamentals` units 1 and 16 are quiz pages, with two questions each (register ruling:
+  quizzes stay short, one or two questions). Unit 1 keeps the version question and drops the dates.
 - `iso-fundamentals` units 2, 3 and 4 carry the source's own `practice-1`, so their authored
   exercises start at `practice-2`.
 
@@ -165,7 +165,7 @@ All taken at `a3936b6` in this worktree, host `python3`, with the framework expo
     cases 2 of 2", all four cases "Done". The starter was then restored with `git checkout`.
   - ⚠️ The code was graded in **host mode, through a scratch `mvn` shim** that runs the pinned
     runner image offline. The serve looks up its runner by a container name fixed per `source`,
-    and that container is the user's, over the main checkout (`ISO-M10/13`). The editor POST
+    and that container is the live site's, over the main checkout (`ISO-M10/13`). The editor POST
     returned 404 because no editor ran for this serve; that is expected.
 
 ## Findings (none patched in `studyforge`)
@@ -175,7 +175,7 @@ The framework rows are in `m10-plan.md` §4:
 - `ISO-M10/11`: a partial pass rewrites the corpus's one ledger, dropping every other page's
   entries, and `validate` stays GREEN.
 - `ISO-M10/12`: a page that teaches only a tool's convention cannot clear `Q2`.
-- `ISO-M10/13`: a second checkout cannot grade code without the user's runner container.
+- `ISO-M10/13`: a second checkout cannot grade code without the live site's runner container.
 - `ISO-M10/14`: fixture assumptions; local, and fixed here.
 - `ISO-M10/6` is withdrawn by `W453`.
 
@@ -188,7 +188,7 @@ Carried from ISO-25 and ISO-26, still open:
 - **W453/1**: an aspect's link to its exercise is recorded, not gated.
 - `Q2` is unstable between readings, which is why it is taken twice.
 
-**Page defects the authors found.** ⭐ **The user ruled "fix them" (2026-09-23), and `ISO-27`
+**Page defects the authors found.** ⭐ **The register ruled them fixed (2026-09-23), and `ISO-27`
 fixed every one** of those listed below; see `handoffs/ISO-27.md` for each page's fix and proof.
 At ISO-23 the pages were left unchanged, and each exercise taught what jPOS 2.1.7 actually does,
 verified by running.
@@ -217,7 +217,7 @@ future red on it is not a mystery.
 ## For the register
 
 - **Merge**: this branch is based on `424e55a` (ISO-26), so ISO-25 and ISO-26 come with it.
-- **Re-deploy**: the register's. The site at `:8770` is the user's and was not touched.
+- **Re-deploy**: the register's. The live site at `:8770` was not touched.
 - **Next**: ISO-24 (what `AX-11` reads) was blocked on ISO-23, and ISO-23 is now done.
 - **Scratch**: the authoring drafts, the raw judge readings and the driver live in this office's
   scratch directory. Nothing committed depends on them. The committed record is the bundles,

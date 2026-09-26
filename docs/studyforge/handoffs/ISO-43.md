@@ -66,7 +66,7 @@ On the host, installed library `f5b5a950`, in this worktree.
 - It was brought up with EXECUTION.md's one command and `--pull never`. All three services were
   healthy.
 - The pages were driven by headless Chrome over CDP.
-- Afterwards the compose was brought down with `down -v`, and the copy was deleted. The user's two
+- Afterwards the compose was brought down with `down -v`, and the copy was deleted. The live site's two
   containers were not touched: `docker events` shows no activity on them.
 
 | reading | result |
@@ -88,7 +88,7 @@ On the host, installed library `f5b5a950`, in this worktree.
 
 ## For the register
 
-- `main` was not moved. The corpus main checkout, :8770 and the user's containers were not
+- `main` was not moved. The corpus main checkout, :8770 and the live site's containers were not
   touched. Nothing was pushed. Only this row's own pytest directories were deleted.
 - **To publish on this tip:**
   1. Advance the main checkout.

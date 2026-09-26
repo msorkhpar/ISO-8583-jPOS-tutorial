@@ -6,12 +6,12 @@
 register built `…-7a5a2f2aacba` from the new prime. It is recorded in `runner.env`, and every
 code exercise was rehearsed again in it (below). Everything ran offline.
 
-**The user's rulings, 2026-09-23:**
+**Register rulings, 2026-09-23:**
 
-- On the page defects ISO-23's authors found: *"fix them"*. This is the user correcting their
-  own tutorial's content, so the source pages were edited directly.
-- On the `src/12.md` `RestTemplate` finding: *"Add spring-web dependency so that it can be used
-  too"*. spring-web is now declared (below).
+- On the page defects ISO-23's authors found: they are fixed. The tutorial is the project's own
+  content, so the source pages were edited directly.
+- On the `src/12.md` `RestTemplate` finding: spring-web is declared so exercises may use it. It
+  is now declared (below).
 
 | commit | what |
 |---|---|
@@ -58,11 +58,11 @@ code exercise was rehearsed again in it (below). Everything ran offline.
 
 ⭐ **`src/12.md` fences 1 and 4 are proven against the REAL spring-web.** They call
 `RestTemplate`, which the build did not declare, so at first they were proven only against a
-stub of `RestTemplate` copying the Spring 5.3 signature. After the user's ruling and the
+stub of `RestTemplate` copying the Spring 5.3 signature. After the register ruling and the
 register's rebuild, they were re-run with no stub, offline, in `…-7a5a2f2aacba`, against the
 declared `spring-web` 5.3.20: `TEST: OK`, with fence 4's test run against fence 3's service.
 
-## spring-web (the user's second ruling)
+## spring-web (the second register ruling)
 
 - `java-build/pom.xml` now declares `org.springframework:spring-web` at `${spring.version}`,
   5.3.20, the declared Spring line. The header says why.
@@ -170,7 +170,7 @@ All taken at `3e1afe4`:
   - fence 2 is missing two imports;
   - fence 4 archives the new key instead of the old one.
 
-These are candidates for a next "fix them" pass. The headings would need the user's word,
+These are candidates for a next fix pass. The headings would need a register ruling,
 because changing one moves an exercise origin.
 
 ## For the register
@@ -178,4 +178,4 @@ because changing one moves an exercise origin.
 - **Rebuild the runner image and record its tag** (the spring-web section above), then tell this
   office. The `src/12.md` fences 1 and 4 will then be re-proven against the real spring-web.
 - **Merge:** `int/m10-iso-23` carries ISO-23 and ISO-27 together. The main checkout,
-  `workspace.json`, `:8770` and the user's containers were not touched.
+  `workspace.json`, `:8770` and the live site's containers were not touched.

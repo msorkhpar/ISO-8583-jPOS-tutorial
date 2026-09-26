@@ -79,4 +79,4 @@ The paragraph checked is `jpos-client` unit 3 `prose.b2`, the page intro that IS
   makes its units stale in the same way. A narration gate after each authoring or fix round
   would catch it: the join above run as a check, failing when stale or silent is not 0.
 - `src/study/audio` is now 166 MB in the tree.
-- The main checkout, `workspace.json`, `:8770` and the user's containers were not touched.
+- The main checkout, `workspace.json`, `:8770` and the live site's containers were not touched.

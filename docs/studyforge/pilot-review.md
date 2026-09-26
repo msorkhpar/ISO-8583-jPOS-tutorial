@@ -207,7 +207,7 @@ went away.
 > and 5 Java fences. `jpos-client` 5 and `jpos-server` 5 hold 201 and 202 Java lines. The
 > corpus ceiling is at most 34×2 + 4 = 72 exercises against 188 Java fences, so **at least
 > 116 fences ship as a written reason, not as an exercise.** That is honest under the ledger
-> and is exactly what the user approves at the pilot. It is recorded so the review is framed
+> and is exactly what the owner approves at the pilot review. It is recorded so the review is framed
 > with it, not discovered after.
 
 **The question:** on these three pages, 13 of 28 fences ended as written reasons.

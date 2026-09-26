@@ -1,7 +1,7 @@
-# ISO-29 handoff: the third "fix them" pass
+# ISO-29 handoff: the third page-defect fix pass
 
-**Office** `po-int`. **Branch** `int/m10-iso-23`, on top of ISO-28 (`99c607d`). **The user's
-ruling, 2026-09-23, on ISO-28's findings:** *"yeah fix them"*. **Runner**
+**Office** `po-int`. **Branch** `int/m10-iso-23`, on top of ISO-28 (`99c607d`). **Register
+ruling, 2026-09-23, on ISO-28's findings:** they are fixed. **Runner**
 `code-server-toolchain/runner:java-maven-amd64-7a5a2f2aacba`, offline. **Framework:** the release
 tip had moved to `39f12d4e` (PO round 174, board commits only; `src/` has no diff from
 `de1ea776`). The corpus was re-pinned to it through `reonboard` before the regeneration, so the

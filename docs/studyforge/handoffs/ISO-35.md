@@ -4,7 +4,7 @@
 step 11.5. **Framework** `studyforge` 0.1.0, the wheel ISO-34 built from `2fe13269` (the commit
 `main`'s pin names), installed into a fresh venv with `--no-index`.
 
-**The ruling** (user, 2026-09-24): merge a branch if it has value or fixes a real bug; otherwise
+**The ruling** (register, 2026-09-24): merge a branch if it has value or fixes a real bug; otherwise
 drop it.
 
 | commit | what |

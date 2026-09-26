@@ -84,7 +84,7 @@ quiz shape.** All fences across the 38 lesson pages: 218 — `java` 188, `xml` 2
 (the exceptions are `iso-fundamentals` units 7 and 11), which is why `W390`'s prime is on the
 critical path of every row below that runs a gate.
 
-⛔ **The length bands no longer plan anything (framework `W453`, the user's ruling of
+⛔ **The length bands no longer plan anything (framework `W453`, register ruling of
 2026-09-23; finding `W453/3`).** At `06df27f` this section read `AX-07`'s `BANDS`, which measure
 prose only: 34 units `short` (ceiling 2), one `standard`, and three `stub` that planned zero
 (`iso-fundamentals` unit 11, `jpos-client` unit 5, `jpos-server` unit 5) though they carry 7, 5 and
@@ -149,12 +149,12 @@ aspect carries a written reason), or `0` with the gate that refused. On `iso-fun
 non-blank Java lines, among pages whose band is not `stub`.**
 
 - **Why fences and not lines.** Each fence is one ledger entry that must either be the basis of an
-  exercise or carry a written reason (property 1, *nothing is lost*). The pilot is where the user
+  exercise or carry a written reason (property 1, *nothing is lost*). The pilot review is where the owner
   approves the **shape and the per-page counts**, and the count's hardest test is the page with
   the most entries to account for against a ceiling of 2. A 300-line fence is one entry; ten short
   fences are ten.
 - **Why not a `stub` page.** A `stub` page plans zero by construction (`AX-07`), so it would show
-  the user no exercise at all. That is a legitimate answer for such a page, and `ISO-23` reads it,
+  the pilot review no exercise at all. That is a legitimate answer for such a page, and `ISO-23` reads it,
   but it cannot be the page on which the shape is approved.
 
 | container | pilot page | Java fences | runner-up by the same measure | measured by lines instead |
@@ -166,7 +166,7 @@ non-blank Java lines, among pages whose band is not `stub`.**
 ⭐ **Each maximum is unique**, so no tie-break decided a pilot page. ⚠️ **The two measures
 disagree on two of the three containers**, which is why the choice is argued above, not assumed.
 ⚠️ **Not one pilot page is case (a).** The only case-(a) pages are `iso-fundamentals` units 2 and
-4, and unit 4 is one fence behind unit 15. The user would then never review a code-with-tests
+4, and unit 4 is one fence behind unit 15. The pilot review would then never see a code-with-tests
 page. That is a question for the PO (`ISO-M10/7`), not a substitution this office makes quietly.
 
 ---
@@ -300,10 +300,10 @@ This row does not ship until that is answered.
   from the declared Mockito. What may not happen is an exercise whose main ask needs the
   database.
 
-### ISO-22 — The pilot: three pages, one per container, reviewed once by the user
+### ISO-22 — The pilot: three pages, one per container, reviewed once by the owner
 **Milestone** M10 · 10.4 · **Depends on** ISO-19, ISO-20, ISO-21; `AX-08` `e01c7243`; **`AX-10`
 merged** (§9; not merged at `5e0657ba`); `AX-09` `d459fadc`; **`ISO-M10/5` answered** ·
-**Team** solo, then **the user** · **Status** blocked — `AX-10`, and every blocker above
+**Team** solo, then **owner review** · **Status** blocked — `AX-10`, and every blocker above
 **Owns** `exercises/iso-fundamentals/prose/unit-15/`, `exercises/jpos-client/prose/unit-08/`,
 `exercises/jpos-server/prose/unit-08/`, the matching `practice/…` workspaces, `exercises/ledger.json`,
 and the rebuilt site
@@ -313,9 +313,9 @@ and the rebuilt site
 `src/s8.md`. Material is the manifest's `content` policy, graders are none (all three are case
 *code, no tests*), and the runner is the primed runner from `ISO-20`. Each `Page` records its three
 readings (`words` by `words_of`, `skills`, `tier`), and each planned exercise is authored and gated
-inside `ATTEMPTS`. Emit (`ISO-21`), rebuild, and put the three pages in front of the user **once**.
-⛔ **The user's review approves the shape and the per-page counts, and nothing after it is
-reviewed** (user ruling, 2026-09-19).
+inside `ATTEMPTS`. Emit (`ISO-21`), rebuild, and put the three pages in front of the owner for review **once**.
+⛔ **The owner's review approves the shape and the per-page counts, and nothing after it is
+reviewed** (register ruling, 2026-09-19).
 
 **Acceptance.**
 - Each pilot unit's `coverage.json` exists: shipped plus refused equals its plan, and every refusal
@@ -327,24 +327,24 @@ reviewed** (user ruling, 2026-09-19).
 - Re-running the pass with nothing changed writes nothing (every file keeps its bytes and mtime).
 - ⛔ `git diff 06df27f -- src README.md TestCases.md LICENSE .gitignore` is empty, and the reading
   floor of every non-pilot page is byte-unchanged over `file://`.
-- ⭐ **The user's verdict is recorded with the ref it was given at.** It is either *approved* or a
+- ⭐ **The review's verdict is recorded with the ref it was given at.** It is either *approved* or a
   list of changes. A change re-runs this row (remove the unit's directory and
   `exercises/ledger.json`, per `AX-08`'s *For dependents*). It never opens a second review of
   `ISO-23`.
 
 ### ISO-23 — All 38 units, planned by their important ideas (`W453`), on the gates alone
-**Milestone** M10 · 10.4 · **Depends on** ISO-22 and ISO-25 (the user approved the pilot);
+**Milestone** M10 · 10.4 · **Depends on** ISO-22 and ISO-25 (the pilot was approved);
 framework `W453` (pin `6d0b8dc6`) · **Team** solo · **Status** done on `int/m10-iso-23`, handed
 back to the register; not merged
 **Owns** `exercises/**` and `practice/**` for all 38 units (the pilot's included); `exercises/ledger.json`;
 the emitted archive; the rebuilt site; the fixtures in `tests/ingest/`
 **Context** one batch per container; handoff `docs/studyforge/handoffs/ISO-23.md`
 
-**Definition.** ⭐ **Re-planned by the user's ruling of 2026-09-23, now framework `W453`** (finding
-`W453/3` retires the band reading that stood here). The user's words: *"Depending on the context
-of the page there might be no practice, 2 or more, The target is covering all the aspects not just
-having something minimum we are looking for quality"* and *"don't over do it! … Sometimes a single
-practice might cover better than 4 unrelated small practices."* So each page is planned by its
+**Definition.** ⭐ **Re-planned by register ruling of 2026-09-23, now framework `W453`** (finding
+`W453/3` retires the band reading that stood here). Register ruling: a page may carry no
+practice, one, or several; the target is coverage of every aspect at quality, not a minimum count;
+and restraint matters, since one practice can cover an area better than several unrelated small
+ones. So each page is planned by its
 important ideas (aspects), prose and code. Related ideas share one exercise. An idea not practised
 carries a written reason, and a page may plan zero. There is no band, no ceiling and no quota. The
 plan_api 1 data (the pilot's three units, the unit-1 quiz, their workspaces and the ledger) is
@@ -402,7 +402,7 @@ grader.
   - ⚠️ Code was graded in host mode, through a scratch `mvn` shim that runs the pinned runner
     image offline. See `ISO-M10/13`.
 
-### ISO-27 — The tutorial's own page defects, fixed (the user's ruling: "fix them")
+### ISO-27 — The tutorial's own page defects, fixed (register ruling: the defects are fixed)
 **Milestone** M10 · 10.4 · **Depends on** ISO-23 · **Team** solo · **Status** done on
 `int/m10-iso-23`, handed back to the register; not merged. Handoff
 `docs/studyforge/handoffs/ISO-27.md`
@@ -413,10 +413,10 @@ The defects ISO-23's authors found on 16 source pages (`src/6`, `7`, `8`, `11`, 
 - Every changed fence is proven against `java-build/pom.xml`, offline.
 - The 15 exercises on those pages are re-gated: 2 re-authored, 4 with the statement only, and the
   rest byte-identical.
-- By the user's second ruling, `spring-web` 5.3.20 is declared, and the runner is rebuilt and
+- By a second register ruling, `spring-web` 5.3.20 is declared, and the runner is rebuilt and
   recorded as `…-7a5a2f2aacba`.
 
-### ISO-28 — The second "fix them" pass, headings included
+### ISO-28 — The second page-defect fix pass, headings included
 **Milestone** M10 · 10.4 · **Depends on** ISO-27; framework `W456` (pin `de1ea776`) · **Team**
 solo · **Status** done on `int/m10-iso-23`, handed back to the register; not merged. Handoff
 `docs/studyforge/handoffs/ISO-28.md`
@@ -427,7 +427,7 @@ The corpus is re-pinned to `de1ea776`, and the pass ran at that pin with the led
 place: nothing was dropped, and only the fixed pages' rows changed. jpos-server unit 3's origin
 follows its renamed heading. validate (check 20 included) is GREEN, and so is the suite.
 
-### ISO-29 — The third "fix them" pass
+### ISO-29 — The third page-defect fix pass
 **Milestone** M10 · 10.4 · **Depends on** ISO-28 · **Team** solo · **Status** done on
 `int/m10-iso-23`, handed back to the register; not merged. Handoff
 `docs/studyforge/handoffs/ISO-29.md`
@@ -471,7 +471,7 @@ re-pins and rebuilds**
 **Context** ~25k — `SF/src/studyforge/skills/exercises/SKILL.md`, spec §7 §7, `W451`'s row;
 handoff `docs/studyforge/handoffs/ISO-25.md`
 
-**Definition.** §1.2 found no ISO page `neither`, so the ledger planned no quiz. The user wants
+**Definition.** §1.2 found no ISO page `neither`, so the ledger planned no quiz. The register wants
 one multiple-choice quiz in the pilot, beside the six code exercises. ⭐ **The register rules,
 reversibly and as corpus data, that one conceptual page is a `quiz` page.** This office chose
 `iso-fundamentals` unit 1, `src/1.md` (*Introduction to ISO-8583*). Its subject is what the
@@ -483,7 +483,7 @@ the standard is for, and how its versions differ) and tier `introductory`, so th
 one quiz of 3 to 5 questions.
 
 ⛔ **The quiz is authored against the CURRENT bundle shape**, with the key in `tests/quiz.json`
-as `AX-05` writes it. The user's ruling of 2026-09-23 moves the key to the local study server
+as `AX-05` writes it. The register ruling of 2026-09-23 moves the key to the local study server
 (`W451`). No generated page is hand-edited to hide it. That work is `W451`'s, in the framework.
 
 **Acceptance.**
@@ -514,14 +514,14 @@ as `AX-05` writes it. The user's ruling of 2026-09-23 moves the key to the local
 | `ISO-M10/3` | `[structural]` | ISO-21, ISO-23 (iso units 2–4) | ⛔ **The authoring loop numbers a unit's exercises from 1** (`loop.author_page`: `Places(…, len(shipped) + 1)`). `iso-fundamentals` units 2, 3 and 4 already carry a bundled `practice-1` in the archive (W426), so an authored exercise there collides with it. Renumbering the bundled one moves every reader's progress, which is exactly what `loop.py`'s own docstring forbids. ⚠️ **Question: an ordinal offset from the unit's existing practices, read or declared?** The pilot does not touch these units, so this blocks `ISO-23` and not `ISO-22` |
 | `ISO-M10/4` | `[structural]` | ISO-19 | ⚠️ **`AX-08/4` restated, measured here.** The manifest lines and the ignore rule are still typed by hand. The ignore rule **cannot even be written before authoring**, because the report path is a per-draft field (`CodeDraft.report`) with no per-runtime convention. ⭐ R19: a fixed report path per runtime would let onboarding generate both the line and the rule |
 | `ISO-M10/5` | `[structural]` | ISO-22 | ⚠️ **The `Author` is an in-process Python protocol, and this office is a model session.** There is no console entry point (`AX-08` *For dependents*), and `draft(brief)` is called synchronously inside `author_corpus`. A session can answer it only through a driver that pauses the pass, or through a file-backed author across re-runs. The corpus would then write that driver itself, and every next corpus would retype it (R19). ⭐ `AX-10` was asked to show a driving script. **If the guide lands without one, this blocks the pilot** |
-| `ISO-M10/6` | ⛔ **withdrawn by `W453`** (the bands plan nothing now; §1.2) | — | ⚠️ **The bands measure prose only, and this corpus is code-dense.** 34 of 38 units are `short` (at most 2 exercises), one is `standard`, and three plan zero while carrying 7, 5 and 5 Java fences. `jpos-client` 5 and `jpos-server` 5 hold 201 and 202 Java lines. The corpus ceiling is at most 34×2 + 4 = 72 exercises against 188 Java fences, so **at least 116 fences ship as a written reason, not as an exercise.** That is honest under the ledger and is exactly what the user approves at the pilot. It is recorded so the review is framed with it, not discovered after |
+| `ISO-M10/6` | ⛔ **withdrawn by `W453`** (the bands plan nothing now; §1.2) | — | ⚠️ **The bands measure prose only, and this corpus is code-dense.** 34 of 38 units are `short` (at most 2 exercises), one is `standard`, and three plan zero while carrying 7, 5 and 5 Java fences. `jpos-client` 5 and `jpos-server` 5 hold 201 and 202 Java lines. The corpus ceiling is at most 34×2 + 4 = 72 exercises against 188 Java fences, so **at least 116 fences ship as a written reason, not as an exercise.** That is honest under the ledger and is exactly what the owner approves at the pilot review. It is recorded so the review is framed with it, not discovered after |
 | `ISO-M10/7` | question, for the PO | ISO-22's page choice | ⚠️ **The density rule leaves case (a) out of the only review.** `iso-fundamentals` unit 4, the one case-(a) page with real code (9 fences), loses to unit 15 (10) by one fence. Also: this corpus's two test files are the framework's own M7 samples (`W426`), plain-Java and not JUnit, and case (a)'s blanking derivation does not exist yet (`AX-08/2`). Keep the rule, or substitute unit 4 for unit 15? This office keeps the rule until ruled otherwise |
 | `ISO-M10/8` | question | ISO-20 | ⚠️ **The execution skill copies the corpus's own build file and authors none, and this corpus has none.** `src/Practice.md` says *"no build tool, no dependency"*. The jPOS version has a source in the material (`2.1.7`, three `pom.xml` fences), but the JUnit version has none, even though 34 fences import `org.junit`. So this office would hand-author the build file and choose a JUnit version nothing in the corpus states. Is that acceptable as a declared hand-authored artifact, or does the framework want the version from somewhere else? |
 | `ISO-M10/9` | `[local]` | nothing today | ⭐ A unit whose material is two files (`src/2.md` plus `src/p2.md`) cannot be one `Page`: `Page` takes one path, and `corpus._in_order` refuses two pages on one unit. The practice files carry 0 fences, so no ledger entry is orphaned here, but a passage in `src/p2.md` cannot be a page's own material. Recorded for the next corpus |
 | `ISO-M10/10` | `[local]` | nothing | ⚠️ **This document makes `studyforge validate .` RED on this branch** (the bound: one `[unclassified]` finding, `docs/studyforge/m10-plan.md`). `docs/**` was declared on `release/studyforge-integration` and is not declared on the `06df27f` line. `ISO-19` adds it. The same document on `06df27f`'s line cannot be committed GREEN without a manifest edit, and a manifest edit is `ISO-19`'s, not this planning row's |
 | `ISO-M10/11` | `[structural]` | ISO-23 | ⛔ **A pass over some of a corpus's pages rewrites the whole ledger with only those pages' entries, and `validate` stays GREEN.** `exercises/ledger.json` is one file per corpus. The `jpos-client` pass, run alone, wrote 67 entries in place of 85 and would have dropped every `iso-fundamentals` entry. `studyforge validate .` still read 0 findings, so an unaccounted lesson page is not a finding. ISO-23 re-ran each pass over every container done so far, and all 38 pages came back `kept`, byte-identical. ⚠️ **Question: should `author_corpus` refuse a ledger that drops pages it was not given, and should `validate` refuse a lesson page the ledger does not account for?** |
 | `ISO-M10/12` | ⭐ **ruled by the register**: `jpos-client` unit 1 plans zero (`dda566b`); the framework question stands | ISO-23 (`jpos-client` 1) | ⚠️ **A page that teaches only a tool's convention cannot yield a quiz that clears `Q2`**, because general knowledge answers it without the page. `src/c1.md` was declared a quiz page, was refused at `Q2` on all three attempts, and ships nothing. The shortfall is honest. The question is whether `W453`'s plan should weigh "is this idea the page's own, or the tool's convention?" before it chooses a quiz, so that such a page plans zero with a reason instead of spending three attempts |
-| `ISO-M10/13` | `[structural]` | ISO-23's browser reading; any second checkout | ⚠️ **The study server finds its runner by a container name fixed per `source`** (`studyforge-runner-iso-8583-jpos-tutorial`), and that container is the user's, over the main checkout. A worktree or any second checkout of the same corpus therefore falls to host mode, and a code Submit needs the host's own `mvn` (this host has none: exit 127). ISO-23 graded code through a scratch shim that runs the pinned runner image offline. ⚠️ **Question: should the runner's name carry the root (or be overridable), so a second checkout can grade without the user's container?** |
+| `ISO-M10/13` | `[structural]` | ISO-23's browser reading; any second checkout | ⚠️ **The study server finds its runner by a container name fixed per `source`** (`studyforge-runner-iso-8583-jpos-tutorial`), and that container is the live site's, over the main checkout. A worktree or any second checkout of the same corpus therefore falls to host mode, and a code Submit needs the host's own `mvn` (this host has none: exit 127). ISO-23 graded code through a scratch shim that runs the pinned runner image offline. ⚠️ **Question: should the runner's name carry the root (or be overridable), so a second checkout can grade without the live site's container?** |
 | `ISO-M10/14` | `[local]`, fixed in this diff | ISO-23 | The corpus's `tests/ingest` fixtures addressed units "the authoring pass has not" touched (`jpos-client` 9, `iso-fundamentals` 2 practice-2). Once all 38 units were authored, 5 tests failed (exit 1). The fixtures now take the next free ordinal or address `jpos-client` unit 11 (empty by plan). Every count stays exact. The suite is GREEN, exit 0 |
 
 ## 5. Gates taken for this plan

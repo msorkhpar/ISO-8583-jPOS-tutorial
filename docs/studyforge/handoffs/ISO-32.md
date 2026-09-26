@@ -34,7 +34,7 @@ Then `hand_edited('.')` read `[]` again.
 - The pin: `"where": "installed"`, version `0.1.0`, commit `6ca2c94c…`. The three stubs,
   `installed.json` and `ONBOARDING.md` moved with it. `corpus.json` did not change: it stays at
   `corpus_api` 4 with no `narration` key, which means narration is on. That question is still
-  open with the user for this corpus, so nothing was set.
+  open with the register for this corpus, so nothing was set.
 - **Each stub resolves through the installed package.** For `reconnaissance`, `adapter` and
   `onboarding`, the command the stub names prints bytes identical to the wheel's
   `studyforge/skills/<name>/SKILL.md`.
@@ -51,7 +51,7 @@ ingest module names a sibling. Rewriting them would falsify the record.
 
 ⚠️ Outside the repository, `ISO-8583-jPOS-tutorial-wt/studyforge` is an untracked symlink to
 `../studyforge`. It exists so the old sibling paths resolved from the worktree. The corpus no
-longer needs it. This office did not remove it: it is outside scratch, and it is the user's to
+longer needs it. This office did not remove it: it is outside scratch, and it is the register's to
 prune.
 
 ## Step 2: ONBOARDING.md is archived, but NOT under `archive/`
@@ -101,7 +101,7 @@ A `## Contents` heading then introduces the unchanged curriculum.
   that, so the docstring now names the label instead. That is the one hand-written file, so
   editing it is not a finding.
 - **Serve was checked:** `serve . --site . --port 8791` from the installed library answered
-  `GET /index.html` with 200 on loopback, then was stopped. The user's site on 8770 was not
+  `GET /index.html` with 200 on loopback, then was stopped. The live site on 8770 was not
   touched.
 
 ## Gates, at `ec8fb96`, installed library `6ca2c94c`, host
@@ -120,11 +120,11 @@ A `## Contents` heading then introduces the unchanged curriculum.
 
 | id | where | what |
 |---|---|---|
-| `ISO-32/1` | `skills/onboarding/artifacts.py` `READER_DOC`, `onboard` | ⚠️ **The reader document's path is fixed at the root.** No manifest field can place it elsewhere, so a corpus that archives it gets it back at the root on its next `reonboard`. The generated pin test also still points readers at it (*"ONBOARDING.md says how"*). The user's ruling to archive `ONBOARDING.md` cannot hold across a regenerate until onboarding can place the document, or stop writing it |
+| `ISO-32/1` | `skills/onboarding/artifacts.py` `READER_DOC`, `onboard` | ⚠️ **The reader document's path is fixed at the root.** No manifest field can place it elsewhere, so a corpus that archives it gets it back at the root on its next `reonboard`. The generated pin test also still points readers at it (*"ONBOARDING.md says how"*). The register ruling to archive `ONBOARDING.md` cannot hold across a regenerate until onboarding can place the document, or stop writing it |
 | `ISO-32/2` | `skills/onboarding` `hand_edited` | ⚠️ **A generated file that was moved away is not reported.** With `ONBOARDING.md` gone from where `installed.json` records it, `hand_edited('.')` still read `[]`. Removing a generated file is a change to a generated artifact, and this proof does not see it |
 | `ISO-32/3` | `skills/execution` (the generated `EXECUTION.md` and `.studyforge/execution/compose.yaml`) | ⚠️ **Generated stranger-facing text cites process ids:** `SK-09/2` in `EXECUTION.md`, and *"§8.1 ruling 4"* in both files. The README now links `EXECUTION.md`, so a stranger reads them. They are generated, so they were not edited (R19) |
 | `ISO-32/4` | the generated pin test and `ONBOARDING.md`'s install prose | ⚠️ **The generated tests need pytest, and nothing says so.** The wheel declares no test dependency, so a venv holding only the wheel cannot run `tests/test_framework_pin.py`. This office used `--system-site-packages` to reach the host's pytest |
-| `ISO-32/5` | the brief, not the framework | ⚠️ **`archive/` is the studyforge archive's directory in every corpus**, so "move it to the corpus's archive" cannot mean that directory. `validate` refuses a stray there. A retired document needs another home, as here under `docs/archive/`, or the archive-branch form the framework's own ruling used |
+| `ISO-32/5` | the brief, not the framework | ⚠️ **`archive/` is the studyforge archive's directory in every corpus**, so moving it to the corpus's archive cannot mean that directory. `validate` refuses a stray there. A retired document needs another home, as here under `docs/archive/`, or the archive-branch form the framework's own ruling used |
 
 `REL-05/1` still stands: the wheel carries no commit, so the pin's commit was checked for shape
 only.
@@ -132,7 +132,7 @@ only.
 ## Step 4: advancing main and pruning. PREPARED, NOT RUN
 
 ⛔ **Nothing below was run.** `main` was not moved, and no branch or worktree was touched. The
-user approves these.
+register approves these.
 
 **The final tip** is the commit that adds this handoff, the child of `ec8fb96` on
 `int/m10-iso-23`. Before running anything, check that `git rev-parse int/m10-iso-23^` prints
@@ -182,7 +182,7 @@ git merge-base --is-ancestor rebuild/clean-run main && git branch -d rebuild/cle
 
 - `int/m10-iso-23` is merged too, but the linked worktree `ISO-8583-jPOS-tutorial-wt/int` has
   it checked out. It can be deleted only after that worktree is removed, and removing it is
-  the user's call. Afterwards:
+  the register's call. Afterwards:
   `git worktree remove ISO-8583-jPOS-tutorial-wt/int && git branch -d int/m10-iso-23`.
 
 ⛔ **Unmerged, never to be deleted by this procedure: 15 branches.** `release/studyforge-integration`
@@ -190,4 +190,4 @@ is the old integration line, from before the clean rebuild. Its merge-base with 
 is `66ba23b`, the old `main`, and its history is reachable from nothing else. Thirteen of the
 fourteen `int/round*` branches are ancestors of it. The exception is `int/round14-repin-iso12-iso14`,
 which is an ancestor of neither line. Whether that old line is kept, or given an archive name,
-is the user's decision.
+is the register's decision.

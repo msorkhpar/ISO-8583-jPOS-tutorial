@@ -94,7 +94,7 @@ On the host, installed library `ebbc37d4`, at `8d11fa6` in this worktree unless 
 - The generated compose file brought up under its own project name (`iso33-probe`), with
   `--pull never` and `EDITOR_IMAGE` set to the new editor tag. A scratch override file changed
   only the editor's host port (8544) and the runner's container name, because both are literals
-  that the user's project already holds (`ISO-33/4`).
+  that the live site's project already holds (`ISO-33/4`).
 - `studyforge serve . --site . --port 8793` from the installed library. It ran in-process, with
   `routes.runs.container_for` and `editor_container_for` substituted to return the probe's
   names (`ISO-33/5`). Run, Submit and the practice-editor route were POSTed to it.
@@ -120,7 +120,7 @@ On the host, installed library `ebbc37d4`, at `8d11fa6` in this worktree unless 
   main checkout, once it is at this branch's tip, run
   `docker compose --env-file .studyforge/execution/runner.env -f .studyforge/execution/compose.yaml up -d --wait --pull never`
   with `EDITOR_IMAGE=code-server-toolchain/editor:java-maven-amd64-0c712ff89060`. That replaces
-  both of the user's containers. Keep the old images until the site is confirmed.
+  both of the live site's containers. Keep the old images until the site is confirmed.
 - `main` was not moved, and no branch or worktree was touched. ISO-32's prepared advance and
   pruning procedure still applies, with this handoff's commit as the tip.
 - ⚠️ The W463 handoff (`d4b2756f`) is on studyforge's `docs/W463-handoff` and

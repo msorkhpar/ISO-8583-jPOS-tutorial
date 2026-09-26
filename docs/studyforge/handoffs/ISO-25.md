@@ -8,7 +8,7 @@ re-pinned; the register re-pins.
 
 ⛔ **The built page still carries the key.** The framework at `3758d114` renders
 `data-practice-correct` and every option's sentence into the page, as spec §7 §7 described it.
-The user's ruling of 2026-09-23 moves the key to the local study server, and that change is
+The register ruling of 2026-09-23 moves the key to the local study server, and that change is
 the framework's `W451`. No generated page was hand-edited to hide it. When `W451` merges, the
 register re-pins and rebuilds, and this page then stops carrying the key. The bundle's shape
 does not change.

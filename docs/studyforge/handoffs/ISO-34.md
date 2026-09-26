@@ -70,7 +70,7 @@ On the host, installed library `2fe13269`, in this worktree.
 | the corpus suite at `f97b166`, after the commit | GREEN, exit 0 |
 | the printed compose command, with its verb swapped for `config --images` (`--env-file` runner, `--env-file` editor, `-f` compose), with neither image variable in the environment | GREEN, exit 0. It named exactly the recorded editor and runner tags |
 
-⭐ **These are the two tags the site runs.** A read-only `docker ps` shows the user's
+⭐ **These are the two tags the site runs.** A read-only `docker ps` shows the live site's
 `…-editor-1` on `…/editor:java-maven-amd64-0c712ff89060` and the runner on
 `…/runner:java-maven-amd64-29d0605bb762`. The switch-over ISO-33 prepared has already happened, so
 nothing in this row needs a restart.

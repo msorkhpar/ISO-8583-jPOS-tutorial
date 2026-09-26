@@ -65,7 +65,7 @@ On the host, installed library `f72a1dde`, in this worktree.
   project `iso44-live`, editor port 18443 and site port 18793. `stage_site` gave the same tag.
 - Everything ran with `--pull never`. Afterwards the compose was brought down with `down -v`, and
   the copy was deleted.
-- The user's three ISO containers were not touched. `docker events` shows no activity on their
+- The live site's three ISO containers were not touched. `docker events` shows no activity on their
   runner.
 
 | reading | result |

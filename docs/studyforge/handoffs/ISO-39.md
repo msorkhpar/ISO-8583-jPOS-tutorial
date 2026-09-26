@@ -84,7 +84,7 @@ On the host, installed library `a33243c3`, in this worktree.
 
 | id | what |
 |---|---|
-| `ISO-39/1` | **Host, now resolved.** The per-user disk quota on the `/tmp` tmpfs ran out twice. Each run of the corpus suite leaves a copy of the corpus in `/tmp/pytest-of-mks`, and each copy holds about 200 to 570 MB because of the clips. The failing run filled the quota: a write probe found 0 MB free. The register freed the space. At its direction, only `pytest-32`, `pytest-33` and `pytest-34` were deleted: this corpus's own runs, identified by `tests/ingest/test_exercises.py`'s test names. A 1000 MB write probe then succeeded. ⚠️ **Worth a framework row:** the generated suite's corpus copy is not cleaned up, and pytest keeps the last three runs, so three runs of this corpus take up to about 1.5 GB of the quota |
+| `ISO-39/1` | **Host, now resolved.** The per-user disk quota on the `/tmp` tmpfs ran out twice. Each run of the corpus suite leaves a copy of the corpus in `/tmp/pytest-of-<user>`, and each copy holds about 200 to 570 MB because of the clips. The failing run filled the quota: a write probe found 0 MB free. The register freed the space. At its direction, only `pytest-32`, `pytest-33` and `pytest-34` were deleted: this corpus's own runs, identified by `tests/ingest/test_exercises.py`'s test names. A 1000 MB write probe then succeeded. ⚠️ **Worth a framework row:** the generated suite's corpus copy is not cleaned up, and pytest keeps the last three runs, so three runs of this corpus take up to about 1.5 GB of the quota |
 | — | ISO-37/2, ISO-37/4 and ISO-36/2 still stand |
 
 ## For the register

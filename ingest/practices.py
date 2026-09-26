@@ -13,8 +13,8 @@ units carries: the file it was read from and the document built out of it.
 
 ## ⭐ A practice is part of its TOPIC page, not a section after the chapter
 
-⛔ **The user's words, 2026-09-21:** *"the practices should be as part of each
-topic page not a separate UI after the entire chapter."* A reader who finishes
+⛔ **Register ruling (2026-09-21):** a practice is part of its topic page, never
+a separate section after the whole chapter. A reader who finishes
 a chapter and then navigates to a Practices section has left the material
 behind. ⚠️ **This corpus shipped exactly that** — a fourth container — and
 `W428` is the row that undid it.

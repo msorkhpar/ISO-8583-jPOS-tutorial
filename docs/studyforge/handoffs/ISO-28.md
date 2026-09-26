@@ -1,7 +1,7 @@
-# ISO-28 handoff: the second "fix them" pass, headings included
+# ISO-28 handoff: the second page-defect fix pass, headings included
 
-**Office** `po-int`. **Branch** `int/m10-iso-23`, on top of ISO-27 (`588e3e5`). **The user's
-ruling, 2026-09-23:** *"fix them"*. It covers every defect ISO-27 recorded but did not edit, and
+**Office** `po-int`. **Branch** `int/m10-iso-23`, on top of ISO-27 (`588e3e5`). **Register
+ruling, 2026-09-23:** the recorded defects are fixed. It covers every defect ISO-27 recorded but did not edit, and
 the headings too. **Runner** `code-server-toolchain/runner:java-maven-amd64-7a5a2f2aacba`,
 offline. **Framework:** re-pinned to `de1ea776` (it carries `W456`), and the regeneration ran at
 that same ref, as the register ruled.

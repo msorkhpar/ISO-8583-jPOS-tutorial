@@ -98,7 +98,7 @@ def test_the_region_stops_at_the_label_and_nothing_below_it_is_read():
 
 
 def test_every_practice_is_declared_on_the_unit_it_practises():
-    # ⛔ `W428`, and it is the user's own clause: a practice is part of its
+    # ⛔ `W428`, a register ruling: a practice is part of its
     # topic page, so it reaches the reader as a second document of that unit
     # and never as a container of its own.
     found = {key: container for key, (container, _) in _joined().items()}
