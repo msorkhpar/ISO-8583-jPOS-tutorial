@@ -38,7 +38,7 @@
 <h4 id="prose-b11" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b12-c6940cb8.mp3">Field 63: Network Data</h4>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b13-263a9d5a.mp3">This field is used for network-specific information and can contain various subfields.</p>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b14-10c645ad.mp3">Let's implement a Java class to handle Mastercard-specific data elements:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b15-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.stereotype.Component;
 
@@ -73,7 +73,7 @@ public class MastercardDataElementHandler {
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b17-92dd4059.mp3">Mastercard uses processing codes to identify the type of transaction. The processing code (field 3) is six digits: the transaction type (2), the from-account type (2) and the to-account type (2). The transaction-type values vary by network, so take them from your network's specification. The codes below are examples, with both account types 00 (default account):</p>
 <ol class="items"><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i1-bb724ecd.mp3">Purchase: 000000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i2-721f25a9.mp3">Cash Advance: 010000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i3-0c59bc25.mp3">Void: 020000</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b18.i4-7f0fdc59.mp3">Refund: 200000</li></ol>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b19-9c86f083.mp3">Let's implement a Java enum to represent these processing codes:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">public enum MastercardProcessingCode {
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">public enum MastercardProcessingCode {
     PURCHASE(&quot;000000&quot;),
     CASH_ADVANCE(&quot;010000&quot;),
     VOID(&quot;020000&quot;),
@@ -99,7 +99,7 @@ public class MastercardDataElementHandler {
     }
 }</code></pre></figure>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b21-1ddd31b5.mp3">Now, let's create a service to handle Mastercard transactions:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b22-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.jpos.iso.ISOException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -165,7 +165,7 @@ public class MastercardTransactionService {
     }
 }</code></pre></figure>
 <p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b23-6f547f5b.mp3">Now, let's create a test class to verify the functionality of our Mastercard transaction service:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.prose.b24-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -261,13 +261,13 @@ public class MastercardTransactionServiceTest {
 </ol>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Build Mastercard requests from their processing codes">
-<h2 id="practice-prose-b0" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
-<p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b2-31b243e6.mp3">On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. That code is six digits: two for the transaction type, two for the account the money comes from and two for the account it goes to. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not.</p>
-<p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b3-20b55cbe.mp3">Write <code>MastercardRequests</code>, using its nested enum <code>ProcessingCode</code> with the page's codes, both account types left at <code>00</code>: <code>PURCHASE</code> <code>000000</code>, <code>CASH_ADVANCE</code> <code>010000</code>, <code>VOID</code> <code>020000</code>, <code>REFUND</code> <code>200000</code>.</p>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b4.i1-3d8570fd.mp3"><code>ProcessingCode.fromCode(String code)</code> returns the type a six-digit code stands for. The type is named by the code's first two digits.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b4.i2-69d4a4f4.mp3"><code>request(ProcessingCode type, String pan, String amount, String merchantId)</code> builds an <code>0200</code> with the card number in field 2, the type's six-digit code in field 3, the amount in field 4 and the merchant id in field 42.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b4.i3-8bcf5a86.mp3"><code>refund(String pan, String amount, String merchantId, String originalReference)</code> builds the same request for <code>REFUND</code>, and also carries the original transaction's reference in field 37.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b4.i4-1834b3ae.mp3"><code>typeOf(ISOMsg message)</code> reads a message's type back from its field 3.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b4.i5-0ccf78ce.mp3"><code>isApproved(ISOMsg response)</code> says whether the response approves the transaction: its field 39 is <code>00</code>.</li></ul>
-<p data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b5-27367c2c.mp3">Edge cases to handle:</p>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b6.i1-62e9ae10.mp3">A code that is not six digits, or whose first two digits are not one of the four types, is refused with an <code>IllegalArgumentException</code>, whether it reaches <code>fromCode</code> directly or through <code>typeOf</code>.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b6.i2-774460c4.mp3">The account-type digits do not change the transaction: a code that starts with <code>20</code> is a refund whatever its last four digits are.</li><li data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b6.i3-032c9cc7.mp3">A response with no field 39 at all is not approved, and <code>isApproved</code> answers <code>false</code> rather than failing.</li></ul>
-<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. That code is six digits: two for the transaction type, two for the account the money comes from and two for the account it goes to. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not.</p>
+<p>Write <code>MastercardRequests</code>, using its nested enum <code>ProcessingCode</code> with the page's codes, both account types left at <code>00</code>: <code>PURCHASE</code> <code>000000</code>, <code>CASH_ADVANCE</code> <code>010000</code>, <code>VOID</code> <code>020000</code>, <code>REFUND</code> <code>200000</code>.</p>
+<ul class="items"><li><code>ProcessingCode.fromCode(String code)</code> returns the type a six-digit code stands for. The type is named by the code's first two digits.</li><li><code>request(ProcessingCode type, String pan, String amount, String merchantId)</code> builds an <code>0200</code> with the card number in field 2, the type's six-digit code in field 3, the amount in field 4 and the merchant id in field 42.</li><li><code>refund(String pan, String amount, String merchantId, String originalReference)</code> builds the same request for <code>REFUND</code>, and also carries the original transaction's reference in field 37.</li><li><code>typeOf(ISOMsg message)</code> reads a message's type back from its field 3.</li><li><code>isApproved(ISOMsg response)</code> says whether the response approves the transaction: its field 39 is <code>00</code>.</li></ul>
+<p>Edge cases to handle:</p>
+<ul class="items"><li>A code that is not six digits, or whose first two digits are not one of the four types, is refused with an <code>IllegalArgumentException</code>, whether it reaches <code>fromCode</code> directly or through <code>typeOf</code>.</li><li>The account-type digits do not change the transaction: a code that starts with <code>20</code> is a refund whatever its last four digits are.</li><li>A response with no field 39 at all is not approved, and <code>isApproved</code> answers <code>false</code> rather than failing.</li></ul>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
@@ -346,8 +346,8 @@ public final class MastercardRequests {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b8" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b9-efa73569.mp3">Starting code</h2>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-06-mastercard-specific-implementation/iso-fundamentals--unit-06.practice-prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b8">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;

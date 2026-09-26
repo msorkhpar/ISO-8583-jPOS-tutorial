@@ -41,7 +41,7 @@
 <h4 id="prose-b14" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b15-a294b9c7.mp3">Security errors</h4>
 <p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b16-d67c083c.mp3">These are related to encryption, authentication, or other security measures. They should be treated with high priority and may require immediate action.</p>
 <p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b17-a895d2a3.mp3">Now, let's implement a simple error handling system using jPOS and Spring. We'll create a service that processes transactions and handles various error scenarios.</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b18-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -125,7 +125,7 @@ class NetworkException extends Exception {
     }
 }</code></pre></figure>
 <p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b19-b77504ad.mp3">Now, let's create a simple test for our <code>TransactionService</code>:</p>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.prose.b20-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -206,16 +206,16 @@ public class TransactionServiceTest {
 </ol>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Decide what a transaction&#39;s outcome calls for">
-<h2 id="practice-prose-b0" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
-<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b2-0d926b9e.mp3">Every transaction ends in one of two ways: a response arrives and field 39 says what the issuer decided, or something fails before it can. Each case calls for different handling, and getting the category wrong is costly: calling an unknown code an approval gives goods away, and retrying a security failure hides an attack.</p>
-<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b3-5073ed6a.mp3">Write <code>ResponseHandling</code> with two methods.</p>
-<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b4-1f881a31.mp3"><code>outcomeOf(ISOMsg response)</code> reads field 39 and returns an <code>Outcome</code>:</p>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b5.i1-6f2e3bb5.mp3"><code>APPROVED</code> for the page's approval codes: <code>00</code>, <code>10</code> (partial approval) and <code>85</code> (no reason to decline);</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b5.i2-e4296c60.mp3"><code>REFER</code> for the referral codes <code>01</code> and <code>02</code>: the issuer wants to be called, which is neither an approval nor a plain decline;</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b5.i3-fe63f977.mp3"><code>DECLINED</code> for everything else.</li></ul>
-<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b6-fb7dffec.mp3"><code>actionFor(Exception failure)</code> returns an <code>Action</code>:</p>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b7.i1-275ccd83.mp3"><code>RETRY</code> for a network error, which arrives as a <code>java.io.IOException</code>;</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b7.i2-4fa0b0e9.mp3"><code>LOG_FOR_FIX</code> for a format error, which jPOS reports as an <code>org.jpos.iso.ISOException</code>;</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b7.i3-3657b2c8.mp3"><code>ALERT_SECURITY</code> for a <code>SecurityException</code>.</li></ul>
-<p data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b8-27367c2c.mp3">Edge cases to handle:</p>
-<ul class="items"><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b9.i1-5269ca91.mp3"><code>10</code> and <code>85</code> are approvals as well as <code>00</code>.</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b9.i2-f7ff0f04.mp3">A response that carries no field 39 is <code>DECLINED</code>; asking must not fail.</li><li data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b9.i3-ddd36982.mp3">Network errors come in many kinds: a <code>java.net.SocketTimeoutException</code> is an <code>IOException</code> and is retried like the rest.</li></ul>
-<details class="disclosure"><summary data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b11-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>Every transaction ends in one of two ways: a response arrives and field 39 says what the issuer decided, or something fails before it can. Each case calls for different handling, and getting the category wrong is costly: calling an unknown code an approval gives goods away, and retrying a security failure hides an attack.</p>
+<p>Write <code>ResponseHandling</code> with two methods.</p>
+<p><code>outcomeOf(ISOMsg response)</code> reads field 39 and returns an <code>Outcome</code>:</p>
+<ul class="items"><li><code>APPROVED</code> for the page's approval codes: <code>00</code>, <code>10</code> (partial approval) and <code>85</code> (no reason to decline);</li><li><code>REFER</code> for the referral codes <code>01</code> and <code>02</code>: the issuer wants to be called, which is neither an approval nor a plain decline;</li><li><code>DECLINED</code> for everything else.</li></ul>
+<p><code>actionFor(Exception failure)</code> returns an <code>Action</code>:</p>
+<ul class="items"><li><code>RETRY</code> for a network error, which arrives as a <code>java.io.IOException</code>;</li><li><code>LOG_FOR_FIX</code> for a format error, which jPOS reports as an <code>org.jpos.iso.ISOException</code>;</li><li><code>ALERT_SECURITY</code> for a <code>SecurityException</code>.</li></ul>
+<p>Edge cases to handle:</p>
+<ul class="items"><li><code>10</code> and <code>85</code> are approvals as well as <code>00</code>.</li><li>A response that carries no field 39 is <code>DECLINED</code>; asking must not fail.</li><li>Network errors come in many kinds: a <code>java.net.SocketTimeoutException</code> is an <code>IOException</code> and is retried like the rest.</li></ul>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.io.IOException;
 import org.jpos.iso.ISOException;
@@ -260,8 +260,8 @@ public final class ResponseHandling {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b11" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b12-efa73569.mp3">Starting code</h2>
-<figure class="code" data-audio="audio/iso-fundamentals.unit-09-error-handling-and-response-codes/iso-fundamentals--unit-09.practice-prose.b13-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b11">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import org.jpos.iso.ISOMsg;
 

@@ -32,7 +32,7 @@
 <h2 id="prose-b5" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b6-bed73947.mp3">Implementing Security in a jPOS Client</h2>
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b7-9bae35b5.mp3">Let's implement a secure client that can encrypt PINs and generate MACs for ISO-8583 messages.</p>
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b8-b9f448e0.mp3">First, we'll set up the necessary dependencies in our <code>pom.xml</code>:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b9-1de7a9e4.mp3"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;dependencies&gt;
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;dependencies&gt;
     &lt;dependency&gt;
         &lt;groupId&gt;org.jpos&lt;/groupId&gt;
         &lt;artifactId&gt;jpos&lt;/artifactId&gt;
@@ -46,7 +46,7 @@
     &lt;!-- Other dependencies... --&gt;
 &lt;/dependencies&gt;</code></pre></figure>
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b10-8b6b7544.mp3">Now, let's create a <code>SecurityService</code> that will handle our security operations:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b11-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.Configuration;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.core.Configuration;
 import org.jpos.core.ConfigurationException;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
@@ -95,7 +95,7 @@ public class SecurityService {
     // Other security-related methods...
 }</code></pre></figure>
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b12-5679334d.mp3">Now, let's create a <code>SecureISOClient</code> that uses this <code>SecurityService</code>:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b13-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 import org.jpos.iso.channel.NACChannel;
 import org.jpos.iso.packager.GenericPackager;
@@ -144,7 +144,7 @@ public class SecureISOClient {
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b14-12b852c6.mp3">This <code>SecureISOClient</code> encrypts the PIN, generates a MAC for outgoing messages, and verifies the MAC of incoming messages.</p>
 <h2 id="prose-b14" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b15-bd96d139.mp3">Testing the Secure Client</h2>
 <p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b16-ba1e20d2.mp3">Let's create a test for our <code>SecureISOClient</code>:</p>
-<figure class="code" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.prose.b17-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import org.jpos.iso.ISOMsg;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -214,13 +214,13 @@ public class SecureISOClientTest {
 </ol>
 </section>
 <section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Encrypt the PIN, sign the request, check the response">
-<h2 id="practice-prose-b0" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b1-ba35efbe.mp3">Problem statement</h2>
-<p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b2-a511fac7.mp3">A PIN must never cross the network in the clear, and both sides must be able to tell whether a message was changed on the way. The page's <code>SecureISOClient</code> does both: it encrypts the PIN, adds a Message Authentication Code (MAC) to what it sends, and checks the MAC on what comes back. The order of those steps and what each MAC is computed over are what make it work.</p>
-<p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b3-b72db891.mp3">Write <code>SecureClient</code>. It is built from two collaborators, both nested interfaces of the class: <code>Security</code> (the security module: <code>encryptPin(pin, pan)</code> and <code>mac(msg)</code>) and <code>Link</code> (the channel: <code>exchange(request)</code> sends a request and returns the response). Your <code>send(ISOMsg msg)</code>:</p>
-<ul class="items"><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b4.i1-effb4518.mp3">replaces the clear PIN in field 52 with <code>encryptPin(pin, pan)</code>, where the PAN is field 2;</li><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b4.i2-e6b00dc0.mp3">puts in field 64 the MAC of the message as it is sent, so computed after the PIN is encrypted, and over the message without field 64 itself;</li><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b4.i3-506dbefe.mp3">exchanges the message over the <code>Link</code>;</li><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b4.i4-32506099.mp3">checks the response: its field 64 must equal the MAC of the response without its field 64. If it does, <code>send</code> returns the response; if not, it throws a <code>SecurityException</code>.</li></ul>
-<p data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b5-adb57828.mp3">Mind these:</p>
-<ul class="items"><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b6.i1-4df9d6bb.mp3">A response whose MAC does not match (someone changed the amount, say) is refused.</li><li data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b6.i2-cbbbe531.mp3">A response with no field 64 at all is refused too. A missing MAC is not a valid one.</li></ul>
-<details class="disclosure"><summary data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b8-cb27c664.mp3">Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>A PIN must never cross the network in the clear, and both sides must be able to tell whether a message was changed on the way. The page's <code>SecureISOClient</code> does both: it encrypts the PIN, adds a Message Authentication Code (MAC) to what it sends, and checks the MAC on what comes back. The order of those steps and what each MAC is computed over are what make it work.</p>
+<p>Write <code>SecureClient</code>. It is built from two collaborators, both nested interfaces of the class: <code>Security</code> (the security module: <code>encryptPin(pin, pan)</code> and <code>mac(msg)</code>) and <code>Link</code> (the channel: <code>exchange(request)</code> sends a request and returns the response). Your <code>send(ISOMsg msg)</code>:</p>
+<ul class="items"><li>replaces the clear PIN in field 52 with <code>encryptPin(pin, pan)</code>, where the PAN is field 2;</li><li>puts in field 64 the MAC of the message as it is sent, so computed after the PIN is encrypted, and over the message without field 64 itself;</li><li>exchanges the message over the <code>Link</code>;</li><li>checks the response: its field 64 must equal the MAC of the response without its field 64. If it does, <code>send</code> returns the response; if not, it throws a <code>SecurityException</code>.</li></ul>
+<p>Mind these:</p>
+<ul class="items"><li>A response whose MAC does not match (someone changed the amount, say) is refused.</li><li>A response with no field 64 at all is refused too. A missing MAC is not a valid one.</li></ul>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import java.util.Arrays;
 import org.jpos.iso.ISOException;
@@ -268,8 +268,8 @@ public final class SecureClient {
     }
 }
 </code></pre></figure></details>
-<h2 id="practice-prose-b8" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b9-efa73569.mp3">Starting code</h2>
-<figure class="code" data-audio="audio/jpos-client.unit-07-security-and-encryption/jpos-client--unit-07.practice-prose.b10-0f15b70c.mp3"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+<h2 id="practice-prose-b8">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
 
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
