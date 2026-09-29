@@ -1,0 +1,111 @@
+name: "${COURSE_PROJECT:-iso-8583-jpos-tutorial}"
+services:
+  site:
+    image: "${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE is not set. It is the Docker Hub account the course images are published under: set it in .env (copy course.env) to the account you were given}/iso-8583-jpos-tutorial-site:531227bae45b-${COURSE_NARRATION:-without-narration}"
+    user: "1000:1000"
+    command:
+      - serve
+      - /corpus
+      - --published
+      - --port
+      - "${COURSE_SITE_PORT:-8770}"
+    ports:
+      - "127.0.0.1:${COURSE_SITE_PORT:-8770}:${COURSE_SITE_PORT:-8770}"
+    environment:
+      STUDYFORGE_EDITOR_ORIGIN: "http://127.0.0.1:${COURSE_EDITOR_PORT:-8443}"
+      STUDYFORGE_EDITOR_BINDS: src=/home/coder/repo/sources;practice=/home/coder/repo/practice;.studyforge/execution/code=/home/coder/repo/code
+      STUDYFORGE_EDITOR_HEALTH: "http://editor:8080/healthz"
+      STUDYFORGE_RUN_SERVICE: runner
+      PYTHONDONTWRITEBYTECODE: 1
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${COURSE_SITE_PORT:-8770}/', timeout=2)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    volumes:
+      - "sources:/corpus/src"
+      - "practice:/corpus/practice"
+      - "code:/corpus/.studyforge/execution/code"
+      - "allowed:/corpus/.studyforge/execution/allowed"
+      - "progress:/corpus/.studyforge/progress"
+    networks:
+      - default
+      - runs
+    restart: "no"
+  runner:
+    image: "${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE is not set. It is the Docker Hub account the course images are published under: set it in .env (copy course.env) to the account you were given}/iso-8583-jpos-tutorial-runner:531227bae45b"
+    user: "1000:1000"
+    init: true
+    volumes:
+      - "sources:/work/src"
+      - "practice:/work/practice"
+      - "code:/work/.studyforge/execution/code"
+      - "allowed:/work/.studyforge/execution/allowed:ro"
+    labels:
+      org.studyforge.binds: =/work
+    networks:
+      - runs
+    depends_on:
+      site:
+        condition: service_healthy
+    restart: "no"
+  editor:
+    image: "${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE is not set. It is the Docker Hub account the course images are published under: set it in .env (copy course.env) to the account you were given}/iso-8583-jpos-tutorial-editor:531227bae45b"
+    labels:
+      org.studyforge.binds: src=/home/coder/repo/sources;practice=/home/coder/repo/practice;.studyforge/execution/code=/home/coder/repo/code
+    user: "1000:1000"
+    read_only: false
+    ports:
+      - "127.0.0.1:${COURSE_EDITOR_PORT:-8443}:8080"
+    environment:
+      GRADLE_USER_HOME: /home/coder/.gradle
+    command:
+      - --auth=none
+      - "--bind-addr=0.0.0.0:8080"
+      - --extensions-dir=/opt/code-server/extensions
+      - --disable-workspace-trust
+      - --disable-telemetry
+      - --disable-update-check
+      - /home/coder/repo
+    tmpfs:
+      - /home/coder/repo
+    volumes:
+      - "sources:/home/coder/repo/sources"
+      - "editor-config:/home/coder/.config"
+      - "editor-data:/home/coder/.local"
+      - "maven-repo:/home/coder/.m2"
+      - "practice:/home/coder/repo/practice"
+      - "code:/home/coder/repo/code"
+    healthcheck:
+      test:
+        - CMD
+        - /usr/lib/code-server/lib/node
+        - -e
+        - "fetch('http://127.0.0.1:8080/healthz').then(r => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))"
+      interval: 60s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+      retries: 3
+    restart: "no"
+    depends_on:
+      site:
+        condition: service_healthy
+networks:
+  runs:
+    internal: true
+volumes:
+  allowed: {}
+  code: {}
+  editor-config: {}
+  editor-data: {}
+  maven-repo: {}
+  practice: {}
+  progress: {}
+  sources: {}
