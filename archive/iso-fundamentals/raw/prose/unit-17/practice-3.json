@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: ISO 8583:2023 and Datasets",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-unknown-dataset",
+        "stem": "A gateway reads DE 43 on a 2023 link. Today the field starts with dataset 0x9A, which the gateway's specification doesn't mention. What can the gateway do with dataset 0x9A?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Read its elements from its bitmap, since the bitmap says which elements are present and in what order",
+            "correct": false,
+            "says": "The bitmap says which elements are present, but only their formats in the definition say where one ends and the next starts."
+          },
+          {
+            "id": "b",
+            "text": "Read its elements as BER-TLV, since every dataset in a composite field holds tagged elements",
+            "correct": false,
+            "says": "Identifiers 0x71 to 0xFE are bitmap datasets; only 0x01 to 0x70 hold BER-TLV."
+          },
+          {
+            "id": "c",
+            "text": "Pass over it by its length and go on to the next one, since its envelope says where it ends",
+            "correct": true,
+            "says": "Every dataset announces its length, so a reader can step over one it can't interpret; that is what lets the standard add datasets."
+          },
+          {
+            "id": "d",
+            "text": "Pass over the rest of the field and decline, since an undefined dataset leaves its own end unknown",
+            "correct": false,
+            "says": "An unknown dataset with a valid identifier isn't damage; refusing it breaks the reader the day the network adds one."
+          }
+        ],
+        "origin": {
+          "path": "src/17.md",
+          "section": "17.2. The Identifier's Range Says How to Read a Dataset, and Only the Field's Definition Says What It Holds"
+        }
+      },
+      {
+        "id": "q-chip-at-dataset-level",
+        "stem": "On a 2023 link, a switch hands DE 55, which starts 9F10 07 06 01 0A, to the same routine that splits DE 34 and DE 104. What does that routine take from the first bytes?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Identifier 9F with a length made of the next two bytes, so the field is refused or misread",
+            "correct": true,
+            "says": "DE 55 carries raw BER-TLV with no envelope, so a dataset reader takes 9F as an identifier and 10 07 as a length."
+          },
+          {
+            "id": "b",
+            "text": "Identifier 9F with a length of 07, so the element arrives as a dataset holding one value",
+            "correct": false,
+            "says": "The envelope's length is the two bytes after the identifier, 10 07, not the TLV length byte."
+          },
+          {
+            "id": "c",
+            "text": "Tag 9F10 with its seven bytes, since the routine decodes BER-TLV at every level it meets",
+            "correct": false,
+            "says": "The envelope level uses a fixed one-byte identifier and two-byte length; BER rules apply only inside a TLV dataset."
+          },
+          {
+            "id": "d",
+            "text": "Tag 9F10 with its seven bytes, since the jPOS 2.1.7 packager marks DE 55 as raw TLV for it",
+            "correct": false,
+            "says": "In 2.1.7 the packager carries DE 34, 55 and 104 alike as plain binary; which fields have an envelope is the application's to know."
+          }
+        ],
+        "origin": {
+          "path": "src/17.md",
+          "section": "17.3. DE 55 Is Composite but Has No Envelope"
+        }
+      },
+      {
+        "id": "q-reader-fix",
+        "stem": "A reader finds dataset 0x0C in DE 104 by scanning the field for the byte 0C. Since the network started sending dataset 0x05 in front of it, some purchases carry a wrong value from 0x0C, with no error logged. Which change fixes the reader?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Walk from the start, skipping each dataset by its length, so no content byte is taken for an identifier",
+            "correct": true,
+            "says": "Only the walk knows where each envelope starts; a scan matches the byte inside another dataset's content."
+          },
+          {
+            "id": "b",
+            "text": "Walk from the start, refusing any dataset not seen in certification, so only a known layout is accepted",
+            "correct": false,
+            "says": "A valid but unknown dataset is stepped over; refusing unknown datasets declines every purchase the network sends with a new one."
+          },
+          {
+            "id": "c",
+            "text": "Scan for 0C from the end of the field instead, so a dataset placed in front can no longer be matched",
+            "correct": false,
+            "says": "A dataset placed after 0x0C, or 0x0C's own content, can hold the byte just as well; only walking from the start is safe."
+          },
+          {
+            "id": "d",
+            "text": "Scan for 0C followed by a length that fits in the field, so a stray 0C inside other content is passed over",
+            "correct": false,
+            "says": "The opening's wrong match had a length that fitted; a stray byte can be followed by any two bytes."
+          }
+        ],
+        "origin": {
+          "path": "src/17.md",
+          "section": "17.4. A Reader Walks the Envelopes, Steps Over What It Doesn't Know and Refuses What Overruns"
+        }
+      },
+      {
+        "id": "q-edition-mapping",
+        "stem": "A switch receives a purchase from a 1987 link with DE 49 = 978 and forwards it on a 2023 link whose specification follows the CMF v3 draft. What should it do with that DE 49?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Copy it into the outgoing DE 49 unchanged, since both links number that field the same way",
+            "correct": false,
+            "says": "In the 2023 layout DE 49 holds verification datasets; three digits there are read as an envelope and refused or misread."
+          },
+          {
+            "id": "b",
+            "text": "Copy it into dataset 0x71 of the outgoing DE 49, since the 2023 DE 49 holds datasets",
+            "correct": false,
+            "says": "Dataset 0x71 is a bitmap dataset whose elements come from its definition; the currency goes where the 2023 specification puts it (tag 5F2A in dataset 01 in the CMF v3 draft), which only a mapping knows."
+          },
+          {
+            "id": "c",
+            "text": "Map it to tag 5F2A in dataset 0x01 of DE 49, since a bare code there would be read as an envelope",
+            "correct": true,
+            "says": "A field number means something only with its edition, so the switch maps through its internal format."
+          },
+          {
+            "id": "d",
+            "text": "Map it to nothing and leave it out, since a CMF v3 receiver takes that code from its terminal data",
+            "correct": false,
+            "says": "The currency still travels on the 2023 link, where its specification puts it (in the CMF v3 draft, a tag in a dataset of DE 49), and the switch must put it there."
+          }
+        ],
+        "origin": {
+          "path": "src/17.md",
+          "section": "17.7. The Same Field Number Means Different Things on a 1987 Link and a 2023 Link"
+        }
+      }
+    ],
+    "concepts": [
+      "A field number means something only with its edition, so a switch maps between 1987 and 2023 links through its internal format and passes DE 55 through unchanged.",
+      "Identifiers 01-70 are TLV datasets and 71-FE bitmap datasets, 00 and FF are invalid; an unknown dataset can be stepped over but a bitmap dataset's elements need the field's definition."
+    ]
+  }
+}

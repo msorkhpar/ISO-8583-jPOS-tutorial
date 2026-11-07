@@ -1,0 +1,150 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Keep a stand-in limit nobody set from running",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "When an issuer can't be reached, your switch approves small purchases in stand-in, up to a limit that operations set per server through two environment variables, `STANDIN_MAX` (in minor units) and `STANDIN_CURRENCY`. The limit is a QBean, `StandInLimit`, and its descriptor is in the comment at the top of `src/main/java/com/example/practice/StandInLimit.java`."
+    },
+    {
+      "type": "para",
+      "text": "Last month a new server went live without `STANDIN_MAX`. The QBean started, every stand-in purchase was declined for a week, and nothing in `deploy/` looked wrong. Operations ask for this:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "a limit nobody set, or one that isn't a whole number of minor units, must not run, and an operator listing `deploy/` must see which file is wrong;",
+        "without `STANDIN_CURRENCY`, the limit is in US dollars (`840`)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Finish `read`, marked `TODO`. About ten lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy your QBean with a real Q2 in the test's JVM, on a scratch deploy directory, and then look at the directory and at the QBean's state in JMX. Neither variable is set where they run."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * While an issuer can't be reached, the switch approves small purchases in stand-in, up to the\n * limit this QBean holds. Deployed from a descriptor such as:\n *\n * <pre>\n * &lt;standin name=\"standin\" class=\"com.example.practice.StandInLimit\"&gt;\n *   &lt;property name=\"max-amount\" value=\"${STANDIN_MAX}\"/&gt;\n *   &lt;property name=\"currency\" value=\"${STANDIN_CURRENCY}\"/&gt;\n * &lt;/standin&gt;\n * </pre>\n */\npublic class StandInLimit extends QBeanSupport {\n    private long maxAmount;                       // minor units: 5000 is 50.00\n    private String currency;                      // ISO 4217 numeric code, such as 840 or 978\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        super.setConfiguration(cfg);\n        read(cfg);\n    }\n\n    /** Takes this descriptor's values into the fields above. */\n    void read(Configuration cfg) throws ConfigurationException {\n        String max = cfg.get(\"max-amount\", null);\n        if (max == null)\n            throw new ConfigurationException(\"property 'max-amount' is required\");\n        try {\n            maxAmount = Long.parseLong(max.trim());\n        } catch (NumberFormatException e) {\n            throw new ConfigurationException(\"property 'max-amount' is not a number: \" + max, e);\n        }\n        currency = cfg.get(\"currency\", \"840\");\n    }\n\n    @Override\n    protected void startService() {\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** True when a purchase of this amount, in this currency, may be approved in stand-in. */\n    public boolean allows(String currency, long amount) {\n        return this.currency.equals(currency) && amount > 0 && amount <= maxAmount;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * While an issuer can't be reached, the switch approves small purchases in stand-in, up to the\n * limit this QBean holds. Deployed from a descriptor such as:\n *\n * <pre>\n * &lt;standin name=\"standin\" class=\"com.example.practice.StandInLimit\"&gt;\n *   &lt;property name=\"max-amount\" value=\"${STANDIN_MAX}\"/&gt;\n *   &lt;property name=\"currency\" value=\"${STANDIN_CURRENCY}\"/&gt;\n * &lt;/standin&gt;\n * </pre>\n */\npublic class StandInLimit extends QBeanSupport {\n    private long maxAmount;                       // minor units: 5000 is 50.00\n    private String currency;                      // ISO 4217 numeric code, such as 840 or 978\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        super.setConfiguration(cfg);\n        read(cfg);\n    }\n\n    /** Takes this descriptor's values into the fields above. */\n    void read(Configuration cfg) throws ConfigurationException {\n        // TODO: max-amount has no amount that would be right everywhere. On a server where nobody\n        //       set it, or where it isn't a whole number of minor units, the stand-in limit must not\n        //       run, and an operator listing deploy/ must see which file is wrong. currency is 840\n        //       unless this descriptor gives another one.\n        throw new IllegalStateException(\"TODO: read\");\n    }\n\n    @Override\n    protected void startService() {\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** True when a purchase of this amount, in this currency, may be approved in stand-in. */\n    public boolean allows(String currency, long amount) {\n        return this.currency.equals(currency) && amount > 0 && amount <= maxAmount;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "8f1216dee06de31c611e21285721ab4937ea80ec2fc379d1fc67fa7477248c6e",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * While an issuer can't be reached, the switch approves small purchases in stand-in, up to the\n * limit this QBean holds. Deployed from a descriptor such as:\n *\n * <pre>\n * &lt;standin name=\"standin\" class=\"com.example.practice.StandInLimit\"&gt;\n *   &lt;property name=\"max-amount\" value=\"${STANDIN_MAX}\"/&gt;\n *   &lt;property name=\"currency\" value=\"${STANDIN_CURRENCY}\"/&gt;\n * &lt;/standin&gt;\n * </pre>\n */\npublic class StandInLimit extends QBeanSupport {\n    private long maxAmount;                       // minor units: 5000 is 50.00\n    private String currency;                      // ISO 4217 numeric code, such as 840 or 978\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        super.setConfiguration(cfg);\n        read(cfg);\n    }\n\n    /** Takes this descriptor's values into the fields above. */\n    void read(Configuration cfg) throws ConfigurationException {\n        // TODO: max-amount has no amount that would be right everywhere. On a server where nobody\n        //       set it, or where it isn't a whole number of minor units, the stand-in limit must not\n        //       run, and an operator listing deploy/ must see which file is wrong. currency is 840\n        //       unless this descriptor gives another one.\n        throw new IllegalStateException(\"TODO: read\");\n    }\n\n    @Override\n    protected void startService() {\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** True when a purchase of this amount, in this currency, may be approved in stand-in. */\n    public boolean allows(String currency, long amount) {\n        return this.currency.equals(currency) && amount > 0 && amount <= maxAmount;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-14/practice-1/src/main/java/com/example/practice/StandInLimit.java",
+    "test_path": "practice/jpos-server/prose/unit-14/practice-1/src/test/java/com/example/practice/StandInLimitTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-14/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-14/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.StandInLimitTest#aConfiguredLimitApprovesUpToItsAmount",
+        "kind": "main",
+        "says": "a descriptor with an amount and a currency deploys, and the limit approves up to that amount in that currency"
+      },
+      {
+        "id": "com.example.practice.StandInLimitTest#aLimitNobodySetDoesNotRun",
+        "kind": "edge",
+        "says": "an amount whose variable is not set counts as absent, so the limit does not run and its file is renamed .BAD"
+      },
+      {
+        "id": "com.example.practice.StandInLimitTest#aMisspeltLimitShowsInTheDeployDirectory",
+        "kind": "edge",
+        "says": "a refused descriptor is renamed .BAD at deploy, rather than left in place with a bean that never starts"
+      },
+      {
+        "id": "com.example.practice.StandInLimitTest#aLimitThatIsNotWholeMinorUnitsDoesNotRun",
+        "kind": "edge",
+        "says": "an amount that is not a whole number is refused, not replaced by a value that keeps the bean running"
+      },
+      {
+        "id": "com.example.practice.StandInLimitTest#theCurrencyIsUsDollarsWhenItsVariableIsUnset",
+        "kind": "edge",
+        "says": "an optional value whose variable is not set gets its default, 840, not an empty string"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-14/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s14.md",
+      "section": "14.3 A Configuration Refused in `setConfiguration` Renames the File; Refused Later, It Only Logs"
+    },
+    "concepts": [
+      "A missing property, a misspelt name and an unresolved ${...} all count as absent: a @Config field keeps its initialiser and get returns an empty string, so a value with no safe default must have none.",
+      "A ConfigurationException from setConfiguration renames the descriptor .BAD and leaves no bean registered, while a refusal in initService leaves the file in place and the bean Unknown."
+    ]
+  }
+}

@@ -8,113 +8,139 @@
   "unit": 16,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Check yourself: Future of ISO-8583",
+  "ingested": "2026-11-05",
+  "title": "Send every field to the JSON partner unchanged",
   "blocks": [
     {
       "type": "heading",
       "level": 2,
-      "text": "Check yourself"
+      "text": "Problem statement"
     },
     {
       "type": "para",
-      "text": "Questions on what this page has just taught. Choose one answer for each."
+      "text": "A partner processor takes your authorization requests and sends its answers as JSON over a socket, one object per message. Its system reads each object with an ordinary JSON parser and packs the fields for its own 1987 link to the networks, so whatever a field holds when it leaves you must be exactly what the partner's side reads, for every field a 0100 or a 0110 can carry. Both sides' test messages use the same kinds of value as production, including PIN blocks, chip data and merchant names as merchants type them."
+    },
+    {
+      "type": "para",
+      "text": "`JsonPackager` in `src/main/java/com/example/practice/JsonPackager.java` is a working `ISOPackager`: it writes one member per field and reads such an object back with a small JSON parser of the same kind the partner uses. Three methods are left, marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`name`: the member name a field travels under;",
+        "`jsonValue`: the value written after the colon;",
+        "`put`: setting one member that was read back into the message."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The partner already sends text fields as members named by the field number, as the first test shows. About fifteen lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOBinaryField;\nimport org.jpos.iso.ISOComponent;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\n\nimport java.io.InputStream;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Packs a flat ISOMsg as one JSON object, one member per field, and reads such an object back.\n * The partner's side reads it with an ordinary JSON parser.\n */\npublic class JsonPackager implements ISOPackager {\n\n    @Override\n    public byte[] pack(ISOComponent c) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        StringBuilder json = new StringBuilder(\"{\");\n        for (Object o : new TreeMap<>(m.getChildren()).values()) {\n            ISOComponent field = (ISOComponent) o;\n            if ((Integer) field.getKey() < 0)\n                continue;                                   // a bitmap kept from another packager\n            if (field instanceof ISOMsg)\n                throw new ISOException(\"field \" + field.getKey() + \": nested fields are not supported\");\n            if (json.length() > 1)\n                json.append(',');\n            json.append('\"').append(name(field)).append(\"\\\":\").append(jsonValue(field));\n        }\n        return json.append('}').toString().getBytes(StandardCharsets.UTF_8);\n    }\n\n    @Override\n    public int unpack(ISOComponent c, byte[] b) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        for (Map.Entry<String, String> member : Json.parseObject(new String(b, StandardCharsets.UTF_8)).entrySet())\n            put(m, member.getKey(), member.getValue());\n        return b.length;\n    }\n\n    // ---- the three methods the partner's contract depends on ----\n\n    /** The member name under which this field travels. */\n    static String name(ISOComponent field) throws ISOException {\n        return field instanceof ISOBinaryField ? field.getKey() + \"b\" : field.getKey().toString();\n    }\n\n    /** The JSON value for this field, exactly as it is written after the colon. */\n    static String jsonValue(ISOComponent field) throws ISOException {\n        if (field instanceof ISOBinaryField)\n            return '\"' + ISOUtil.hexString(field.getBytes()) + '\"';\n        String s = (String) field.getValue();\n        StringBuilder out = new StringBuilder(\"\\\"\");\n        for (char ch : s.toCharArray()) {\n            if (ch == '\"' || ch == '\\\\')\n                out.append('\\\\').append(ch);\n            else if (ch < 0x20)\n                out.append(String.format(\"\\\\u%04x\", (int) ch));\n            else\n                out.append(ch);\n        }\n        return out.append('\"').toString();\n    }\n\n    /** Puts one member read from the JSON back into the message: its name, and its value as text. */\n    static void put(ISOMsg m, String name, String text) throws ISOException {\n        if (name.endsWith(\"b\"))\n            m.set(Integer.parseInt(name.substring(0, name.length() - 1)), ISOUtil.hex2byte(text));\n        else\n            m.set(Integer.parseInt(name), text);\n    }\n\n    // ---- the rest of ISOPackager ----\n\n    @Override\n    public void unpack(ISOComponent m, InputStream in) throws ISOException {\n        throw new ISOException(\"stream unpack not supported\");\n    }\n\n    @Override\n    public String getFieldDescription(ISOComponent m, int fldNumber) {\n        return \"Field \" + fldNumber;\n    }\n\n    @Override\n    public String getDescription() {\n        return getClass().getName();\n    }\n\n    @Override\n    public ISOMsg createISOMsg() {\n        return new ISOMsg();\n    }\n\n    /** A small JSON reader for one flat object, as an ordinary parser reads it. */\n    static final class Json {\n        private final String s;\n        private int i;\n\n        private Json(String s) {\n            this.s = s;\n        }\n\n        /** Member names and their values as text: a string's content, or a number as written. */\n        static Map<String, String> parseObject(String text) throws ISOException {\n            Json p = new Json(text);\n            Map<String, String> members = new TreeMap<>();\n            p.expect('{');\n            if (p.peek() != '}') {\n                do {\n                    String name = p.string();\n                    p.expect(':');\n                    members.put(name, p.peek() == '\"' ? p.string() : p.number());\n                } while (p.accept(','));\n            }\n            p.expect('}');\n            p.skip();\n            if (p.i != p.s.length())\n                throw new ISOException(\"unexpected text after the object at \" + p.i);\n            return members;\n        }\n\n        private void skip() {\n            while (i < s.length() && Character.isWhitespace(s.charAt(i)))\n                i++;\n        }\n\n        private char peek() throws ISOException {\n            skip();\n            if (i >= s.length())\n                throw new ISOException(\"unexpected end of JSON\");\n            return s.charAt(i);\n        }\n\n        private boolean accept(char c) throws ISOException {\n            if (peek() != c)\n                return false;\n            i++;\n            return true;\n        }\n\n        private void expect(char c) throws ISOException {\n            if (!accept(c))\n                throw new ISOException(\"expected '\" + c + \"' at \" + i);\n        }\n\n        private String number() throws ISOException {\n            skip();\n            int start = i;\n            while (i < s.length() && \"-+.eE0123456789\".indexOf(s.charAt(i)) >= 0)\n                i++;\n            if (start == i)\n                throw new ISOException(\"expected a value at \" + i);\n            return new java.math.BigDecimal(s.substring(start, i)).toPlainString();\n        }\n\n        private String string() throws ISOException {\n            expect('\"');\n            StringBuilder out = new StringBuilder();\n            while (true) {\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated string\");\n                char c = s.charAt(i++);\n                if (c == '\"')\n                    return out.toString();\n                if (c < 0x20)\n                    throw new ISOException(\"control character in a string at \" + (i - 1));\n                if (c != '\\\\') {\n                    out.append(c);\n                    continue;\n                }\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated escape\");\n                char e = s.charAt(i++);\n                switch (e) {\n                    case '\"': case '\\\\': case '/': out.append(e); break;\n                    case 'b': out.append('\\b'); break;\n                    case 'f': out.append('\\f'); break;\n                    case 'n': out.append('\\n'); break;\n                    case 'r': out.append('\\r'); break;\n                    case 't': out.append('\\t'); break;\n                    case 'u':\n                        if (i + 4 > s.length())\n                            throw new ISOException(\"short \\\\u escape\");\n                        out.append((char) Integer.parseInt(s.substring(i, i + 4), 16));\n                        i += 4;\n                        break;\n                    default:\n                        throw new ISOException(\"bad escape \\\\\" + e);\n                }\n            }\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOBinaryField;\nimport org.jpos.iso.ISOComponent;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\n\nimport java.io.InputStream;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Packs a flat ISOMsg as one JSON object, one member per field, and reads such an object back.\n * The partner's side reads it with an ordinary JSON parser.\n */\npublic class JsonPackager implements ISOPackager {\n\n    @Override\n    public byte[] pack(ISOComponent c) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        StringBuilder json = new StringBuilder(\"{\");\n        for (Object o : new TreeMap<>(m.getChildren()).values()) {\n            ISOComponent field = (ISOComponent) o;\n            if ((Integer) field.getKey() < 0)\n                continue;                                   // a bitmap kept from another packager\n            if (field instanceof ISOMsg)\n                throw new ISOException(\"field \" + field.getKey() + \": nested fields are not supported\");\n            if (json.length() > 1)\n                json.append(',');\n            json.append('\"').append(name(field)).append(\"\\\":\").append(jsonValue(field));\n        }\n        return json.append('}').toString().getBytes(StandardCharsets.UTF_8);\n    }\n\n    @Override\n    public int unpack(ISOComponent c, byte[] b) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        for (Map.Entry<String, String> member : Json.parseObject(new String(b, StandardCharsets.UTF_8)).entrySet())\n            put(m, member.getKey(), member.getValue());\n        return b.length;\n    }\n\n    // ---- the three methods the partner's contract depends on ----\n\n    /**\n     * The member name under which this field travels. The partner's system must be able to tell\n     * from it which field this is, and how to read the value back. TODO\n     */\n    static String name(ISOComponent field) throws ISOException {\n        throw new IllegalStateException(\"TODO: name\");\n    }\n\n    /**\n     * The JSON value for this field, exactly as it is written after the colon. Whatever the\n     * partner's JSON parser reads from it must give back this field's value unchanged. TODO\n     */\n    static String jsonValue(ISOComponent field) throws ISOException {\n        throw new IllegalStateException(\"TODO: jsonValue\");\n    }\n\n    /**\n     * Puts one member read from the JSON back into the message: its name, and its value as the\n     * parser read it (a string's content, or a number as written). TODO\n     */\n    static void put(ISOMsg m, String name, String text) throws ISOException {\n        throw new IllegalStateException(\"TODO: put\");\n    }\n\n    // ---- the rest of ISOPackager ----\n\n    @Override\n    public void unpack(ISOComponent m, InputStream in) throws ISOException {\n        throw new ISOException(\"stream unpack not supported\");\n    }\n\n    @Override\n    public String getFieldDescription(ISOComponent m, int fldNumber) {\n        return \"Field \" + fldNumber;\n    }\n\n    @Override\n    public String getDescription() {\n        return getClass().getName();\n    }\n\n    @Override\n    public ISOMsg createISOMsg() {\n        return new ISOMsg();\n    }\n\n    /** A small JSON reader for one flat object, as an ordinary parser reads it. */\n    static final class Json {\n        private final String s;\n        private int i;\n\n        private Json(String s) {\n            this.s = s;\n        }\n\n        /** Member names and their values as text: a string's content, or a number as written. */\n        static Map<String, String> parseObject(String text) throws ISOException {\n            Json p = new Json(text);\n            Map<String, String> members = new TreeMap<>();\n            p.expect('{');\n            if (p.peek() != '}') {\n                do {\n                    String name = p.string();\n                    p.expect(':');\n                    members.put(name, p.peek() == '\"' ? p.string() : p.number());\n                } while (p.accept(','));\n            }\n            p.expect('}');\n            p.skip();\n            if (p.i != p.s.length())\n                throw new ISOException(\"unexpected text after the object at \" + p.i);\n            return members;\n        }\n\n        private void skip() {\n            while (i < s.length() && Character.isWhitespace(s.charAt(i)))\n                i++;\n        }\n\n        private char peek() throws ISOException {\n            skip();\n            if (i >= s.length())\n                throw new ISOException(\"unexpected end of JSON\");\n            return s.charAt(i);\n        }\n\n        private boolean accept(char c) throws ISOException {\n            if (peek() != c)\n                return false;\n            i++;\n            return true;\n        }\n\n        private void expect(char c) throws ISOException {\n            if (!accept(c))\n                throw new ISOException(\"expected '\" + c + \"' at \" + i);\n        }\n\n        private String number() throws ISOException {\n            skip();\n            int start = i;\n            while (i < s.length() && \"-+.eE0123456789\".indexOf(s.charAt(i)) >= 0)\n                i++;\n            if (start == i)\n                throw new ISOException(\"expected a value at \" + i);\n            return new java.math.BigDecimal(s.substring(start, i)).toPlainString();\n        }\n\n        private String string() throws ISOException {\n            expect('\"');\n            StringBuilder out = new StringBuilder();\n            while (true) {\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated string\");\n                char c = s.charAt(i++);\n                if (c == '\"')\n                    return out.toString();\n                if (c < 0x20)\n                    throw new ISOException(\"control character in a string at \" + (i - 1));\n                if (c != '\\\\') {\n                    out.append(c);\n                    continue;\n                }\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated escape\");\n                char e = s.charAt(i++);\n                switch (e) {\n                    case '\"': case '\\\\': case '/': out.append(e); break;\n                    case 'b': out.append('\\b'); break;\n                    case 'f': out.append('\\f'); break;\n                    case 'n': out.append('\\n'); break;\n                    case 'r': out.append('\\r'); break;\n                    case 't': out.append('\\t'); break;\n                    case 'u':\n                        if (i + 4 > s.length())\n                            throw new ISOException(\"short \\\\u escape\");\n                        out.append((char) Integer.parseInt(s.substring(i, i + 4), 16));\n                        i += 4;\n                        break;\n                    default:\n                        throw new ISOException(\"bad escape \\\\\" + e);\n                }\n            }\n        }\n    }\n}\n"
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 1,
-    "paras": 1,
-    "code": 0,
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
     "tables": 0,
-    "lists": 0,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
     "quotes": 0,
     "html": 0,
-    "disclosures": 0
+    "disclosures": 1
   },
-  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "content_sha256": "d15e368a35202108d24ac3322ef8bf80765c64a6bde97d1cf960e61576b3f433",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOBinaryField;\nimport org.jpos.iso.ISOComponent;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\n\nimport java.io.InputStream;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Packs a flat ISOMsg as one JSON object, one member per field, and reads such an object back.\n * The partner's side reads it with an ordinary JSON parser.\n */\npublic class JsonPackager implements ISOPackager {\n\n    @Override\n    public byte[] pack(ISOComponent c) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        StringBuilder json = new StringBuilder(\"{\");\n        for (Object o : new TreeMap<>(m.getChildren()).values()) {\n            ISOComponent field = (ISOComponent) o;\n            if ((Integer) field.getKey() < 0)\n                continue;                                   // a bitmap kept from another packager\n            if (field instanceof ISOMsg)\n                throw new ISOException(\"field \" + field.getKey() + \": nested fields are not supported\");\n            if (json.length() > 1)\n                json.append(',');\n            json.append('\"').append(name(field)).append(\"\\\":\").append(jsonValue(field));\n        }\n        return json.append('}').toString().getBytes(StandardCharsets.UTF_8);\n    }\n\n    @Override\n    public int unpack(ISOComponent c, byte[] b) throws ISOException {\n        ISOMsg m = (ISOMsg) c;\n        for (Map.Entry<String, String> member : Json.parseObject(new String(b, StandardCharsets.UTF_8)).entrySet())\n            put(m, member.getKey(), member.getValue());\n        return b.length;\n    }\n\n    // ---- the three methods the partner's contract depends on ----\n\n    /**\n     * The member name under which this field travels. The partner's system must be able to tell\n     * from it which field this is, and how to read the value back. TODO\n     */\n    static String name(ISOComponent field) throws ISOException {\n        throw new IllegalStateException(\"TODO: name\");\n    }\n\n    /**\n     * The JSON value for this field, exactly as it is written after the colon. Whatever the\n     * partner's JSON parser reads from it must give back this field's value unchanged. TODO\n     */\n    static String jsonValue(ISOComponent field) throws ISOException {\n        throw new IllegalStateException(\"TODO: jsonValue\");\n    }\n\n    /**\n     * Puts one member read from the JSON back into the message: its name, and its value as the\n     * parser read it (a string's content, or a number as written). TODO\n     */\n    static void put(ISOMsg m, String name, String text) throws ISOException {\n        throw new IllegalStateException(\"TODO: put\");\n    }\n\n    // ---- the rest of ISOPackager ----\n\n    @Override\n    public void unpack(ISOComponent m, InputStream in) throws ISOException {\n        throw new ISOException(\"stream unpack not supported\");\n    }\n\n    @Override\n    public String getFieldDescription(ISOComponent m, int fldNumber) {\n        return \"Field \" + fldNumber;\n    }\n\n    @Override\n    public String getDescription() {\n        return getClass().getName();\n    }\n\n    @Override\n    public ISOMsg createISOMsg() {\n        return new ISOMsg();\n    }\n\n    /** A small JSON reader for one flat object, as an ordinary parser reads it. */\n    static final class Json {\n        private final String s;\n        private int i;\n\n        private Json(String s) {\n            this.s = s;\n        }\n\n        /** Member names and their values as text: a string's content, or a number as written. */\n        static Map<String, String> parseObject(String text) throws ISOException {\n            Json p = new Json(text);\n            Map<String, String> members = new TreeMap<>();\n            p.expect('{');\n            if (p.peek() != '}') {\n                do {\n                    String name = p.string();\n                    p.expect(':');\n                    members.put(name, p.peek() == '\"' ? p.string() : p.number());\n                } while (p.accept(','));\n            }\n            p.expect('}');\n            p.skip();\n            if (p.i != p.s.length())\n                throw new ISOException(\"unexpected text after the object at \" + p.i);\n            return members;\n        }\n\n        private void skip() {\n            while (i < s.length() && Character.isWhitespace(s.charAt(i)))\n                i++;\n        }\n\n        private char peek() throws ISOException {\n            skip();\n            if (i >= s.length())\n                throw new ISOException(\"unexpected end of JSON\");\n            return s.charAt(i);\n        }\n\n        private boolean accept(char c) throws ISOException {\n            if (peek() != c)\n                return false;\n            i++;\n            return true;\n        }\n\n        private void expect(char c) throws ISOException {\n            if (!accept(c))\n                throw new ISOException(\"expected '\" + c + \"' at \" + i);\n        }\n\n        private String number() throws ISOException {\n            skip();\n            int start = i;\n            while (i < s.length() && \"-+.eE0123456789\".indexOf(s.charAt(i)) >= 0)\n                i++;\n            if (start == i)\n                throw new ISOException(\"expected a value at \" + i);\n            return new java.math.BigDecimal(s.substring(start, i)).toPlainString();\n        }\n\n        private String string() throws ISOException {\n            expect('\"');\n            StringBuilder out = new StringBuilder();\n            while (true) {\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated string\");\n                char c = s.charAt(i++);\n                if (c == '\"')\n                    return out.toString();\n                if (c < 0x20)\n                    throw new ISOException(\"control character in a string at \" + (i - 1));\n                if (c != '\\\\') {\n                    out.append(c);\n                    continue;\n                }\n                if (i >= s.length())\n                    throw new ISOException(\"unterminated escape\");\n                char e = s.charAt(i++);\n                switch (e) {\n                    case '\"': case '\\\\': case '/': out.append(e); break;\n                    case 'b': out.append('\\b'); break;\n                    case 'f': out.append('\\f'); break;\n                    case 'n': out.append('\\n'); break;\n                    case 'r': out.append('\\r'); break;\n                    case 't': out.append('\\t'); break;\n                    case 'u':\n                        if (i + 4 > s.length())\n                            throw new ISOException(\"short \\\\u escape\");\n                        out.append((char) Integer.parseInt(s.substring(i, i + 4), 16));\n                        i += 4;\n                        break;\n                    default:\n                        throw new ISOException(\"bad escape \\\\\" + e);\n                }\n            }\n        }\n    }\n}\n",
   "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-16/practice-1/src/main/java/com/example/practice/JsonPackager.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-16/practice-1/src/test/java/com/example/practice/JsonPackagerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-16/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-16/practice-1/pom.xml",
+      "test"
+    ],
     "provenance": "generated",
     "trust": "advisory",
-    "kind": "quiz",
-    "questions": [
+    "cases": [
       {
-        "id": "q-data-model",
-        "stem": "The page lists the ways ISO 20022 differs from ISO-8583. Which of these is NOT one of its points?",
-        "options": [
-          {
-            "id": "a",
-            "text": "It allows more flexible message structures and easier new fields",
-            "correct": false,
-            "says": "The page makes this point: flexibility is the second difference it lists."
-          },
-          {
-            "id": "b",
-            "text": "It aims to standardize messages beyond payments, across financial domains",
-            "correct": false,
-            "says": "The page makes this point: standardization across domains is the third difference it lists."
-          },
-          {
-            "id": "c",
-            "text": "It replaces the bitmap with named elements that describe themselves",
-            "correct": true,
-            "says": "The page never mentions bitmaps in its comparison; its five points are the data model, flexibility, standardization, rich metadata and an XML basis."
-          },
-          {
-            "id": "d",
-            "text": "It carries richer metadata on the purpose and context of a transaction",
-            "correct": false,
-            "says": "The page makes this point: rich metadata is the fourth difference it lists."
-          }
-        ],
-        "origin": {
-          "path": "src/16.md",
-          "section": "16.2.1. Comparison with ISO-8583"
-        }
+        "id": "com.example.practice.JsonPackagerTest#readsThePartnersMessage",
+        "kind": "main",
+        "says": "a 0110 the partner wrote as JSON is read back with every field as the partner sent it"
       },
       {
-        "id": "q-gateway",
-        "stem": "While both standards coexist, the page's DualFormatGateway takes messages of either kind. How does it decide which kind of processing a message gets?",
-        "options": [
-          {
-            "id": "a",
-            "text": "By reading the MTI, and treating a message without one as ISO 20022",
-            "correct": false,
-            "says": "The gateway never reads an MTI; it checks whether the message is an ISOMsg or a Document."
-          },
-          {
-            "id": "b",
-            "text": "By looking at the first byte for an XML opening angle bracket",
-            "correct": false,
-            "says": "The gateway inspects no bytes; it receives objects and checks whether each is an ISOMsg or a Document."
-          },
-          {
-            "id": "c",
-            "text": "By translating every message to ISO 20022 before processing it",
-            "correct": false,
-            "says": "The gateway processes an ISOMsg as ISO-8583 and translates only when convertToISO20022 is called."
-          },
-          {
-            "id": "d",
-            "text": "By whether it is an ISOMsg or a Document, refusing anything else",
-            "correct": true,
-            "says": "processMessage branches on instanceof ISOMsg and instanceof Document, and throws IllegalArgumentException for any other format."
-          }
-        ],
-        "origin": {
-          "path": "src/16.md",
-          "section": "16.2.3. Coexistence scenarios"
-        }
+        "id": "com.example.practice.JsonPackagerTest#aMessageComesBackWithItsCardTerminalAndMerchant",
+        "kind": "main",
+        "says": "a message packed as JSON and read back keeps its card number, terminal and merchant"
+      },
+      {
+        "id": "com.example.practice.JsonPackagerTest#digitsKeepTheirZeros",
+        "kind": "edge",
+        "says": "all-digit values keep their leading zeros: the MTI, the amount, the STAN, the approval code and the response code 00"
+      },
+      {
+        "id": "com.example.practice.JsonPackagerTest#bytesComeBackByteForByte",
+        "kind": "edge",
+        "says": "a PIN block and chip data come back byte for byte, whatever bytes they hold"
+      },
+      {
+        "id": "com.example.practice.JsonPackagerTest#quotesAndBackslashesSurvive",
+        "kind": "edge",
+        "says": "a merchant name with double quotes and a value with a backslash come back unchanged"
       }
     ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-16/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/16.md",
+      "section": "16.2. JSON Has No Type for Fixed-Width Text or Raw Bytes"
+    },
     "concepts": [
-      "While both standards coexist, one gateway accepts either format, dispatches on which one it received and translates between them.",
-      "ISO 20022 differs from ISO-8583 above all in its data model: conceptual, logical and physical layers, where ISO-8583 describes mainly the physical message."
+      "In JSON every field value travels as an escaped string and binary fields as hex, because numbers lose leading zeros and bytes put in as text are corrupted."
     ]
   }
 }

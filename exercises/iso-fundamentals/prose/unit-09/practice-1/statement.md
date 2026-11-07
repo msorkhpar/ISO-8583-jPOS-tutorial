@@ -1,27 +1,14 @@
-Every transaction ends in one of two ways: a response arrives and field 39 says what the
-issuer decided, or something fails before it can. Each case calls for different handling,
-and getting the category wrong is costly: calling an unknown code an approval gives goods
-away, and retrying a security failure hides an attack.
+Your gateway connects 1987 terminals to a processor that answers with four-digit action codes.
+`CodeTranslator` holds a table, written code by code from both networks' lists, and tells each
+terminal what the processor decided. `answerFor` and `mustReverse` already work on top of
+`toTerminal`.
 
-Write `ResponseHandling` with two methods.
+The processor's release notes add codes faster than the table is updated, and during last week's
+upgrade some answers arrived with no action code at all. Operations asks for three things: no
+terminal hands over goods the issuer may not have approved in full; no cardholder is told their
+card was refused when it was a system that failed; and no purchase is reversed when the processor
+plainly refused it.
 
-`outcomeOf(ISOMsg response)` reads field 39 and returns an `Outcome`:
+Finish `toTerminal` in `src/main/java/com/example/practice/CodeTranslator.java`. About ten lines.
 
-- `APPROVED` for the page's approval codes: `00`, `10` (partial approval) and `85`
-  (no reason to decline);
-- `REFER` for the referral codes `01` and `02`: the issuer wants to be called, which is
-  neither an approval nor a plain decline;
-- `DECLINED` for everything else.
-
-`actionFor(Exception failure)` returns an `Action`:
-
-- `RETRY` for a network error, which arrives as a `java.io.IOException`;
-- `LOG_FOR_FIX` for a format error, which jPOS reports as an `org.jpos.iso.ISOException`;
-- `ALERT_SECURITY` for a `SecurityException`.
-
-Edge cases to handle:
-
-- `10` and `85` are approvals as well as `00`.
-- A response that carries no field 39 is `DECLINED`; asking must not fail.
-- Network errors come in many kinds: a `java.net.SocketTimeoutException` is an
-  `IOException` and is retried like the rest.
+The tests use a table of their own and codes it doesn't list.

@@ -1,0 +1,154 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Give the points back after a crash",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Cardholders can pay part of a purchase with loyalty points. `RedeemPoints`, in `src/main/java/com/example/practice/RedeemPoints.java`, takes the points off the loyalty account in `prepare` (field 48 says how many, field 102 names the account), and the loyalty service holds them until the server confirms or cancels the redemption. A purchase without field 48 uses no points."
+    },
+    {
+      "type": "para",
+      "text": "Last month the server was restarted after a crash, and the loyalty team found redemptions that were neither confirmed nor cancelled, for purchases that never got an answer. The points are still gone from the cardholders' accounts."
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager already journals to disk. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`afterRedeem`, called once the service has redeemed the points;",
+        "`finish`, which `commit` and `abort` call."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About ten lines in total. The service is the `PointsService` interface at the top of the file."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager with Q2 in the test's JVM, with a Berkeley DB journal. They play a crash by pausing a transaction at a later participant and never resuming it, then stop the TransactionManager and start it again, so that it recovers from its journal."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/**\n * Redeems the cardholder's loyalty points in prepare (field 48 holds how many, field 102 the\n * loyalty account); confirms the redemption on commit and cancels it on abort.\n */\npublic class RedeemPoints implements TransactionParticipant, Configurable {\n\n    /** The loyalty service, outside the server; registered in the NameRegistrar. */\n    public interface PointsService {\n        /** Takes the points off the account until confirmed or cancelled; returns a redemption id. */\n        String redeem(String account, long points) throws Exception;\n        void confirm(String redemptionId) throws Exception;\n        void cancel(String redemptionId) throws Exception;\n    }\n\n    static final String REDEMPTION = \"REDEMPTION\";\n    private String serviceName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"points\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        if (request == null || !request.hasField(48))\n            return PREPARED | NO_JOIN | READONLY;              // paid without points\n        try {\n            PointsService points = NameRegistrar.get(serviceName);\n            String redemptionId = points.redeem(request.getString(102), Long.parseLong(request.getString(48)));\n            return afterRedeem(ctx, redemptionId);\n        } catch (Exception e) {\n            ctx.log(\"redemption failed: \" + e);\n            try {\n                ISOMsg reply = (ISOMsg) request.clone();\n                reply.setResponseMTI();\n                reply.set(39, \"96\");\n                ctx.put(RESPONSE.toString(), reply);\n            } catch (Exception ignored) {\n                // nothing to answer\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        finish((Context) context, true);\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        finish((Context) context, false);\n    }\n\n    /**\n     * The points are taken. Keep what commit or abort will need to finish this redemption, also\n     * when they run in a restarted server after a crash, and return the vote.\n     */\n    int afterRedeem(Context ctx, String redemptionId) {\n        ctx.put(REDEMPTION, redemptionId, true);\n        return PREPARED;\n    }\n\n    /**\n     * Confirms (commit) or cancels (abort) this transaction's redemption. After a restart, the\n     * TransactionManager calls this for every transaction that was in flight. Never throws.\n     */\n    void finish(Context ctx, boolean confirm) {\n        String redemptionId = ctx.getString(REDEMPTION);\n        if (redemptionId == null)\n            return;\n        try {\n            PointsService points = NameRegistrar.get(serviceName);\n            if (confirm)\n                points.confirm(redemptionId);\n            else\n                points.cancel(redemptionId);\n        } catch (Exception e) {\n            ctx.log((confirm ? \"confirm\" : \"cancel\") + \" failed for \" + redemptionId + \": \" + e);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/**\n * Redeems the cardholder's loyalty points in prepare (field 48 holds how many, field 102 the\n * loyalty account); confirms the redemption on commit and cancels it on abort.\n */\npublic class RedeemPoints implements TransactionParticipant, Configurable {\n\n    /** The loyalty service, outside the server; registered in the NameRegistrar. */\n    public interface PointsService {\n        /** Takes the points off the account until confirmed or cancelled; returns a redemption id. */\n        String redeem(String account, long points) throws Exception;\n        void confirm(String redemptionId) throws Exception;\n        void cancel(String redemptionId) throws Exception;\n    }\n\n    static final String REDEMPTION = \"REDEMPTION\";\n    private String serviceName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"points\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        if (request == null || !request.hasField(48))\n            return PREPARED | NO_JOIN | READONLY;              // paid without points\n        try {\n            PointsService points = NameRegistrar.get(serviceName);\n            String redemptionId = points.redeem(request.getString(102), Long.parseLong(request.getString(48)));\n            return afterRedeem(ctx, redemptionId);\n        } catch (Exception e) {\n            ctx.log(\"redemption failed: \" + e);\n            try {\n                ISOMsg reply = (ISOMsg) request.clone();\n                reply.setResponseMTI();\n                reply.set(39, \"96\");\n                ctx.put(RESPONSE.toString(), reply);\n            } catch (Exception ignored) {\n                // nothing to answer\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        finish((Context) context, true);\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        finish((Context) context, false);\n    }\n\n    /**\n     * TODO: The points are taken. Keep what commit or abort will need to finish this redemption,\n     * also when they run in a restarted server after a crash, and return the vote. (two lines)\n     */\n    int afterRedeem(Context ctx, String redemptionId) {\n        throw new IllegalStateException(\"TODO: afterRedeem\");\n    }\n\n    /**\n     * TODO: Confirm (commit) or cancel (abort) this transaction's redemption through the service\n     * named in the configuration. After a restart, the TransactionManager calls this for every\n     * transaction that was in flight. Never throw: log a failure with ctx.log. (about eight lines)\n     */\n    void finish(Context ctx, boolean confirm) {\n        throw new IllegalStateException(\"TODO: finish\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 5,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "9c6604049fbcbc4ee08282c0359f44f6cf469906a6e4c054eac9483014f73f2d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/**\n * Redeems the cardholder's loyalty points in prepare (field 48 holds how many, field 102 the\n * loyalty account); confirms the redemption on commit and cancels it on abort.\n */\npublic class RedeemPoints implements TransactionParticipant, Configurable {\n\n    /** The loyalty service, outside the server; registered in the NameRegistrar. */\n    public interface PointsService {\n        /** Takes the points off the account until confirmed or cancelled; returns a redemption id. */\n        String redeem(String account, long points) throws Exception;\n        void confirm(String redemptionId) throws Exception;\n        void cancel(String redemptionId) throws Exception;\n    }\n\n    static final String REDEMPTION = \"REDEMPTION\";\n    private String serviceName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"points\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        if (request == null || !request.hasField(48))\n            return PREPARED | NO_JOIN | READONLY;              // paid without points\n        try {\n            PointsService points = NameRegistrar.get(serviceName);\n            String redemptionId = points.redeem(request.getString(102), Long.parseLong(request.getString(48)));\n            return afterRedeem(ctx, redemptionId);\n        } catch (Exception e) {\n            ctx.log(\"redemption failed: \" + e);\n            try {\n                ISOMsg reply = (ISOMsg) request.clone();\n                reply.setResponseMTI();\n                reply.set(39, \"96\");\n                ctx.put(RESPONSE.toString(), reply);\n            } catch (Exception ignored) {\n                // nothing to answer\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        finish((Context) context, true);\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        finish((Context) context, false);\n    }\n\n    /**\n     * TODO: The points are taken. Keep what commit or abort will need to finish this redemption,\n     * also when they run in a restarted server after a crash, and return the vote. (two lines)\n     */\n    int afterRedeem(Context ctx, String redemptionId) {\n        throw new IllegalStateException(\"TODO: afterRedeem\");\n    }\n\n    /**\n     * TODO: Confirm (commit) or cancel (abort) this transaction's redemption through the service\n     * named in the configuration. After a restart, the TransactionManager calls this for every\n     * transaction that was in flight. Never throw: log a failure with ctx.log. (about eight lines)\n     */\n    void finish(Context ctx, boolean confirm) {\n        throw new IllegalStateException(\"TODO: finish\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-15/practice-1/src/main/java/com/example/practice/RedeemPoints.java",
+    "test_path": "practice/jpos-server/prose/unit-15/practice-1/src/test/java/com/example/practice/RedeemPointsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-15/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-15/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.RedeemPointsTest#aPurchaseWithPointsConfirmsTheRedemption",
+        "kind": "main",
+        "says": "a purchase that commits confirms its redemption once"
+      },
+      {
+        "id": "com.example.practice.RedeemPointsTest#aDeclinedPurchaseCancelsTheRedemption",
+        "kind": "main",
+        "says": "a purchase declined after the redemption cancels it once"
+      },
+      {
+        "id": "com.example.practice.RedeemPointsTest#aCrashRightAfterTheRedemptionGivesThePointsBack",
+        "kind": "edge",
+        "says": "the journal holds the redemption only if the participant that changed the Context lets the TransactionManager snapshot it"
+      },
+      {
+        "id": "com.example.practice.RedeemPointsTest#aCrashLaterInTheChainGivesThePointsBack",
+        "kind": "edge",
+        "says": "only persisted entries reach the journal, so a redemption kept the ordinary way is lost in a crash"
+      },
+      {
+        "id": "com.example.practice.RedeemPointsTest#aRecoveredPurchaseWithoutPointsCallsNoService",
+        "kind": "edge",
+        "says": "recovery calls abort on every participant of the chain, so a transaction that redeemed nothing must not reach the service"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-15/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s15.md",
+      "section": "15.3 Recovery Aborts What Was Preparing and Commits Again What Was Committing"
+    },
+    "concepts": [
+      "The TransactionManager journals each transaction's state and a snapshot of its persistent Context entries, after every participant that does not vote READONLY, in its persistent space, which is in memory unless a disk-backed space is named.",
+      "At start-up, a transaction left preparing is aborted and one left committing is committed again, on every participant of the chain, with only the persisted entries of the last snapshot."
+    ]
+  }
+}

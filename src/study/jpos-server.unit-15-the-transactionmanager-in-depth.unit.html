@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f5f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a">
+<script>try{var t=sessionStorage.getItem("studyforge.boot.theme.v1");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}</script>
+<title>The TransactionManager in Depth</title>
+<link rel="stylesheet" href="../../.studyforge/assets/page.css">
+<script type="application/json" id="studyforge-identity">{"identity_api":1,"corpus":"iso-8583-jpos-tutorial","address":["jpos-server"],"unit":15,"kind":"unit","variant":"prose"}</script>
+</head>
+<body>
+<a href="#content">Skip to the content</a>
+<header>
+<div role="toolbar" aria-label="Site tools" data-section="topbar">
+<button type="button" data-section="search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K /" aria-label="Search the course" data-keys-mac="&#8984; K" data-keys-other="Ctrl K" hidden>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-label>Search</span><kbd></kbd></button>
+<button type="button" data-section="theme" data-theme-choice="toggle" data-to-dark="Switch to the dark theme" data-to-light="Switch to the light theme" aria-label="Switch theme" hidden>
+<svg data-icon="sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M 12 2 v 2 M 12 20 v 2 M 2 12 h 2 M 20 12 h 2 M 4.9 4.9 l 1.4 1.4 M 17.7 17.7 l 1.4 1.4 M 4.9 19.1 l 1.4 -1.4 M 17.7 6.3 l 1.4 -1.4"></path></svg>
+<svg data-icon="moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 21 13.2 A 9 9 0 1 1 10.8 3 a 7 7 0 0 0 10.2 10.2 z"></path></svg>
+</button>
+</div>
+<div role="dialog" aria-modal="true" aria-label="Search" data-section="search" data-search-placeholder="Search the course" data-search-loading="Preparing the search..." data-search-none="No results for" data-search-failed="The search index could not be loaded on this page." data-search-hint-open="Enter to open" data-search-hint-move="Up and down to move" data-search-hint-close="Esc to close" data-search-count-one="1 result" data-search-count-many="{n} results" hidden>
+<div data-search-box>
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-field></span>
+<button type="button" data-search-close aria-label="Close the search">Esc</button>
+</div>
+<div id="search-results" role="listbox" aria-label="Results" data-search-results></div>
+<p data-search-status role="status" aria-live="polite"></p>
+<p data-search-hints></p>
+</div>
+<nav aria-label="Breadcrumb"><ol><li><a href="../../index.html">ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></li><li><span aria-hidden="true">› </span><a href="jpos-server-implementation.section.html"><span data-kind="level">group</span> jPOS Server Implementation</a></li><li aria-current="page"><span aria-hidden="true">› </span>The TransactionManager in Depth</li></ol></nav>
+<h1 id="prose-b0">The TransactionManager in Depth</h1>
+</header>
+<nav aria-label="Containers"><details open><summary>Course contents</summary><ol><li data-readable="true"><details><summary><a href="iso-8583-for-visa-and-mastercard-transactions-a-comprehensive-developers-guide.section.html"><span data-kind="level">group</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></summary><ol><li data-unit="iso-fundamentals/unit-01" data-readable="true"><a href="iso-fundamentals.unit-01-introduction-to-iso-8583.unit.html"><span data-kind="numbering">1</span> Introduction to ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-02" data-readable="true"><a href="iso-fundamentals.unit-02-iso-8583-message-structure.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Structure<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-03" data-readable="true"><a href="iso-fundamentals.unit-03-data-elements.unit.html"><span data-kind="numbering">3</span> Data Elements<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-04" data-readable="true"><a href="iso-fundamentals.unit-04-message-type-indicators-mtis.unit.html"><span data-kind="numbering">4</span> Message Type Indicators (MTIs)<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-05" data-readable="true"><a href="iso-fundamentals.unit-05-visa-specific-implementation.unit.html"><span data-kind="numbering">5</span> Visa-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-06" data-readable="true"><a href="iso-fundamentals.unit-06-mastercard-specific-implementation.unit.html"><span data-kind="numbering">6</span> Mastercard-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-07" data-readable="true"><a href="iso-fundamentals.unit-07-transaction-flow.unit.html"><span data-kind="numbering">7</span> Transaction Flow<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-08" data-readable="true"><a href="iso-fundamentals.unit-08-security-and-encryption.unit.html"><span data-kind="numbering">8</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-09" data-readable="true"><a href="iso-fundamentals.unit-09-error-handling-and-response-codes.unit.html"><span data-kind="numbering">9</span> Error Handling and Response Codes<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-10" data-readable="true"><a href="iso-fundamentals.unit-10-testing-and-certification.unit.html"><span data-kind="numbering">10</span> Testing and Certification<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-11" data-readable="true"><a href="iso-fundamentals.unit-11-best-practices-for-iso-8583-development.unit.html"><span data-kind="numbering">11</span> Best Practices for ISO-8583 Development<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-12" data-readable="true"><a href="iso-fundamentals.unit-12-integration-with-payment-gateways.unit.html"><span data-kind="numbering">12</span> Integration with Payment Gateways<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-13" data-readable="true"><a href="iso-fundamentals.unit-13-compliance-and-regulations.unit.html"><span data-kind="numbering">13</span> Compliance and Regulations<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-14" data-readable="true"><a href="iso-fundamentals.unit-14-advanced-topics.unit.html"><span data-kind="numbering">14</span> Advanced Topics<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-15" data-readable="true"><a href="iso-fundamentals.unit-15-troubleshooting-and-common-issues.unit.html"><span data-kind="numbering">15</span> Troubleshooting and Common Issues<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-16" data-readable="true"><a href="iso-fundamentals.unit-16-future-of-iso-8583.unit.html"><span data-kind="numbering">16</span> Future of ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-17" data-readable="true"><a href="iso-fundamentals.unit-17-iso-8583-2023-and-datasets.unit.html"><span data-kind="numbering">17</span> ISO 8583:2023 and Datasets<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-18" data-readable="true"><a href="iso-fundamentals.unit-18-emv-and-de-55-in-depth.unit.html"><span data-kind="numbering">18</span> EMV and DE 55 in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-19" data-readable="true"><a href="iso-fundamentals.unit-19-clearing-and-reconciliation.unit.html"><span data-kind="numbering">19</span> Clearing and Reconciliation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-20" data-readable="true"><a href="iso-fundamentals.unit-20-store-and-forward-and-reversals.unit.html"><span data-kind="numbering">20</span> Store-and-Forward and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li data-readable="true"><details><summary><a href="client-implementation.section.html"><span data-kind="level">group</span> Client Implementation</a></summary><ol><li data-unit="jpos-client/unit-01" data-readable="true"><a href="jpos-client.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-02" data-readable="true"><a href="jpos-client.unit-02-iso-8583-message-creation.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Creation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-03" data-readable="true"><a href="jpos-client.unit-03-channel-management.unit.html"><span data-kind="numbering">3</span> Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-04" data-readable="true"><a href="jpos-client.unit-04-transaction-sending.unit.html"><span data-kind="numbering">4</span> Transaction Sending<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-05" data-readable="true"><a href="jpos-client.unit-05-visa-and-mastercard-specific-requests.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Requests<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-06" data-readable="true"><a href="jpos-client.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-07" data-readable="true"><a href="jpos-client.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-08" data-readable="true"><a href="jpos-client.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-09" data-readable="true"><a href="jpos-client.unit-09-error-handling.unit.html"><span data-kind="numbering">9</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-10" data-readable="true"><a href="jpos-client.unit-10-testing.unit.html"><span data-kind="numbering">10</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-11" data-readable="true"><a href="jpos-client.unit-11-connection-management.unit.html"><span data-kind="numbering">11</span> Connection Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-12" data-readable="true"><a href="jpos-client.unit-12-correlation-timeouts-and-reversals.unit.html"><span data-kind="numbering">12</span> Correlation, Timeouts and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-13" data-readable="true"><a href="jpos-client.unit-13-packagers-in-depth.unit.html"><span data-kind="numbering">13</span> Packagers in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-14" data-readable="true"><a href="jpos-client.unit-14-muxpool-and-high-availability.unit.html"><span data-kind="numbering">14</span> MUXPool and High Availability<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-15" data-readable="true"><a href="jpos-client.unit-15-the-logon-lifecycle.unit.html"><span data-kind="numbering">15</span> The Logon Lifecycle<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-16" data-readable="true"><a href="jpos-client.unit-16-simulators-and-test-harnesses.unit.html"><span data-kind="numbering">16</span> Simulators and Test Harnesses<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-17" data-readable="true"><a href="jpos-client.unit-17-the-debugging-toolbox.unit.html"><span data-kind="numbering">17</span> The Debugging Toolbox<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li aria-current="true" data-readable="true"><details open><summary><span data-kind="level">group</span> jPOS Server Implementation</summary><ol><li data-unit="jpos-server/unit-01" data-readable="true"><a href="jpos-server.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-02" data-readable="true"><a href="jpos-server.unit-02-iso-8583-message-handling.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-03" data-readable="true"><a href="jpos-server.unit-03-server-channel-management.unit.html"><span data-kind="numbering">3</span> Server Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-04" data-readable="true"><a href="jpos-server.unit-04-transaction-processing.unit.html"><span data-kind="numbering">4</span> Transaction Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-05" data-readable="true"><a href="jpos-server.unit-05-visa-and-mastercard-specific-processing.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-06" data-readable="true"><a href="jpos-server.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-07" data-readable="true"><a href="jpos-server.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-08" data-readable="true"><a href="jpos-server.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-09" data-readable="true"><a href="jpos-server.unit-09-database-integration.unit.html"><span data-kind="numbering">9</span> Database Integration<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-10" data-readable="true"><a href="jpos-server.unit-10-error-handling.unit.html"><span data-kind="numbering">10</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-11" data-readable="true"><a href="jpos-server.unit-11-testing.unit.html"><span data-kind="numbering">11</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-12" data-readable="true"><a href="jpos-server.unit-12-the-space.unit.html"><span data-kind="numbering">12</span> The Space<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-13" data-readable="true"><a href="jpos-server.unit-13-what-changes-in-jpos-3.unit.html"><span data-kind="numbering">13</span> What changes in jPOS 3<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-14" data-readable="true"><a href="jpos-server.unit-14-q2-and-qbeans-in-depth.unit.html"><span data-kind="numbering">14</span> Q2 and QBeans in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li aria-current="page" data-unit="jpos-server/unit-15" data-readable="true"><span data-kind="numbering">15</span> The TransactionManager in Depth<span data-kind="read-state" hidden>, marked read</span></li><li data-unit="jpos-server/unit-16" data-readable="true"><a href="jpos-server.unit-16-building-a-switch.unit.html"><span data-kind="numbering">16</span> Building a Switch<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-17" data-readable="true"><a href="jpos-server.unit-17-dirpoll-and-operations.unit.html"><span data-kind="numbering">17</span> DirPoll and Operations<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li></ol></details></nav>
+<script>try{var n=document.querySelector('nav[aria-label=Containers]');if(n){var v=sessionStorage.getItem("studyforge.boot.rail.v1");if(v!==null&&!isNaN(+v)){n.scrollTop=+v;}var c=n.querySelector('[aria-current=page]'),a=c&&c.getBoundingClientRect(),b=n.getBoundingClientRect();if(a&&a.height>0){if(a.bottom>b.bottom){n.scrollTop+=a.bottom-b.bottom+8;}else if(b.top>a.top){n.scrollTop-=b.top-a.top+8;}}}}catch(e){}</script>
+<nav aria-label="Outline"><p>On this page</p><ol><li data-level="2"><a href="#prose-b3">A Server You Can Kill</a></li><li data-level="2"><a href="#prose-b9">Without a Persistent Space, a Crash Forgets What Was in Flight</a></li><li data-level="2"><a href="#prose-b23">Recovery Aborts What Was Preparing and Commits Again What Was Committing</a></li><li data-level="3"><a href="#prose-b35">Give the points back after a crash</a></li><li data-level="2"><a href="#prose-b36">A Vote Is Read Bit by Bit, and Only <code>PREPARED</code> Says Yes</a></li><li data-level="2"><a href="#prose-b41"><code>RETRY</code> Starts Over Under a New Id, and Nobody Hears How the First Attempt Ended</a></li><li data-level="2"><a href="#prose-b52">A Paused Transaction Resumes Once, and an Extra <code>resume()</code> Is Kept for the Next Pause</a></li><li data-level="3"><a href="#prose-b53">Spot the Problem: Resuming on Every Outcome</a></li><li data-level="3"><a href="#prose-b63">Let a slow exchange rate end its pause, and only its own</a></li><li data-level="2"><a href="#prose-b64"><code>Join</code> Tells Every Nested Participant the Outcome, Joined or Not</a></li><li data-level="3"><a href="#prose-b72">Check yourself: the TransactionManager in depth</a></li><li data-level="2"><a href="#prose-b73">Summary</a></li><li data-level="2"><a href="#prose-b75">Reference</a></li><li data-level="2"><a href="#prose-b91">Challenges</a></li><li data-level="2"><a href="#prose-b94">Design Note: Why Journal the Context Instead of the Steps?</a></li></ol></nav>
+<main id="content">
+<section id="s-prose" data-section="prose" data-kind="lesson" data-label="The TransactionManager in Depth">
+<p>At 12:40, in the lunch peak, the server process is killed and restarts forty seconds later. A week on, two prepaid cardholders call. One has had 50.00 on hold since that day for a purchase whose terminal never got an answer. The other was approved, and the prepaid ledger was told twice to capture the same hold.</p>
+<p>Both purchases were in the middle of a transaction when the process died. What the TransactionManager does with them at the next start, and with votes, retries, pauses and <code>Join</code> while it runs, comes down to six rules, one per heading from 15.2 to 15.7.</p>
+<h2 id="prose-b3">A Server You Can Kill</h2>
+<p>The examples run as in unit s4: a real Q2 in the same JVM and <code>DirectTerminal</code> in front of it. Two pieces are new. The prepaid ledger stands outside the server, so here it is a file, <code>data/ledger.log</code>, that outlives the process (<code>FileLedger</code>, in the Reference). The other is <code>Crash</code>, a participant that kills the process at a chosen point:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.testing;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.transaction.TransactionParticipant;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.Serializable;
+
+/** Kills the JVM, as kill -9 or a power cut would, in prepare or in commit; only on the first run. */
+public class Crash implements TransactionParticipant, Configurable {
+    private String in;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        in = cfg.get(&quot;in&quot;, &quot;prepare&quot;);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        if (in.equals(&quot;prepare&quot;))
+            halt(id, &quot;prepare&quot;);
+        return PREPARED | READONLY;                   // joins, so that commit reaches it
+    }
+
+    @Override
+    public void commit(long id, Serializable context) {
+        if (in.equals(&quot;commit&quot;))
+            halt(id, &quot;commit&quot;);
+    }
+
+    private static void halt(long id, String where) {
+        File once = new File(&quot;data/crashed&quot;);         // the restarted server must not die again
+        try {
+            if (!once.createNewFile())
+                return;
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        System.out.println(&quot;*** process dies in &quot; + where + &quot; of transaction &quot; + id);
+        Runtime.getRuntime().halt(137);               // no shutdown hooks, no finally blocks
+    }
+}</code></pre></figure>
+<p>The participant under test holds the amount on the ledger in <code>prepare</code>, captures the hold on commit and releases it on abort:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.participant;
+
+import com.example.jpos.server.ledger.Ledger;
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextRecovery;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+import static org.jpos.transaction.ContextConstants.RESPONSE;
+
+/** Holds the amount on the prepaid ledger in prepare; captures the hold on commit, releases it on abort. */
+public class ReserveFunds implements TransactionParticipant, ContextRecovery, Configurable {
+    public static final String HOLD_ID = &quot;HOLD_ID&quot;;
+    private String ledgerName;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        ledgerName = cfg.get(&quot;ledger&quot;, &quot;ledger&quot;);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        try {
+            Ledger ledger = NameRegistrar.get(ledgerName);
+            String holdId = ledger.hold(request.getString(102), Long.parseLong(request.getString(4)));
+            ctx.put(HOLD_ID, holdId, true);           // (1) persisted: the journal keeps it
+            return PREPARED;                          // (2) joins, and no READONLY: the Context changed
+        } catch (Exception e) {
+            ctx.log(&quot;hold failed: &quot; + e);
+            try {
+                ctx.put(RESPONSE.toString(), Responses.reply(request, &quot;96&quot;));
+            } catch (Exception ignored) {
+                // no request to answer
+            }
+            return ABORTED | NO_JOIN;
+        }
+    }
+
+    @Override
+    public void commit(long id, Serializable context) {
+        finish((Context) context, true);
+    }
+
+    @Override
+    public void abort(long id, Serializable context) {
+        finish((Context) context, false);
+    }
+
+    @Override
+    public Serializable recover(long id, Serializable context, boolean commit) {
+        return context;                               // what commit or abort will receive
+    }
+
+    private void finish(Context ctx, boolean capture) {
+        String holdId = ctx.getString(HOLD_ID);       // (3) never REQUEST: after a crash it is gone
+        if (holdId == null)
+            return;                                   // (4) this transaction holds nothing here
+        try {
+            Ledger ledger = NameRegistrar.get(ledgerName);
+            if (capture)
+                ledger.capture(holdId);
+            else
+                ledger.release(holdId);
+        } catch (Exception e) {
+            ctx.log((capture ? &quot;capture&quot; : &quot;release&quot;) + &quot; failed for &quot; + holdId + &quot;: &quot; + e);
+        }
+    }
+}</code></pre></figure>
+<p><code>Authorize</code> and <code>SendResponse</code> are unit s4's. Classes named <code>demo.*</code> below are throwaway stand-ins for one run. Each experiment runs twice on the same directory. Run 1 sends a purchase of 50.00 for account <code>ACC-0042</code> (field 102) and dies where <code>Crash</code> says. Run 2 starts Q2 again and lists the holds that were neither captured nor released.</p>
+<h2 id="prose-b9">Without a Persistent Space, a Crash Forgets What Was in Flight</h2>
+<p><code>Crash</code> sits last in the chain, so every participant before it has voted <code>PREPARED</code> when the process dies:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;txnmgr name=&quot;txnmgr&quot; class=&quot;org.jpos.transaction.TransactionManager&quot; logger=&quot;Q2&quot; realm=&quot;txnmgr&quot;&gt;
+  &lt;property name=&quot;queue&quot; value=&quot;txnmgr&quot;/&gt;
+  &lt;property name=&quot;debug-context&quot; value=&quot;false&quot;/&gt;
+  &lt;participant class=&quot;com.example.jpos.server.participant.ReserveFunds&quot; logger=&quot;Q2&quot;/&gt;
+  &lt;participant class=&quot;com.example.jpos.server.participant.Authorize&quot; logger=&quot;Q2&quot;&gt;
+    &lt;property name=&quot;available&quot; value=&quot;100000&quot;/&gt;
+  &lt;/participant&gt;
+  &lt;participant class=&quot;org.jpos.transaction.participant.SendResponse&quot; logger=&quot;Q2&quot;/&gt;
+  &lt;participant class=&quot;com.example.jpos.server.testing.Crash&quot; logger=&quot;Q2&quot;&gt;
+    &lt;property name=&quot;in&quot; value=&quot;prepare&quot;/&gt;
+  &lt;/participant&gt;
+&lt;/txnmgr&gt;</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">run 1:  ledger: hold H-0001 5000 on ACC-0042
+        *** process dies in prepare of transaction 1
+run 2:  open holds after restart: [H-0001]</code></pre></figure>
+<p>The hold stays open, and nothing will release it: the hold id existed only in the dead process. The terminal got no answer and reverses the purchase (unit c12), but the reversal can't find a hold the server no longer knows about.</p>
+<p>The TransactionManager's <code>recover</code> property is <code>true</code> by default, but recovery reads a journal, and this one was in memory.</p>
+<p>A session keeps the journal as it works. It takes a Context from the queue and gives it the next id (<code>head</code>). Before the first <code>prepare</code> it stores the id's state, <code>PREPARING</code>, and a snapshot of the Context. After each participant that didn't vote <code>READONLY</code> it stores the snapshot again. Before the first <code>commit</code> the state becomes <code>COMMITTING</code>, and at the end <code>DONE</code>; <code>tail</code>, the oldest unfinished id, moves past it once every older id is done. The journal lives in the <code>persistent-space</code>, by default an in-memory <code>TSpace</code> that dies with the process.</p>
+<p>A space on disk keeps the journal. <code>je:&lt;name&gt;:&lt;directory&gt;</code> is jPOS's Berkeley DB space (the <code>je</code> jar comes with jPOS 2.1.7). It takes one line in the descriptor:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;property name=&quot;persistent-space&quot; value=&quot;je:txnmgr-journal:data/journal&quot;/&gt;</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">run 1:  ledger: hold H-0001 5000 on ACC-0042
+        *** process dies in prepare of transaction 1
+run 2:      recover - tail=1, head=2
+        ledger: release H-0001
+        open holds after restart: []</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">&lt;log realm=&quot;txnmgr&quot; at=&quot;2026-11-06T15:06:07.549558739&quot; lifespan=&quot;32ms&quot;&gt;
+  &lt;recover&gt;
+    &lt;id&gt;1&lt;/id&gt;
+    &lt;context&gt;
+      HOLD_ID(P): H-0001
+      RESULT: 
+       &lt;result/&gt;
+      
+      LOGEVT: 
+        &lt;info&gt;
+          RESPONSE not present
+        &lt;/info&gt;
+      
+    &lt;/context&gt;
+      abort-recover: c.e.j.s.p.ReserveFunds
+              abort: c.e.j.s.p.ReserveFunds
+              abort: c.e.j.s.p.Authorize
+              abort: o.j.t.p.SendResponse
+              abort: c.e.j.s.t.Crash
+    &lt;profiler&gt;
+        abort: c.e.j.s.p.ReserveFunds [7.1/7.1]
+        abort: c.e.j.s.p.Authorize [0.7/7.8]
+        abort: o.j.t.p.SendResponse [1.9/9.8]
+        abort: c.e.j.s.t.Crash [0.1/10.0]
+      end [25.0/35.1]
+    &lt;/profiler&gt;
+  &lt;/recover&gt;
+&lt;/log&gt;</code></pre></figure>
+<p>The Context in the journal holds one entry, <code>HOLD_ID</code>, marked <code>(P)</code>: the entry (1) put with <code>persist</code> true. The journal serializes a Context, and a Context serializes only its persistent entries, so <code>REQUEST</code>, <code>SOURCE</code> and everything put the ordinary way are gone. <code>RESULT</code> and <code>LOGEVT</code> were added during recovery, by <code>SendResponse</code>, which found nothing to send.</p>
+<p>The event dumps the Context although <code>debug-context</code> is false, so never persist card data. And the snapshot is the only copy recovery gets, which is why (2) leaves out <code>READONLY</code>: a participant that changes the Context and votes <code>READONLY</code> leaves an older snapshot behind.</p>
+<p>Give each TransactionManager a journal of its own: <code>$HEAD</code>, <code>$TAIL</code> and <code>$RETRY_QUEUE</code> are not prefixed with the TransactionManager's name, so two sharing one space would share the counters and each other's retries. A disk write per snapshot costs time on every transaction, so a persistent journal is for flows that leave something outside the server to finish, like this hold.</p>
+<h2 id="prose-b23">Recovery Aborts What Was Preparing and Commits Again What Was Committing</h2>
+<p>The second cardholder's purchase got further. <code>Crash</code> now dies in <code>commit</code>; it is declared after <code>SendResponse</code>, so the approval has left:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">run 1:  ledger: hold H-0001 5000 on ACC-0042
+        ledger: capture H-0001
+        purchase: 0210 39=00
+        *** process dies in commit of transaction 1
+run 2:      recover - tail=1, head=2
+        ledger: capture H-0001</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">     commit-recover: c.e.j.s.p.ReserveFunds
+             commit: c.e.j.s.p.ReserveFunds
+             commit: c.e.j.s.p.Authorize
+             commit: o.j.t.p.SendResponse
+             commit: c.e.j.s.t.Crash</code></pre></figure>
+<p>At start-up the TransactionManager walks every id from <code>tail</code> to <code>head</code>. A transaction left in <code>PREPARING</code> never had its outcome decided, so it is aborted, even though every vote so far was yes. One left in <code>COMMITTING</code> had been decided, so it is committed again, from the first participant. The journal records the state, not which commits already ran, so <code>ReserveFunds</code> captured H-0001 a second time.</p>
+<p>A ledger that books each capture charges this cardholder 100.00 for a 50.00 purchase. <code>commit</code> can't prevent it: the journal takes no snapshot during commit, so nothing a commit writes into the Context survives the crash. The call itself has to be safe to repeat. Here the hold id is the natural key: a ledger that captures a hold only once, and answers a second capture of H-0001 with &quot;already captured&quot;, makes the replay harmless. Where the remote side can't do that, keep your own record of finished calls, keyed the same way.</p>
+<p>In the trail, <code>Authorize</code>, <code>SendResponse</code> and <code>Crash</code> all got <code>commit</code>, though <code>Authorize</code> voted <code>NO_JOIN</code>. Recovery doesn't know who joined, so it calls every participant of the chain, plus the groups the transaction selected (unit s5). That is why <code>finish</code> returns at (4) when there is no hold id: a recovered transaction may never have reached this participant, or reached it and held nothing.</p>
+<p>Before calling <code>commit</code> or <code>abort</code>, recovery calls <code>recover(id, context, commit)</code> on each participant that implements <code>ContextRecovery</code>, and passes on the Context it returns.</p>
+<p>Recovery answers nobody: the terminal's connection died with the old process. A terminal whose purchase was still preparing gets no answer and reverses, as in 15.2.</p>
+<p>The journal reads each key back as a <code>String</code>. In a variant of the chain, a participant persisted an entry under the enum constant, <code>ctx.put(TXNNAME, &quot;purchase&quot;, true)</code>. A snapshot first removes the previous one by taking it out of the space, which reads it back. So when a later participant voted without <code>READONLY</code>, its snapshot failed, and the transaction ended as <code>&lt;undefined&gt;</code> with a <code>ClassCastException</code>, no answer and the hold still open. When the crash came before any later snapshot, recovery hit the same exception at every restart:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">    recover - tail=1, head=2
+  &lt;warn&gt;
+    start
+    &lt;exception name=&quot;java.lang.ClassCastException: class org.jpos.transaction.ContextConstants cannot be cast to class java.lang.String (org.jpos.transaction.ContextConstants is in unnamed module of loader 'app'; java.lang.String is in module java.base of loader 'bootstrap')&quot;&gt;
+txnmgr registered: false</code></pre></figure>
+<p>The TransactionManager didn't start, so the server answered no request at all until someone deleted the journal. Persist under string keys only (unit s4).</p>
+<section id="prose-b35" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose" data-practice-card="s-practice-prose" data-practice-key="jpos-server/unit-15/practice-prose" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose" data-practices-part="open">Give the points back after a crash</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>The TransactionManager journals each transaction's state and a snapshot of its persistent Context entries, after every participant that does not vote READONLY, in its persistent space, which is in memory unless a disk-backed space is named.</li>
+<li>At start-up, a transaction left preparing is aborted and one left committing is committed again, on every participant of the chain, with only the persisted entries of the last snapshot.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Give the points back after a crash">
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>Cardholders can pay part of a purchase with loyalty points. <code>RedeemPoints</code>, in <code>src/main/java/com/example/practice/RedeemPoints.java</code>, takes the points off the loyalty account in <code>prepare</code> (field 48 says how many, field 102 names the account), and the loyalty service holds them until the server confirms or cancels the redemption. A purchase without field 48 uses no points.</p>
+<p>Last month the server was restarted after a crash, and the loyalty team found redemptions that were neither confirmed nor cancelled, for purchases that never got an answer. The points are still gone from the cardholders' accounts.</p>
+<p>The TransactionManager already journals to disk. Finish the two methods marked <code>TODO</code>:</p>
+<ul class="items"><li><code>afterRedeem</code>, called once the service has redeemed the points;</li><li><code>finish</code>, which <code>commit</code> and <code>abort</code> call.</li></ul>
+<p>About ten lines in total. The service is the <code>PointsService</code> interface at the top of the file.</p>
+<p>The tests deploy a real TransactionManager with Q2 in the test's JVM, with a Berkeley DB journal. They play a crash by pausing a transaction at a later participant and never resuming it, then stop the TransactionManager and start it again, so that it recovers from its journal.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+import static org.jpos.transaction.ContextConstants.RESPONSE;
+
+/**
+ * Redeems the cardholder's loyalty points in prepare (field 48 holds how many, field 102 the
+ * loyalty account); confirms the redemption on commit and cancels it on abort.
+ */
+public class RedeemPoints implements TransactionParticipant, Configurable {
+
+    /** The loyalty service, outside the server; registered in the NameRegistrar. */
+    public interface PointsService {
+        /** Takes the points off the account until confirmed or cancelled; returns a redemption id. */
+        String redeem(String account, long points) throws Exception;
+        void confirm(String redemptionId) throws Exception;
+        void cancel(String redemptionId) throws Exception;
+    }
+
+    static final String REDEMPTION = &quot;REDEMPTION&quot;;
+    private String serviceName;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        serviceName = cfg.get(&quot;service&quot;, &quot;points&quot;);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        if (request == null || !request.hasField(48))
+            return PREPARED | NO_JOIN | READONLY;              // paid without points
+        try {
+            PointsService points = NameRegistrar.get(serviceName);
+            String redemptionId = points.redeem(request.getString(102), Long.parseLong(request.getString(48)));
+            return afterRedeem(ctx, redemptionId);
+        } catch (Exception e) {
+            ctx.log(&quot;redemption failed: &quot; + e);
+            try {
+                ISOMsg reply = (ISOMsg) request.clone();
+                reply.setResponseMTI();
+                reply.set(39, &quot;96&quot;);
+                ctx.put(RESPONSE.toString(), reply);
+            } catch (Exception ignored) {
+                // nothing to answer
+            }
+            return ABORTED | NO_JOIN;
+        }
+    }
+
+    @Override
+    public void commit(long id, Serializable context) {
+        finish((Context) context, true);
+    }
+
+    @Override
+    public void abort(long id, Serializable context) {
+        finish((Context) context, false);
+    }
+
+    /**
+     * The points are taken. Keep what commit or abort will need to finish this redemption, also
+     * when they run in a restarted server after a crash, and return the vote.
+     */
+    int afterRedeem(Context ctx, String redemptionId) {
+        ctx.put(REDEMPTION, redemptionId, true);
+        return PREPARED;
+    }
+
+    /**
+     * Confirms (commit) or cancels (abort) this transaction's redemption. After a restart, the
+     * TransactionManager calls this for every transaction that was in flight. Never throws.
+     */
+    void finish(Context ctx, boolean confirm) {
+        String redemptionId = ctx.getString(REDEMPTION);
+        if (redemptionId == null)
+            return;
+        try {
+            PointsService points = NameRegistrar.get(serviceName);
+            if (confirm)
+                points.confirm(redemptionId);
+            else
+                points.cancel(redemptionId);
+        } catch (Exception e) {
+            ctx.log((confirm ? &quot;confirm&quot; : &quot;cancel&quot;) + &quot; failed for &quot; + redemptionId + &quot;: &quot; + e);
+        }
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-b9">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+import static org.jpos.transaction.ContextConstants.RESPONSE;
+
+/**
+ * Redeems the cardholder's loyalty points in prepare (field 48 holds how many, field 102 the
+ * loyalty account); confirms the redemption on commit and cancels it on abort.
+ */
+public class RedeemPoints implements TransactionParticipant, Configurable {
+
+    /** The loyalty service, outside the server; registered in the NameRegistrar. */
+    public interface PointsService {
+        /** Takes the points off the account until confirmed or cancelled; returns a redemption id. */
+        String redeem(String account, long points) throws Exception;
+        void confirm(String redemptionId) throws Exception;
+        void cancel(String redemptionId) throws Exception;
+    }
+
+    static final String REDEMPTION = &quot;REDEMPTION&quot;;
+    private String serviceName;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        serviceName = cfg.get(&quot;service&quot;, &quot;points&quot;);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        if (request == null || !request.hasField(48))
+            return PREPARED | NO_JOIN | READONLY;              // paid without points
+        try {
+            PointsService points = NameRegistrar.get(serviceName);
+            String redemptionId = points.redeem(request.getString(102), Long.parseLong(request.getString(48)));
+            return afterRedeem(ctx, redemptionId);
+        } catch (Exception e) {
+            ctx.log(&quot;redemption failed: &quot; + e);
+            try {
+                ISOMsg reply = (ISOMsg) request.clone();
+                reply.setResponseMTI();
+                reply.set(39, &quot;96&quot;);
+                ctx.put(RESPONSE.toString(), reply);
+            } catch (Exception ignored) {
+                // nothing to answer
+            }
+            return ABORTED | NO_JOIN;
+        }
+    }
+
+    @Override
+    public void commit(long id, Serializable context) {
+        finish((Context) context, true);
+    }
+
+    @Override
+    public void abort(long id, Serializable context) {
+        finish((Context) context, false);
+    }
+
+    /**
+     * TODO: The points are taken. Keep what commit or abort will need to finish this redemption,
+     * also when they run in a restarted server after a crash, and return the vote. (two lines)
+     */
+    int afterRedeem(Context ctx, String redemptionId) {
+        throw new IllegalStateException(&quot;TODO: afterRedeem&quot;);
+    }
+
+    /**
+     * TODO: Confirm (commit) or cancel (abort) this transaction's redemption through the service
+     * named in the configuration. After a restart, the TransactionManager calls this for every
+     * transaction that was in flight. Never throw: log a failure with ctx.log. (about eight lines)
+     */
+    void finish(Context ctx, boolean confirm) {
+        throw new IllegalStateException(&quot;TODO: finish&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-server/unit-15/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-15/practice-1/src/main/java/com/example/practice/RedeemPoints.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-server/unit-15/practice-prose" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-server/unit-15/practice-prose">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-server/unit-15/practice-prose" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-server/unit-15/practice-prose">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.RedeemPointsTest#aPurchaseWithPointsConfirmsTheRedemption" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a purchase that commits confirms its redemption once</li>
+<li data-practice-case="com.example.practice.RedeemPointsTest#aDeclinedPurchaseCancelsTheRedemption" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a purchase declined after the redemption cancels it once</li>
+<li data-practice-case="com.example.practice.RedeemPointsTest#aCrashRightAfterTheRedemptionGivesThePointsBack" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the journal holds the redemption only if the participant that changed the Context lets the TransactionManager snapshot it</li>
+<li data-practice-case="com.example.practice.RedeemPointsTest#aCrashLaterInTheChainGivesThePointsBack" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>only persisted entries reach the journal, so a redemption kept the ordinary way is lost in a crash</li>
+<li data-practice-case="com.example.practice.RedeemPointsTest#aRecoveredPurchaseWithoutPointsCallsNoService" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>recovery calls abort on every participant of the chain, so a transaction that redeemed nothing must not reach the service</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b36">A Vote Is Read Bit by Bit, and Only <code>PREPARED</code> Says Yes</h2>
+<p>A fraud check (<code>demo.PauseOnly</code>) starts an asynchronous call, asks to wait for it, and has nothing to commit, so it returns <code>PAUSE | NO_JOIN</code>. The call succeeds 50 ms later and the callback resumes the Context. After it come <code>Authorize</code> and <code>SendResponse</code>:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">            prepare: d.PauseOnly ABORTED PAUSE NO_JOIN
+    prepareForAbort: o.j.t.p.SendResponse
+              abort: o.j.t.p.SendResponse
+purchase: no answer after 3000 ms</code></pre></figure>
+<p>Nothing failed, and the transaction aborted. The TransactionManager reads the vote one bit at a time. <code>PREPARED</code> is the value 1, the lowest bit, and a vote without it is an abort, whatever else it carries. The <code>PAUSE</code> bit parked the transaction, and when it resumed it went on along the abort path: <code>Authorize</code>, a plain participant, was skipped, nothing put a response in the Context, and the terminal got nothing. Every terminal that sent a purchase through this check reverses it.</p>
+<p><code>NO_JOIN</code> and <code>READONLY</code> never change the outcome; they only remove a call and a snapshot. <code>RETRY</code> asks for a second attempt only together with an abort; next to <code>PREPARED</code> it is ignored, except inside <code>Join</code> (see the Reference). So a participant that pauses returns <code>PREPARED | PAUSE</code> and lets a later participant decide, as <code>QueryIssuer</code> does in unit s4.</p>
+<h2 id="prose-b41"><code>RETRY</code> Starts Over Under a New Id, and Nobody Hears How the First Attempt Ended</h2>
+<p><code>RETRY</code> is for a short, local obstacle, such as a row another transaction has locked for a moment. The chain is <code>ReserveFunds</code>, then a step that answers <code>RETRY</code> on the first attempt and <code>PREPARED | NO_JOIN</code> on the second (<code>demo.Busy</code>, which counts attempts in the Context), then <code>Authorize</code> and <code>SendResponse</code>. One purchase of 25.00:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">ledger: hold H-0001 2500 on ACC-0042
+Busy: transaction 1, attempt 1
+ledger: hold H-0002 2500 on ACC-0042
+Busy: transaction 2, attempt 2
+ledger: capture H-0002
+purchase: 0210 39=00 after 20 ms
+open holds: [H-0001]</code></pre></figure>
+<p><code>RETRY</code> counts as an abort vote, but nobody gets <code>abort</code> (unit s4), and no event is logged for transaction 1. The TransactionManager puts the same Context on a retry queue. A task that sweeps the queue every <code>retry-interval</code> milliseconds (default 5000) moves it back to the input queue, so the second attempt can start at once or up to that long later. It starts as a new transaction, with a new id, from the first participant.</p>
+<p><code>ReserveFunds</code> joined attempt 1 and was never told how it ended, so H-0001 stays open, and attempt 2 holds the amount again. <code>HOLD_ID</code> now names H-0002, and nothing refers to H-0001 any more.</p>
+<p>The retry queue lives in the persistent space. With the journal of 15.2 on disk, the same purchase:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">ledger: hold H-0001 2500 on ACC-0042
+Busy: transaction 1, attempt 1
+            prepare: c.e.j.s.p.ReserveFunds ABORTED NO_JOIN
+    prepareForAbort: o.j.t.p.SendResponse
+purchase: no answer after 5000 ms
+open holds: [H-0001]</code></pre></figure>
+<p>The Context came back through the disk, with its persistent entries only. Transaction 2 had no <code>REQUEST</code>, so <code>ReserveFunds</code> failed, and no <code>SOURCE</code>, so nothing could be sent. The same happens to requests that <code>max-active-sessions</code> (unit s9) turns away, because its &quot;emergency retry&quot; uses the same queue. One session, a cap of one, a first purchase paused for 500 ms and a second one 50 ms behind it:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">    txnmgr-0:idle: emergency retry, running-sessions=1, max-active-sessions=1
+29110004: 0210 39=00 after 500 ms
+29110005: no answer after 4000 ms</code></pre></figure>
+<p>With the in-memory journal both were answered, the second after 1500 ms, at the next sweep of the retry queue (<code>retry-interval</code> was 1000 in these runs).</p>
+<p>So return <code>RETRY</code> only from a participant placed before anything that changes the world outside the Context, and don't combine <code>RETRY</code> or <code>max-active-sessions</code> with a persistent journal. Where <code>RETRY</code> doesn't fit, answer the request (a <code>91</code>, say) and let the terminal try again.</p>
+<h2 id="prose-b52">A Paused Transaction Resumes Once, and an Extra <code>resume()</code> Is Kept for the Next Pause</h2>
+<h3 id="prose-b53">Spot the Problem: Resuming on Every Outcome</h3>
+<p>A purchase pauses twice: <code>ScoreRisk</code> waits for a risk score (50 ms), then <code>AskIssuer</code> waits for the issuer (300 ms), and <code>Decide</code> answers with the issuer's code, or <code>91</code> when there is none. Unit s4 said every callback must resume, so a developer made sure of it:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">Services.score(request.getString(41))
+    .thenAccept(score -&gt; {
+        ctx.put(&quot;RISK_SCORE&quot;, score);
+        ctx.resume();                         // (1)
+    })
+    .whenComplete((nothing, error) -&gt; ctx.resume());   // (2) &quot;resume on every outcome&quot;
+return PREPARED | PAUSE | NO_JOIN;</code></pre></figure>
+<p>The profiler of the purchase, first with a single <code>whenComplete</code> that stores the score and resumes, then with the code above:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">      prepare: d.ScoreRisk [9.3/9.3]
+      resume [49.0/58.3]
+      prepare: d.AskIssuer [2.1/60.5]
+      resume-1 [298.6/359.1]
+      prepare: d.Decide [0.7/359.8]
+purchase: 0210 39=00 after 360 ms</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">      prepare: d.ScoreRisk [6.0/6.0]
+      resume [49.8/55.8]
+      prepare: d.AskIssuer [1.3/57.1]
+      resume-1 [0.0/57.2]
+      prepare: d.Decide [0.3/57.6]
+purchase: 0210 39=91 after 60 ms
+issuer answers 00 for 000733</code></pre></figure>
+<p>On a success, (1) and (2) both run. The second pause ended after 0.0 ms, <code>Decide</code> found no answer from the issuer, and the terminal was told <code>91</code>. A quarter of a second later the issuer approved the purchase. Nothing reverses it: <code>Decide</code> answered <code>91</code> and asked the issuer to undo nothing, so the cardholder is declined at the till and charged by the issuer.</p>
+<p>A <code>resume()</code> on a transaction that is already resumed is not lost. It sets a flag in the Context, and the next time the transaction pauses it resumes at once. The flag exists for the opposite race: a callback that runs before the TransactionManager has finished parking the transaction would otherwise resume nothing, and the transaction would wait for ever.</p>
+<p>Resume exactly once per pause, on whichever outcome comes first: answer, failure or your own timeout. Guard the resume with something that belongs to this transaction, such as an <code>AtomicBoolean</code> created in <code>prepare</code>, never a field of the participant (unit s1). The TransactionManager's <code>pause-timeout</code> resumes too, so a callback that arrives after it has resumed the transaction is an extra resume as well.</p>
+<blockquote><p><strong>In jPOS 3</strong> <code>PAUSE</code> is deprecated: sessions run on virtual threads, and a participant can block while it waits (unit s13).</p></blockquote>
+<section id="prose-b63" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-2" data-practice-card="s-practice-prose-2" data-practice-key="jpos-server/unit-15/practice-prose-2" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-2" data-practices-part="open">Let a slow exchange rate end its pause, and only its own</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A paused transaction must be resumed exactly once per pause; an extra resume() is kept and ends the next pause at once.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Let a slow exchange rate end its pause, and only its own">
+<h2 id="practice-prose-2-b0">Problem statement</h2>
+<p>The acquirer now offers cardholders the price in their card's currency. <code>QuoteRate</code>, in <code>src/main/java/com/example/practice/QuoteRate.java</code>, asks an exchange-rate service for a quote and pauses the transaction. The service has no timeout of its own, so the participant schedules one; without a rate, the purchase goes on and no conversion is offered. After <code>QuoteRate</code> the transaction pauses again while the card's issuer is asked.</p>
+<p>Since the release, a few purchases a day are answered <code>91</code> (issuer unavailable) a few milliseconds after the issuer was asked. The issuer approves each of them shortly afterwards, so the cardholder is charged for a purchase the terminal reported as failed. Every one of them had a slow or failed quote.</p>
+<p>Finish <code>Pending</code>, the nested class marked <code>TODO</code>: one <code>Pending</code> exists per transaction, and the quote, a failure and the timeout reach it on other threads, in any order. About ten lines in total.</p>
+<p>The tests deploy a real TransactionManager with one session, with Q2 in the test's JVM. The exchange-rate service and the issuer answer when the tests say so, and the timeout is one second.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+
+/**
+ * Asks the exchange-rate service for a quote in the card's currency (field 49) and pauses the
+ * transaction until the quote, a failure or this participant's own timeout arrives. A participant
+ * after it decides; without a rate, no conversion is offered.
+ */
+public class QuoteRate implements TransactionParticipant, Configurable {
+
+    /** The exchange-rate service. It has no timeout of its own and answers on its own thread. */
+    public interface FxService {
+        void quote(String currency, long amount, Listener listener);
+
+        interface Listener {
+            void quoted(long rateMicros);
+
+            void failed(Exception e);
+        }
+    }
+
+    public static final String RATE = &quot;RATE&quot;;
+    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -&gt; {
+        Thread t = new Thread(r, &quot;quote-timeout&quot;);
+        t.setDaemon(true);
+        return t;
+    });
+    private String serviceName;
+    private long timeout;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        serviceName = cfg.get(&quot;service&quot;, &quot;fx&quot;);
+        timeout = cfg.getLong(&quot;timeout&quot;, 3000);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        FxService fx = NameRegistrar.getIfExists(serviceName);
+        if (fx == null || request == null || !request.hasField(49))
+            return PREPARED | NO_JOIN | READONLY;                 // no quote, no offer
+        Pending pending = new Pending(ctx);
+        TIMER.schedule(pending::timedOut, timeout, TimeUnit.MILLISECONDS);
+        fx.quote(request.getString(49), Long.parseLong(request.getString(4)), pending);
+        return PREPARED | PAUSE | NO_JOIN;
+    }
+
+    /** One per transaction: the quote, a failure and the timeout of this transaction all arrive here. */
+    static final class Pending implements FxService.Listener {
+        private final Context ctx;
+        private final AtomicBoolean over = new AtomicBoolean();
+
+        Pending(Context ctx) {
+            this.ctx = ctx;
+        }
+
+        /** The service quoted a rate, in millionths. */
+        @Override
+        public void quoted(long rateMicros) {
+            if (over.compareAndSet(false, true)) {
+                ctx.put(RATE, rateMicros);
+                ctx.resume();
+            }
+        }
+
+        /** The service could not quote. */
+        @Override
+        public void failed(Exception e) {
+            if (over.compareAndSet(false, true)) {
+                ctx.log(&quot;no quote: &quot; + e);
+                ctx.resume();
+            }
+        }
+
+        /** The timeout of this participant ran out. */
+        void timedOut() {
+            if (over.compareAndSet(false, true)) {
+                ctx.log(&quot;no quote in time&quot;);
+                ctx.resume();
+            }
+        }
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-2-b7">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+
+/**
+ * Asks the exchange-rate service for a quote in the card's currency (field 49) and pauses the
+ * transaction until the quote, a failure or this participant's own timeout arrives. A participant
+ * after it decides; without a rate, no conversion is offered.
+ */
+public class QuoteRate implements TransactionParticipant, Configurable {
+
+    /** The exchange-rate service. It has no timeout of its own and answers on its own thread. */
+    public interface FxService {
+        void quote(String currency, long amount, Listener listener);
+
+        interface Listener {
+            void quoted(long rateMicros);
+
+            void failed(Exception e);
+        }
+    }
+
+    public static final String RATE = &quot;RATE&quot;;
+    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -&gt; {
+        Thread t = new Thread(r, &quot;quote-timeout&quot;);
+        t.setDaemon(true);
+        return t;
+    });
+    private String serviceName;
+    private long timeout;
+
+    @Override
+    public void setConfiguration(Configuration cfg) {
+        serviceName = cfg.get(&quot;service&quot;, &quot;fx&quot;);
+        timeout = cfg.getLong(&quot;timeout&quot;, 3000);
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        FxService fx = NameRegistrar.getIfExists(serviceName);
+        if (fx == null || request == null || !request.hasField(49))
+            return PREPARED | NO_JOIN | READONLY;                 // no quote, no offer
+        Pending pending = new Pending(ctx);
+        TIMER.schedule(pending::timedOut, timeout, TimeUnit.MILLISECONDS);
+        fx.quote(request.getString(49), Long.parseLong(request.getString(4)), pending);
+        return PREPARED | PAUSE | NO_JOIN;
+    }
+
+    /**
+     * One per transaction: the quote, a failure and the timeout of this transaction all arrive
+     * here, on other threads, in any order.
+     *
+     * TODO: Each of the three methods below must let the transaction go on to the next participant,
+     * the quote with its rate under RATE. About ten lines in total, fields included.
+     */
+    static final class Pending implements FxService.Listener {
+        private final Context ctx;
+
+        Pending(Context ctx) {
+            this.ctx = ctx;
+        }
+
+        /** The service quoted a rate, in millionths. */
+        @Override
+        public void quoted(long rateMicros) {
+            throw new IllegalStateException(&quot;TODO: quoted&quot;);
+        }
+
+        /** The service could not quote. */
+        @Override
+        public void failed(Exception e) {
+            throw new IllegalStateException(&quot;TODO: failed&quot;);
+        }
+
+        /** The timeout of this participant ran out. */
+        void timedOut() {
+            throw new IllegalStateException(&quot;TODO: timedOut&quot;);
+        }
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-server/unit-15/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-15/practice-2/src/main/java/com/example/practice/QuoteRate.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-server/unit-15/practice-prose-2" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-server/unit-15/practice-prose-2">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-server/unit-15/practice-prose-2" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-server/unit-15/practice-prose-2">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.QuoteRateTest#aQuoteInTimeIsOffered" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a quote that arrives in time reaches the next participants with its rate</li>
+<li data-practice-case="com.example.practice.QuoteRateTest#noQuoteInTimeMeansNoOffer" data-practice-case-kind="main"><span data-practice-part="verdict"></span>without a quote the participant's own timeout lets the purchase go on without a rate</li>
+<li data-practice-case="com.example.practice.QuoteRateTest#aFailedQuoteMeansNoOffer" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a failed quote lets the purchase go on without a rate</li>
+<li data-practice-case="com.example.practice.QuoteRateTest#aLateQuoteLeavesTheIssuerPauseAlone" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a quote that arrives after the timeout must not resume the transaction again, or the issuer's pause ends before the issuer answers</li>
+<li data-practice-case="com.example.practice.QuoteRateTest#aFailureFollowedByTheTimeoutLeavesTheIssuerPauseAlone" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a timeout that fires after a failure must not resume the transaction again: whether a rate arrived is not whether the pause already ended</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b64"><code>Join</code> Tells Every Nested Participant the Outcome, Joined or Not</h2>
+<p><code>org.jpos.transaction.participant.Join</code> runs the participants nested in it in parallel. Here a card check and a points hold go together (<code>demo.Nested</code> prints each call it gets):</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;participant class=&quot;org.jpos.transaction.participant.Join&quot; logger=&quot;Q2&quot;&gt;
+  &lt;participant class=&quot;demo.Nested&quot; logger=&quot;Q2&quot;&gt;
+    &lt;property name=&quot;name&quot; value=&quot;CheckCard&quot;/&gt;
+    &lt;property name=&quot;joins&quot; value=&quot;false&quot;/&gt;
+  &lt;/participant&gt;
+  &lt;participant class=&quot;demo.Nested&quot; logger=&quot;Q2&quot;&gt;
+    &lt;property name=&quot;name&quot; value=&quot;HoldPoints&quot;/&gt;
+    &lt;property name=&quot;joins&quot; value=&quot;true&quot;/&gt;
+  &lt;/participant&gt;
+&lt;/participant&gt;</code></pre></figure>
+<p><code>CheckCard</code> has nothing to undo and votes <code>PREPARED | NO_JOIN | READONLY</code>. <code>HoldPoints</code> holds points and votes <code>PREPARED</code>. Which of them gets <code>commit</code>?</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">HoldPoints: prepare, votes PREPARED, getContext() null
+CheckCard: prepare, votes PREPARED | NO_JOIN | READONLY, getContext() null
+CheckCard: commit on thread commitorg.jpos.transaction.participant.Join$Runner:demo.Nested
+HoldPoints: commit on thread commitorg.jpos.transaction.participant.Join$Runner:demo.Nested</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">            prepare: o.j.t.p.Join PREPARED
+            prepare: c.e.j.s.p.Authorize PREPARED NO_JOIN
+            prepare: o.j.t.p.SendResponse PREPARED READONLY
+             commit: o.j.t.p.Join
+             commit: o.j.t.p.SendResponse</code></pre></figure>
+<p>Both did. <code>Join</code> merges the nested votes into one: it joins if any nested participant joined, and it stays <code>READONLY</code> only if all of them were. On <code>commit</code> or <code>abort</code> it starts a fresh runner for every nested participant, and a fresh runner remembers no vote, so each one is called. A nested participant must check its own entries in <code>commit</code> and <code>abort</code>, as recovery already requires.</p>
+<p>Every call runs on a new thread per nested participant, so <code>TransactionManager.getContext()</code> is <code>null</code> there (unit s13). <code>Join</code> waits for all of them, with no timeout, so a nested call that hangs holds the session. The trail names only <code>Join</code>. The nested participants share one Context, whose map is synchronized; the objects in it are not, so two nested participants must not change the same <code>ISOMsg</code>.</p>
+<section id="prose-b72" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-3" data-practice-card="s-practice-prose-3" data-practice-key="jpos-server/unit-15/practice-prose-3" data-practice-kind="quiz" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-3" data-practices-part="open">Check yourself: the TransactionManager in depth</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A commit may run again after a crash and can journal nothing, so the outside call it makes must be safe to repeat.</li>
+<li>Join runs its nested participants on new threads, without a timeout, and in 2.1.7 calls commit or abort on all of them whatever they voted.</li>
+<li>A vote is read bit by bit: without PREPARED, a PAUSE or RETRY vote is an abort, and a paused transaction resumes on the abort path.</li>
+<li>RETRY runs the transaction again under a new id from the first participant, with no commit or abort for the attempt, and a retry through a persistent journal loses the transient entries.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-3" data-section="practice-prose-3" data-kind="practice" data-label="Check yourself: the TransactionManager in depth">
+<h2 id="practice-prose-3-b0">Check yourself</h2>
+<p>Questions on what this page has just taught. Choose one answer for each.</p>
+</section>
+<section data-practice-quiz="jpos-server/unit-15/practice-prose-3" data-practice-mock="100" data-mock-form="exam" data-form-kind="quiz" data-corpus="iso-8583-jpos-tutorial" aria-label="Questions" tabindex="-1">
+<div data-practice-part="head"><h2>Answer these</h2></div>
+<p data-practice-part="grader">Written for this site from this page.</p>
+<div data-form-part="start" hidden></div>
+<div data-form-part="bar" hidden><p data-form-part="timer-line" hidden>Time remaining <span data-form-part="timer" role="timer" aria-label="Time remaining"></span></p>
+<p data-form-part="progress"><progress data-form-part="meter" max="4" value="0"></progress> <span data-form-part="count"></span></p></div>
+<div data-form-part="navigator" role="navigation" aria-label="Question navigator" hidden></div>
+<div data-form-part="result" role="region" aria-label="Result" hidden>
+<p data-form-part="overall"></p>
+<p data-form-part="scaled" hidden></p>
+<table data-form-part="domains"><thead><tr><th scope="col">Domain</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<table data-form-part="difficulties" hidden><thead><tr><th scope="col">Difficulty</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<div data-form-part="review-filter" role="group" aria-label="Review"></div>
+</div>
+<p data-form-part="announce" role="status" aria-live="polite" data-form-quiet></p>
+<ol data-practice-part="questions">
+<li data-practice-question="q-crash-in-commit" data-mock-domain=""><fieldset><legend tabindex="-1">A gift-card server journals to a Berkeley DB space. Its chain is RedeemCard (joins, and tells the card service to settle the redemption in commit), then SendResponse, then Audit (joins, writes a line in commit). The process dies inside Audit's commit of transaction 77, after the approval has gone out. What happens to transaction 77 at the next start?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-crash-in-commit" value="a"> It is committed again from the first participant, so RedeemCard tells the card service to settle a second time</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-crash-in-commit" value="b"> It is committed again from Audit onwards, so only the commit that was cut short is repeated</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-crash-in-commit" value="c"> It is aborted on every participant, since the process died before the transaction was marked done</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-crash-in-commit" value="d"> It is aborted on the joined participants, since recovery cannot tell whether the approval reached the terminal</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-retry-after-hold" data-mock-domain=""><fieldset><legend tabindex="-1">A cinema server's chain is HoldSeat (holds a seat with an outside booking service in prepare, joins, releases the hold in abort), then CheckVoucher, then SendResponse. Its journal is in memory. CheckVoucher finds the voucher row locked and answers RETRY once; on the next attempt it votes PREPARED. When the purchase is approved, what has the booking service seen?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-retry-after-hold" value="a"> One hold, since the retry carries on with the same transaction from CheckVoucher</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-retry-after-hold" value="b"> One hold, since HoldSeat's abort released the first hold before the retry</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-retry-after-hold" value="c"> Two holds, both confirmed, since each attempt commits what it prepared</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-retry-after-hold" value="d"> Two holds, one never released, since nobody told HoldSeat how the first attempt ended</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-pause-without-prepared" data-mock-domain=""><fieldset><legend tabindex="-1">A participant asks a sanctions-screening service and returns PAUSE | NO_JOIN | READONLY. 80 ms later the service's callback stores a pass and calls ctx.resume(). The next participant, a plain TransactionParticipant, builds the approval, and SendResponse comes last. What does the terminal receive?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-pause-without-prepared" value="a"> The approval, since the next participant runs as soon as the callback resumes the transaction</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-pause-without-prepared" value="b"> The approval, since READONLY tells the TransactionManager that the pause changed nothing</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-pause-without-prepared" value="c"> Nothing, since the resumed transaction goes on along the abort path and skips the next participant</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-pause-without-prepared" value="d"> Nothing, since a paused transaction with no pause-timeout is never taken off the queue again</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-join-no-join" data-mock-domain=""><fieldset><legend tabindex="-1">Inside a Join, CheckLimit votes PREPARED | NO_JOIN | READONLY and ReserveStock votes PREPARED. A participant after the Join declines the purchase. On jPOS 2.1.7, which call does CheckLimit get after its prepare?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-join-no-join" value="a"> None, since its NO_JOIN keeps it out of commit and abort as it would outside a Join</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-join-no-join" value="b"> None, since only the Join itself joins the transaction and hears its outcome</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-join-no-join" value="c"> An abort, since Join passes the outcome to each of its participants whatever it voted</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-15/practice-prose-3:q-join-no-join" value="d"> A commit, since the Join as a whole had voted PREPARED before the decline</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+</ol>
+<p data-form-part="pager" hidden><button type="button" data-form-part="previous">Previous</button> <button type="button" data-form-part="next">Next</button></p>
+<script type="application/json" data-form-part="key">{"q-crash-in-commit":{"keys":["a"],"says":{"a":"the journal holds the state COMMITTING, not which commits already ran, so recovery commits every participant again","b":"the journal records no progress inside the commit phase; recovery starts from the first participant","c":"only a transaction left in PREPARING is aborted; one in COMMITTING had its outcome decided and is committed","d":"recovery decides by the journal's state, COMMITTING here, and it calls every participant of the chain, joined or not"}},"q-retry-after-hold":{"keys":["d"],"says":{"a":"a retried Context starts as a new transaction, under a new id, from the first participant, so HoldSeat holds again","b":"after RETRY nobody gets commit or abort, so the first hold is never released","c":"the first attempt ends with neither commit nor abort; only the second attempt commits","d":"RETRY calls neither commit nor abort and the retry runs the chain again, so the first hold leaks"}},"q-pause-without-prepared":{"keys":["c"],"says":{"a":"the next participant runs only on the prepare path; this transaction resumes on the abort path","b":"READONLY only skips a snapshot; the missing PREPARED bit makes the vote an abort","c":"a vote without PREPARED is an abort; after the resume only abort participants are asked, and no response was built","d":"resume() puts the Context back in the queue (unit s4) and a session takes it, as the trail shows; pause-timeout is only a safety net"}},"q-join-no-join":{"keys":["c"],"says":{"a":"Join starts a fresh runner for every nested participant on abort, and a fresh runner remembers no vote","b":"the Join does hear the outcome, and it passes it on to every nested participant","c":"in 2.1.7 Join calls abort on every nested participant, joined or not","d":"a later decline aborts the transaction, so the joined Join gets abort, not commit"}}}</script>
+<script type="application/json" data-form-part="plan">{"pass_mark":100,"domains":[],"layout":"exam"}</script>
+<script type="application/json" data-form-part="words">{"choose":"Choose a sitting","begin":"Begin","beginOnly":"Begin the exam","questions":"{n} questions","scenarios":"{n} scenarios","allQuestions":"All {n} questions","minutes":"{n} minutes","noTime":"No time limit","count":"{answered} of {asked} answered","position":"Question {n} of {total}","flag":"Flag for review","flagged":"Flagged for review","previous":"Previous","next":"Next","answered":"answered","open":"not answered","flaggedState":"flagged","navQuestion":"Question {n}, {state}","allDomains":"All domains","domainFilter":"Domain","flaggedOnly":"Flagged only","choose_n":"Choose {n}.","confirm":"Not answered yet: {list}. Choose Finish quiz again to finish anyway.","timeUp":"Time is up. The exam was submitted.","minutesLeft":"{n} minutes remaining.","oneMinuteLeft":"One minute remaining.","reached":"You answered all {asked} questions correctly.","short":"You answered {right} of {asked} questions correctly.","scaled":"Scaled score: {score} on a scale of {min} to {max}, where the scale's pass is {line}. This is a linear illustration of your score and not the exam's own scaling.","scoreWords":"{right} of {asked} ({percent}%)","right":"Right.","wrong":"Not this one.","unanswered":"Not answered.","key":"Correct answer","yours":"Your choice","reviewAll":"All questions","reviewMissed":"Missed only","reviewFlagged":"Flagged only","reviewNone":"No question matches this filter.","unitSingular":"question","domain":"Domain","difficulty":"Difficulty","summary":"Your answers","summaryItem":"Question {n}: {verdict}","summaryJump":"Go to question {n}","positionCount":"Question {n} of {total}. {answered} answered."}</script>
+<link rel="stylesheet" href="../../.studyforge/assets/mock-form.css">
+<script src="../../.studyforge/assets/mock-form-core.js" defer></script>
+<script src="../../.studyforge/assets/mock-form-panels.js" defer></script>
+<script src="../../.studyforge/assets/mock-form.js" defer></script>
+<p data-practice-part="offline">Checking answers needs this page's script, and it is not running here. Read the questions and choose your answers; nothing here can check them.</p>
+<p data-form-part="controls" hidden><button type="button" data-form-part="submit">Finish quiz</button> <button type="button" data-form-part="again" hidden>Try again</button></p>
+<p data-form-part="missing" role="alert" hidden></p>
+</section>
+<h2 id="prose-b73">Summary</h2>
+<ul class="items"><li><strong>Without a persistent space, a crash forgets what was in flight.</strong> The journal is in memory by default; name a <code>persistent-space</code> on disk for flows that leave work outside the server.</li><li><strong>Recovery aborts what was preparing and commits again what was committing,</strong> on every participant of the chain, with only the persisted entries of the last snapshot. A commit may run twice, so the outside call must be safe to repeat; persisted keys must be strings.</li><li><strong>Only <code>PREPARED</code> says yes.</strong> <code>PAUSE</code> or <code>RETRY</code> without it is an abort, and a paused transaction without it resumes on the abort path.</li><li><strong><code>RETRY</code> starts over under a new id,</strong> and nobody hears how the first attempt ended. Through a persistent journal the retried Context loses its request, as does an emergency retry.</li><li><strong>A paused transaction resumes once.</strong> An extra <code>resume()</code> is kept and ends the next pause at once.</li><li><strong><code>Join</code> tells every nested participant the outcome,</strong> on threads of its own, with no timeout.</li></ul>
+<h2 id="prose-b75">Reference</h2>
+<p><strong>The journal (2.1.7).</strong> In the <code>persistent-space</code>: <code>$HEAD</code> (next id) and <code>$TAIL</code> (oldest unfinished id), shared by name; per transaction, <code>&lt;txnmgr&gt;.$STATE.&lt;id&gt;</code>, <code>&lt;txnmgr&gt;.$CONTEXT.&lt;id&gt;</code> and <code>&lt;txnmgr&gt;.$GROUPS.&lt;id&gt;</code> (the groups selected).</p>
+<div class="scroll"><table><thead><tr><th>When</th><th>Written</th></tr></thead><tbody><tr><td>a session starts or resumes a transaction</td><td>state <code>PREPARING</code>, snapshot</td></tr><tr><td>after a participant without <code>READONLY</code></td><td>snapshot</td></tr><tr><td>before the first <code>commit</code> (if anyone joined)</td><td>state <code>COMMITTING</code></td></tr><tr><td>the end, also for <code>RETRY</code></td><td>state <code>DONE</code>; entries removed; <code>tail</code> moves when the id was the tail</td></tr></tbody></table></div>
+<p><strong>Recovery</strong> (<code>recover</code>, default <code>true</code>, at start, before any session): for each id from <code>tail</code> to <code>head</code>, <code>PREPARING</code> is aborted, <code>COMMITTING</code> committed, on every participant of the default group and the selected groups. <code>ContextRecovery.recover(id, ctx, commit)</code> runs first and its result is passed on. With <code>recover</code> false, <code>tail</code> jumps to <code>head</code>.</p>
+<p><strong>How a vote is read:</strong></p>
+<div class="scroll"><table><thead><tr><th>You return</th><th>The TransactionManager reads</th></tr></thead><tbody><tr><td><code>PREPARED</code></td><td>yes; joins; snapshot</td></tr><tr><td><code>PREPARED | NO_JOIN | READONLY</code></td><td>yes; no <code>commit</code>/<code>abort</code>; no snapshot</td></tr><tr><td><code>PREPARED | PAUSE</code></td><td>yes; parks the transaction; after <code>resume()</code> the next participant is prepared</td></tr><tr><td><code>PAUSE</code> (with or without <code>NO_JOIN</code>)</td><td>no; parks; after <code>resume()</code> it continues on the abort path</td></tr><tr><td><code>ABORTED</code></td><td>no; joins, so it gets <code>abort</code></td></tr><tr><td><code>RETRY</code></td><td>no, and run again under a new id; nobody gets <code>commit</code> or <code>abort</code></td></tr><tr><td><code>PREPARED | RETRY</code></td><td>yes; <code>RETRY</code> is ignored</td></tr><tr><td>an exception from <code>prepare</code></td><td><code>ABORTED</code>: joins (unit s4)</td></tr></tbody></table></div>
+<p>A chain longer than 1000 participants for one transaction (a selector that keeps selecting its own group) is logged as <code>loop detected</code> and aborted.</p>
+<p><strong>Properties used in this unit:</strong></p>
+<div class="scroll"><table><thead><tr><th>Property</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>persistent-space</code></td><td>an in-memory <code>TSpace</code></td><td>where the journal and the retry queue live</td></tr><tr><td><code>recover</code></td><td><code>true</code></td><td>finish unfinished ids at start</td></tr><tr><td><code>retry-interval</code></td><td>5000</td><td>ms between sweeps of the retry queue</td></tr><tr><td><code>retry-timeout</code></td><td>60000</td><td>lease of a retried Context on the input queue</td></tr><tr><td><code>max-active-sessions</code></td><td>0 (none)</td><td>transactions in flight, paused ones included; at the cap, a new one goes to the retry queue</td></tr><tr><td><code>pause-timeout</code></td><td>0 (none)</td><td>resume a paused transaction after this many ms</td></tr><tr><td><code>abort-on-pause-timeout</code></td><td><code>true</code></td><td>resume it on the abort path</td></tr></tbody></table></div>
+<p><strong>Context (2.1.7):</strong> <code>put(k, v)</code> is transient; <code>put(k, v, true)</code> and <code>persist(k)</code> also store a <code>Serializable</code> value in the persistent map; <code>evict(k)</code> removes it from that map only; <code>remove(k)</code> from both. Keys starting with <code>.</code> or <code>*</code> are left out of the dump; they are stored and persisted like any other. <code>ctx.get(k, 0)</code> binds to the timed <code>get(Object, long)</code>, so it returns <code>null</code>, not <code>0</code>, for a missing key; write <code>ctx.get(k, Integer.valueOf(0))</code>.</p>
+<p><strong><code>Join</code> (2.1.7):</strong> one new thread per nested participant for each of <code>prepare</code>, <code>prepareForAbort</code>, <code>commit</code> and <code>abort</code>, joined without a timeout. Merged vote: any <code>RETRY</code> gives <code>RETRY</code>; any abort gives <code>ABORTED</code>; <code>NO_JOIN</code> and <code>READONLY</code> only when every nested participant returned them. <code>commit</code> and <code>abort</code> reach every nested participant. An exception in a nested thread is not caught by <code>Join</code> and counts as <code>ABORTED</code>.</p>
+<p><strong>The other classes of the examples.</strong> The ledger and its file-backed stand-in:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.ledger;
+
+/** The prepaid ledger, a service outside the server: it holds funds, then captures or releases the hold. */
+public interface Ledger {
+    String hold(String account, long amount) throws Exception;   // returns a hold id
+    void capture(String holdId) throws Exception;
+    void release(String holdId) throws Exception;
+}</code></pre></figure>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.testing;
+
+import com.example.jpos.server.ledger.Ledger;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** Stands in for the remote ledger: every call is a line in data/ledger.log, so it outlives the server. */
+public final class FileLedger implements Ledger {
+    private final Path file;
+
+    public FileLedger(Path file) throws Exception {
+        this.file = file;
+        Files.createDirectories(file.getParent());
+        if (!Files.exists(file)) Files.createFile(file);
+    }
+
+    private synchronized void append(String line) throws Exception {
+        Files.writeString(file, line + &quot;\n&quot;, StandardOpenOption.APPEND);
+        System.out.println(&quot;ledger: &quot; + line);
+    }
+
+    @Override public synchronized String hold(String account, long amount) throws Exception {
+        long n = Files.readAllLines(file).stream().filter(l -&gt; l.startsWith(&quot;hold&quot;)).count() + 1;
+        String id = String.format(&quot;H-%04d&quot;, n);
+        append(&quot;hold &quot; + id + &quot; &quot; + amount + &quot; on &quot; + account);
+        return id;
+    }
+    @Override public void capture(String holdId) throws Exception { append(&quot;capture &quot; + holdId); }
+    @Override public void release(String holdId) throws Exception { append(&quot;release &quot; + holdId); }
+
+    /** Holds that were neither captured nor released. */
+    public synchronized List&lt;String&gt; openHolds() throws Exception {
+        List&lt;String&gt; open = new ArrayList&lt;&gt;();
+        state().forEach((id, events) -&gt; { if (events.size() == 1) open.add(id); });
+        return open;
+    }
+
+    /** Each hold and what happened to it. */
+    public synchronized Map&lt;String, List&lt;String&gt;&gt; state() throws Exception {
+        Map&lt;String, List&lt;String&gt;&gt; m = new LinkedHashMap&lt;&gt;();
+        for (String l : Files.readAllLines(file)) {
+            String[] w = l.split(&quot; &quot;);
+            if (w[0].equals(&quot;hold&quot;)) m.put(w[1], new ArrayList&lt;&gt;(List.of(w[2])));
+            else m.get(w[1]).add(w[0]);
+        }
+        return m;
+    }
+}</code></pre></figure>
+<p><code>FileLedger</code> is registered as <code>ledger</code> before Q2 starts. <code>Authorize</code> is unit s4's, and so is the reply helper:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.participant;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+
+public final class Responses {
+    private Responses() { }
+
+    /** A reply to {@code request} carrying response code {@code rc} in field 39. */
+    public static ISOMsg reply(ISOMsg request, String rc) throws ISOException {
+        ISOMsg r = (ISOMsg) request.clone();
+        r.setResponseMTI();
+        r.set(39, rc);
+        r.unset(14, 35, 45, 52, 55, 64);   // expiry, tracks, PIN block, chip data, the request's MAC
+        return r;
+    }
+}</code></pre></figure>
+<h2 id="prose-b91">Challenges</h2>
+<p>These have no single answer.</p>
+<ol class="items"><li>Your prepaid ledger can't make a capture idempotent. Design a record of finished captures that survives the crash of 15.3. Where does it live, and what happens when the process dies between the capture and the record?</li><li>Measure what the <code>je:</code> journal costs: transactions a second with and without it, for a chain of four participants of which one votes without <code>READONLY</code>. Which participants could vote <code>READONLY</code> that don't today?</li><li>A participant must wait for a host that is down for a minute at night. Compare <code>RETRY</code>, <code>PAUSE</code> with a timer, and answering <code>91</code> at once, for the cardholder, the session count and the journal.</li><li>Recovery calls <code>SendResponse</code> with a Context that has no <code>SOURCE</code>. Write a participant that tells operations about every recovered transaction it finds in <code>abort</code>, without card data.</li></ol>
+<h2 id="prose-b94">Design Note: Why Journal the Context Instead of the Steps?</h2>
+<p>A TransactionManager could record each step as it finishes (&quot;ReserveFunds held H-0001&quot;, &quot;ReserveFunds captured H-0001&quot;) and replay only what is missing after a crash. jPOS records less: a state per transaction and a snapshot of the Context. Recovery then knows only whether the outcome was decided, and calls everyone.</p>
+<p>That keeps the TransactionManager ignorant of what participants do, as it is everywhere else (unit s4's design note): it can't know whether a capture happened, because the capture happened in someone else's system, and a step log written after the call would miss exactly the crash between the call and the log line. Any design has that gap. jPOS hands it to the one place that can close it, the participant and the system it calls, through persisted entries and repeatable calls.</p>
+<p>The rules of 15.3 are the cost. Every <code>commit</code> and <code>abort</code> must work from persisted entries alone, accept transactions it never saw, and be safe to run twice. A participant written for the happy path, with the request at hand and one call per outcome, passes every test that doesn't kill the process.</p>
+</section>
+<div data-workspace role="dialog" aria-modal="true" aria-labelledby="practice-workspace-title" hidden>
+<div data-workspace-part="bar"><button type="button" data-workspace-act="statement" aria-expanded="true" hidden><span data-workspace-word="hide">Hide description</span><span data-workspace-word="show" hidden>Show description</span></button><h2 id="practice-workspace-title" data-workspace-part="title"></h2>
+<p data-workspace-part="acts"><button type="button" data-workspace-act="previous">Previous</button><button type="button" data-workspace-act="next">Next</button><button type="button" data-workspace-act="close">Close</button></p></div>
+<div data-workspace-part="divider" role="separator" aria-orientation="vertical" aria-label="Resize the description" tabindex="0" hidden></div>
+<button type="button" data-workspace-act="reopen" aria-expanded="false" hidden><span data-workspace-part="edge-mark" aria-hidden="true">&#8250;</span><span data-workspace-part="edge-word">Show description</span></button>
+</div>
+</main>
+<section data-section="read-mark" data-unit="jpos-server/unit-15" hidden>
+<p><button type="button" aria-pressed="false"><span data-state="unread">Mark as read</span><span data-state="read" hidden>Read. Press again to unmark</span></button></p>
+<p>Your marks are kept in this browser on this machine, not in the repository. Clearing its site data clears them.</p>
+</section>
+<nav aria-label="Between units"><a rel="prev" href="jpos-server.unit-14-q2-and-qbeans-in-depth.unit.html"><span>Previous</span> Q2 and QBeans in Depth</a><a rel="up" href="../../index.html"><span>Contents</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a><a rel="next" href="jpos-server.unit-16-building-a-switch.unit.html"><span>Up next</span> Building a Switch</a></nav>
+<script src="../../.studyforge/assets/page.js" defer></script>
+</body>
+</html>

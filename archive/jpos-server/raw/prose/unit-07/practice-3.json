@@ -1,0 +1,154 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: where the server's security steps go",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-before-the-mac-check",
+        "stem": "A server's chain has a participant P ahead of VerifyMac. Someone without the terminal's key sends a request with a made-up MAC, and VerifyMac votes ABORTED. For which P does the made-up request still leave an effect behind?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A P that reserves the amount in prepare and releases it in abort, since the reservation came before the vote",
+            "correct": false,
+            "says": "a joined participant is called on the abort path, so its abort releases the reservation; the abort undoes it"
+          },
+          {
+            "id": "b",
+            "text": "A P that forwards the request to the network with QueryHost in prepare, since the network acts before the vote",
+            "correct": true,
+            "says": "QueryHost sends in prepare and does not join; the network approves, and the abort can't take that back"
+          },
+          {
+            "id": "c",
+            "text": "A P that writes the request to a journal in its commit, since a journal entry outlives the transaction",
+            "correct": false,
+            "says": "commit is never called on an aborted transaction, so nothing is written"
+          },
+          {
+            "id": "d",
+            "text": "A P that puts the destination's name in the Context in prepare, since the Context is kept after the vote",
+            "correct": false,
+            "says": "what is in the Context never leaves our server; nothing outside acted on the request"
+          }
+        ],
+        "origin": {
+          "path": "src/s7.md",
+          "section": "7.2 A Request's MAC Is Checked Before Anything Acts on It"
+        }
+      },
+      {
+        "id": "q-leaked-log",
+        "stem": "A production q2.log is attached to a support ticket, and the ticket system is breached. The SMAdaptor and KeyStoreAdaptor were deployed with logger=\"Q2\" behind a ProtectedLogListener that protects 2, 35 and 45. The LMK file and the key file were not taken. What does the log give the attacker?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The card numbers of the requests the module MACed, since the MAC input is logged as hex that no listener masks",
+            "correct": true,
+            "says": "the Generate CBC-MAC entry holds the packed request in hex; a byte array isn't a message, so ProtectedLogListener leaves it"
+          },
+          {
+            "id": "b",
+            "text": "The PINs of the purchases the module translated, since each block is logged next to the key it is under",
+            "correct": false,
+            "says": "the key in the log is under the LMK; without dev.lmk the block can't be read"
+          },
+          {
+            "id": "c",
+            "text": "Nothing about the cards, since the log listener masks the card fields wherever they appear",
+            "correct": false,
+            "says": "it masks fields of a message in the event, not hex data in a module's parameter"
+          },
+          {
+            "id": "d",
+            "text": "Nothing about the cards, since the module's entries show only twelve digits of each account number",
+            "correct": false,
+            "says": "the translation entry shows twelve digits, but the MAC entry holds the whole packed request, card number included"
+          }
+        ],
+        "origin": {
+          "path": "src/s7.md",
+          "section": "7.3.1 Spot the Problem: The Module That Logged Everything"
+        }
+      },
+      {
+        "id": "q-unsigned-decline",
+        "stem": "Terminals verify the MAC of every answer. The server signs answers in a plain TransactionParticipant placed right before SendResponse. A purchase is declined with 51 by a participant that builds a fresh answer from a few fields of the request, puts it in the Context and votes ABORTED. What does the terminal do with that 51?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It shows a decline, since field 39 is readable whether or not the answer carries a MAC",
+            "correct": false,
+            "says": "a terminal that checks MACs believes only an answer that verifies; an unsigned one could have been written by anyone"
+          },
+          {
+            "id": "b",
+            "text": "It shows a decline, since the signing participant signs every answer that is in the Context",
+            "correct": false,
+            "says": "after the abort vote only abort participants are asked; a plain participant never sees this answer"
+          },
+          {
+            "id": "c",
+            "text": "It treats the outcome as unknown, since the answer arrives with no MAC under the terminal's key",
+            "correct": true,
+            "says": "nothing signs the 51 on the abort path, so it carries no MAC under the terminal's key; the terminal reverses and raises a MAC alert"
+          },
+          {
+            "id": "d",
+            "text": "It treats the outcome as unknown, since the answer arrives with a MAC under another terminal's key",
+            "correct": false,
+            "says": "nothing signs the answer on the abort path, so it carries no MAC under any key, its own terminal's or another's"
+          }
+        ],
+        "origin": {
+          "path": "src/s7.md",
+          "section": "7.4 Every Response Is Signed, on the Abort Path Too"
+        }
+      }
+    ],
+    "concepts": [
+      "The key file holds keys only under the LMK, so it is harmless alone and reads PINs together with the LMK file.",
+      "With a logger, the security module and key store log PIN blocks, keys under the LMK and MAC input in hex that no log listener masks, so they are deployed without one."
+    ]
+  }
+}

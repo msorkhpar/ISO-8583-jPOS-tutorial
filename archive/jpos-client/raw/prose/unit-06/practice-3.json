@@ -1,0 +1,141 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Make the test host answer like the real one",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The client's integration tests run against `HostSimulator`, in `src/main/java/com/example/practice/HostSimulator.java`, instead of the acquirer's host. The simulator should answer exactly as the host's interface document says: the response MTI, the fields listed in `ECHOED`, a response code, and an approval code on approvals. The tests keep every request they send, so that they can check afterwards what the client asked for."
+    },
+    {
+      "type": "para",
+      "text": "`respond` is written. Finish the two methods it calls, marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`echoed`: the start of the response;",
+        "`answerMti`: the response's MTI."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, every kind of request the client sends, first attempts and repeats, gets the response type the real host would send, a response never carries a field the document doesn't list, and the request a test kept still reads as the client sent it. About eight lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * The acquirer's host as the client's integration tests see it: it answers each request the way\n * the host's interface document describes. The tests keep every request they send, to check later\n * what the client asked for.\n */\npublic class HostSimulator {\n    /** The fields a response echoes, from the interface document. */\n    static final int[] ECHOED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    private int approvals;\n\n    /** The host's answer to {@code request}, with {@code responseCode} in field 39. */\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        ISOMsg response = echoed(request);\n        answerMti(response);\n        response.set(39, responseCode);\n        if (\"00\".equals(responseCode))\n            response.set(38, ISOUtil.zeropad(Integer.toString(++approvals), 6));\n        return response;\n    }\n\n    /** A new message with the request's MTI and the fields the response echoes. */\n    ISOMsg echoed(ISOMsg request) {\n        ISOMsg response = (ISOMsg) request.clone(0);\n        for (int f : ECHOED) {\n            if (request.hasField(f))\n                response.set(f, request.getString(f));\n        }\n        return response;\n    }\n\n    /** Turns the MTI the response carries (still the request's) into the response's MTI. */\n    void answerMti(ISOMsg response) throws ISOException {\n        response.setResponseMTI();\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * The acquirer's host as the client's integration tests see it: it answers each request the way\n * the host's interface document describes. The tests keep every request they send, to check later\n * what the client asked for.\n */\npublic class HostSimulator {\n    /** The fields a response echoes, from the interface document. */\n    static final int[] ECHOED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    private int approvals;\n\n    /** The host's answer to {@code request}, with {@code responseCode} in field 39. */\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        ISOMsg response = echoed(request);\n        answerMti(response);\n        response.set(39, responseCode);\n        if (\"00\".equals(responseCode))\n            response.set(38, ISOUtil.zeropad(Integer.toString(++approvals), 6));\n        return response;\n    }\n\n    /** A new message with the request's MTI and the fields the response echoes. */\n    ISOMsg echoed(ISOMsg request) {\n        // TODO: The response carries the request's MTI (for now) and the ECHOED fields, and\n        //       nothing else of what the client sent.\n        throw new IllegalStateException(\"TODO: echoed\");\n    }\n\n    /** Turns the MTI the response carries (still the request's) into the response's MTI. */\n    void answerMti(ISOMsg response) throws ISOException {\n        // TODO: The client sends authorizations, purchases, advices and reversals, first attempts\n        //       and repeats.\n        throw new IllegalStateException(\"TODO: answerMti\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "33c0274a1f31477bc614e91d83eae666b2df3ec2861248489a86dead00da9b25",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * The acquirer's host as the client's integration tests see it: it answers each request the way\n * the host's interface document describes. The tests keep every request they send, to check later\n * what the client asked for.\n */\npublic class HostSimulator {\n    /** The fields a response echoes, from the interface document. */\n    static final int[] ECHOED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    private int approvals;\n\n    /** The host's answer to {@code request}, with {@code responseCode} in field 39. */\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        ISOMsg response = echoed(request);\n        answerMti(response);\n        response.set(39, responseCode);\n        if (\"00\".equals(responseCode))\n            response.set(38, ISOUtil.zeropad(Integer.toString(++approvals), 6));\n        return response;\n    }\n\n    /** A new message with the request's MTI and the fields the response echoes. */\n    ISOMsg echoed(ISOMsg request) {\n        // TODO: The response carries the request's MTI (for now) and the ECHOED fields, and\n        //       nothing else of what the client sent.\n        throw new IllegalStateException(\"TODO: echoed\");\n    }\n\n    /** Turns the MTI the response carries (still the request's) into the response's MTI. */\n    void answerMti(ISOMsg response) throws ISOException {\n        // TODO: The client sends authorizations, purchases, advices and reversals, first attempts\n        //       and repeats.\n        throw new IllegalStateException(\"TODO: answerMti\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-06/practice-3/src/main/java/com/example/practice/HostSimulator.java",
+    "test_path": "practice/jpos-client/prose/unit-06/practice-3/src/test/java/com/example/practice/HostSimulatorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-06/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HostSimulatorTest#aPurchaseIsAnsweredWithItsEchoedFields",
+        "kind": "main",
+        "says": "a purchase and an authorization are answered with the response MTI, the echoed fields and the response code"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#aRepeatGetsTheAnswerOfAFirstAttempt",
+        "kind": "edge",
+        "says": "a repeat and an advice are answered with the response MTI of a first attempt, such as 0230 for an 0221"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#nothingTheDocumentDoesNotListComesBack",
+        "kind": "edge",
+        "says": "a response carries only the listed fields, so card and chip data the request carried never come back"
+      },
+      {
+        "id": "com.example.practice.HostSimulatorTest#theRequestTheTestKeepsIsUnchanged",
+        "kind": "edge",
+        "says": "answering a request leaves the request as the client sent it"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-06/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c6.md",
+      "section": "6.4 A Follow-up Copies the Fields It Lists and Leaves the Original Alone"
+    },
+    "concepts": [
+      "A follow-up copies the fields it lists with clone(int...) and leaves the original unchanged; copying all and pruning leaks what was forgotten.",
+      "setResponseMTI answers a repeat with the response of a first attempt and refuses a response."
+    ]
+  }
+}

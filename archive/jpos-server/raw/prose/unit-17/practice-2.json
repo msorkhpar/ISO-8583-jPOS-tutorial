@@ -1,0 +1,141 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Answer a payout run again without paying it twice",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "This picks up where the previous practice ended, and the file already contains its solution."
+    },
+    {
+      "type": "para",
+      "text": "Last night the node was restarted in the middle of the payout runs, and the operator moved everything in `payouts/run/` back to `payouts/request/`. This morning two merchants called to say they were paid twice. The same week, the acquirer resent a run by hand under a new file name, and it was paid again too."
+    },
+    {
+      "type": "para",
+      "text": "The `Ledger` is a database: it survives restarts, and each `pay` records the run together with its payments. In `src/main/java/com/example/practice/PayoutProcessor.java`, finish `runOf` and `alreadyPaid` so that a run reaching the processor again is answered as before and pays nobody, whatever its file is called. A run number that comes back with different payouts is a problem for a person, not a repeat. About six lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests restart the node by building a new `DirPoll` and processor on the same directories and the same ledger."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n * A run may reach the processor more than once: after a crash, its file is moved back from run/.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = runOf(name, h);\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        if (!alreadyPaid(name, run, payouts))\n            ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** What identifies this run, whatever file it came in. */\n    String runOf(String name, String[] header) {\n        return header[1] + \"/\" + header[2];\n    }\n\n    /** True when this run has been paid already; then it is answered again and nobody is paid. */\n    boolean alreadyPaid(String name, String run, List<Payout> payouts) throws DirPoll.DirPollException {\n        List<Payout> earlier = ledger.paidFor(run);\n        if (earlier == null)\n            return false;\n        if (!earlier.equals(payouts))\n            throw refused(name, \"run \" + run + \" was already paid with other payouts\");\n        return true;\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        return lines.size() >= 2 && lines.get(lines.size() - 1).startsWith(\"T|\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        DirPoll.DirPollException e = new DirPoll.DirPollException(name + \": not complete yet\");\n        e.setRetry(true);\n        return e;\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        return new DirPoll.DirPollException(name + \": \" + why);\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        List<Payout> payouts = new ArrayList<>();\n        for (String r : records) {\n            String[] f = r.split(\"\\\\|\");\n            if (f.length != 3 || !f[0].equals(\"P\") || f[1].length() != 15 || !f[2].matches(\"\\\\d{1,12}\"))\n                throw refused(name, \"bad record \" + (payouts.size() + 1));\n            payouts.add(new Payout(f[1], Long.parseLong(f[2])));\n        }\n        return payouts;\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        String[] t = trailer.split(\"\\\\|\");\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        if (t.length != 3 || !t[1].equals(Integer.toString(payouts.size())) || !t[2].equals(Long.toString(total)))\n            throw refused(name, \"trailer does not match the payouts\");\n    }\n\n    /**\n     * Given: the payments table and the table of paid runs. Each call to pay is one database\n     * transaction: the payments and the run's record are written together. It outlives any\n     * PayoutProcessor, the way a database outlives a process.\n     */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n        private final java.util.Map<String, List<Payout>> runs = new java.util.HashMap<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            runs.put(run, List.copyOf(payouts));\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        /** The payouts recorded for a run, or null when it has never been paid. */\n        public synchronized List<Payout> paidFor(String run) {\n            return runs.get(run);\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n * A run may reach the processor more than once: after a crash, its file is moved back from run/.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = runOf(name, h);\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        if (!alreadyPaid(name, run, payouts))\n            ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** What identifies this run, whatever file it came in. */\n    String runOf(String name, String[] header) {\n        // TODO: Today the run is whatever file it arrived in. (one line)\n        return name;\n    }\n\n    /** True when this run has been paid already; then it is answered again and nobody is paid. */\n    boolean alreadyPaid(String name, String run, List<Payout> payouts) throws DirPoll.DirPollException {\n        // TODO: The ledger knows which runs it has paid, and with what. A run number the acquirer\n        //       reused for different payouts is not a repeat. (about five lines)\n        throw new IllegalStateException(\"TODO: alreadyPaid\");\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        return lines.size() >= 2 && lines.get(lines.size() - 1).startsWith(\"T|\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        DirPoll.DirPollException e = new DirPoll.DirPollException(name + \": not complete yet\");\n        e.setRetry(true);\n        return e;\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        return new DirPoll.DirPollException(name + \": \" + why);\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        List<Payout> payouts = new ArrayList<>();\n        for (String r : records) {\n            String[] f = r.split(\"\\\\|\");\n            if (f.length != 3 || !f[0].equals(\"P\") || f[1].length() != 15 || !f[2].matches(\"\\\\d{1,12}\"))\n                throw refused(name, \"bad record \" + (payouts.size() + 1));\n            payouts.add(new Payout(f[1], Long.parseLong(f[2])));\n        }\n        return payouts;\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        String[] t = trailer.split(\"\\\\|\");\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        if (t.length != 3 || !t[1].equals(Integer.toString(payouts.size())) || !t[2].equals(Long.toString(total)))\n            throw refused(name, \"trailer does not match the payouts\");\n    }\n\n    /**\n     * Given: the payments table and the table of paid runs. Each call to pay is one database\n     * transaction: the payments and the run's record are written together. It outlives any\n     * PayoutProcessor, the way a database outlives a process.\n     */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n        private final java.util.Map<String, List<Payout>> runs = new java.util.HashMap<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            runs.put(run, List.copyOf(payouts));\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        /** The payouts recorded for a run, or null when it has never been paid. */\n        public synchronized List<Payout> paidFor(String run) {\n            return runs.get(run);\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6cca428becbec8cb57de93b60703a097d49d68f3776ccd8982d49ac7a9752f28",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n * A run may reach the processor more than once: after a crash, its file is moved back from run/.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = runOf(name, h);\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        if (!alreadyPaid(name, run, payouts))\n            ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** What identifies this run, whatever file it came in. */\n    String runOf(String name, String[] header) {\n        // TODO: Today the run is whatever file it arrived in. (one line)\n        return name;\n    }\n\n    /** True when this run has been paid already; then it is answered again and nobody is paid. */\n    boolean alreadyPaid(String name, String run, List<Payout> payouts) throws DirPoll.DirPollException {\n        // TODO: The ledger knows which runs it has paid, and with what. A run number the acquirer\n        //       reused for different payouts is not a repeat. (about five lines)\n        throw new IllegalStateException(\"TODO: alreadyPaid\");\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        return lines.size() >= 2 && lines.get(lines.size() - 1).startsWith(\"T|\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        DirPoll.DirPollException e = new DirPoll.DirPollException(name + \": not complete yet\");\n        e.setRetry(true);\n        return e;\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        return new DirPoll.DirPollException(name + \": \" + why);\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        List<Payout> payouts = new ArrayList<>();\n        for (String r : records) {\n            String[] f = r.split(\"\\\\|\");\n            if (f.length != 3 || !f[0].equals(\"P\") || f[1].length() != 15 || !f[2].matches(\"\\\\d{1,12}\"))\n                throw refused(name, \"bad record \" + (payouts.size() + 1));\n            payouts.add(new Payout(f[1], Long.parseLong(f[2])));\n        }\n        return payouts;\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        String[] t = trailer.split(\"\\\\|\");\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        if (t.length != 3 || !t[1].equals(Integer.toString(payouts.size())) || !t[2].equals(Long.toString(total)))\n            throw refused(name, \"trailer does not match the payouts\");\n    }\n\n    /**\n     * Given: the payments table and the table of paid runs. Each call to pay is one database\n     * transaction: the payments and the run's record are written together. It outlives any\n     * PayoutProcessor, the way a database outlives a process.\n     */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n        private final java.util.Map<String, List<Payout>> runs = new java.util.HashMap<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            runs.put(run, List.copyOf(payouts));\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        /** The payouts recorded for a run, or null when it has never been paid. */\n        public synchronized List<Payout> paidFor(String run) {\n            return runs.get(run);\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-17/practice-2/src/main/java/com/example/practice/PayoutProcessor.java",
+    "test_path": "practice/jpos-server/prose/unit-17/practice-2/src/test/java/com/example/practice/PayoutProcessorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-17/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-17/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PayoutProcessorTest#differentRunsAreEachPaid",
+        "kind": "main",
+        "says": "two different runs are both paid and answered"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aRunMovedBackAfterACrashIsAnsweredButNotPaidAgain",
+        "kind": "edge",
+        "says": "a run processed again after a restart is answered with its totals and pays nobody a second time"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#theSameRunUnderAnotherNameIsNotPaidAgain",
+        "kind": "edge",
+        "says": "a run is identified by its content, so the same run under another file name is not paid again"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#anotherAcquirersRunWithTheSameNumberIsPaid",
+        "kind": "edge",
+        "says": "the run's identity includes who sent it, so another acquirer's run with the same number is paid"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aReusedRunNumberWithOtherPayoutsIsRefused",
+        "kind": "edge",
+        "says": "a known run number carrying different payouts is not a repeat: it goes to a person and nobody is told it was paid"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-17/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s17.md",
+      "section": "17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done"
+    },
+    "concepts": [
+      "Processing must be idempotent, keyed by the batch's identity in its content and recorded with the postings, never by the file name."
+    ]
+  }
+}

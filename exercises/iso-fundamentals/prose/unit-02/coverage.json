@@ -1,89 +1,150 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/2.md",
   "kind": "code",
+  "quiz": "structure-quiz",
   "case": "code-and-tests",
   "digests": {
-    "practice/bitmap/BitmapTest.java": "sha256:7c5831d4653ea6c3c597a8251dd4f91a7936caf0ec5d8f8e6d670ca15dcd39e3",
-    "src/2.md": "sha256:68c33a74aac8d92e147c33f890c7f171661bf113b19a3e9954efad5c29c2de76"
+    "practice/bitmap/BitmapTest.java": "sha256:25995bad752f439c8869872da08b3bf4fe0f67444cdf686aededfcd141dd304a",
+    "src/2.md": "sha256:164840d7d3aaa5d2a079f2ea57a43741c9d971f1e0ec67a658200ffc55cc5621"
   },
   "plan": {
     "plan_api": 2,
     "tier": "introductory",
-    "count": 1,
+    "count": 2,
     "aspects": [
       {
-        "id": "mti-four-questions",
-        "says": "The MTI's four digits each answer one question: the version of the standard, the message class, the message function and the message origin.",
+        "id": "bit-65-third-bitmap",
+        "says": "Bit 65 announces a tertiary bitmap the way bit 1 announces the secondary one, so field 65 carries no data.",
         "basis": [
-          "example:src/2.md:1",
-          "section:2.1.2. Version, Message Class, Message Function, Message Origin"
+          "section:2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
         ],
-        "exercise": null,
-        "reason": "decoding the four digits is the corpus's own graded MTI practice (practice/mti, on the MTI page); not practised twice"
-      },
-      {
-        "id": "primary-bitmap",
-        "says": "Bit n of the primary bitmap is set exactly when data element n (2 to 64) is present, and bit 1 is reserved to flag a secondary bitmap.",
-        "basis": [
-          "section:2.2.1. Primary bitmap",
-          "section:2.3.2. Data element presence indication"
-        ],
-        "exercise": null,
-        "reason": "building the primary bitmap is this page's own graded practice-1 (practice/bitmap); not practised twice"
-      },
-      {
-        "id": "reading-presence",
-        "says": "A receiver learns which data elements follow by reading the bitmap: a data element is present exactly when its bit is 1.",
-        "basis": [
-          "section:2.3.2. Data element presence indication",
-          "example:src/2.md:3"
-        ],
-        "exercise": "read-both-bitmaps",
+        "exercise": "read-the-dump",
         "reason": null
       },
       {
-        "id": "secondary-bitmap",
-        "says": "Data elements 65 to 128 are flagged in a secondary bitmap, which follows the primary one only when the primary's bit 1 is set.",
+        "id": "bit-one-second-bitmap",
+        "says": "Bit 1 announces a secondary bitmap for fields 65 to 128, which comes before the first field; bit 1 itself is not a field.",
         "basis": [
-          "section:2.2.2. Secondary bitmap",
-          "section:2.3.1. Field numbering (1-128 for primary, 129-192 for secondary)",
+          "section:2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field",
+          "example:src/2.md:4",
+          "example:src/2.md:5"
+        ],
+        "exercise": "read-the-dump",
+        "reason": null
+      },
+      {
+        "id": "bitmap-wire-forms",
+        "says": "The same 64 bits travel as 8 bytes or 16 hexadecimal characters, as each link's specification says, and the bytes don't tell which.",
+        "basis": [
+          "section:2.4. The Same Bits Travel as 8 Bytes or as 16 Characters",
+          "example:src/2.md:8",
+          "example:src/2.md:9"
+        ],
+        "exercise": "structure-quiz",
+        "reason": null
+      },
+      {
+        "id": "bits-counted-from-one",
+        "says": "Bit n of a bitmap says field n is present, counted from 1 at the most significant bit of the first byte.",
+        "basis": [
+          "section:2.2. Bit n Says Field n Is Present, Counted From 1 at the Leftmost Bit",
+          "example:src/2.md:1",
           "example:src/2.md:2"
         ],
-        "exercise": "read-both-bitmaps",
+        "exercise": "read-the-dump",
         "reason": null
       },
       {
-        "id": "tertiary-bitmap",
-        "says": "Some implementations add a tertiary bitmap for data elements 129 to 192.",
+        "id": "field-64-fits-primary",
+        "says": "A message whose highest field is 64 has one bitmap; any field above 64 brings the secondary bitmap.",
         "basis": [
-          "section:2.2.3. Tertiary bitmap (if applicable)"
+          "section:2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
         ],
-        "exercise": null,
-        "reason": "the page names it as uncommon and only in passing; not practised"
+        "exercise": "structure-quiz",
+        "reason": null
+      },
+      {
+        "id": "mti-response-and-repeat",
+        "says": "A response changes the MTI's third digit and a repeat its fourth, and a repeat is answered like the original.",
+        "basis": [
+          "section:2.1. The MTI's Four Digits Say Edition, Class, Function and Origin"
+        ],
+        "exercise": "structure-quiz",
+        "reason": null
+      },
+      {
+        "id": "shifted-bitmap-misreads",
+        "says": "A receiver trusts the bitmap, so a bitmap off by one bit reads every field with another field's definition and may still unpack.",
+        "basis": [
+          "section:2.2.1. Spot the Problem: The Vendor's First Purchase",
+          "example:src/2.md:3"
+        ],
+        "exercise": "structure-quiz",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "read-both-bitmaps",
+        "name": "read-the-dump",
         "aspects": [
-          "reading-presence",
-          "secondary-bitmap"
+          "bit-65-third-bitmap",
+          "bit-one-second-bitmap",
+          "bits-counted-from-one"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "structure-quiz",
+        "aspects": [
+          "bitmap-wire-forms",
+          "field-64-fits-primary",
+          "mti-response-and-repeat",
+          "shifted-bitmap-misreads"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-02/practice-2"
+    "exercises/iso-fundamentals/prose/unit-02/practice-2",
+    "exercises/iso-fundamentals/prose/unit-02/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-02/practice-2",
       "origin": {
         "path": "src/2.md",
-        "section": "2.2. Bitmaps"
+        "section": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-02/practice-3:q-answer-to-a-repeat",
+      "origin": {
+        "path": "src/2.md",
+        "section": "2.1. The MTI's Four Digits Say Edition, Class, Function and Origin"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-02/practice-3:q-shifted-but-unpacked",
+      "origin": {
+        "path": "src/2.md",
+        "section": "2.2.1. Spot the Problem: The Vendor's First Purchase"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-02/practice-3:q-mac-and-field-90",
+      "origin": {
+        "path": "src/2.md",
+        "section": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-02/practice-3:q-b64-on-a-new-link",
+      "origin": {
+        "path": "src/2.md",
+        "section": "2.4. The Same Bits Travel as 8 Bytes or as 16 Characters"
       }
     }
   ],

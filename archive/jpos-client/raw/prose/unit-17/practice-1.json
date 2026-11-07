@@ -1,0 +1,169 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Read the bytes of a dump from a ticket, and refuse what you can't be sure of",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Last month a test built from a ticket passed, the ticket was closed, and the purchase failed again the next morning. The bytes in the test were not the bytes in the ticket, and nothing had said so."
+    },
+    {
+      "type": "para",
+      "text": "From now on the team turns every dump into bytes with `HexDumpReader.read`, in `src/main/java/com/example/practice/HexDumpReader.java`. The dumps it gets come from the acquirer's support desk (made with `hexdump -C`), from our own channel's log events, and from colleagues who paste them into chat and mail. `read` already splits a dump into lines, skips blank ones and collects the bytes. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`parse`: one line of a dump, as the offset it states and the bytes it shows;",
+        "`check`: whether that line can come next."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, `read` returns exactly the bytes the dump shows, or throws `IllegalArgumentException` when it can't be sure of them. It never returns other bytes. About 25 lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests use an authorization from another terminal, dumped by jPOS and by `hexdump -C`, copied whole, with lines lost or pasted twice, with a byte position damaged, and with text columns that happen to look like hex."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        int start = 0;\n        while (start < text.length() && text.charAt(start) == ' ')\n            start++;\n        int end = start;\n        while (end < text.length() && Character.digit(text.charAt(end), 16) >= 0)\n            end++;\n        if (end - start != 4 && end - start != 8)\n            throw new IllegalArgumentException(\"no offset: \" + text);\n        int offset = Integer.parseInt(text.substring(start, end), 16);\n        ByteArrayOutputStream bytes = new ByteArrayOutputStream();\n        for (int i = 0; i < 16; i++) {\n            int col = end + 2 + 3 * i + (i >= 8 ? 1 : 0);\n            String pos = col + 2 <= text.length() ? text.substring(col, col + 2) : \"  \";\n            if (pos.isBlank())\n                break;\n            int hi = Character.digit(pos.charAt(0), 16), lo = Character.digit(pos.charAt(1), 16);\n            if (hi < 0 || lo < 0)\n                throw new IllegalArgumentException(\"not a byte at column \" + col + \": \" + text);\n            bytes.write(hi * 16 + lo);\n        }\n        return new Line(offset, bytes.toByteArray());\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        if (line.offset() != readSoFar)\n            throw new IllegalArgumentException(\"line at offset \" + Integer.toHexString(line.offset())\n                + \" after \" + readSoFar + \" bytes\");\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        // TODO: The dumps come from jPOS's hexdump, from `hexdump -C` and from logs and chats.\n        //       Return exactly the bytes this line shows, with the offset it states, or throw\n        //       IllegalArgumentException when the line can't be read with certainty.\n        throw new IllegalStateException(\"TODO: parse\");\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        // TODO: Throw IllegalArgumentException when this line can't be the next one.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "19092cfd2c425aa39e7ee4d5ef6de7cc85381a50993392f0c35bb8b36a28aaf1",
+  "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        // TODO: The dumps come from jPOS's hexdump, from `hexdump -C` and from logs and chats.\n        //       Return exactly the bytes this line shows, with the offset it states, or throw\n        //       IllegalArgumentException when the line can't be read with certainty.\n        throw new IllegalStateException(\"TODO: parse\");\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        // TODO: Throw IllegalArgumentException when this line can't be the next one.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-17/practice-1/src/main/java/com/example/practice/HexDumpReader.java",
+    "test_path": "practice/jpos-client/prose/unit-17/practice-1/src/test/java/com/example/practice/HexDumpReaderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HexDumpReaderTest#readsBackWhatHexdumpWrote",
+        "kind": "main",
+        "says": "the output of ISOUtil.hexdump reads back to the same bytes, for full and short last lines"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#aReadDumpUnpacksToTheSameMessage",
+        "kind": "main",
+        "says": "a dump of a packed authorization reads back to bytes that unpack completely to the same fields"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#blankLinesAndWindowsLineEndingsAreTolerated",
+        "kind": "main",
+        "says": "blank lines and CRLF line endings are ignored, and an empty dump is no bytes"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#theTextColumnIsNeverReadAsBytes",
+        "kind": "edge",
+        "says": "a text column whose characters look like hex pairs is not read as bytes"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#aLostLineIsRefused",
+        "kind": "edge",
+        "says": "a line whose offset is not the number of bytes read before it, because a line was lost or pasted twice, is refused"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#readsTheLayoutOfHexdumpDashC",
+        "kind": "edge",
+        "says": "the hexdump -C layout, with eight-digit offsets, a barred text column and a final offset-only line, reads to the same bytes"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#lowerCaseHexIsRead",
+        "kind": "edge",
+        "says": "hex digits in lower case, as hexdump -C writes them, are read"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#aDumpCopiedFromALogEventIsRead",
+        "kind": "edge",
+        "says": "spaces in front of the offset, as in a log event's first dump line, are not part of the columns"
+      },
+      {
+        "id": "com.example.practice.HexDumpReaderTest#somethingThatIsNotAByteIsRefused",
+        "kind": "edge",
+        "says": "a byte position holding something other than two hex digits, or a line without an offset, is refused"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-17/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c17.md",
+      "section": "17.1 A Dump Is Evidence Only When It Reads Back to the Bytes It Shows"
+    },
+    "concepts": [
+      "A dump from outside is evidence only when it reads back to the bytes it shows: decodeHexDump reads one layout and checks nothing, so a reader checks each line's offset and reads bytes from their columns."
+    ]
+  }
+}

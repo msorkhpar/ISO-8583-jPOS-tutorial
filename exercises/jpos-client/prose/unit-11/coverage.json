@@ -1,60 +1,167 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c11.md",
   "kind": "code",
+  "quiz": "link-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c11.md": "sha256:5489e01e8f5eb00ab687d61525c91d4cbf3a898503c8d8c1760da0b79dcab2a8"
+    "src/c11.md": "sha256:7e6baa469304b49fc0c19c3066f683507989657bee9463bb9004360dfb297844"
   },
   "plan": {
     "plan_api": 2,
     "tier": "advanced",
-    "count": 0,
+    "count": 3,
     "aspects": [
       {
-        "id": "pool-reuses-connections",
-        "says": "A pool keeps a bounded number of connections open and hands a released one out again instead of opening a new one.",
+        "id": "answer-host-echo",
+        "says": "The host's own echo matches no waiting request; without a request listener that answers it through its source, it ends on the unhandled queue and the host drops the link.",
         "basis": [
-          "example:src/c11.md:2",
-          "section:11.3 Implementing Connection Management"
+          "section:11.6 The Host's Own Echo Is a Request, and Someone Must Answer It"
         ],
-        "exercise": null,
-        "reason": "practised once already, by page 3's pooled-channels exercise (reuse, and replacing a dead connection); not practised a second time"
+        "exercise": "link-quiz",
+        "reason": null
       },
       {
-        "id": "reconnect-tls-timeouts",
-        "says": "Robust connection management also reconnects after failures, secures the link with TLS and bounds connect and read times.",
+        "id": "connected-is-not-signed-on",
+        "says": "A host that wants a sign-on declines or drops traffic on a new connection until it gets one, while isConnected() is already true.",
         "basis": [
-          "section:11.2 Key Features of Connection Management",
-          "section:11.5 Considerations and Best Practices"
+          "section:11.1 A Connected Link Is Not a Signed-On Link"
         ],
-        "exercise": null,
-        "reason": "listed but not shown on the page, and each needs a live peer; a graded run is offline"
+        "exercise": "signed-on-check",
+        "reason": null
       },
       {
-        "id": "socket-factory-seam",
-        "says": "A jPOS channel obtains its sockets through an ISOClientSocketFactory, so how connections are made can change without changing the channel.",
+        "id": "disable-sign-off-forget",
+        "says": "At a planned stop the link leaves service before the 002, the 002 goes only to the connection that signed on, and the session is forgotten whatever the host answered.",
         "basis": [
-          "section:11.1 Overview of ISOClientSocketFactory",
-          "example:src/c11.md:3"
+          "section:11.5 Take a Link Out of Service Before You Sign It Off"
         ],
-        "exercise": null,
-        "reason": "the factory's sockets connect to a live host; a graded run has no network, so the pooling behind it is practised on its own"
+        "exercise": "orderly-sign-off",
+        "reason": null
       },
       {
-        "id": "validate-before-use",
-        "says": "A pooled connection is checked before it is handed out, and a dead one is closed and dropped rather than used.",
+        "id": "enabled-mark-type",
+        "says": "An enabled mark that is not the ready object, such as Boolean.TRUE, never matches, so the pool never uses the link.",
         "basis": [
-          "example:src/c11.md:2"
+          "section:11.4 A Pool Uses a Link Only While It Is Signed On"
+        ],
+        "exercise": "link-quiz",
+        "reason": null
+      },
+      {
+        "id": "manager-deployment",
+        "says": "The sign-on manager is a QBean deployed after the channels and QMUXes it names, configured through properties.",
+        "basis": [
+          "section:11.3 A Sign-On Belongs to One Connection"
         ],
         "exercise": null,
-        "reason": "practised once already, by page 3's pooled-channels exercise (reuse, and replacing a dead connection); not practised a second time"
+        "reason": "deployment order and properties are configuration that only a running Q2 shows; a practice would retype the descriptor"
+      },
+      {
+        "id": "only-echo-proves",
+        "says": "Adaptor and TCP keep-alives are answered below the host application, so only an expired echo shows that the host stopped answering.",
+        "basis": [
+          "section:11.2 Only an Echo Proves the Host Is Answering"
+        ],
+        "exercise": "link-quiz",
+        "reason": null
+      },
+      {
+        "id": "pool-uses-signed-on-links",
+        "says": "With check-enabled a pool uses a link only while its enabled mark is the very ready object, so a client without a pool must make the same identity check before it sends.",
+        "basis": [
+          "section:11.4 A Pool Uses a Link Only While It Is Signed On"
+        ],
+        "exercise": "signed-on-check",
+        "reason": null
+      },
+      {
+        "id": "sign-on-per-connection",
+        "says": "A sign-on belongs to the connection whose ready object it stored; comparing that object by identity catches every reconnect, while a boolean flag misses one that happened while the loop was busy.",
+        "basis": [
+          "section:11.3 A Sign-On Belongs to One Connection"
+        ],
+        "exercise": "link-quiz",
+        "reason": null
       }
     ],
-    "exercises": [],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "signed-on-check",
+        "aspects": [
+          "connected-is-not-signed-on",
+          "pool-uses-signed-on-links"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "orderly-sign-off",
+        "aspects": [
+          "disable-sign-off-forget"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "link-quiz",
+        "aspects": [
+          "answer-host-echo",
+          "enabled-mark-type",
+          "only-echo-proves",
+          "sign-on-per-connection"
+        ]
+      }
+    ],
     "nothing_checkable": null
   },
-  "shipped": [],
-  "accounts": [],
+  "shipped": [
+    "exercises/jpos-client/prose/unit-11/practice-1",
+    "exercises/jpos-client/prose/unit-11/practice-2",
+    "exercises/jpos-client/prose/unit-11/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-1",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.4 A Pool Uses a Link Only While It Is Signed On"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-2",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.5 Take a Link Out of Service Before You Sign It Off"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-3:q-frozen-application",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.2 Only an Echo Proves the Host Is Answering"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-3:q-busy-manager-thread",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.3 A Sign-On Belongs to One Connection"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-3:q-enabled-written-as-true",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.4 A Pool Uses a Link Only While It Is Signed On"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-11/practice-3:q-host-checks-the-link",
+      "origin": {
+        "path": "src/c11.md",
+        "section": "11.6 The Host's Own Echo Is a Request, and Someone Must Answer It"
+      }
+    }
+  ],
   "shortfalls": []
 }

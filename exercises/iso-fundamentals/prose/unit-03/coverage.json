@@ -1,99 +1,212 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/3.md",
   "kind": "code",
+  "quiz": "data-elements-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/3.md": "sha256:7a51365b9b1a9aace689a2448741ed514550d4dcf50595e218276ccff6c61c88"
+    "src/3.md": "sha256:eaf28b55eb5e14b6e4153f01fe8be814ddab3f29bfe3213d21346c7df234a6ea"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "fixed-length-padding",
-        "says": "A fixed-length field always occupies its full width, so a shorter value is padded with a filler character.",
+        "id": "ber-tlv",
+        "says": "DE 55 is a list of BER-TLV objects: a tag that continues while its bytes say so, a length in one byte or after 81 or 82, and exactly that many value bytes.",
         "basis": [
-          "section:3.2.2. Padding for fixed-length fields",
-          "example:src/3.md:4"
+          "section:3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes",
+          "example:src/3.md:12",
+          "example:src/3.md:13"
         ],
-        "exercise": "encode-a-field",
+        "exercise": "read-chip-data",
         "reason": null
       },
       {
-        "id": "format-notation",
-        "says": "A field's format, such as n6, an12 or ans..40, names its data type, whether it is fixed or variable, and its length or maximum.",
+        "id": "datasets-2023",
+        "says": "ISO 8583:2023 builds some fields from datasets, which jPOS 2.1.7 reads only as opaque binary.",
         "basis": [
-          "section:3.3. Key data elements for Visa and Mastercard transactions",
-          "section:3.4. Data types and formats"
-        ],
-        "exercise": "encode-a-field",
-        "reason": null
-      },
-      {
-        "id": "mandatory-fields",
-        "says": "Which fields are mandatory is set by the message type and the card network's requirements.",
-        "basis": [
-          "section:3.1.1. Identifying mandatory fields"
+          "section:3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes"
         ],
         "exercise": null,
-        "reason": "the page gives only a short illustrative list, not a rule per message type that could be checked"
+        "reason": "a pointer to units 17 and s13; jPOS 2.1.7 offers nothing to practise on this edition"
       },
       {
-        "id": "optional-fields",
-        "says": "An optional field may be absent, so code checks that it is present before it reads it.",
+        "id": "de55-as-bytes",
+        "says": "Through the stock ASCII packager DE 55 comes back as text, so it is read with getBytes, never parsed from getString.",
         "basis": [
-          "section:3.1.2. Handling optional fields",
-          "example:src/3.md:1"
+          "section:3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes"
         ],
         "exercise": null,
-        "reason": "a single hasField guard; which fields a message carries is practised on the message-structure page, not a second time here"
+        "reason": "the difference shows only between a built and a received message through one stock packager; the page runs it, and read-chip-data already works on the bytes"
       },
       {
-        "id": "track2-parts",
-        "says": "Track 2 data carries the PAN and the expiration date separated by an equals sign.",
+        "id": "error-names-a-later-field",
+        "says": "One field written in another format shifts every field after it, so the receiver's error names a later field that is correct.",
         "basis": [
-          "section:3.4.6. Track 2 (z)",
+          "section:3.1. A Field's Format Is All the Receiver Has to Find Where It Ends",
+          "example:src/3.md:4",
           "example:src/3.md:5"
         ],
-        "exercise": null,
-        "reason": "a one-line split shown in passing; the z format itself is practised in encode-a-field"
+        "exercise": "data-elements-quiz",
+        "reason": null
       },
       {
-        "id": "variable-length-indicator",
-        "says": "A variable-length field is written as a fixed-width length indicator followed by exactly that many characters.",
+        "id": "format-marks-the-end",
+        "says": "Nothing in the bytes marks where a field ends: a fixed field takes its width and a variable one its length prefix, two digits for LLVAR and three for LLLVAR.",
         "basis": [
-          "section:3.2.1. Length indicators for variable fields",
-          "example:src/3.md:2",
+          "section:3.1. A Field's Format Is All the Receiver Has to Find Where It Ends",
+          "example:src/3.md:1",
           "example:src/3.md:3"
         ],
-        "exercise": "encode-a-field",
+        "exercise": "write-a-field",
         "reason": null
+      },
+      {
+        "id": "mandatory-per-mti",
+        "says": "Which fields must be present is set per MTI by the network's specification; there is no list that holds for every message.",
+        "basis": [
+          "section:3.5. Which Fields Must Be Present Depends on the MTI and the Network"
+        ],
+        "exercise": "data-elements-quiz",
+        "reason": null
+      },
+      {
+        "id": "only-length-is-checked",
+        "says": "jPOS checks a value's length and nothing else, so a dot or a letter in a numeric field goes to the host.",
+        "basis": [
+          "section:3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
+        ],
+        "exercise": "data-elements-quiz",
+        "reason": null
+      },
+      {
+        "id": "packager-decides-bytes",
+        "says": "ASCII, BCD and EBCDIC packagers write the same field differently, and a BCD length prefix counts digits, not bytes.",
+        "basis": [
+          "section:3.3. The Packager Decides the Bytes, So Both Peers Need the Same One",
+          "example:src/3.md:8",
+          "example:src/3.md:9"
+        ],
+        "exercise": "data-elements-quiz",
+        "reason": null
+      },
+      {
+        "id": "pad-short-refuse-long",
+        "says": "A short fixed value is padded (numbers with zeros on the left, text with spaces on the right) and a value that is too long is refused, never cut.",
+        "basis": [
+          "section:3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked",
+          "example:src/3.md:6",
+          "example:src/3.md:7"
+        ],
+        "exercise": "write-a-field",
+        "reason": null
+      },
+      {
+        "id": "track-separator",
+        "says": "Track 2 is set with = in the ISOMsg; a BCD packager packs a D character as the digit 4 and the separator is lost.",
+        "basis": [
+          "section:3.4. A Field's Type Decides How You Read Its Value",
+          "example:src/3.md:10",
+          "example:src/3.md:11"
+        ],
+        "exercise": "data-elements-quiz",
+        "reason": null
+      },
+      {
+        "id": "typed-values",
+        "says": "Amounts are parsed as a long of minor units, DE 7 is read with ISODate, and binary fields are byte arrays read with getBytes.",
+        "basis": [
+          "section:3.4. A Field's Type Decides How You Read Its Value"
+        ],
+        "exercise": null,
+        "reason": "these are single library calls with no rule of their own that a test could grade beyond calling the method"
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "encode-a-field",
+        "name": "write-a-field",
         "aspects": [
-          "fixed-length-padding",
-          "format-notation",
-          "variable-length-indicator"
+          "format-marks-the-end",
+          "pad-short-refuse-long"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "read-chip-data",
+        "aspects": [
+          "ber-tlv"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "data-elements-quiz",
+        "aspects": [
+          "error-names-a-later-field",
+          "mandatory-per-mti",
+          "only-length-is-checked",
+          "packager-decides-bytes",
+          "track-separator"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-03/practice-2"
+    "exercises/iso-fundamentals/prose/unit-03/practice-2",
+    "exercises/iso-fundamentals/prose/unit-03/practice-3",
+    "exercises/iso-fundamentals/prose/unit-03/practice-4"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-2",
       "origin": {
         "path": "src/3.md",
-        "section": "3.2. Fixed-length vs. Variable-length fields"
+        "section": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-3",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-4:q-error-names-a-later-field",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.1. A Field's Format Is All the Receiver Has to Find Where It Ends"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-4:q-dot-in-an-amount",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-4:q-bcd-prefix",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.3. The Packager Decides the Bytes, So Both Peers Need the Same One"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-4:q-track-separator",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.4. A Field's Type Decides How You Read Its Value"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-03/practice-4:q-one-list-of-required-fields",
+      "origin": {
+        "path": "src/3.md",
+        "section": "3.5. Which Fields Must Be Present Depends on the MTI and the Network"
       }
     }
   ],

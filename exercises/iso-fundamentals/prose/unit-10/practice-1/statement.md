@@ -1,23 +1,18 @@
-You cannot certify, or even test, against a live card network every time you change your
-code. A host simulator stands in for the network: it takes each request your system sends
-and answers it the way the network would, and designated test card numbers let a test pick
-the outcome it wants.
+Your team's certification harness builds each request of the network's script and sends it to the
+network's test host. Two things went wrong last month. A tester checked the link with a card from
+their own wallet, and the security team had to treat the build logs, the dumps and a ticket as card
+data. Another case, keyed by hand, came back with `14` instead of the answer it was written to
+test, and a session slot went with it.
 
-Write the answering half of such a simulator (no sockets: the part a request listener would
-call). `new HostSimulator(approvalCode)` approves every card unless told otherwise, and
-`declineCard(pan, responseCode)` sets one test card up to be declined with that code.
+The network has issued test card ranges for this certification, each given as the leading digits
+its cards share. Every request now passes through `TestCardGuard.check` before it is sent. Finish
+the three methods marked `TODO` in `src/main/java/com/example/practice/TestCardGuard.java`:
 
-`respond(ISOMsg request)` returns the response:
+- `panOf`: the card number a request carries;
+- `isTestCard`: whether the harness may send it;
+- `refusal`: the text of the refusal, which goes to the build log.
 
-- it carries every field of the request, with the MTI turned into the matching response MTI
-  (a `0100` is answered with a `0110`, a `0200` with a `0210`);
-- an approved request gets response code `00` in field 39 and the approval code in field 38;
-- a request for a card set up to be declined gets that card's response code in field 39 and
-  no field 38, because nothing was approved.
+When you're done, only cards the network issued for this certification reach the test host, keyed
+or swiped, and a refusal tells the tester which card it stopped. About fifteen lines in total.
 
-Edge cases:
-
-- The request is not changed. Your caller still holds it, for example to match the answer
-  to what it sent.
-- A message that is already a response (`0110`, `0210`, ...) cannot be answered; refuse it
-  with an `ISOException`.
+The tests use other test ranges and card numbers than the lesson.

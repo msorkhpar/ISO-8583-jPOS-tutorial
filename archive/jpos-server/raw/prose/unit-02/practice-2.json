@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Build the messages the server sends on its own",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Besides answering, your server now starts messages of its own on the link to each terminal: echoes, notices that it is about to sign off for maintenance, and short texts for the merchant (an 0620 with the text in field 63). `LinkMessages` in `src/main/java/com/example/practice/LinkMessages.java` keeps one template per kind, and the methods that build each kind are written."
+    },
+    {
+      "type": "para",
+      "text": "The operations team reports two problems from the pilot. A terminal displayed a maintenance window it had never been sent, the one added to the previous notice. And the terminals' logs show an echo and a merchant text from the server in flight at the same time with the same STAN."
+    },
+    {
+      "type": "para",
+      "text": "Finish the two methods marked `TODO`: `fromTemplate` and `nextStan`. The constructor receives the last STAN the server used on the link, so numbering carries on across restarts, and a clock that a test can fix. About six lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * The messages the server starts on the link to one terminal: echoes, sign-off notices before\n * maintenance, and text messages for the merchant.\n */\npublic class LinkMessages {\n    private static final DateTimeFormatter FIELD_7 = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final Map<String, ISOMsg> templates = new HashMap<>();\n    private final Clock clock;\n    private long lastStan;\n\n    /**\n     * @param lastStanUsed the last STAN the server sent on this link, as stored before a restart\n     *                     (0 on a new link)\n     */\n    public LinkMessages(String institutionId, String terminalId, long lastStanUsed, Clock clock)\n            throws ISOException {\n        this.clock = clock;\n        this.lastStan = lastStanUsed;\n        templates.put(\"echo\", template(\"0800\", institutionId, terminalId, \"301\"));\n        templates.put(\"sign-off\", template(\"0800\", institutionId, terminalId, \"002\"));\n        templates.put(\"text\", template(\"0620\", institutionId, terminalId, null));\n    }\n\n    public ISOMsg echo() throws ISOException {\n        return fromTemplate(\"echo\");\n    }\n\n    public ISOMsg signOffNotice() throws ISOException {\n        return fromTemplate(\"sign-off\");\n    }\n\n    public ISOMsg merchantText(String text) throws ISOException {\n        ISOMsg m = fromTemplate(\"text\");\n        m.set(63, text);\n        return m;\n    }\n\n    private static ISOMsg template(String mti, String institutionId, String terminalId, String code)\n            throws ISOException {\n        ISOMsg t = new ISOMsg(mti);\n        t.set(33, institutionId);\n        t.set(41, terminalId);\n        if (code != null)\n            t.set(70, code);\n        return t;\n    }\n\n    /** A message of the given kind, ready to send: its template's fields, plus when and which. */\n    ISOMsg fromTemplate(String kind) throws ISOException {\n        ISOMsg m = (ISOMsg) templates.get(kind).clone();\n        m.set(7, clock.instant().atZone(ZoneOffset.UTC).format(FIELD_7));\n        m.set(11, nextStan());\n        return m;\n    }\n\n    /** The STAN of the next message the server sends on this link. */\n    synchronized String nextStan() {\n        lastStan = lastStan % 999999 + 1;\n        return ISOUtil.zeropad(lastStan, 6);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * The messages the server starts on the link to one terminal: echoes, sign-off notices before\n * maintenance, and text messages for the merchant.\n */\npublic class LinkMessages {\n    private static final DateTimeFormatter FIELD_7 = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final Map<String, ISOMsg> templates = new HashMap<>();\n    private final Clock clock;\n    private long lastStan;\n\n    /**\n     * @param lastStanUsed the last STAN the server sent on this link, as stored before a restart\n     *                     (0 on a new link)\n     */\n    public LinkMessages(String institutionId, String terminalId, long lastStanUsed, Clock clock)\n            throws ISOException {\n        this.clock = clock;\n        this.lastStan = lastStanUsed;\n        templates.put(\"echo\", template(\"0800\", institutionId, terminalId, \"301\"));\n        templates.put(\"sign-off\", template(\"0800\", institutionId, terminalId, \"002\"));\n        templates.put(\"text\", template(\"0620\", institutionId, terminalId, null));\n    }\n\n    public ISOMsg echo() throws ISOException {\n        return fromTemplate(\"echo\");\n    }\n\n    public ISOMsg signOffNotice() throws ISOException {\n        return fromTemplate(\"sign-off\");\n    }\n\n    public ISOMsg merchantText(String text) throws ISOException {\n        ISOMsg m = fromTemplate(\"text\");\n        m.set(63, text);\n        return m;\n    }\n\n    private static ISOMsg template(String mti, String institutionId, String terminalId, String code)\n            throws ISOException {\n        ISOMsg t = new ISOMsg(mti);\n        t.set(33, institutionId);\n        t.set(41, terminalId);\n        if (code != null)\n            t.set(70, code);\n        return t;\n    }\n\n    /** A message of the given kind, ready to send: its template's fields, plus when and which. */\n    ISOMsg fromTemplate(String kind) throws ISOException {\n        // TODO: Field 7 says when the message was sent (MMddhhmmss), field 11 which message it\n        //       is. The server code that calls echo(), signOffNotice() or merchantText() may add\n        //       fields of its own to what it gets back, and send it later. (about 4 lines)\n        throw new IllegalStateException(\"TODO: fromTemplate\");\n    }\n\n    /** The STAN of the next message the server sends on this link. */\n    synchronized String nextStan() {\n        // TODO: Six digits, never 000000. The terminal answers each message with the STAN it\n        //       carried. (about 2 lines)\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "674580b7425a3081e1dcc9de5ec4b5f4f3b48743508ecf5538b29381345b7a5c",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * The messages the server starts on the link to one terminal: echoes, sign-off notices before\n * maintenance, and text messages for the merchant.\n */\npublic class LinkMessages {\n    private static final DateTimeFormatter FIELD_7 = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final Map<String, ISOMsg> templates = new HashMap<>();\n    private final Clock clock;\n    private long lastStan;\n\n    /**\n     * @param lastStanUsed the last STAN the server sent on this link, as stored before a restart\n     *                     (0 on a new link)\n     */\n    public LinkMessages(String institutionId, String terminalId, long lastStanUsed, Clock clock)\n            throws ISOException {\n        this.clock = clock;\n        this.lastStan = lastStanUsed;\n        templates.put(\"echo\", template(\"0800\", institutionId, terminalId, \"301\"));\n        templates.put(\"sign-off\", template(\"0800\", institutionId, terminalId, \"002\"));\n        templates.put(\"text\", template(\"0620\", institutionId, terminalId, null));\n    }\n\n    public ISOMsg echo() throws ISOException {\n        return fromTemplate(\"echo\");\n    }\n\n    public ISOMsg signOffNotice() throws ISOException {\n        return fromTemplate(\"sign-off\");\n    }\n\n    public ISOMsg merchantText(String text) throws ISOException {\n        ISOMsg m = fromTemplate(\"text\");\n        m.set(63, text);\n        return m;\n    }\n\n    private static ISOMsg template(String mti, String institutionId, String terminalId, String code)\n            throws ISOException {\n        ISOMsg t = new ISOMsg(mti);\n        t.set(33, institutionId);\n        t.set(41, terminalId);\n        if (code != null)\n            t.set(70, code);\n        return t;\n    }\n\n    /** A message of the given kind, ready to send: its template's fields, plus when and which. */\n    ISOMsg fromTemplate(String kind) throws ISOException {\n        // TODO: Field 7 says when the message was sent (MMddhhmmss), field 11 which message it\n        //       is. The server code that calls echo(), signOffNotice() or merchantText() may add\n        //       fields of its own to what it gets back, and send it later. (about 4 lines)\n        throw new IllegalStateException(\"TODO: fromTemplate\");\n    }\n\n    /** The STAN of the next message the server sends on this link. */\n    synchronized String nextStan() {\n        // TODO: Six digits, never 000000. The terminal answers each message with the STAN it\n        //       carried. (about 2 lines)\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-02/practice-2/src/main/java/com/example/practice/LinkMessages.java",
+    "test_path": "practice/jpos-server/prose/unit-02/practice-2/src/test/java/com/example/practice/LinkMessagesTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-02/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-02/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkMessagesTest#eachKindCarriesWhatItNeeds",
+        "kind": "main",
+        "says": "an echo and a merchant text carry their template's fields, a six-digit STAN and a send time, and pack"
+      },
+      {
+        "id": "com.example.practice.LinkMessagesTest#messagesOfOneKindFollowEachOther",
+        "kind": "main",
+        "says": "two messages of one kind take consecutive numbers after the last one used"
+      },
+      {
+        "id": "com.example.practice.LinkMessagesTest#eachMessageIsItsOwn",
+        "kind": "edge",
+        "says": "a field added to one message never appears in the next, and building the next never changes the first"
+      },
+      {
+        "id": "com.example.practice.LinkMessagesTest#everyKindTakesTheLinksNextNumber",
+        "kind": "edge",
+        "says": "echoes, notices and merchant texts draw their STANs from one sequence for the link"
+      },
+      {
+        "id": "com.example.practice.LinkMessagesTest#afterTheLastNumberTheLinkStartsAgainAtOne",
+        "kind": "edge",
+        "says": "after 999999 the sequence starts again at 000001, never 000000"
+      },
+      {
+        "id": "com.example.practice.LinkMessagesTest#theSendTimeIsGmtWhereverTheServerRuns",
+        "kind": "edge",
+        "says": "field 7 is the send time in GMT, whatever zone the server's clock is in"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-02/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s2.md",
+      "section": "2.6 A Message the Server Starts Is a Fresh Copy, Numbered by the Server"
+    },
+    "concepts": [
+      "A message the server starts is a fresh copy of its template, numbered from the server's one sequence for the link and stamped with the time in GMT."
+    ]
+  }
+}

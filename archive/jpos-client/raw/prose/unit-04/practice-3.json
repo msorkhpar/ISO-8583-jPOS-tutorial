@@ -1,0 +1,132 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Number a shared link's messages from a database row",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Two gateway processes now share one terminal ID on the link to `acquirer-b`, so they need one sequence of STANs between them, and a Space in each process won't do. The sequence lives in a database table instead: one row per link, shared by both processes, and still there after a restart. The given `Table` class at the bottom of `src/main/java/com/example/practice/StanCounter.java` stands in for it. Each of its methods is one SQL statement."
+    },
+    {
+      "type": "para",
+      "text": "Write `next()` in that file. The acquirer counts the gateway's duplicates and collisions, and it wants none, today or on the day the sequence passes 999999. About six lines."
+    },
+    {
+      "type": "para",
+      "text": "One of the tests makes both processes read the row at the same moment before either writes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOUtil;\n\n/**\n * STANs for one outbound link, numbered from a row in a database table that every gateway process\n * on the link shares.\n */\npublic class StanCounter {\n    private final Table table;\n    private final String link;\n\n    public StanCounter(Table table, String link) {\n        this.table = table;\n        this.link = link;\n    }\n\n    /** The STAN of the next message on this link. */\n    public String next() {\n        long n;\n        do {\n            n = table.read(link);\n        } while (!table.compareAndSet(link, n, n + 1));\n        return ISOUtil.zeropad((n % 999999) + 1, 6);\n    }\n\n    /**\n     * Given: one counter row per link, as a database keeps it. It outlives every StanCounter, the\n     * way a database outlives a process.\n     */\n    public static class Table {\n        private final java.util.Map<String, Long> rows = new java.util.HashMap<>();\n\n        /** SELECT value FROM stan WHERE link = ?  (0 when there is no row yet) */\n        public synchronized long read(String link) {\n            return rows.getOrDefault(link, 0L);\n        }\n\n        /** UPDATE stan SET value = ? WHERE link = ? */\n        public synchronized void write(String link, long value) {\n            rows.put(link, value);\n        }\n\n        /** UPDATE stan SET value = next WHERE link = ? AND value = expected; true if a row changed */\n        public synchronized boolean compareAndSet(String link, long expected, long next) {\n            if (rows.getOrDefault(link, 0L) != expected)\n                return false;\n            rows.put(link, next);\n            return true;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOUtil;\n\n/**\n * STANs for one outbound link, numbered from a row in a database table that every gateway process\n * on the link shares.\n */\npublic class StanCounter {\n    private final Table table;\n    private final String link;\n\n    public StanCounter(Table table, String link) {\n        this.table = table;\n        this.link = link;\n    }\n\n    /** The STAN of the next message on this link. */\n    public String next() {\n        // TODO: Six digits. Two gateway processes on this link call next() at the same moment,\n        //       through the same table; neither process may hand out a number the other one has,\n        //       today or after a restart. ISOUtil.zeropad may help. (about six lines)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /**\n     * Given: one counter row per link, as a database keeps it. It outlives every StanCounter, the\n     * way a database outlives a process.\n     */\n    public static class Table {\n        private final java.util.Map<String, Long> rows = new java.util.HashMap<>();\n\n        /** SELECT value FROM stan WHERE link = ?  (0 when there is no row yet) */\n        public synchronized long read(String link) {\n            return rows.getOrDefault(link, 0L);\n        }\n\n        /** UPDATE stan SET value = ? WHERE link = ? */\n        public synchronized void write(String link, long value) {\n            rows.put(link, value);\n        }\n\n        /** UPDATE stan SET value = next WHERE link = ? AND value = expected; true if a row changed */\n        public synchronized boolean compareAndSet(String link, long expected, long next) {\n            if (rows.getOrDefault(link, 0L) != expected)\n                return false;\n            rows.put(link, next);\n            return true;\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "45d0a040432cb3c02d7f5ffba0a2bd0d2b329ac9d66d2c268f6534850e440203",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOUtil;\n\n/**\n * STANs for one outbound link, numbered from a row in a database table that every gateway process\n * on the link shares.\n */\npublic class StanCounter {\n    private final Table table;\n    private final String link;\n\n    public StanCounter(Table table, String link) {\n        this.table = table;\n        this.link = link;\n    }\n\n    /** The STAN of the next message on this link. */\n    public String next() {\n        // TODO: Six digits. Two gateway processes on this link call next() at the same moment,\n        //       through the same table; neither process may hand out a number the other one has,\n        //       today or after a restart. ISOUtil.zeropad may help. (about six lines)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /**\n     * Given: one counter row per link, as a database keeps it. It outlives every StanCounter, the\n     * way a database outlives a process.\n     */\n    public static class Table {\n        private final java.util.Map<String, Long> rows = new java.util.HashMap<>();\n\n        /** SELECT value FROM stan WHERE link = ?  (0 when there is no row yet) */\n        public synchronized long read(String link) {\n            return rows.getOrDefault(link, 0L);\n        }\n\n        /** UPDATE stan SET value = ? WHERE link = ? */\n        public synchronized void write(String link, long value) {\n            rows.put(link, value);\n        }\n\n        /** UPDATE stan SET value = next WHERE link = ? AND value = expected; true if a row changed */\n        public synchronized boolean compareAndSet(String link, long expected, long next) {\n            if (rows.getOrDefault(link, 0L) != expected)\n                return false;\n            rows.put(link, next);\n            return true;\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-04/practice-3/src/main/java/com/example/practice/StanCounter.java",
+    "test_path": "practice/jpos-client/prose/unit-04/practice-3/src/test/java/com/example/practice/StanCounterTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.StanCounterTest#aFreshLinkCountsFromOne",
+        "kind": "main",
+        "says": "a link with no row yet numbers its messages 000001, 000002, 000003"
+      },
+      {
+        "id": "com.example.practice.StanCounterTest#aRestartedProcessCarriesOn",
+        "kind": "edge",
+        "says": "the counter lives in the table, not in the process, so a restart continues the sequence"
+      },
+      {
+        "id": "com.example.practice.StanCounterTest#theSequenceWrapsPast999999",
+        "kind": "edge",
+        "says": "the six-digit sequence goes from 999999 to 000001 and is never 000000"
+      },
+      {
+        "id": "com.example.practice.StanCounterTest#twoProcessesAtTheSameMoment",
+        "kind": "edge",
+        "says": "taking a number is atomic across processes: two that read the row at the same moment still get different STANs"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-04/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c4.md",
+      "section": "4.6 Each Link Numbers Its Own Messages"
+    },
+    "concepts": [
+      "Each link numbers its messages from one counter that is atomic, outlives the process and wraps from 999999 to 000001."
+    ]
+  }
+}

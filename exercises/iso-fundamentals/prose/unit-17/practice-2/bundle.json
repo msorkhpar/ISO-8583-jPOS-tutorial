@@ -1,0 +1,79 @@
+{
+  "bundle_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "ordinal": 2,
+  "title": "Write TLV datasets into a composite field",
+  "lang": "java",
+  "main_file": "src/main/java/com/example/practice/CompositeWriter.java",
+  "test_file": "src/test/java/com/example/practice/CompositeWriterTest.java",
+  "build": [
+    "pom.xml"
+  ],
+  "run_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/iso-fundamentals/prose/unit-17/practice-2/pom.xml",
+    "compile"
+  ],
+  "test_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/iso-fundamentals/prose/unit-17/practice-2/pom.xml",
+    "test"
+  ],
+  "provenance": "generated",
+  "trust": "advisory",
+  "cases": [
+    {
+      "id": "com.example.practice.CompositeWriterTest#writesDatasetsInTheirEnvelopes",
+      "kind": "main",
+      "says": "each dataset is written as its identifier, a two-byte length and its BER-TLV elements, in the order given, with one-, two- and three-byte tags"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#refusesIdentifiersOutsideTheTlvRange",
+      "kind": "main",
+      "says": "00, FF and bitmap-range identifiers are refused for a TLV dataset"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#valuesFrom128BytesUseTheLongLengthForm",
+      "kind": "edge",
+      "says": "a value of 128 bytes or more gets the 81 or 82 length form, not a single length byte"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#datasetsOver255BytesKeepTheirWholeLength",
+      "kind": "edge",
+      "says": "a dataset over 255 bytes has both bytes of its length written, most significant first"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#dataset0x70IsATlvDataset",
+      "kind": "edge",
+      "says": "0x70 is still a TLV dataset identifier and 0x71 is not"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#writesDatasetsOfAFewHundredBytes",
+      "kind": "edge",
+      "says": "a dataset longer than the 516 bytes TLVList.pack() can write in jPOS 2.1.7 is still written whole"
+    },
+    {
+      "id": "com.example.practice.CompositeWriterTest#refusesContentTheLengthCannotDescribe",
+      "kind": "edge",
+      "says": "content of exactly 65535 bytes fits, and one byte more is refused instead of written with a wrong length"
+    }
+  ],
+  "report": {
+    "format": "junit",
+    "path": "target/surefire-reports"
+  },
+  "origin": {
+    "path": "src/17.md",
+    "section": "17.6. A Writer Encodes Every Length Itself, Because the Packager Sees Only Bytes"
+  }
+}

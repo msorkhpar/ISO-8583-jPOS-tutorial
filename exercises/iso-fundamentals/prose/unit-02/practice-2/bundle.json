@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 2,
   "ordinal": 2,
-  "title": "Read which data elements a bitmap says are present",
+  "title": "Read which fields a captured message carries",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/BitmapReader.java",
-  "test_file": "src/test/java/com/example/practice/BitmapReaderTest.java",
+  "main_file": "src/main/java/com/example/practice/DumpReader.java",
+  "test_file": "src/test/java/com/example/practice/DumpReaderTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,24 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.BitmapReaderTest#listsTheFieldsBothBitmapsFlag",
+      "id": "com.example.practice.DumpReaderTest#readsTheFieldsAndWhereTheyStart",
       "kind": "main",
-      "says": "lists, in ascending order, every data element the primary and any secondary bitmap flag"
+      "says": "a capture with one bitmap gives its MTI, every field its bitmap marks, in ascending order, and the index where the fields begin"
     },
     {
-      "id": "com.example.practice.BitmapReaderTest#fieldSixtyFiveIsTheSecondarysFirstBit",
+      "id": "com.example.practice.DumpReaderTest#bitOneIsNotAField",
       "kind": "edge",
-      "says": "the secondary bitmap's first bit is data element 65, not another flag"
+      "says": "a capture with two bitmaps lists the fields of both, and the bit that announces the second bitmap is not listed as a field"
     },
     {
-      "id": "com.example.practice.BitmapReaderTest#refusesALengthThatDisagreesWithBitOne",
+      "id": "com.example.practice.DumpReaderTest#theFieldsStartAfterTheSecondBitmap",
       "kind": "edge",
-      "says": "a secondary bitmap must be there when bit 1 is set, and must not be there when it is clear"
+      "says": "when a second bitmap follows the first, the fields begin after it, not after the first"
+    },
+    {
+      "id": "com.example.practice.DumpReaderTest#aThirdBitmapIsRefusedNotReadAsAField",
+      "kind": "edge",
+      "says": "a capture whose second bitmap announces a third one is refused, never read as carrying field 65"
     }
   ],
   "report": {
@@ -54,6 +59,6 @@
   },
   "origin": {
     "path": "src/2.md",
-    "section": "2.2. Bitmaps"
+    "section": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
   }
 }

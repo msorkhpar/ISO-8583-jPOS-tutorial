@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Split chip data from a log into its objects",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A network has started declining some chip transactions, and the support desk is reading DE 55 from hex dumps in the logs. They want a small tool that prints each object in the dump, and that says so when a dump is damaged instead of printing a guess, because a guess is what they would act on."
+    },
+    {
+      "type": "para",
+      "text": "`TlvReader` in `src/main/java/com/example/practice/TlvReader.java` already walks the data and collects the objects. Finish the three methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`tagEnd`: where the tag that starts at a position ends;",
+        "`lengthAt`: the value's length, and where the value starts;",
+        "`value`: the value's bytes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Dumps come from several card schemes, so expect tags and lengths beyond the common ones. Refuse what can't be split with an `IllegalArgumentException`; `byteAt` already refuses to read past the end. About 15 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        int at = start;\n        if ((byteAt(data, at++) & 0x1F) != 0x1F)\n            return at;\n        while ((byteAt(data, at++) & 0x80) != 0) {\n            // a following byte with its top bit set says one more byte follows\n        }\n        return at;\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        int first = byteAt(data, at) & 0xFF;\n        if (first < 0x80)\n            return new Length(first, at + 1);\n        if (first == 0x81)\n            return new Length(byteAt(data, at + 1) & 0xFF, at + 2);\n        if (first == 0x82)\n            return new Length((byteAt(data, at + 1) & 0xFF) << 8 | (byteAt(data, at + 2) & 0xFF), at + 3);\n        throw new IllegalArgumentException(\"unsupported length byte \" + Integer.toHexString(first));\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        if (from + length > data.length)\n            throw new IllegalArgumentException(length + \" bytes announced, \" + (data.length - from) + \" left\");\n        byte[] v = new byte[length];\n        System.arraycopy(data, from, v, 0, length);\n        return v;\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        // TODO: find where the tag that starts here ends. Use byteAt to read the data.\n        throw new IllegalStateException(\"TODO: tagEnd\");\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        // TODO: read the value's length, for values of any size up to 65535 bytes, and say where\n        //       the value starts. Refuse a length you can't read.\n        throw new IllegalStateException(\"TODO: lengthAt\");\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        // TODO: the value's bytes, as the data holds them.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "e5ddb59d985f75bac58c4244fce2cde4b993631c83a305e10e2a73779304ebc3",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        // TODO: find where the tag that starts here ends. Use byteAt to read the data.\n        throw new IllegalStateException(\"TODO: tagEnd\");\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        // TODO: read the value's length, for values of any size up to 65535 bytes, and say where\n        //       the value starts. Refuse a length you can't read.\n        throw new IllegalStateException(\"TODO: lengthAt\");\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        // TODO: the value's bytes, as the data holds them.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-03/practice-3/src/main/java/com/example/practice/TlvReader.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-03/practice-3/src/test/java/com/example/practice/TlvReaderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-03/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-03/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TlvReaderTest#splitsAnAuthorizationsChipData",
+        "kind": "main",
+        "says": "the chip data of an ordinary authorization comes out as its objects, in order, each with its own value"
+      },
+      {
+        "id": "com.example.practice.TlvReaderTest#otherFirstBytesStartLongerTagsToo",
+        "kind": "edge",
+        "says": "a first byte with its low five bits all ones starts a longer tag, whatever the byte, not only 9F"
+      },
+      {
+        "id": "com.example.practice.TlvReaderTest#aTagCanHaveThreeBytes",
+        "kind": "edge",
+        "says": "a tag goes on while each further byte has its top bit set, so tags are not limited to two bytes"
+      },
+      {
+        "id": "com.example.practice.TlvReaderTest#longValuesAreReadWhole",
+        "kind": "edge",
+        "says": "a length of 128 or more is written as 81 or 82 followed by the length, and the value is read whole"
+      },
+      {
+        "id": "com.example.practice.TlvReaderTest#dataThatEndsTooSoonIsRefused",
+        "kind": "edge",
+        "says": "a value that claims more bytes than remain is refused, never filled up"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-03/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/3.md",
+      "section": "3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes"
+    },
+    "concepts": [
+      "DE 55 is a list of BER-TLV objects: a tag that continues while its bytes say so, a length in one byte or after 81 or 82, and exactly that many value bytes."
+    ]
+  }
+}

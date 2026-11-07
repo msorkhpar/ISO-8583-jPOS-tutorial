@@ -1,70 +1,161 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s4.md",
   "kind": "code",
+  "quiz": "processing-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s4.md": "sha256:ea602614a5afe29833dd31f199191d6bfb00d889f898f1fdd3b6d77199171189"
+    "src/s4.md": "sha256:7ae41c9efd8cf85abecac2900502395577fc861a1a4905f5d41c3beac52e7a55"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "one-abort-vote-aborts-all",
-        "says": "A single ABORTED vote aborts the whole transaction, so a participant that only cares about some transactions steps aside for the others instead of aborting them.",
+        "id": "commit-cannot-fail",
+        "says": "An exception in commit is logged as a warning and the next participant's commit still runs, so the approval goes out; what can fail belongs in prepare.",
         "basis": [
-          "example:src/s4.md:3",
-          "section:4.3 Custom Participants for Visa/Mastercard Logic"
+          "section:4.4 Commit Cannot Change the Outcome"
         ],
-        "exercise": "network-participants",
+        "exercise": "processing-quiz",
         "reason": null
       },
       {
-        "id": "prepare-then-commit-or-abort",
-        "says": "The transaction manager asks each participant, in the declared order, to prepare, then commits every participant that joined if all prepared, or aborts every one that joined if any did not.",
+        "id": "join-to-hear-outcome",
+        "says": "Only participants that joined get commit or abort; one that changed something outside the Context in prepare must join and undo it in abort, and one that votes ABORTED joins too unless it says NO_JOIN.",
         "basis": [
-          "section:4.1 Transaction Manager",
+          "section:4.2 A Participant Hears the Outcome Only If It Joined",
           "example:src/s4.md:4",
-          "section:4.2 Transaction Participant"
+          "example:src/s4.md:7"
         ],
-        "exercise": "network-participants",
+        "exercise": "velocity-limit",
         "reason": null
       },
       {
-        "id": "validate-before-routing",
-        "says": "A validating participant placed first aborts an incomplete transaction before any later participant acts on it, and records why when it is aborted.",
+        "id": "no-join-leaks",
+        "says": "A participant that reserves in prepare and votes NO_JOIN is never told of a later decline, so the reservation is never given back.",
         "basis": [
-          "example:src/s4.md:2",
-          "section:4.2 Transaction Participant"
+          "section:4.2 A Participant Hears the Outcome Only If It Joined",
+          "example:src/s4.md:5",
+          "example:src/s4.md:6"
         ],
-        "exercise": "network-participants",
+        "exercise": "processing-quiz",
         "reason": null
+      },
+      {
+        "id": "only-abort-participants-after-abort",
+        "says": "After an ABORTED vote plain participants later in the chain are never prepared and never hear the abort; an AbortParticipant is offered prepareForAbort, which calls prepare by default.",
+        "basis": [
+          "section:4.3 After an Abort, Only Abort Participants Are Asked",
+          "example:src/s4.md:12"
+        ],
+        "exercise": "processing-quiz",
+        "reason": null
+      },
+      {
+        "id": "pause-frees-session",
+        "says": "A participant that returns PAUSE frees its session; the callback finds its Context through handBack and always resumes, and a later participant decides.",
+        "basis": [
+          "section:4.7 `PAUSE` Gives the Session Back While You Wait",
+          "example:src/s4.md:27"
+        ],
+        "exercise": "paused-scoring",
+        "reason": null
+      },
+      {
+        "id": "session-held",
+        "says": "A session is held for the whole transaction, so throughput is sessions over time per transaction; past it the queue grows until the listener's timeout drops requests.",
+        "basis": [
+          "section:4.6 A Session Is Busy for the Whole Transaction"
+        ],
+        "exercise": "processing-quiz",
+        "reason": null
+      },
+      {
+        "id": "string-keys",
+        "says": "The Context is keyed by the string names of ContextConstants, so ctx.get(REQUEST) with the enum constant returns null.",
+        "basis": [
+          "section:4.5 The Context Is Keyed by Strings"
+        ],
+        "exercise": null,
+        "reason": "the compiler accepts both keys and a test can only observe the null; the page's run shows it, and a practice would only retype the lookup"
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "network-participants",
+        "name": "velocity-limit",
         "aspects": [
-          "one-abort-vote-aborts-all",
-          "prepare-then-commit-or-abort",
-          "validate-before-routing"
+          "join-to-hear-outcome"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "paused-scoring",
+        "aspects": [
+          "pause-frees-session"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "processing-quiz",
+        "aspects": [
+          "commit-cannot-fail",
+          "no-join-leaks",
+          "only-abort-participants-after-abort",
+          "session-held"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-04/practice-1"
+    "exercises/jpos-server/prose/unit-04/practice-1",
+    "exercises/jpos-server/prose/unit-04/practice-2",
+    "exercises/jpos-server/prose/unit-04/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-04/practice-1",
       "origin": {
         "path": "src/s4.md",
-        "section": "4.3 Custom Participants for Visa/Mastercard Logic"
+        "section": "4.2 A Participant Hears the Outcome Only If It Joined"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-04/practice-2",
+      "origin": {
+        "path": "src/s4.md",
+        "section": "4.7 `PAUSE` Gives the Session Back While You Wait"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-04/practice-3:q-voucher-no-join",
+      "origin": {
+        "path": "src/s4.md",
+        "section": "4.2 A Participant Hears the Outcome Only If It Joined"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-04/practice-3:q-audit-after-pin",
+      "origin": {
+        "path": "src/s4.md",
+        "section": "4.3 After an Abort, Only Abort Participants Are Asked"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-04/practice-3:q-points-commit",
+      "origin": {
+        "path": "src/s4.md",
+        "section": "4.4 Commit Cannot Change the Outcome"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-04/practice-3:q-ten-sessions",
+      "origin": {
+        "path": "src/s4.md",
+        "section": "4.6 A Session Is Busy for the Whole Transaction"
       }
     }
   ],

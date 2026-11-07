@@ -8,8 +8,8 @@
   "unit": 15,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Find where a bitmap and its message disagree",
+  "ingested": "2026-11-05",
+  "title": "Find the message a ticket names",
   "blocks": [
     {
       "type": "heading",
@@ -18,23 +18,24 @@
     },
     {
       "type": "para",
-      "text": "A message reached your switch with its primary bitmap captured separately, in a trace, as sixteen hexadecimal digits. Before anybody trusts the parsed fields, you want to know where the bitmap and the message disagree."
+      "text": "Your switch's support desk answers tickets from several acquirers. Each ticket gives a terminal ID, a STAN as the analyst typed it, and the moment the acquirer's records say the message was sent. The desk pastes the day's log into `TicketSearch.find`, which returns every logged message the ticket is about: the request and its answer, in log order, or nothing when the log never saw it."
     },
     {
       "type": "para",
-      "text": "Write `BitmapCheck.mismatches(String bitmapHex, ISOMsg message)`. It returns, in ascending order, every data element from 2 to 64 whose bit in the bitmap says one thing while the message says the other: a bit set for a field the message does not carry, or a field the message carries whose bit is clear. A message that matches its bitmap gives an empty list."
+      "text": "`find` is written. Finish the three methods marked `TODO` in `src/main/java/com/example/practice/TicketSearch.java`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "Bit 1 is not a data element. It flags that a secondary bitmap follows, so it is never reported, whatever it says.",
-        "A bitmap that is not exactly sixteen hexadecimal digits is refused with an `IllegalArgumentException`."
+        "`stan(...)`: the ticket's STAN as a message carries it;",
+        "`sent(...)`: the ticket's moment as a message carries it;",
+        "`names(...)`: whether a logged message is one the ticket is about."
       ]
     },
     {
       "type": "para",
-      "text": "Bits are counted from 1, most significant first: bit *n* stands for data element *n*."
+      "text": "About six lines in total. The tests' logs hold terminals in more than one country, more than one day, and STANs that come round again; some tests run on a machine whose clock is not set to UTC."
     },
     {
       "type": "heading",
@@ -49,7 +50,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        if (bitmapHex == null || !bitmapHex.matches(\"[0-9A-Fa-f]{16}\")) {\n            throw new IllegalArgumentException(\"a primary bitmap is sixteen hexadecimal digits\");\n        }\n        long bits = Long.parseUnsignedLong(bitmapHex, 16);\n        List<Integer> found = new ArrayList<>();\n        for (int field = 2; field <= 64; field++) {\n            boolean claimed = (bits & (1L << (64 - field))) != 0;\n            if (claimed != message.hasField(field)) {\n                found.add(field);\n            }\n        }\n        return found;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        return \"000000\".substring(ticket.stan().length()) + ticket.stan();\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        return DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC).format(ticket.sent());\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        return ticket.terminal().equals(m.getString(41))\n                && stan(ticket).equals(m.getString(11))\n                && sent(ticket).equals(m.getString(7));\n    }\n}\n"
         }
       ]
     },
@@ -61,7 +62,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        throw new UnsupportedOperationException(\"write mismatches\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        // TODO: Analysts type STANs the way people say them. Return the value a message's\n        //       field 11 holds for the STAN on the ticket.\n        throw new IllegalStateException(\"TODO: stan\");\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        // TODO: Return the value a message holds for the moment on the ticket, in the field\n        //       that records when the message was sent.\n        throw new IllegalStateException(\"TODO: sent\");\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        // TODO: True only for the message the analyst means and its answer, whatever else the\n        //       day's log holds from other terminals and other days.\n        throw new IllegalStateException(\"TODO: names\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -80,11 +81,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "090f001f01187783afb6f3897bfef30c181d00b9d279655e910c63a78dd2bedd",
-  "starting_code": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\n\n/** Where a primary bitmap and the message it was captured with disagree. */\npublic final class BitmapCheck {\n\n    private BitmapCheck() {\n    }\n\n    /** Every data element, 2 to 64, the bitmap and the message disagree on, ascending. */\n    public static List<Integer> mismatches(String bitmapHex, ISOMsg message) {\n        throw new UnsupportedOperationException(\"write mismatches\");\n    }\n}\n",
+  "content_sha256": "d1bc4f104420f51aab451233146a35de29d00994969cca1b51bb29880cfcf2a6",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        // TODO: Analysts type STANs the way people say them. Return the value a message's\n        //       field 11 holds for the STAN on the ticket.\n        throw new IllegalStateException(\"TODO: stan\");\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        // TODO: Return the value a message holds for the moment on the ticket, in the field\n        //       that records when the message was sent.\n        throw new IllegalStateException(\"TODO: sent\");\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        // TODO: True only for the message the analyst means and its answer, whatever else the\n        //       day's log holds from other terminals and other days.\n        throw new IllegalStateException(\"TODO: names\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/BitmapCheck.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/test/java/com/example/practice/BitmapCheckTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/TicketSearch.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/test/java/com/example/practice/TicketSearchTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -105,19 +106,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.BitmapCheckTest#listsEveryFieldTheBitmapAndTheMessageDisagreeOn",
+        "id": "com.example.practice.TicketSearchTest#findsTheRequestAndItsAnswer",
         "kind": "main",
-        "says": "lists every data element the bitmap and the message disagree on"
+        "says": "the request a ticket names and its answer are found, and no other message of the log"
       },
       {
-        "id": "com.example.practice.BitmapCheckTest#neverReportsBitOne",
-        "kind": "edge",
-        "says": "bit 1 flags a secondary bitmap and is never reported as a data element"
+        "id": "com.example.practice.TicketSearchTest#findsNothingForAMessageThatNeverLeft",
+        "kind": "main",
+        "says": "a ticket naming a message the log never saw finds nothing"
       },
       {
-        "id": "com.example.practice.BitmapCheckTest#refusesABitmapThatIsNotSixteenHexDigits",
+        "id": "com.example.practice.TicketSearchTest#anotherTerminalWithTheSameStanAtTheSameSecond",
         "kind": "edge",
-        "says": "a bitmap that is not sixteen hexadecimal digits is refused"
+        "says": "another terminal's message with the same STAN and the same transmission time is not the one meant, so the terminal is part of the name"
+      },
+      {
+        "id": "com.example.practice.TicketSearchTest#theSameTerminalUsesTheStanAgainTheNextDay",
+        "kind": "edge",
+        "says": "the same terminal reuses a STAN on another day, so the transmission time is part of the name"
+      },
+      {
+        "id": "com.example.practice.TicketSearchTest#aTerminalAwayFromUtcIsFoundAtTheTicketsTime",
+        "kind": "edge",
+        "says": "the ticket's time is compared with the transmission time in field 7, not with the terminal's local date and time in fields 12 and 13"
+      },
+      {
+        "id": "com.example.practice.TicketSearchTest#theMachinesTimeZoneDoesNotMatter",
+        "kind": "edge",
+        "says": "field 7 is in UTC whatever time zone the machine running the search is set to"
+      },
+      {
+        "id": "com.example.practice.TicketSearchTest#aStanTypedWithoutItsLeadingZeros",
+        "kind": "edge",
+        "says": "a STAN typed as 930 names the message whose field 11 is 000930"
       }
     ],
     "report": {
@@ -126,10 +147,11 @@
     },
     "origin": {
       "path": "src/15.md",
-      "section": "15.1.1. Bitmap inconsistencies"
+      "section": "15.1. A Message Is Named by Its Terminal, STAN and Transmission Time, and the Time Is UTC"
     },
     "concepts": [
-      "A message's primary bitmap must agree with the data elements it carries, and bit 1 flags a secondary bitmap rather than a field."
+      "A logged message is found by its terminal, STAN and transmission time together, because STANs repeat across terminals and across days.",
+      "Field 7 holds the transmission time in UTC, while a log and fields 12 and 13 are local, so a ticket's time is matched against field 7."
     ]
   }
 }

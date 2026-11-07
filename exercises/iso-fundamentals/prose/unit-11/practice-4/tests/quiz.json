@@ -1,0 +1,187 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "ordinal": 4,
+  "title": "Check yourself: Best Practices for ISO-8583 Development",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-refund-through-double",
+        "stem": "A refund service takes the amount a merchant typed, 4.35 pounds sterling, as a double and builds field 4 with (long) (amount * 100). In a double, 4.35 * 100 is 434.99999999999994. What does field 4 carry?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Field 4 is 000000000435, since the cast rounds the product to the nearest whole number of pence",
+            "correct": false,
+            "says": "11.1: the cast drops the fraction, as 0.29 becoming 28 shows; it does not round"
+          },
+          {
+            "id": "b",
+            "text": "Field 4 is 000000000434, since the product falls a little short and the cast drops its fraction",
+            "correct": true,
+            "says": "11.1: as 0.29 * 100 = 28.999999999999996 became 28, the cast keeps the whole part, 434"
+          },
+          {
+            "id": "c",
+            "text": "The refund is refused, since the cast to long rejects a product that is not a whole number",
+            "correct": false,
+            "says": "11.1: a cast truncates silently; refusing is what an exact conversion does with an amount finer than the currency"
+          },
+          {
+            "id": "d",
+            "text": "The refund is refused, since a pound amount with two decimals cannot be held in a long",
+            "correct": false,
+            "says": "11.1 and unit 3: a long holds minor units, so two decimals are no problem once the amount is in pence"
+          }
+        ],
+        "origin": {
+          "path": "src/11.md",
+          "section": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
+        }
+      },
+      {
+        "id": "q-sized-by-average",
+        "stem": "A switch averages 2 authorizations a second over the year. Its busiest hour has 72,000, with a burst factor of 4, and the rate stays at that peak for ten minutes. The issuers answer in 0.5 seconds, terminals give up after 30, and the team allowed 10 sessions, ten times the average need. What happens in those ten minutes?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Requests wait for a free session and many answers come too late, since about 40 need a session at once",
+            "correct": true,
+            "says": "11.3 and 11.4: 72,000 / 3600 x 4 = 80 a second, x 0.5 s = 40 in flight, four times the 10 sessions, so the wait grows every second and answers come after 30 s"
+          },
+          {
+            "id": "b",
+            "text": "Requests wait for a free session, but every answer still comes in time, since each holds one for 0.5 s",
+            "correct": false,
+            "says": "11.3 and 11.4: 10 sessions at 0.5 s serve 20 a second against 80 arriving, so the wait grows until answers are late"
+          },
+          {
+            "id": "c",
+            "text": "Every request gets a session at once, since 10 sessions are ten times the 1 that the average needs",
+            "correct": false,
+            "says": "11.3: capacity is sized from the busiest second; the yearly average says nothing about it"
+          },
+          {
+            "id": "d",
+            "text": "Every request gets a session at once, since about 10 need a session at once in the busiest hour",
+            "correct": false,
+            "says": "11.3: 10 in flight is the busiest hour's average second (20 a second x 0.5 s); the burst factor makes the peak 80 a second, so 40 are in flight"
+          }
+        ],
+        "origin": {
+          "path": "src/11.md",
+          "section": "11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+        }
+      },
+      {
+        "id": "q-dashboard",
+        "stem": "At the peak your switch handles 200 purchases a second. Its dashboard reports a mean answer time of 0.6 s, a median of 0.25 s and a 99th percentile of 34 s. Terminals give up after 25 s. What follows for the peak?",
+        "options": [
+          {
+            "id": "a",
+            "text": "About two purchases a second end in a reversal, since at least one answer in a hundred comes after the terminal gave up",
+            "correct": true,
+            "says": "11.3: the 99th percentile is past the terminal's timeout, so 1% or more of 200 a second have unknown outcomes and are reversed"
+          },
+          {
+            "id": "b",
+            "text": "About two purchases a second are sent to the issuer twice, since the switch repeats each request the terminal gave up on",
+            "correct": false,
+            "says": "11.3 and unit 4: a purchase with no answer is reversed, never sent again"
+          },
+          {
+            "id": "c",
+            "text": "No purchase ends in a reversal, since a mean answer time of 0.6 s is far below the terminal's limit of 25 s",
+            "correct": false,
+            "says": "11.3: the mean hides the slowest answers; the percentile shows answers past the terminal's timeout"
+          },
+          {
+            "id": "d",
+            "text": "No purchase ends in a reversal, since a median of 0.25 s shows that half the answers arrive at once",
+            "correct": false,
+            "says": "11.3: half the answers being fast says nothing about the slowest one in a hundred"
+          }
+        ],
+        "origin": {
+          "path": "src/11.md",
+          "section": "11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+        }
+      },
+      {
+        "id": "q-shared-pool",
+        "stem": "A switch shares 120 sessions between issuers P and Q. P gets 100 requests a second and answers in 0.2 s. Q gets 10 a second and, since this morning, answers each one after 20 s. No issuer has a limit of its own. What do P's cardholders see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Their answers come late, often after the terminal gave up, since Q's requests fill the sessions",
+            "correct": true,
+            "says": "11.4: Q alone needs 10 x 20 = 200 sessions, so it fills the pool and P's requests queue behind"
+          },
+          {
+            "id": "b",
+            "text": "Their answers come at once with 91, since the switch sees that the sessions are taken by Q",
+            "correct": false,
+            "says": "11.4: an immediate 91 needs a limit per issuer; with one shared pool, P's requests just wait"
+          },
+          {
+            "id": "c",
+            "text": "Their answers stay as fast as before, since P's host still answers each request in 0.2 s",
+            "correct": false,
+            "says": "11.4: P's host is healthy, but P's requests wait for a session before they reach it"
+          },
+          {
+            "id": "d",
+            "text": "Their answers stay as fast as before, since a request for P never waits behind a request for Q",
+            "correct": false,
+            "says": "11.4: with one pool, requests for every issuer queue for the same sessions"
+          }
+        ],
+        "origin": {
+          "path": "src/11.md",
+          "section": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+        }
+      },
+      {
+        "id": "q-refusal-code",
+        "stem": "Your switch answers for an issuer when that issuer already has 20 requests in flight. A colleague wants that answer to carry 05, so that terminals stop trying the purchase again. What does an 05 tell the acquirer and the cardholder?",
+        "options": [
+          {
+            "id": "a",
+            "text": "That the issuer refused the card, since 05 is a decline whoever sends it",
+            "correct": true,
+            "says": "11.4 and unit 9: 05 is a decision about the card, which the issuer never took; 91 reports that it could not be reached"
+          },
+          {
+            "id": "b",
+            "text": "That the issuer could not be reached, since the switch sends 05 in the issuer's place",
+            "correct": false,
+            "says": "11.4: that is what 91 says; 05 says the card was refused"
+          },
+          {
+            "id": "c",
+            "text": "That the purchase should be tried later, since 05 marks a failure that will pass",
+            "correct": false,
+            "says": "11.4 and unit 9: a decline is the issuer's decision about the card; only an error such as 91 leaves the cardholder free to try again"
+          },
+          {
+            "id": "d",
+            "text": "That the purchase should be reversed, since the switch never sent it on",
+            "correct": false,
+            "says": "11.4: none of the requests answered at once needs a reversal, since none reached the issuer"
+          }
+        ],
+        "origin": {
+          "path": "src/11.md",
+          "section": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+        }
+      }
+    ]
+  }
+}

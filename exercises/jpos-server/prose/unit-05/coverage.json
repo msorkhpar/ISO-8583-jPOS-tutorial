@@ -1,82 +1,197 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s5.md",
   "kind": "code",
+  "quiz": "brands-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s5.md": "sha256:047daa9599c66ae41ef5003af9ca0a5004dae77adfb97baf262d765d4558d847"
+    "src/s5.md": "sha256:1fb61f36cf789d360892ea92d80085c9382dbde83c1e1478a5b64c51b59f5541"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "network-required-fields",
-        "says": "Each network is checked against its own required data elements: Visa needs 42, 43 and 48, Mastercard needs 48, 61 and 63.",
+        "id": "bin-table-most-digits",
+        "says": "SelectDestination's BIN table is configuration, tried from the range written with the most digits; a Mastercard table written as 5 declines 2-series cards.",
         "basis": [
-          "example:src/s5.md:2",
-          "example:src/s5.md:3",
-          "section:2. Implement Visa-specific Participant",
-          "section:3. Implement Mastercard-specific Participant"
+          "section:5.2 The BIN Table Is Configuration, and the Most Specific Range Wins",
+          "example:src/s5.md:7",
+          "example:src/s5.md:8",
+          "example:src/s5.md:9"
         ],
-        "exercise": "check-by-card-network",
+        "exercise": "brands-quiz",
         "reason": null
       },
       {
-        "id": "pan-prefix-picks-network",
-        "says": "The card network is read from the leading digits of the card number in field 2: 4 is Visa, 51 to 55 is Mastercard, anything else is unknown.",
+        "id": "config-per-element",
+        "says": "Each participant element is its own instance with its own configuration; static configuration lets the last element configured decide for all.",
         "basis": [
-          "example:src/s5.md:5",
-          "section:5. Implement Card Type Identifier"
+          "section:5.4 Each `<participant>` Element Is Its Own Instance, With Its Own Configuration",
+          "example:src/s5.md:13",
+          "example:src/s5.md:14",
+          "example:src/s5.md:15"
         ],
-        "exercise": "check-by-card-network",
+        "exercise": "brand-currencies",
         "reason": null
       },
       {
-        "id": "participant-order",
-        "says": "The transaction manager runs participants in the order they are listed, so the card type identifier must come before the network participants that read its result.",
+        "id": "group-runs-at-selector",
+        "says": "A selector's select names groups that the TransactionManager runs, in the order named, right after the selector and before the rest of the chain.",
         "basis": [
+          "section:5.1 A Selector Names a Group, and the Group Runs Where the Selector Stands",
+          "example:src/s5.md:1",
           "example:src/s5.md:4",
-          "section:4. Configure Transaction Manager"
+          "example:src/s5.md:5"
+        ],
+        "exercise": "brands-quiz",
+        "reason": null
+      },
+      {
+        "id": "missing-group-silent",
+        "says": "A selector name with no group adds nothing, with only a WARNING in the transaction event, which debug false removes; the request goes on unchecked.",
+        "basis": [
+          "section:5.3 A Name With No Group Behind It Runs Nothing",
+          "example:src/s5.md:10",
+          "example:src/s5.md:11",
+          "example:src/s5.md:12"
+        ],
+        "exercise": "brands-quiz",
+        "reason": null
+      },
+      {
+        "id": "refuse-missing-config",
+        "says": "A missing or misspelt required property is refused in setConfiguration, so the deploy fails instead of the check passing everything.",
+        "basis": [
+          "section:5.4 Each `<participant>` Element Is Its Own Instance, With Its Own Configuration",
+          "example:src/s5.md:13",
+          "example:src/s5.md:16"
+        ],
+        "exercise": "brand-currencies",
+        "reason": null
+      },
+      {
+        "id": "reverse-what-was-sent",
+        "says": "Only a request the network received can need a reversal: a silent network does, a decline or a down link doesn't.",
+        "basis": [
+          "section:5.6 A Network That Doesn't Answer Has Not Declined",
+          "example:src/s5.md:23"
+        ],
+        "exercise": "network-timeout",
+        "reason": null
+      },
+      {
+        "id": "select-on-abort-path",
+        "says": "With call-selector-on-abort, select is called on the abort path without the selector's prepare, and only the abort participants of the selected group run.",
+        "basis": [
+          "section:5.1 A Selector Names a Group, and the Group Runs Where the Selector Stands",
+          "example:src/s5.md:6"
         ],
         "exercise": null,
-        "reason": "Spring wiring of a TransactionManager; the exercise keeps the order inside one participant, identifying the network before checking it"
+        "reason": "seen only in the transaction trail, which the lesson shows; no answer a terminal receives differs, so neither a test nor a scenario question would check more than a reading of the trail"
       },
       {
-        "id": "verdict-in-context",
-        "says": "A participant records its verdict (valid or not, and why) in the transaction Context for the participants after it, instead of throwing or answering the request itself.",
+        "id": "stock-reports-abort-answers",
+        "says": "CheckFields records failures in the Result and votes ABORTED without a response, extra fields fail by default, and an abort participant has to turn the failure into an answer.",
         "basis": [
-          "example:src/s5.md:1",
-          "example:src/s5.md:6",
-          "section:1. Create Custom Participants"
+          "section:5.5 A Stock Participant Reports a Failure, and an Abort Participant Has to Answer It",
+          "example:src/s5.md:17",
+          "example:src/s5.md:18"
         ],
-        "exercise": "check-by-card-network",
+        "exercise": "brands-quiz",
+        "reason": null
+      },
+      {
+        "id": "timeout-not-decline",
+        "says": "With continuations, QueryHost resumes a timed-out transaction as prepared with no response; a participant after it must fail the transaction so the terminal gets 91.",
+        "basis": [
+          "section:5.6 A Network That Doesn't Answer Has Not Declined",
+          "example:src/s5.md:19",
+          "example:src/s5.md:20",
+          "example:src/s5.md:21",
+          "example:src/s5.md:22"
+        ],
+        "exercise": "network-timeout",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "check-by-card-network",
+        "name": "brand-currencies",
         "aspects": [
-          "network-required-fields",
-          "pan-prefix-picks-network",
-          "verdict-in-context"
+          "config-per-element",
+          "refuse-missing-config"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "network-timeout",
+        "aspects": [
+          "reverse-what-was-sent",
+          "timeout-not-decline"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "brands-quiz",
+        "aspects": [
+          "bin-table-most-digits",
+          "group-runs-at-selector",
+          "missing-group-silent",
+          "stock-reports-abort-answers"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-05/practice-1"
+    "exercises/jpos-server/prose/unit-05/practice-1",
+    "exercises/jpos-server/prose/unit-05/practice-2",
+    "exercises/jpos-server/prose/unit-05/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-05/practice-1",
       "origin": {
         "path": "src/s5.md",
-        "section": "Implementation"
+        "section": "5.4 Each `<participant>` Element Is Its Own Instance, With Its Own Configuration"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-2",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "5.6 A Network That Doesn't Answer Has Not Declined"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-3:q-group-order",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "5.1 A Selector Names a Group, and the Group Runs Where the Selector Stands"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-3:q-overlapping-bins",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "5.2 The BIN Table Is Configuration, and the Most Specific Range Wins"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-3:q-missing-group",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "5.3 A Name With No Group Behind It Runs Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-05/practice-3:q-new-terminal-field",
+      "origin": {
+        "path": "src/s5.md",
+        "section": "5.5 A Stock Participant Reports a Failure, and an Abort Participant Has to Answer It"
       }
     }
   ],

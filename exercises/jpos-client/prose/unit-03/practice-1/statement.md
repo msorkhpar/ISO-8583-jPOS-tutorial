@@ -1,21 +1,12 @@
-A pool of connections is there so a request does not pay for a connect. The page's pool
-connects a channel once, when it makes it, and disconnects it only when the pool destroys it,
-so a request borrows a connection that is already open. Connect on every borrow instead, and
-every request opens a fresh connection and the pool saves nothing.
+A new acquirer link goes into pilot. Its interface spec says: "Every message is preceded by its
+length in two bytes, binary, most significant byte first. The length does not include the two
+length bytes. When the link is idle the host sends a message of length zero."
 
-Write `ChannelPool` on Apache Commons Pool 2 (`org.apache.commons.pool2`), built from a
-`Supplier<ISOChannel>` that makes a new, unconnected channel, and the most channels it may hold.
+Our reader for that link, `FrameReader` in `src/main/java/com/example/practice/FrameReader.java`,
+was never finished: its three methods are marked `TODO`. The comment on each says what it is for.
+Finish them so that `next()` returns each message the host meant, exactly as the host sent it,
+whatever the network does to the bytes on the way, and fails loudly when the connection drops in
+the middle of a message.
 
-- `withChannel(work)` borrows a connected channel, runs `work.apply(channel)`, gives the channel
-  back and returns what the work returned.
-- A channel is connected once, when the pool makes it, and stays connected while it sits in the
-  pool; returning it does not disconnect it.
-- `active()` and `idle()` say how many channels are borrowed and how many wait in the pool.
-- `close()` disconnects every channel the pool holds.
-
-Edge cases:
-
-- Work that throws still gives its channel back, and the exception reaches the caller unchanged.
-  A channel that is never returned is a connection lost to the pool for good.
-- A channel that dropped its connection while it sat in the pool is disconnected and thrown
-  away, and a freshly connected one is used instead.
+About 14 lines in total. The tests feed the reader streams that behave like real connections: some
+hand out a few bytes per read, some deliver several messages at once.

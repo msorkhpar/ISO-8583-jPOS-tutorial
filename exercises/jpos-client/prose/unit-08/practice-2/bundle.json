@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 8,
   "ordinal": 2,
-  "title": "Log a transaction without its card number",
+  "title": "Hand over a rejected message without handing over the card",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/TransactionLogger.java",
-  "test_file": "src/test/java/com/example/practice/TransactionLoggerTest.java",
+  "main_file": "src/main/java/com/example/practice/DeclineReport.java",
+  "test_file": "src/test/java/com/example/practice/DeclineReportTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.TransactionLoggerTest#logsTheMtiAndTheAmountInOneTransactionEvent",
+      "id": "com.example.practice.DeclineReportTest#theLogShowsBothMessagesFieldByField",
       "kind": "main",
-      "says": "a transaction is logged as one event carrying its MTI and its amount"
+      "says": "the log entry shows the request and the rejection field by field"
     },
     {
-      "id": "com.example.practice.TransactionLoggerTest#thePanIsMaskedToItsFirstSixAndLastFourDigits",
-      "kind": "edge",
-      "says": "the card number is masked to its first six and last four digits"
+      "id": "com.example.practice.DeclineReportTest#theDeskGetsTheRejectedMessage",
+      "kind": "main",
+      "says": "the dump for the support desk is an image of the rejected request that the packager can read back"
     },
     {
-      "id": "com.example.practice.TransactionLoggerTest#aMessageWithoutAPanLogsNoPanLine",
+      "id": "com.example.practice.DeclineReportTest#noCardDataReachesTheLog",
       "kind": "edge",
-      "says": "a message with no card number logs no card-number line"
+      "says": "the messages go into the entry as ISOMsg objects, so the filter masks them; a wrapper that dumps them itself passes card data through"
+    },
+    {
+      "id": "com.example.practice.DeclineReportTest#theDumpHoldsNoCardNumber",
+      "kind": "edge",
+      "says": "the bytes are text the filter never sees, so the card number is masked in what gets packed"
+    },
+    {
+      "id": "com.example.practice.DeclineReportTest#theDumpHoldsNoPinBlock",
+      "kind": "edge",
+      "says": "the binary secrets are blanked too, not only the card number and track data"
+    },
+    {
+      "id": "com.example.practice.DeclineReportTest#theRequestComesOutAsItWentIn",
+      "kind": "edge",
+      "says": "masking is done on a copy, so the client's own message keeps its real card data"
+    },
+    {
+      "id": "com.example.practice.DeclineReportTest#theDumpIsLaidOutLikeTheMessageTheHostReceived",
+      "kind": "edge",
+      "says": "card fields are masked rather than removed, so the dump keeps the host's lengths and bitmap"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/c8.md",
-    "section": "8.2 Implementing Logging in jPOS Client"
+    "section": "8.4 Bytes and Packager Traces Are Text Too"
   }
 }

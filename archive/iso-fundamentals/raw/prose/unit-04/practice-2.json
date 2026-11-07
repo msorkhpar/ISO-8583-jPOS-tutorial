@@ -8,8 +8,8 @@
   "unit": 4,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Decide what a response says about its request",
+  "ingested": "2026-11-05",
+  "title": "Hand each answer to the message it answers",
   "blocks": [
     {
       "type": "heading",
@@ -18,24 +18,15 @@
     },
     {
       "type": "para",
-      "text": "Every request on this page has its response: 0100 is answered by 0110, 0200 by 0210, 0400 by 0410, 0800 by 0810. Before you act on a response's field 39, you must be sure it answers the request you sent; approving a purchase on somebody else's \"00\" is how money goes missing."
+      "text": "An acquirer's link carries the messages of many terminals at once, and the host sends a few of its own. `Inbox` keeps every message the acquirer has sent and not yet seen answered. When something arrives, `deliver` hands it to the sent message it answers, or returns `null` so the caller can log it."
     },
     {
       "type": "para",
-      "text": "Write `Exchange.outcome(ISOMsg request, ISOMsg response)`. It returns `Outcome.APPROVED` when the response's field 39 is `00` and `Outcome.DECLINED` for any other response code, but only once the response is known to answer the request:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The request's third MTI digit must say it is a request (`0`), and the response's MTI must be the request's with that digit changed to response (`1`). Nothing else in the MTI changes.",
-        "The response must carry the same STAN (field 11) as the request.",
-        "The response must carry a response code (field 39)."
-      ]
+      "text": "`deliver` already works. Finish `answers(sent, incoming)` in `src/main/java/com/example/practice/Inbox.java`. When you're done, every answer reaches the message it belongs to, including answers to advices and to their repeats, and nothing else reaches anyone. About ten lines."
     },
     {
       "type": "para",
-      "text": "Anything else is refused with an `IllegalArgumentException`. `Outcome` is the nested enum in the starter."
+      "text": "The tests send messages from several terminals with STANs that sometimes coincide."
     },
     {
       "type": "heading",
@@ -50,7 +41,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        String asked = request.getMTI();\n        if (asked == null || asked.length() != 4 || asked.charAt(2) != '0') {\n            throw new IllegalArgumentException(\"not a request: \" + asked);\n        }\n        String answer = asked.substring(0, 2) + '1' + asked.charAt(3);\n        if (!answer.equals(response.getMTI())) {\n            throw new IllegalArgumentException(response.getMTI() + \" does not answer \" + asked);\n        }\n        String stan = request.getString(11);\n        if (stan == null || !stan.equals(response.getString(11))) {\n            throw new IllegalArgumentException(\"the response answers another STAN\");\n        }\n        String code = response.getString(39);\n        if (code == null) {\n            throw new IllegalArgumentException(\"the response has no response code\");\n        }\n        return \"00\".equals(code) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\nimport java.util.Objects;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        String mti = incoming.getMTI();\n        if (mti == null || !sent.isRequest())\n            return false;\n        ISOMsg expected = (ISOMsg) sent.clone();\n        expected.setResponseMTI();\n        return expected.getMTI().equals(mti)\n                && Objects.equals(sent.getString(11), incoming.getString(11))\n                && Objects.equals(sent.getString(41), incoming.getString(41));\n    }\n}\n"
         }
       ]
     },
@@ -62,7 +53,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        throw new UnsupportedOperationException(\"write outcome\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        // TODO: Many terminals share this link, and the other side also sends messages of its own.\n        //       Return true only when `incoming` is the other side's answer to this very message.\n        //       Neither message may change.\n        throw new IllegalStateException(\"TODO: answers\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -73,7 +64,7 @@
     "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -81,11 +72,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "7909e26878cf49cd8c65514f66a49c44bed83ab9f69f5ceb4193f2e1fc6a0811",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\n/** What a response says about the request it answers. */\npublic final class Exchange {\n\n    /** What the other side decided. */\n    public enum Outcome { APPROVED, DECLINED }\n\n    private Exchange() {\n    }\n\n    /** The outcome of {@code request}, as {@code response} reports it. */\n    public static Outcome outcome(ISOMsg request, ISOMsg response) throws Exception {\n        throw new UnsupportedOperationException(\"write outcome\");\n    }\n}\n",
+  "content_sha256": "28d627f8d1b4a178964c245ec0b6da4155f091efb781d12522049c40053360c1",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        // TODO: Many terminals share this link, and the other side also sends messages of its own.\n        //       Return true only when `incoming` is the other side's answer to this very message.\n        //       Neither message may change.\n        throw new IllegalStateException(\"TODO: answers\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Exchange.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/test/java/com/example/practice/ExchangeTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Inbox.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/test/java/com/example/practice/InboxTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -106,19 +97,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ExchangeTest#readsTheOutcomeOfAResponseThatAnswersItsRequest",
+        "id": "com.example.practice.InboxTest#anAnswerReachesTheMessageItAnswers",
         "kind": "main",
-        "says": "a response that answers its request is approved on response code 00 and declined on any other; a message that is not an answer, or has no response code, is refused"
+        "says": "an authorization, a purchase and an echo each receive their own answer, and the sent messages stay unchanged"
       },
       {
-        "id": "com.example.practice.ExchangeTest#aResponseOfAnotherClassIsNotTheAnswer",
-        "kind": "edge",
-        "says": "a response of another message class, such as 0210 to an 0100, does not answer the request"
+        "id": "com.example.practice.InboxTest#aMessageNobodyWaitsForReachesNobody",
+        "kind": "main",
+        "says": "an answer with another STAN, or the host's own request, reaches no waiting message"
       },
       {
-        "id": "com.example.practice.ExchangeTest#aResponseWithAnotherStanIsNotTheAnswer",
+        "id": "com.example.practice.InboxTest#anAnswerOfAnotherClassIsNotTheAnswer",
         "kind": "edge",
-        "says": "a response that carries a different STAN answers some other request"
+        "says": "a response of another class, such as an 0210 with the STAN of a waiting 0100, answers some other message"
+      },
+      {
+        "id": "com.example.practice.InboxTest#anAdviceIsAnsweredByAnAdviceResponse",
+        "kind": "edge",
+        "says": "an advice is answered by an advice response, so an 0220 takes an 0230 and not an 0210"
+      },
+      {
+        "id": "com.example.practice.InboxTest#aRepeatIsAnsweredLikeTheOriginal",
+        "kind": "edge",
+        "says": "a repeat is answered like the message it repeats, so an 0421 takes an 0430"
+      },
+      {
+        "id": "com.example.practice.InboxTest#anotherTerminalsAnswerIsNotYours",
+        "kind": "edge",
+        "says": "two terminals with the same STAN each receive their own answer, because the terminal ID is part of the match"
       }
     ],
     "report": {
@@ -127,11 +133,11 @@
     },
     "origin": {
       "path": "src/4.md",
-      "section": "4.1. Authorization messages"
+      "section": "4.1. The Third Digit Pairs Every Message With Its Answer"
     },
     "concepts": [
-      "Each request MTI has a response MTI that differs only in the function digit: 0100 and 0110, 0200 and 0210, 0400 and 0410, 0800 and 0810.",
-      "A response's field 39 carries the outcome: 00 means approved and any other code means declined or failed."
+      "The MTI pairs kinds of message, so a response belongs to a request only when it also carries the request's STAN and terminal ID.",
+      "A message's answer keeps its class and raises the function digit by one, so a request is answered by a response and an advice by an advice response, and a repeat is answered like the message it repeats."
     ]
   }
 }

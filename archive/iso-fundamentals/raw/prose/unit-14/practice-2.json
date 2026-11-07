@@ -8,8 +8,8 @@
   "unit": 14,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Swap the card number in field 2 for a token, and back",
+  "ingested": "2026-11-05",
+  "title": "Let only the station turn a token back into a card number",
   "blocks": [
     {
       "type": "heading",
@@ -18,31 +18,21 @@
     },
     {
       "type": "para",
-      "text": "Your acquirer wants card numbers out of every system that does not strictly need them. Messages leaving the secure zone should carry a token in field 2 instead of the PAN, and only the vault, inside the secure zone, may turn a token back into the card number. The token has to look like a card number, because routing, logging and receipts downstream still expect one."
-    },
-    {
-      "type": "para",
-      "text": "Write the class `PanVault` with two methods, each working on field 2 of the message in place:"
+      "text": "This picks up where the previous practice ended: `src/main/java/com/example/practice/TokenVault.java` already contains its solution. The vault issues good tokens now, but a penetration test of the whole platform reported this:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`protect(ISOMsg message)` replaces the PAN with a token: the same length, digits only, the first six digits (the BIN, which routing needs) and the last four (what the cardholder sees on a receipt) kept, the digits between replaced. A token equal to the card number protects nothing, so never hand one out.",
-        "`reveal(ISOMsg message)` replaces a token this vault issued with the card number it stands for."
+        "with the pharmacy app's own credentials, the testers got card numbers back for every token in its database;",
+        "the cinema's integration sent a pharmacy token with a cinema purchase, and the pharmacy's customer was charged;",
+        "a made-up token ended in a `NullPointerException` instead of a refusal the station could answer;",
+        "a customer who removed his saved card was charged with it weeks later."
       ]
     },
     {
       "type": "para",
-      "text": "Why the edges matter:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The same card must always get the same token, or reports and fraud checks downstream see one card as many.",
-        "A token the vault never issued is refused with an `ISOException`, and field 2 is left exactly as it was. Passing along an empty or unchanged field 2 would send a message on with no real card number in it."
-      ]
+      "text": "Finish `detokenize` and `revoke`, the two methods marked `TODO`. The comments say what each must achieve. The station, the component that builds the request for the network, calls `detokenize` with its permissions and the requestor it is acting for. About ten lines in total."
     },
     {
       "type": "heading",
@@ -57,7 +47,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.security.SecureRandom;\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    private final Map<String, String> tokenOfPan = new HashMap<>();\n    private final Map<String, String> panOfToken = new HashMap<>();\n    private final SecureRandom random = new SecureRandom();\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        String pan = message.getString(2);\n        String token = tokenOfPan.get(pan);\n        if (token == null) {\n            do {\n                token = generate(pan);\n            } while (token.equals(pan) || panOfToken.containsKey(token));\n            tokenOfPan.put(pan, token);\n            panOfToken.put(token, pan);\n        }\n        message.set(2, token);\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        String pan = panOfToken.get(message.getString(2));\n        if (pan == null) {\n            throw new ISOException(\"field 2 does not hold a token this vault issued\");\n        }\n        message.set(2, pan);\n    }\n\n    private String generate(String pan) {\n        StringBuilder token = new StringBuilder(pan.length());\n        for (int i = 0; i < pan.length(); i++) {\n            boolean kept = i < 6 || i >= pan.length() - 4;\n            token.append(kept ? pan.charAt(i) : (char) ('0' + random.nextInt(10)));\n        }\n        return token.toString();\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token, for the station building a request on the requestor's behalf. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        if (!callerPermissions.contains(\"DETOKENIZE\")) {\n            throw new SecurityException(\"caller may not detokenize\");\n        }\n        Entry e = byToken.get(token);\n        if (e == null || !e.requestor().equals(requestor)) {\n            throw new ISOException(\"unknown token\");\n        }\n        return sealer.open(e.sealedPan());\n    }\n\n    /** Withdraws a token, for example when the customer removes a saved card. */\n    public void revoke(String token) {\n        if (byToken.remove(token) != null) {\n            byRequestorAndCard.values().remove(token);\n        }\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        return requestor + \":\" + sealer.lookup(pan);\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        String token = newToken();\n        while (byToken.putIfAbsent(token, entry) != null) {\n            token = newToken();\n        }\n        return token;\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        StringBuilder sb = new StringBuilder(tokenBin);\n        while (sb.length() < 15) {\n            sb.append(random.nextInt(10));\n        }\n        return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();\n    }\n}\n"
         }
       ]
     },
@@ -69,7 +59,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write protect\");\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write reveal\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token, for the station building a request on the requestor's behalf. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        // TODO: Only a caller holding the DETOKENIZE permission may get a card number back; refuse\n        //       anyone else with a SecurityException. A token that must not lead to a card here is\n        //       refused with an ISOException, before anything is sent to an issuer.\n        throw new IllegalStateException(\"TODO: detokenize\");\n    }\n\n    /** Withdraws a token, for example when the customer removes a saved card. */\n    public void revoke(String token) {\n        // TODO: After this the token leads nowhere, and the card gets a new token the next time\n        //       its requestor presents it.\n        throw new IllegalStateException(\"TODO: revoke\");\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        return requestor + \":\" + sealer.lookup(pan);\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        String token = newToken();\n        while (byToken.putIfAbsent(token, entry) != null) {\n            token = newToken();\n        }\n        return token;\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        StringBuilder sb = new StringBuilder(tokenBin);\n        while (sb.length() < 15) {\n            sb.append(random.nextInt(10));\n        }\n        return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();\n    }\n}\n"
     }
   ],
   "video": null,
@@ -77,10 +67,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 2,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -88,11 +78,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "b2cd8ca93b447787cd8b3c3ec4374cb0c0dd86882b40bab0339f30458274d477",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Swaps the card number in field 2 for a format-preserving token, and back. */\npublic final class PanVault {\n\n    /** Replaces the PAN in field 2 with its token. */\n    public void protect(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write protect\");\n    }\n\n    /** Replaces a token this vault issued, in field 2, with its PAN. */\n    public void reveal(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write reveal\");\n    }\n}\n",
+  "content_sha256": "256f9b63259f114562f3c81972fc903f0dbf5c399d35725173dc3944067e3501",
+  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token, for the station building a request on the requestor's behalf. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        // TODO: Only a caller holding the DETOKENIZE permission may get a card number back; refuse\n        //       anyone else with a SecurityException. A token that must not lead to a card here is\n        //       refused with an ISOException, before anything is sent to an issuer.\n        throw new IllegalStateException(\"TODO: detokenize\");\n    }\n\n    /** Withdraws a token, for example when the customer removes a saved card. */\n    public void revoke(String token) {\n        // TODO: After this the token leads nowhere, and the card gets a new token the next time\n        //       its requestor presents it.\n        throw new IllegalStateException(\"TODO: revoke\");\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        return requestor + \":\" + sealer.lookup(pan);\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        String token = newToken();\n        while (byToken.putIfAbsent(token, entry) != null) {\n            token = newToken();\n        }\n        return token;\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        StringBuilder sb = new StringBuilder(tokenBin);\n        while (sb.length() < 15) {\n            sb.append(random.nextInt(10));\n        }\n        return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/com/example/practice/PanVault.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/test/java/com/example/practice/PanVaultTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/com/example/practice/TokenVault.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-2/src/test/java/com/example/practice/TokenVaultTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -113,19 +103,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.PanVaultTest#tokenKeepsTheShapeOfTheCardAndRevealsBack",
+        "id": "com.example.practice.TokenVaultTest#theStationGetsTheCardBehindAShopsToken",
         "kind": "main",
-        "says": "the token in field 2 keeps the card's length, first six and last four digits, is not the card number, and reveals back to it"
+        "says": "a caller with the DETOKENIZE permission, acting for the token's requestor, gets the card number back"
       },
       {
-        "id": "com.example.practice.PanVaultTest#sameCardAlwaysGetsTheSameToken",
+        "id": "com.example.practice.TokenVaultTest#onlyACallerAllowedToDetokenizeGetsTheCard",
         "kind": "edge",
-        "says": "tokenizing the same card twice gives the same token"
+        "says": "a caller without the DETOKENIZE permission is refused with a SecurityException, whatever else it may do"
       },
       {
-        "id": "com.example.practice.PanVaultTest#refusesATokenTheVaultNeverIssued",
+        "id": "com.example.practice.TokenVaultTest#anotherShopsTokenIsRefused",
         "kind": "edge",
-        "says": "a token the vault never issued is refused with an ISOException and field 2 is left as it was"
+        "says": "a token presented for a requestor it was not issued to is refused with an ISOException"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#anUnknownTokenIsRefused",
+        "kind": "edge",
+        "says": "a token the vault never issued is refused with an ISOException, not answered with nothing"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#aRevokedTokenLeadsNowhere",
+        "kind": "edge",
+        "says": "a revoked token no longer leads to its card"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#aCardWhoseTokenWasRevokedGetsANewOne",
+        "kind": "edge",
+        "says": "after a revoke the requestor's card gets a new token, and other requestors' tokens stay as they are"
       }
     ],
     "report": {
@@ -134,11 +139,10 @@
     },
     "origin": {
       "path": "src/14.md",
-      "section": "14.2. Tokenization"
+      "section": "14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
     },
     "concepts": [
-      "De-tokenization restores the card number in field 2 from the vault, and a token the vault does not know is refused rather than passed on.",
-      "A token keeps the shape of the card number it replaces, the same length with the first six and last four digits kept, so existing systems still accept it, and one card always gets one token."
+      "Only the station that builds the network message may detokenize, for the token's own requestor; unknown, revoked or foreign tokens are refused before anything reaches the issuer, and a revoked card gets a new token."
     ]
   }
 }

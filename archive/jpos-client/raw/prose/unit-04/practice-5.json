@@ -1,0 +1,189 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 5,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what happens to a request on its way",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-copied-queues",
+        "stem": "A colleague adds a second link. The new adaptor reads acq-send and writes acq-receive, and the new QMUX is given <in>acq-send</in> and <out>acq-receive</out>, copied from the adaptor's file, with <ready> set. The adaptor connects. What does the first purchase sent through this QMUX do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It waits out its timeout and returns null, since the QMUX puts it on a queue that only the adaptor writes to",
+            "correct": true,
+            "says": "QMUX's <in> must be the adaptor's <out>; with the names copied, the request sits in acq-receive and never leaves the JVM"
+          },
+          {
+            "id": "b",
+            "text": "It waits out its timeout and returns null, since the host gets it but the answer is put on the unhandled queue",
+            "correct": false,
+            "says": "the request never reaches the host: nothing reads the queue the QMUX wrote it to"
+          },
+          {
+            "id": "c",
+            "text": "It fails at once with an ISOException, since QMUX checks when it is deployed that its queues match the adaptor's",
+            "correct": false,
+            "says": "QMUX checks nothing about the adaptor; Q2 deploys it without an error"
+          },
+          {
+            "id": "d",
+            "text": "It fails at once with an ISOException, since isConnected() stays false while the two sets of queues disagree",
+            "correct": false,
+            "says": "isConnected() only looks at the ready entry, which the adaptor sets, so it is true; and request() does not check it anyway"
+          }
+        ],
+        "origin": {
+          "path": "src/c4.md",
+          "section": "4.1 QMUX Sits on the Adaptor's Queues, Crossed"
+        }
+      },
+      {
+        "id": "q-request-on-down-link",
+        "stem": "The link to the host drops at 12:00:00, and the adaptor reconnects at 12:00:08. At 12:00:03 a thread calls request(purchase, 15000) without asking isConnected() first. What happens to that purchase?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It goes out once the link is back, since it waits in the send queue for up to 15 seconds, and the thread gets the host's answer",
+            "correct": true,
+            "says": "request() never checks the link; the message waits in the queue with the timeout as its lifetime, and the adaptor sends it after reconnecting"
+          },
+          {
+            "id": "b",
+            "text": "It goes out once the link is back, since the adaptor replays what it missed, but the thread was already given null at 12:00:03",
+            "correct": false,
+            "says": "request() waits for its full timeout, not until it notices the link; it returns the answer that arrives within the 15 seconds"
+          },
+          {
+            "id": "c",
+            "text": "It never goes out, since QMUX refuses a request while the ready entry is missing, so the thread gets an ISOException",
+            "correct": false,
+            "says": "only send() refuses on a down link; request() queues the message"
+          },
+          {
+            "id": "d",
+            "text": "It never goes out, since the adaptor clears its send queue when it reconnects, so the thread gets null after 15 seconds",
+            "correct": false,
+            "says": "the adaptor sends what is still in the queue; a message is lost only if its lifetime runs out first"
+          }
+        ],
+        "origin": {
+          "path": "src/c4.md",
+          "section": "4.4 A Request on a Down Link Waits in the Queue"
+        }
+      },
+      {
+        "id": "q-slow-listener",
+        "stem": "A service sends every authorization with the listener form of request() and a 10-second timeout. Each listener stores the response in a database, which takes about 2 seconds, before completing the caller's future. At peak, 30 authorizations are outstanding on one link. What do you expect to see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Answers wait to be read while earlier listeners run, so some purchases time out although the host approved them",
+            "correct": true,
+            "says": "the listener runs on the adaptor's receiver thread, the only thread that reads the socket; while it works, no other answer is read"
+          },
+          {
+            "id": "b",
+            "text": "Answers wait in a queue for a free listener thread, so some purchases take 2 seconds longer but still complete in time",
+            "correct": false,
+            "says": "there is no listener pool: the receiver thread itself runs the listener and reads nothing else meanwhile"
+          },
+          {
+            "id": "c",
+            "text": "Each listener runs on the thread that sent its request, so some callers wait 2 seconds longer than the host took",
+            "correct": false,
+            "says": "the sending thread returned at once; the listener runs on a jPOS thread, not the caller's"
+          },
+          {
+            "id": "d",
+            "text": "Each listener runs on a new thread per response, so some database writes overlap while the answers keep flowing",
+            "correct": false,
+            "says": "answers are delivered on the receiver thread; expiries on a QMUX scheduler thread; jPOS does not start a thread per response"
+          }
+        ],
+        "origin": {
+          "path": "src/c4.md",
+          "section": "4.5 The Asynchronous Form Calls Back Once, With an Answer or With null"
+        }
+      },
+      {
+        "id": "q-pool-all-down",
+        "stem": "host-pool is a MUXPool with the primary-secondary strategy over host-mux and host-mux-b. Both links have been down for a minute. A thread calls request(purchase, 5000) on host-pool. What does it get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "null after about 5 seconds, since the pool keeps looking for a connected member until the timeout is spent",
+            "correct": true,
+            "says": "with no usable member the pool checks once a second until the timeout runs out, then returns null without sending"
+          },
+          {
+            "id": "b",
+            "text": "null after about 5 seconds, since the pool hands the purchase to host-mux, whose send queue holds it until it expires",
+            "correct": false,
+            "says": "the pool passes a request only to a usable member; with none, nothing is handed to any QMUX"
+          },
+          {
+            "id": "c",
+            "text": "an ISOException at once, since the pool refuses a blocking request when none of its members is connected",
+            "correct": false,
+            "says": "the blocking request returns null after the timeout; it is the listener form of the pool that throws, and only after waiting"
+          },
+          {
+            "id": "d",
+            "text": "an ISOException at once, since primary-secondary requires the first member to be connected before it will send",
+            "correct": false,
+            "says": "primary-secondary picks the first connected member in order, whichever it is; with none it waits and returns null"
+          }
+        ],
+        "origin": {
+          "path": "src/c4.md",
+          "section": "4.7.1 A Pool Takes the Name's Place"
+        }
+      }
+    ],
+    "concepts": [
+      "A response's listener runs on the adaptor's receiver thread, so a slow listener delays every answer on the link.",
+      "A MUXPool uses its first connected member under primary-secondary, and with none it keeps checking until the timeout and returns null.",
+      "QMUX's in queue is the adaptor's out queue and the other way round; copied unchanged, every request times out without leaving the JVM and without an error."
+    ]
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: where a failure shows up",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-ignore-iso-exceptions",
+        "stem": "Your ChannelAdaptor has <ignore-iso-exceptions>yes</ignore-iso-exceptions>. A purchase whose field 41 holds 9 characters, where the link's packager allows 8, is sent with mux.request(m, 20000), and nothing checks it beforehand. What does the caller get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "An ISOException, since QMUX packs each message before it puts it on the queue",
+            "correct": false,
+            "says": "QMUX never packs; the adaptor's sender thread packs the message when it writes to the socket"
+          },
+          {
+            "id": "b",
+            "text": "null, since the packing error stays on the adaptor's thread and nothing is sent",
+            "correct": true,
+            "says": "the sender logs the error and, with the switch on, keeps the link; nothing reaches the caller, which waits out its timeout"
+          },
+          {
+            "id": "c",
+            "text": "An ISOException, since the adaptor ignores the error for the link but hands it back to the waiting request",
+            "correct": false,
+            "says": "nothing carries an error from the adaptor's thread back to the waiting request; it only ever sees null"
+          },
+          {
+            "id": "d",
+            "text": "null, since the adaptor ignores the error, sends field 41 cut to 8 characters, and the host refuses it",
+            "correct": false,
+            "says": "the packager refuses a field that is too long instead of cutting it, so nothing is sent"
+          }
+        ],
+        "origin": {
+          "path": "src/c9.md",
+          "section": "9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+        }
+      },
+      {
+        "id": "q-duplicate-key",
+        "stem": "A purchase for terminal 29110045 with STAN 004512 fails: mux.request throws an ISOException whose message reads \"Duplicate key ... detected\". What does the host know about this purchase, and what may the client do with it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing, since QMUX refused it before sending it; the client may send it again with a new STAN",
+            "correct": true,
+            "says": "an ISOException from request means the message was refused before it was queued, so the host never saw it"
+          },
+          {
+            "id": "b",
+            "text": "Nothing yet, since QMUX refused it only until the other request ends; the client just waits for its answer",
+            "correct": false,
+            "says": "QMUX doesn't hold duplicates back; it throws at once and the message is never queued, so no answer will come"
+          },
+          {
+            "id": "c",
+            "text": "It may have it, since QMUX refused it only after the adaptor had taken it; the client must reverse it",
+            "correct": false,
+            "says": "the adaptor never sees a refused message: QMUX refuses it before anything is queued, so there is nothing to reverse"
+          },
+          {
+            "id": "d",
+            "text": "It may have it, since QMUX refused it only after sending it; the client must reverse it",
+            "correct": false,
+            "says": "QMUX checks the key before it queues the message, so the check failing means nothing was sent and there is nothing to reverse"
+          }
+        ],
+        "origin": {
+          "path": "src/c9.md",
+          "section": "9.1 Your Thread Sees Four Endings, and Each Says What the Host Knows"
+        }
+      },
+      {
+        "id": "q-unlisted-code",
+        "stem": "The host answers a purchase of 64.00 with field 39 set to R2, a code that isn't on the network's list your team was given. The till is waiting. What should the client do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Report a decline, since the host sent no code that counts as an approval",
+            "correct": false,
+            "says": "not being an approval doesn't make it a decline; if the code was an approval, a decline leaves the money moved and nothing gives it back"
+          },
+          {
+            "id": "b",
+            "text": "Treat it as no answer and send the purchase again, since the host owes the till an answer it can read",
+            "correct": false,
+            "says": "sending the same purchase again can charge the cardholder twice if the first was approved"
+          },
+          {
+            "id": "c",
+            "text": "Report a decline, since a purchase that got no approval code has not been approved",
+            "correct": false,
+            "says": "a decline needs no follow-up, so if the unlisted code was an approval the cardholder is charged and nothing gives the money back"
+          },
+          {
+            "id": "d",
+            "text": "Treat it as no answer and reverse it, since this answer can't settle the purchase",
+            "correct": true,
+            "says": "an answer that decides nothing is the same as no answer, and a reversal is safe whatever the host did"
+          }
+        ],
+        "origin": {
+          "path": "src/c9.md",
+          "section": "9.3 Field 39 Says Who Acts Next"
+        }
+      },
+      {
+        "id": "q-listener-throws",
+        "stem": "A request listener on host-mux calls Long.parseLong(m.getString(4)) on every message it is given. At noon the host sends an 0800 echo, which has no field 4, while 15 purchases on the same link wait for their answers. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The 0800 goes back to the host as an error, since QMUX catches the listener's exception on its own thread and answers it; the purchases are unaffected",
+            "correct": false,
+            "says": "QMUX never answers on its own, and it catches only an ISOException from building the key; a runtime exception from a listener passes through it"
+          },
+          {
+            "id": "b",
+            "text": "The link is closed and reopened, since QMUX disconnects the link when a listener fails; the waiting requests get an ISOException",
+            "correct": false,
+            "says": "QMUX doesn't disconnect anything; the adaptor's receiver does, and waiting requests only ever see null"
+          },
+          {
+            "id": "c",
+            "text": "The link is closed and reopened, since the exception ends in the adaptor's receiver thread; answers still on the socket are lost",
+            "correct": true,
+            "says": "listeners run on the receiver thread, and its catch block reconnects; purchases whose answers were lost get null"
+          },
+          {
+            "id": "d",
+            "text": "The 0800 goes to the unhandled queue, since QMUX catches the listener's exception on its own thread and moves on; the purchases are unaffected",
+            "correct": false,
+            "says": "nothing between the receiver and the listener catches a runtime exception, so QMUX never gets to the unhandled queue"
+          }
+        ],
+        "origin": {
+          "path": "src/c9.md",
+          "section": "9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
+        }
+      }
+    ],
+    "concepts": [
+      "A calling thread sees four endings: an ISOException and isConnected() false mean the host saw nothing, a response means it decided, and null means nobody knows.",
+      "With ignore-iso-exceptions the link survives a packing error, but the bad message still ends as null after the full timeout."
+    ]
+  }
+}

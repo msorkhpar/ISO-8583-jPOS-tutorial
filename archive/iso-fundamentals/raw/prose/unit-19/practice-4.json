@@ -1,0 +1,147 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 19,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Match the day's approvals with the clearing file",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A merchant group's acquirer gets the network's acknowledgement file every morning: one record per sale it presented the day before. Its operations team wants one report that says, for every record and every approval, what happened to it, so that each finding goes to whoever has to act."
+    },
+    {
+      "type": "para",
+      "text": "`ClearingMatcher.match` in `src/main/java/com/example/practice/ClearingMatcher.java` builds that report: one `Result` per clearing record, in the file's order, then one per approval that no record presented, in the journal's order. The kinds of finding are in `Kind`. Finish the three methods marked `TODO`; the comment on each says what it is for. About fifteen lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests use several terminals and compare whole lists of `Result`s."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.HashMap;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\n/** Matches the day's approvals in the acquirer's journal with the records of a clearing file. */\npublic final class ClearingMatcher {\n\n    /** One side's view of a sale: terminal (DE 41), retrieval reference number (DE 37), minor units. */\n    public record Item(String terminal, String rrn, long amount) { }\n\n    public enum Kind { MATCHED, AMOUNT_DIFFERS, DUPLICATE_PRESENTMENT, NOT_AUTHORIZED, NOT_PRESENTED }\n\n    /** One finding: the journal's item and the clearing record, either of them null when absent. */\n    public record Result(Kind kind, Item ours, Item theirs) { }\n\n    private ClearingMatcher() {\n    }\n\n    /**\n     * One result per clearing record, in the file's order, then one NOT_PRESENTED per approval no\n     * record presented, in the journal's order.\n     */\n    public static List<Result> match(List<Item> journal, List<Item> clearing) {\n        Map<String, Item> open = new LinkedHashMap<>();       // approvals not presented yet\n        for (Item i : journal)\n            open.put(key(i), i);\n        Map<String, Item> presented = new HashMap<>();        // approvals already presented\n        List<Result> results = new ArrayList<>();\n        for (Item c : clearing)\n            results.add(pair(c, open, presented));\n        results.addAll(leftOver(open));\n        return results;\n    }\n\n    /** What identifies one sale in both lists. */\n    static String key(Item i) {\n        return i.terminal() + \"/\" + i.rrn();\n    }\n\n    /** The finding for one clearing record; moves its approval from open to presented. */\n    static Result pair(Item record, Map<String, Item> open, Map<String, Item> presented) {\n        String k = key(record);\n        Item ours = open.remove(k);\n        if (ours != null) {\n            presented.put(k, ours);\n            return new Result(ours.amount() == record.amount() ? Kind.MATCHED : Kind.AMOUNT_DIFFERS, ours, record);\n        }\n        if (presented.containsKey(k))\n            return new Result(Kind.DUPLICATE_PRESENTMENT, presented.get(k), record);\n        return new Result(Kind.NOT_AUTHORIZED, null, record);\n    }\n\n    /** The findings for the approvals no clearing record presented. */\n    static List<Result> leftOver(Map<String, Item> open) {\n        List<Result> left = new ArrayList<>();\n        for (Item ours : open.values())\n            left.add(new Result(Kind.NOT_PRESENTED, ours, null));\n        return left;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.HashMap;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\n/** Matches the day's approvals in the acquirer's journal with the records of a clearing file. */\npublic final class ClearingMatcher {\n\n    /** One side's view of a sale: terminal (DE 41), retrieval reference number (DE 37), minor units. */\n    public record Item(String terminal, String rrn, long amount) { }\n\n    public enum Kind { MATCHED, AMOUNT_DIFFERS, DUPLICATE_PRESENTMENT, NOT_AUTHORIZED, NOT_PRESENTED }\n\n    /** One finding: the journal's item and the clearing record, either of them null when absent. */\n    public record Result(Kind kind, Item ours, Item theirs) { }\n\n    private ClearingMatcher() {\n    }\n\n    /**\n     * One result per clearing record, in the file's order, then one NOT_PRESENTED per approval no\n     * record presented, in the journal's order.\n     */\n    public static List<Result> match(List<Item> journal, List<Item> clearing) {\n        Map<String, Item> open = new LinkedHashMap<>();       // approvals not presented yet\n        for (Item i : journal)\n            open.put(key(i), i);\n        Map<String, Item> presented = new HashMap<>();        // approvals already presented\n        List<Result> results = new ArrayList<>();\n        for (Item c : clearing)\n            results.add(pair(c, open, presented));\n        results.addAll(leftOver(open));\n        return results;\n    }\n\n    /** What identifies one sale in both lists. */\n    static String key(Item i) {\n        // TODO: one line.\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** The finding for one clearing record; moves its approval from open to presented. */\n    static Result pair(Item record, Map<String, Item> open, Map<String, Item> presented) {\n        // TODO: Every clearing record ends in exactly one of the first four kinds. (about 10 lines)\n        throw new IllegalStateException(\"TODO: pair\");\n    }\n\n    /** The findings for the approvals no clearing record presented. */\n    static List<Result> leftOver(Map<String, Item> open) {\n        // TODO: about 4 lines.\n        throw new IllegalStateException(\"TODO: leftOver\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "714ca4b5930e0086f8fb818c0433408969fd399c30dd1144da0b6508ba5a1abd",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.HashMap;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\n/** Matches the day's approvals in the acquirer's journal with the records of a clearing file. */\npublic final class ClearingMatcher {\n\n    /** One side's view of a sale: terminal (DE 41), retrieval reference number (DE 37), minor units. */\n    public record Item(String terminal, String rrn, long amount) { }\n\n    public enum Kind { MATCHED, AMOUNT_DIFFERS, DUPLICATE_PRESENTMENT, NOT_AUTHORIZED, NOT_PRESENTED }\n\n    /** One finding: the journal's item and the clearing record, either of them null when absent. */\n    public record Result(Kind kind, Item ours, Item theirs) { }\n\n    private ClearingMatcher() {\n    }\n\n    /**\n     * One result per clearing record, in the file's order, then one NOT_PRESENTED per approval no\n     * record presented, in the journal's order.\n     */\n    public static List<Result> match(List<Item> journal, List<Item> clearing) {\n        Map<String, Item> open = new LinkedHashMap<>();       // approvals not presented yet\n        for (Item i : journal)\n            open.put(key(i), i);\n        Map<String, Item> presented = new HashMap<>();        // approvals already presented\n        List<Result> results = new ArrayList<>();\n        for (Item c : clearing)\n            results.add(pair(c, open, presented));\n        results.addAll(leftOver(open));\n        return results;\n    }\n\n    /** What identifies one sale in both lists. */\n    static String key(Item i) {\n        // TODO: one line.\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** The finding for one clearing record; moves its approval from open to presented. */\n    static Result pair(Item record, Map<String, Item> open, Map<String, Item> presented) {\n        // TODO: Every clearing record ends in exactly one of the first four kinds. (about 10 lines)\n        throw new IllegalStateException(\"TODO: pair\");\n    }\n\n    /** The findings for the approvals no clearing record presented. */\n    static List<Result> leftOver(Map<String, Item> open) {\n        // TODO: about 4 lines.\n        throw new IllegalStateException(\"TODO: leftOver\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-19/practice-4/src/main/java/com/example/practice/ClearingMatcher.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-19/practice-4/src/test/java/com/example/practice/ClearingMatcherTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-4/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-4/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ClearingMatcherTest#approvalsPresentedOnceAreMatchedInFileOrder",
+        "kind": "main",
+        "says": "each record that finds its approval at the same amount is MATCHED, in the file's order"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#aRecordWithNoApprovalIsNotAuthorized",
+        "kind": "main",
+        "says": "a clearing record with no approval in the journal is NOT_AUTHORIZED"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#anApprovalNobodyPresentedIsReported",
+        "kind": "main",
+        "says": "an approval no record presented is reported as NOT_PRESENTED after the records"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#twoTerminalsMayUseTheSameRrn",
+        "kind": "edge",
+        "says": "two terminals may use the same RRN, so the key is the terminal with the RRN"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#aSalePresentedTwiceIsADuplicateOfItsApproval",
+        "kind": "edge",
+        "says": "a record presented again after its approval was paired is a DUPLICATE_PRESENTMENT naming that approval"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#aTipIsReportedAsAnAmountThatDiffers",
+        "kind": "edge",
+        "says": "a record whose amount differs from its approval is AMOUNT_DIFFERS"
+      },
+      {
+        "id": "com.example.practice.ClearingMatcherTest#unpresentedApprovalsComeInJournalOrder",
+        "kind": "edge",
+        "says": "approvals never presented are reported in the journal's order"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-19/practice-4/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/19.md",
+      "section": "19.5. Matching Puts Every Record in One Category, and Each Category Has an Owner"
+    },
+    "concepts": [
+      "Matching on the terminal with the RRN puts every clearing record and every approval in exactly one category: matched, amount differs, duplicate presentment, not authorized or not presented."
+    ]
+  }
+}

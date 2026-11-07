@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 3,
   "ordinal": 1,
-  "title": "Pool channels so they stay connected between uses",
+  "title": "Read a host's messages off a byte stream",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ChannelPool.java",
-  "test_file": "src/test/java/com/example/practice/ChannelPoolTest.java",
+  "main_file": "src/main/java/com/example/practice/FrameReader.java",
+  "test_file": "src/test/java/com/example/practice/FrameReaderTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ChannelPoolTest#aChannelIsConnectedOnceAndReused",
+      "id": "com.example.practice.FrameReaderTest#aMessageIsReturnedWithoutItsLength",
       "kind": "main",
-      "says": "two pieces of work run on the same channel, connected once and still connected between them, and closing the pool disconnects it"
+      "says": "a framed message comes back as exactly the bytes the host sent, without its length"
     },
     {
-      "id": "com.example.practice.ChannelPoolTest#aChannelGoesBackEvenWhenTheWorkFails",
-      "kind": "edge",
-      "says": "work that throws still gives its channel back, and the error reaches the caller"
+      "id": "com.example.practice.FrameReaderTest#aLongMessageIsReturnedWhole",
+      "kind": "main",
+      "says": "a message longer than 255 bytes uses both length bytes and comes back whole"
     },
     {
-      "id": "com.example.practice.ChannelPoolTest#aDroppedChannelIsReplacedNotHandedOut",
+      "id": "com.example.practice.FrameReaderTest#aMessageThatArrivesInPiecesIsReturnedWhole",
       "kind": "edge",
-      "says": "a channel that lost its connection while idle is thrown away and a freshly connected one is used"
+      "says": "a message whose bytes arrive over several reads is still returned whole, because one read is not one message"
+    },
+    {
+      "id": "com.example.practice.FrameReaderTest#twoMessagesThatArriveTogetherAreReturnedOneAtATime",
+      "kind": "edge",
+      "says": "two messages that arrive in one read come out one per call, each with exactly its announced length"
+    },
+    {
+      "id": "com.example.practice.FrameReaderTest#aMessageOf200BytesIsReturnedWhole",
+      "kind": "edge",
+      "says": "the binary length is an unsigned number, so a length byte above 127 still counts up"
+    },
+    {
+      "id": "com.example.practice.FrameReaderTest#aStreamThatEndsInsideAMessageIsAnError",
+      "kind": "edge",
+      "says": "a stream that ends before the announced length has arrived raises EOFException instead of returning a short message"
+    },
+    {
+      "id": "com.example.practice.FrameReaderTest#anIdleHostsEmptyMessagesAreSkipped",
+      "kind": "edge",
+      "says": "a zero-length frame is a keep-alive and is skipped, so the next real message is returned"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/c3.md",
-    "section": "3.1.3 Advanced Usage with Connection Pool"
+    "section": "3.2 One Read Is Not One Message"
   }
 }

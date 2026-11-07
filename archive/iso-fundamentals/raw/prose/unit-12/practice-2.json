@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Charge each payment once, however often the shop calls",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The gateway's `POST /payments` now keeps its idempotency keys in a database table instead of a map in memory, so that they survive a restart and every gateway node sees the same keys. Shops' HTTP clients give up after a few seconds and call again with the same `Idempotency-Key`. Some call twice at once from two servers, and one shop's release reused keys for a day."
+    },
+    {
+      "type": "para",
+      "text": "Write `pay` in `src/main/java/com/example/practice/PaymentsEndpoint.java`. A cardholder pays at most once for each payment a shop sends, and every call, first or repeated, tells the shop the truth about that payment with one of the statuses listed on `Result`."
+    },
+    {
+      "type": "para",
+      "text": "Everything else is in the file. `KeyTable` behaves like a table with a unique constraint on its key column. `Host.request` returns `null` when no answer came in time. `purchase` builds the 0200, `reversalOf` the 0420 that undoes it (add it to `reversals`, which a store-and-forward sender delivers), and `outcomeOf` reads the host's answer. About twenty lines."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Optional;\n\n/** What the gateway does for POST /payments: one 0200 to the acquirer's host per payment. */\npublic final class PaymentsEndpoint {\n\n    /** The JSON body of a payment, already mapped (the card is a test PAN, the amount in USD). */\n    public record Payment(String card, BigDecimal amount, String terminal) {\n    }\n\n    /**\n     * What the shop is told. Status is APPROVED (with the approval code), DECLINED, FAILED (no answer\n     * from the host; the purchase was reversed), REFUSED (the call can't be accepted) or IN_PROGRESS\n     * (another call with the same key is still waiting for the host).\n     */\n    public record Result(String status, String approvalCode) {\n    }\n\n    /** The acquirer's host: the response, or null when none came in time. */\n    public interface Host {\n        ISOMsg request(ISOMsg m) throws ISOException;\n    }\n\n    /** Thrown by {@link KeyTable#insert} when the key is already in the table. */\n    public static final class DuplicateKeyException extends Exception {\n        DuplicateKeyException(String key) {\n            super(\"duplicate key \" + key);\n        }\n    }\n\n    /** A database table of idempotency keys, with a unique constraint on the key column. */\n    public static final class KeyTable {\n        /** One row: the payment the key was first used for, and its result once known (null until then). */\n        public record Row(Payment payment, Result result) {\n        }\n\n        private final Map<String, Row> rows = new HashMap<>();\n\n        public synchronized void insert(String key, Payment payment) throws DuplicateKeyException {\n            if (rows.containsKey(key))\n                throw new DuplicateKeyException(key);\n            rows.put(key, new Row(payment, null));\n        }\n\n        public synchronized Optional<Row> find(String key) {\n            return Optional.ofNullable(rows.get(key));\n        }\n\n        /** Stores the result of the row's payment; insert the row first. */\n        public synchronized void complete(String key, Result result) {\n            Row row = rows.get(key);\n            if (row == null)\n                throw new IllegalStateException(\"no row for key \" + key);\n            rows.put(key, new Row(row.payment(), result));\n        }\n\n        public synchronized void delete(String key) {\n            rows.remove(key);\n        }\n    }\n\n    private final Host host;\n    private final KeyTable keys;\n    private final List<ISOMsg> reversals = Collections.synchronizedList(new ArrayList<>());\n    private int stan;\n\n    public PaymentsEndpoint(Host host, KeyTable keys) {\n        this.host = host;\n        this.keys = keys;\n    }\n\n    /** The shop's call: {@code key} is its Idempotency-Key header. */\n    public Result pay(String key, Payment p) throws ISOException {\n        try {\n            keys.insert(key, p);\n        } catch (DuplicateKeyException e) {\n            KeyTable.Row row = keys.find(key).orElseThrow();\n            if (!row.payment().equals(p))\n                return new Result(\"REFUSED\", null);\n            return row.result() != null ? row.result() : new Result(\"IN_PROGRESS\", null);\n        }\n        ISOMsg request = purchase(p);\n        ISOMsg response = host.request(request);\n        Result result;\n        if (response == null) {\n            reversals.add(reversalOf(request));\n            result = new Result(\"FAILED\", null);\n        } else {\n            result = outcomeOf(response);\n        }\n        keys.complete(key, result);\n        return result;\n    }\n\n    /** Reversals waiting to be delivered to the host by the store-and-forward sender. */\n    public List<ISOMsg> reversals() {\n        synchronized (reversals) {\n            return new ArrayList<>(reversals);\n        }\n    }\n\n    /** A new 0200 for the payment, with the link's next STAN. */\n    synchronized ISOMsg purchase(Payment p) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, p.card());\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(p.amount().movePointRight(2).toBigIntegerExact().toString(), 12));\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(41, p.terminal());\n        m.set(49, \"840\");\n        return m;\n    }\n\n    /** The 0420 that undoes {@code original} if the host approved it. */\n    synchronized ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(new int[] { 2, 3, 4, 41, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad(++stan, 6));\n        rev.set(90, original.getMTI() + original.getString(11) + ISOUtil.zeropad(\"\", 32));\n        return rev;\n    }\n\n    /** The shop's result for the host's answer. */\n    static Result outcomeOf(ISOMsg response) {\n        return \"00\".equals(response.getString(39))\n                ? new Result(\"APPROVED\", response.getString(38))\n                : new Result(\"DECLINED\", null);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Optional;\n\n/** What the gateway does for POST /payments: one 0200 to the acquirer's host per payment. */\npublic final class PaymentsEndpoint {\n\n    /** The JSON body of a payment, already mapped (the card is a test PAN, the amount in USD). */\n    public record Payment(String card, BigDecimal amount, String terminal) {\n    }\n\n    /**\n     * What the shop is told. Status is APPROVED (with the approval code), DECLINED, FAILED (no answer\n     * from the host; the purchase was reversed), REFUSED (the call can't be accepted) or IN_PROGRESS\n     * (another call with the same key is still waiting for the host).\n     */\n    public record Result(String status, String approvalCode) {\n    }\n\n    /** The acquirer's host: the response, or null when none came in time. */\n    public interface Host {\n        ISOMsg request(ISOMsg m) throws ISOException;\n    }\n\n    /** Thrown by {@link KeyTable#insert} when the key is already in the table. */\n    public static final class DuplicateKeyException extends Exception {\n        DuplicateKeyException(String key) {\n            super(\"duplicate key \" + key);\n        }\n    }\n\n    /** A database table of idempotency keys, with a unique constraint on the key column. */\n    public static final class KeyTable {\n        /** One row: the payment the key was first used for, and its result once known (null until then). */\n        public record Row(Payment payment, Result result) {\n        }\n\n        private final Map<String, Row> rows = new HashMap<>();\n\n        public synchronized void insert(String key, Payment payment) throws DuplicateKeyException {\n            if (rows.containsKey(key))\n                throw new DuplicateKeyException(key);\n            rows.put(key, new Row(payment, null));\n        }\n\n        public synchronized Optional<Row> find(String key) {\n            return Optional.ofNullable(rows.get(key));\n        }\n\n        /** Stores the result of the row's payment; insert the row first. */\n        public synchronized void complete(String key, Result result) {\n            Row row = rows.get(key);\n            if (row == null)\n                throw new IllegalStateException(\"no row for key \" + key);\n            rows.put(key, new Row(row.payment(), result));\n        }\n\n        public synchronized void delete(String key) {\n            rows.remove(key);\n        }\n    }\n\n    private final Host host;\n    private final KeyTable keys;\n    private final List<ISOMsg> reversals = Collections.synchronizedList(new ArrayList<>());\n    private int stan;\n\n    public PaymentsEndpoint(Host host, KeyTable keys) {\n        this.host = host;\n        this.keys = keys;\n    }\n\n    /** The shop's call: {@code key} is its Idempotency-Key header. */\n    public Result pay(String key, Payment p) throws ISOException {\n        // TODO: shops call again with the same key whenever their HTTP client times out, sometimes\n        //       twice at once, and now and then reuse a key by mistake. Whatever the calls, a\n        //       payment reaches the host at most once, and every call tells the shop the truth\n        //       about it. The key table, purchase, reversalOf and outcomeOf are ready to use.\n        throw new IllegalStateException(\"TODO: pay\");\n    }\n\n    /** Reversals waiting to be delivered to the host by the store-and-forward sender. */\n    public List<ISOMsg> reversals() {\n        synchronized (reversals) {\n            return new ArrayList<>(reversals);\n        }\n    }\n\n    /** A new 0200 for the payment, with the link's next STAN. */\n    synchronized ISOMsg purchase(Payment p) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, p.card());\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(p.amount().movePointRight(2).toBigIntegerExact().toString(), 12));\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(41, p.terminal());\n        m.set(49, \"840\");\n        return m;\n    }\n\n    /** The 0420 that undoes {@code original} if the host approved it. */\n    synchronized ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(new int[] { 2, 3, 4, 41, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad(++stan, 6));\n        rev.set(90, original.getMTI() + original.getString(11) + ISOUtil.zeropad(\"\", 32));\n        return rev;\n    }\n\n    /** The shop's result for the host's answer. */\n    static Result outcomeOf(ISOMsg response) {\n        return \"00\".equals(response.getString(39))\n                ? new Result(\"APPROVED\", response.getString(38))\n                : new Result(\"DECLINED\", null);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ee536708813d1c197a83095eb17683d064e25d75bff797bfab62312659f3b581",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Optional;\n\n/** What the gateway does for POST /payments: one 0200 to the acquirer's host per payment. */\npublic final class PaymentsEndpoint {\n\n    /** The JSON body of a payment, already mapped (the card is a test PAN, the amount in USD). */\n    public record Payment(String card, BigDecimal amount, String terminal) {\n    }\n\n    /**\n     * What the shop is told. Status is APPROVED (with the approval code), DECLINED, FAILED (no answer\n     * from the host; the purchase was reversed), REFUSED (the call can't be accepted) or IN_PROGRESS\n     * (another call with the same key is still waiting for the host).\n     */\n    public record Result(String status, String approvalCode) {\n    }\n\n    /** The acquirer's host: the response, or null when none came in time. */\n    public interface Host {\n        ISOMsg request(ISOMsg m) throws ISOException;\n    }\n\n    /** Thrown by {@link KeyTable#insert} when the key is already in the table. */\n    public static final class DuplicateKeyException extends Exception {\n        DuplicateKeyException(String key) {\n            super(\"duplicate key \" + key);\n        }\n    }\n\n    /** A database table of idempotency keys, with a unique constraint on the key column. */\n    public static final class KeyTable {\n        /** One row: the payment the key was first used for, and its result once known (null until then). */\n        public record Row(Payment payment, Result result) {\n        }\n\n        private final Map<String, Row> rows = new HashMap<>();\n\n        public synchronized void insert(String key, Payment payment) throws DuplicateKeyException {\n            if (rows.containsKey(key))\n                throw new DuplicateKeyException(key);\n            rows.put(key, new Row(payment, null));\n        }\n\n        public synchronized Optional<Row> find(String key) {\n            return Optional.ofNullable(rows.get(key));\n        }\n\n        /** Stores the result of the row's payment; insert the row first. */\n        public synchronized void complete(String key, Result result) {\n            Row row = rows.get(key);\n            if (row == null)\n                throw new IllegalStateException(\"no row for key \" + key);\n            rows.put(key, new Row(row.payment(), result));\n        }\n\n        public synchronized void delete(String key) {\n            rows.remove(key);\n        }\n    }\n\n    private final Host host;\n    private final KeyTable keys;\n    private final List<ISOMsg> reversals = Collections.synchronizedList(new ArrayList<>());\n    private int stan;\n\n    public PaymentsEndpoint(Host host, KeyTable keys) {\n        this.host = host;\n        this.keys = keys;\n    }\n\n    /** The shop's call: {@code key} is its Idempotency-Key header. */\n    public Result pay(String key, Payment p) throws ISOException {\n        // TODO: shops call again with the same key whenever their HTTP client times out, sometimes\n        //       twice at once, and now and then reuse a key by mistake. Whatever the calls, a\n        //       payment reaches the host at most once, and every call tells the shop the truth\n        //       about it. The key table, purchase, reversalOf and outcomeOf are ready to use.\n        throw new IllegalStateException(\"TODO: pay\");\n    }\n\n    /** Reversals waiting to be delivered to the host by the store-and-forward sender. */\n    public List<ISOMsg> reversals() {\n        synchronized (reversals) {\n            return new ArrayList<>(reversals);\n        }\n    }\n\n    /** A new 0200 for the payment, with the link's next STAN. */\n    synchronized ISOMsg purchase(Payment p) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, p.card());\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(p.amount().movePointRight(2).toBigIntegerExact().toString(), 12));\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(41, p.terminal());\n        m.set(49, \"840\");\n        return m;\n    }\n\n    /** The 0420 that undoes {@code original} if the host approved it. */\n    synchronized ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(new int[] { 2, 3, 4, 41, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad(++stan, 6));\n        rev.set(90, original.getMTI() + original.getString(11) + ISOUtil.zeropad(\"\", 32));\n        return rev;\n    }\n\n    /** The shop's result for the host's answer. */\n    static Result outcomeOf(ISOMsg response) {\n        return \"00\".equals(response.getString(39))\n                ? new Result(\"APPROVED\", response.getString(38))\n                : new Result(\"DECLINED\", null);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-12/practice-2/src/main/java/com/example/practice/PaymentsEndpoint.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-12/practice-2/src/test/java/com/example/practice/PaymentsEndpointTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-12/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-12/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#aFirstCallIsSentAndApproved",
+        "kind": "main",
+        "says": "a first call sends one 0200 and tells the shop the host's approval"
+      },
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#aRetryAfterALostAnswerGetsTheFirstAnswer",
+        "kind": "main",
+        "says": "a retry with the same key gets the first call's answer and sends nothing"
+      },
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#aRetryAfterNoAnswerIsToldItFailedAndNothingIsSentAgain",
+        "kind": "edge",
+        "says": "when the host never answered, the purchase is reversed once and a retry with the key is told it failed, without a second 0200"
+      },
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#aKeyReusedForAnotherPaymentIsRefused",
+        "kind": "edge",
+        "says": "a key sent again with another payment is refused instead of answered with the first payment's approval"
+      },
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#aRetryWhileTheFirstCallWaitsIsNotSent",
+        "kind": "edge",
+        "says": "a retry that arrives while the first call still waits for the host is told so and sends nothing"
+      },
+      {
+        "id": "com.example.practice.PaymentsEndpointTest#twoPaymentsAlikeWithTheirOwnKeysAreBothSent",
+        "kind": "edge",
+        "says": "two identical payments with their own keys are two purchases"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-12/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/12.md",
+      "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+    },
+    "concepts": [
+      "The gateway claims each idempotency key atomically, refuses it for another payment and answers every retry with the stored outcome, failures included, so one key sends at most one 0200."
+    ]
+  }
+}

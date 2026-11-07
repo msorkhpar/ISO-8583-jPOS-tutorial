@@ -1,24 +1,17 @@
-A server answers most requests by sending back the same message with a few changes: the
-response MTI, a response code and an authorization code. The page does that in a
-`TransactionParticipant` by cloning the request. The request stays in the `Context` too,
-and later participants (and the log) must see it exactly as it arrived.
+An ATM network is adding machines in Seoul and Kuwait City to its euro machines. Each machine
+pays out only whole notes of its currency, up to a maximum per withdrawal, and the server refuses
+anything else before the cash dispenser is asked. The table of notes and maximums,
+`CASSETTES`, is in `src/main/java/com/example/practice/CashWithdrawal.java`, and so is the
+participant, which already answers every request it can read.
 
-Write `DataElementHandler`, a jPOS `TransactionParticipant`. Its `prepare` reads the request
-`ISOMsg` from the `Context` under `"REQUEST"` and puts under `"RESPONSE"` a message that:
+Finish the two methods marked `TODO`:
 
-- carries every data element of the request, with the same values;
-- has the response MTI (`0200` becomes `0210`, `0100` becomes `0110`), set by jPOS rather than
-  worked out by hand;
-- adds field 39 = `00` (approved) and field 38 = `123456` (the authorization code).
+- `amountOf(...)`: what the cardholder asked for;
+- `decide(...)`: the answer for an amount the server could read.
 
-It then returns `PREPARED | NO_JOIN | READONLY`.
+When you're done, every withdrawal gets a response in the Context, whatever the ATM put in its
+fields, and the won and dinar machines pay out what their cardholders asked for. About fifteen
+lines in total.
 
-Watch for:
-
-- the request must come out unchanged: no response MTI and no field 38 or 39 on it;
-- a message that is already a response (`0210`, say) has no response to take. jPOS refuses it
-  with an `ISOException`. Put that exception in the `Context` under `"EXCEPTION"`, put no
-  `"RESPONSE"`, and return `ABORTED | NO_JOIN | READONLY`.
-
-In jPOS 2.1.7 `prepare` is declared as `int prepare(long id, Serializable context)`; the
-page's `Context` parameter comes from a later version, so cast it yourself.
+The tests hand `prepare` each request the way the server's channel would: packed by the ATM's
+side and unpacked with `iso87ascii.xml`.

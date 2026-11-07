@@ -1,20 +1,17 @@
-PCI-DSS lets a PAN be shown only with its first six and last four digits visible. Screens,
-support tools and log lines all show messages, so the rule is applied to the copy that is
-shown, while the message being processed keeps the real card number it needs.
+Every night support exports its tickets to an analytics vendor. Before the vendor is allowed to
+receive them, the compliance team wants a report of the tickets that hold card numbers, so that
+those can be cleaned first and the vendor can stay out of scope.
 
-Write `CardMasking.forDisplay(ISOMsg message)`. It returns a copy of the message fit to
-show:
+Customers type card numbers the way they read them off the card, in groups, with spaces or dashes
+or neither. Support staff paste lines from terminal logs. Tickets also hold dates, phone numbers,
+order numbers and case references.
 
-- field 2, the PAN, keeps its first six and last four digits, and every digit between them
-  is replaced by `*` (`4111111111111111` is shown as `411111******1111`);
-- every other field is carried over as it is;
-- a message with no field 2 is copied as it is.
+`CardNumberFinder.find` in `src/main/java/com/example/practice/CardNumberFinder.java` already walks
+the ticket and builds the report. Finish the three methods marked `TODO`:
 
-Edge cases:
+- `candidates()`: what in a ticket might be a card number;
+- `isCardNumber(...)`: which candidates are one;
+- `shown(...)`: how a card number appears in the report.
 
-- PANs are not all sixteen digits. However long the PAN, exactly the first six and the
-  last four stay visible.
-- The message passed in is not changed. It is still being processed, and it needs its full
-  PAN.
-
-`ISOUtil.protect` masks with `_`, not `*`, so if you use it, mind the character.
+When you're done, the report lists every card number in a ticket, where it starts, and in a form
+that is safe to hand around, and nothing else. About ten lines in total.

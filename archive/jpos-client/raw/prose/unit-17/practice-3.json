@@ -1,0 +1,151 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Keep the bytes of a failed unpack out of the log, and for the team",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The scrubber in 17.6 keeps card numbers out of the log, and it throws away the one thing the support desk keeps asking for: the bytes of a reply the client couldn't read. The team wants those bytes kept, but not in the log, which is shipped to a platform many people can search. They go to an `EvidenceStore` that only the team can read, labelled with the event's realm and with the part they came from."
+    },
+    {
+      "type": "para",
+      "text": "`EvidenceKeeper` in `src/main/java/com/example/practice/EvidenceKeeper.java` takes the scrubber's place in the logger, after `ProtectedLogListener` and before the writers. Finish the two methods marked `TODO`: `log` and `entryFor`."
+    },
+    {
+      "type": "para",
+      "text": "When you're done, no raw bytes reach the writers, the store holds the exact bytes of every failed unpack, so that a test can be built from them, and everything else in the event reaches the writers as it did before. About 15 lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests build `receive` events the way a channel builds them, with and without a header, with an image from `DebugFilter`, and run one through a logger with a writer after the keeper."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.List;\n\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Dumpable;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/**\n * A log listener that keeps the raw bytes a channel logs out of the log, and hands the bytes of a\n * failed unpack to the team's evidence store instead.\n */\npublic class EvidenceKeeper implements LogListener {\n    public static final String WITHHELD = \"[raw bytes withheld]\";\n    public static final String KEPT = \"[raw bytes kept as evidence]\";\n\n    /** Given: where the team keeps raw bytes. Only the team reads it; it is never shipped with the log. */\n    public interface EvidenceStore {\n        /** @param part \"header\" or \"data\" */\n        void keep(String realm, String part, byte[] bytes);\n    }\n\n    private final EvidenceStore store;\n\n    public EvidenceKeeper(EvidenceStore store) {\n        this.store = store;\n    }\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        List<Object> payload = ev.getPayLoad();\n        synchronized (payload) {\n            for (int i = 0; i < payload.size(); i++)\n                payload.set(i, entryFor(payload.get(i), i > 0 ? payload.get(i - 1) : null, ev.getRealm()));\n        }\n        return ev;\n    }\n\n    /** What the log shows in place of one payload entry; `before` is the entry in front of it, or null. */\n    Object entryFor(Object entry, Object before, String realm) {\n        if (entry instanceof Dumpable)\n            return WITHHELD;\n        if (entry instanceof String && (\"--- data ---\".equals(before) || \"--- header ---\".equals(before))) {\n            String part = \"--- data ---\".equals(before) ? \"data\" : \"header\";\n            store.keep(realm, part, ISOUtil.decodeHexDump((String) entry));\n            return KEPT;\n        }\n        return entry;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/**\n * A log listener that keeps the raw bytes a channel logs out of the log, and hands the bytes of a\n * failed unpack to the team's evidence store instead.\n */\npublic class EvidenceKeeper implements LogListener {\n    public static final String WITHHELD = \"[raw bytes withheld]\";\n    public static final String KEPT = \"[raw bytes kept as evidence]\";\n\n    /** Given: where the team keeps raw bytes. Only the team reads it; it is never shipped with the log. */\n    public interface EvidenceStore {\n        /** @param part \"header\" or \"data\" */\n        void keep(String realm, String part, byte[] bytes);\n    }\n\n    private final EvidenceStore store;\n\n    public EvidenceKeeper(EvidenceStore store) {\n        this.store = store;\n    }\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        // TODO: Called for every event, before the writers. Put what entryFor returns in place of\n        //       each payload entry. The channel that created the event may still be adding to\n        //       it. (about 6 lines)\n        throw new IllegalStateException(\"TODO: log\");\n    }\n\n    /** What the log shows in place of one payload entry; `before` is the entry in front of it, or null. */\n    Object entryFor(Object entry, Object before, String realm) {\n        // TODO: Raw bytes never reach the log. The bytes of a failed unpack go to the store,\n        //       exactly as the channel read them; everything else stays as it is. (about 8 lines)\n        throw new IllegalStateException(\"TODO: entryFor\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ab3596b5eeb44bcd9ecd67ab059f8a15e5ea15e7d210daa20659191a03a82504",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/**\n * A log listener that keeps the raw bytes a channel logs out of the log, and hands the bytes of a\n * failed unpack to the team's evidence store instead.\n */\npublic class EvidenceKeeper implements LogListener {\n    public static final String WITHHELD = \"[raw bytes withheld]\";\n    public static final String KEPT = \"[raw bytes kept as evidence]\";\n\n    /** Given: where the team keeps raw bytes. Only the team reads it; it is never shipped with the log. */\n    public interface EvidenceStore {\n        /** @param part \"header\" or \"data\" */\n        void keep(String realm, String part, byte[] bytes);\n    }\n\n    private final EvidenceStore store;\n\n    public EvidenceKeeper(EvidenceStore store) {\n        this.store = store;\n    }\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        // TODO: Called for every event, before the writers. Put what entryFor returns in place of\n        //       each payload entry. The channel that created the event may still be adding to\n        //       it. (about 6 lines)\n        throw new IllegalStateException(\"TODO: log\");\n    }\n\n    /** What the log shows in place of one payload entry; `before` is the entry in front of it, or null. */\n    Object entryFor(Object entry, Object before, String realm) {\n        // TODO: Raw bytes never reach the log. The bytes of a failed unpack go to the store,\n        //       exactly as the channel read them; everything else stays as it is. (about 8 lines)\n        throw new IllegalStateException(\"TODO: entryFor\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-17/practice-3/src/main/java/com/example/practice/EvidenceKeeper.java",
+    "test_path": "practice/jpos-client/prose/unit-17/practice-3/src/test/java/com/example/practice/EvidenceKeeperTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#theBytesOfAFailedUnpackLeaveTheLogForTheStore",
+        "kind": "main",
+        "says": "after a failed unpack the event keeps the exception and the marker but no dump, and the store receives the data under the event's realm"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#anEventWithoutRawBytesIsLeftAsItIs",
+        "kind": "main",
+        "says": "an event with a message and ordinary text keeps the same entries, and nothing is stored"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#theStoreGetsTheBytesTheChannelRead",
+        "kind": "edge",
+        "says": "the store receives the bytes the channel read, not the text of their dump"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#aHeaderIsKeptAsWellAsTheData",
+        "kind": "edge",
+        "says": "a header dump is taken out of the log and stored as the header, as well as the data"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#anImageAddedByDebugFilterIsWithheld",
+        "kind": "edge",
+        "says": "an image DebugFilter added is raw bytes too and is withheld from the log"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#theMessageInTheEventIsNeverChanged",
+        "kind": "edge",
+        "says": "the message in the event is left unchanged, card number included, for the masking filter to handle"
+      },
+      {
+        "id": "com.example.practice.EvidenceKeeperTest#theWritersAfterItStillGetTheEvent",
+        "kind": "edge",
+        "says": "in a logger, the writer after the keeper still receives the event once its bytes are stored"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-17/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c17.md",
+      "section": "17.6 Raw Bytes in the Log Are Text, So a Filter of Your Own Has to Withhold Them"
+    },
+    "concepts": [
+      "A failed unpack and DebugFilter put raw bytes into the event as entries the masking filter can't see, and a listener of your own replaces those entries, leaves messages alone and returns the event."
+    ]
+  }
+}

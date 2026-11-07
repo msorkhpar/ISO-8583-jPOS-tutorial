@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Write TLV datasets into a composite field",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer is moving its e-commerce traffic to the network's 2023 link, and the network's certification team sends back its first findings: purchases with a long authentication payload arrive unreadable, and one test message made the gateway throw instead of sending anything. The gateway builds DE 34 and DE 104 itself, because jPOS 2.1.7 carries them as plain bytes."
+    },
+    {
+      "type": "para",
+      "text": "`CompositeWriter.write` in `src/main/java/com/example/practice/CompositeWriter.java` already loops over the datasets. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`content`: a TLV dataset's elements, as bytes;",
+        "`envelope`: the dataset, as it goes into the field."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Tags are given as numbers, such as `0x9C` or `0xDF8117`, and are written with as many bytes as they need. Refuse with an `IllegalArgumentException`. About twenty-five lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (Element e : elements) {\n            int tag = e.tag();\n            if (tag > 0xFFFF)\n                out.write(tag >> 16);\n            if (tag > 0xFF)\n                out.write((tag >> 8) & 0xFF);\n            out.write(tag & 0xFF);\n            int len = e.value().length;\n            if (len > 0xFF) {\n                out.write(0x82);\n                out.write(len >> 8);\n            } else if (len > 0x7F) {\n                out.write(0x81);\n            }\n            out.write(len & 0xFF);\n            out.writeBytes(e.value());\n        }\n        return out.toByteArray();\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        if (id < 0x01 || id > 0x70)\n            throw new IllegalArgumentException(\"not a TLV dataset identifier: \" + id);\n        if (content.length > 0xFFFF)\n            throw new IllegalArgumentException(\"dataset content over 65535 bytes\");\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        out.write(id);\n        out.write(content.length >> 8);\n        out.write(content.length & 0xFF);\n        out.writeBytes(content);\n        return out.toByteArray();\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        // TODO: Encode each element so that a receiver can find its tag, its value and where the\n        //       next element starts. Values can be anything from empty to tens of kilobytes.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        // TODO: Put the dataset into its envelope, so that a receiver walking the field finds it\n        //       and steps over it. Refuse what a receiver could not read back as this TLV dataset.\n        throw new IllegalStateException(\"TODO: envelope\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "e809e79f49916b243e869d818908109950cad1cb736e99d50074a280426d24e4",
+  "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        // TODO: Encode each element so that a receiver can find its tag, its value and where the\n        //       next element starts. Values can be anything from empty to tens of kilobytes.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        // TODO: Put the dataset into its envelope, so that a receiver walking the field finds it\n        //       and steps over it. Refuse what a receiver could not read back as this TLV dataset.\n        throw new IllegalStateException(\"TODO: envelope\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-17/practice-2/src/main/java/com/example/practice/CompositeWriter.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-17/practice-2/src/test/java/com/example/practice/CompositeWriterTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-17/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-17/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CompositeWriterTest#writesDatasetsInTheirEnvelopes",
+        "kind": "main",
+        "says": "each dataset is written as its identifier, a two-byte length and its BER-TLV elements, in the order given, with one-, two- and three-byte tags"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#refusesIdentifiersOutsideTheTlvRange",
+        "kind": "main",
+        "says": "00, FF and bitmap-range identifiers are refused for a TLV dataset"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#valuesFrom128BytesUseTheLongLengthForm",
+        "kind": "edge",
+        "says": "a value of 128 bytes or more gets the 81 or 82 length form, not a single length byte"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#datasetsOver255BytesKeepTheirWholeLength",
+        "kind": "edge",
+        "says": "a dataset over 255 bytes has both bytes of its length written, most significant first"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#dataset0x70IsATlvDataset",
+        "kind": "edge",
+        "says": "0x70 is still a TLV dataset identifier and 0x71 is not"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#writesDatasetsOfAFewHundredBytes",
+        "kind": "edge",
+        "says": "a dataset longer than the 516 bytes TLVList.pack() can write in jPOS 2.1.7 is still written whole"
+      },
+      {
+        "id": "com.example.practice.CompositeWriterTest#refusesContentTheLengthCannotDescribe",
+        "kind": "edge",
+        "says": "content of exactly 65535 bytes fits, and one byte more is refused instead of written with a wrong length"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-17/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/17.md",
+      "section": "17.6. A Writer Encodes Every Length Itself, Because the Packager Sees Only Bytes"
+    },
+    "concepts": [
+      "A composite field is a row of datasets, each a one-byte identifier, a two-byte big-endian length counting its content, and the content; the field prefix, dataset lengths and TLV lengths must agree.",
+      "The writer encodes every length itself: BER long forms from 128 bytes, a two-byte dataset length up to 65535, and no TLVList.pack() with its 516-byte buffer."
+    ]
+  }
+}

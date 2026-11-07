@@ -1,0 +1,191 @@
+{
+  "coverage_api": 2,
+  "page": "src/s16.md",
+  "kind": "code",
+  "quiz": "switch-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/s16.md": "sha256:3d110c5b812747ead6f553183016478c2663764ef85fdb311504cf0dfa52a510"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 3,
+    "aspects": [
+      {
+        "id": "cmf-message-format",
+        "says": "jPOS CMF is also a complete message format based on ISO 8583:2003, whose cmf.xml packager unpacks field 4 as an ISOAmount carrying its currency.",
+        "basis": [
+          "section:16.3 A Destination's Code Becomes a Cause, and Each Source's Table Answers It",
+          "example:src/s16.md:11"
+        ],
+        "exercise": null,
+        "reason": "background on a packager the switch does not use; there is no decision a reader makes that a test could grade"
+      },
+      {
+        "id": "codes-through-causes",
+        "says": "A destination's response code is translated into a cause and each source's table turns the cause into its own code; passed through, a code from another format can make the reply unsendable.",
+        "basis": [
+          "section:16.3 A Destination's Code Becomes a Cause, and Each Source's Table Answers It",
+          "example:src/s16.md:8",
+          "example:src/s16.md:9",
+          "example:src/s16.md:10"
+        ],
+        "exercise": "switch-quiz",
+        "reason": null
+      },
+      {
+        "id": "continuations-and-plain-participant",
+        "says": "A plain participant after QueryHost runs only while the transaction is prepared; with continuations off, a timeout aborts first and nothing reverses the silent purchase.",
+        "basis": [
+          "section:16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent"
+        ],
+        "exercise": "switch-quiz",
+        "reason": null
+      },
+      {
+        "id": "destination-gets-a-copy",
+        "says": "The destination receives a copy of the source's request; every answer to the source, approval, decline or 91 alike, is built from the unchanged request, so renumbering the request in place breaks every answer.",
+        "basis": [
+          "section:16.1 The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request",
+          "example:src/s16.md:2",
+          "example:src/s16.md:3"
+        ],
+        "exercise": "switch-legs",
+        "reason": null
+      },
+      {
+        "id": "record-before-sending",
+        "says": "The record is written before the request leaves, because the purchase that most needs a reversal is the one whose answer never came.",
+        "basis": [
+          "section:16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record"
+        ],
+        "exercise": "switch-quiz",
+        "reason": null
+      },
+      {
+        "id": "record-taken-once-kept-safe",
+        "says": "The record is taken, not read, so a repeated reversal goes upstream once, and it is kept without track data, PIN block or chip data.",
+        "basis": [
+          "section:16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record",
+          "example:src/s16.md:5"
+        ],
+        "exercise": "upstream-reversal",
+        "reason": null
+      },
+      {
+        "id": "source-reversal-through-record",
+        "says": "A source's reversal names the source's original, which the destination never saw; the switch finds the upstream message through its own record and reverses that, so field 90 names what the destination received.",
+        "basis": [
+          "section:16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record",
+          "example:src/s16.md:4",
+          "example:src/s16.md:5",
+          "example:src/s16.md:6",
+          "example:src/s16.md:7"
+        ],
+        "exercise": "upstream-reversal",
+        "reason": null
+      },
+      {
+        "id": "switch-numbers-each-link",
+        "says": "On each upstream link the switch is the sender, so the copy carries a STAN from one sequence per destination link and the switch's own identifiers.",
+        "basis": [
+          "section:16.1 The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request",
+          "example:src/s16.md:2"
+        ],
+        "exercise": "switch-legs",
+        "reason": null
+      },
+      {
+        "id": "unknown-code-like-silence",
+        "says": "A code the destination's table lacks leaves the outcome unknown, like silence, so the switch reverses what it sent, once, and answers 96 or 91 rather than a decline.",
+        "basis": [
+          "section:16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent",
+          "example:src/s16.md:12",
+          "example:src/s16.md:13"
+        ],
+        "exercise": "switch-quiz",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "switch-legs",
+        "aspects": [
+          "destination-gets-a-copy",
+          "switch-numbers-each-link"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "upstream-reversal",
+        "aspects": [
+          "record-taken-once-kept-safe",
+          "source-reversal-through-record"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "switch-quiz",
+        "aspects": [
+          "codes-through-causes",
+          "continuations-and-plain-participant",
+          "record-before-sending",
+          "unknown-code-like-silence"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-server/prose/unit-16/practice-1",
+    "exercises/jpos-server/prose/unit-16/practice-2",
+    "exercises/jpos-server/prose/unit-16/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-1",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.1 The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-2",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-3:q-cmf-code-to-terminal",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.3 A Destination's Code Becomes a Cause, and Each Source's Table Answers It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-3:q-partial-approval",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-3:q-continuations-off",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-16/practice-3:q-record-after-answer",
+      "origin": {
+        "path": "src/s16.md",
+        "section": "16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record"
+      }
+    }
+  ],
+  "shortfalls": []
+}

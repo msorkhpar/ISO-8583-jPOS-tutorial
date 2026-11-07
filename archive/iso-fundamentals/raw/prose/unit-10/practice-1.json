@@ -8,8 +8,8 @@
   "unit": 10,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Answer requests the way a host simulator does",
+  "ingested": "2026-11-05",
+  "title": "Let only issued test cards reach the test host",
   "blocks": [
     {
       "type": "heading",
@@ -18,36 +18,28 @@
     },
     {
       "type": "para",
-      "text": "You cannot certify, or even test, against a live card network every time you change your code. A host simulator stands in for the network: it takes each request your system sends and answers it the way the network would, and designated test card numbers let a test pick the outcome it wants."
+      "text": "Your team's certification harness builds each request of the network's script and sends it to the network's test host. Two things went wrong last month. A tester checked the link with a card from their own wallet, and the security team had to treat the build logs, the dumps and a ticket as card data. Another case, keyed by hand, came back with `14` instead of the answer it was written to test, and a session slot went with it."
     },
     {
       "type": "para",
-      "text": "Write the answering half of such a simulator (no sockets: the part a request listener would call). `new HostSimulator(approvalCode)` approves every card unless told otherwise, and `declineCard(pan, responseCode)` sets one test card up to be declined with that code."
-    },
-    {
-      "type": "para",
-      "text": "`respond(ISOMsg request)` returns the response:"
+      "text": "The network has issued test card ranges for this certification, each given as the leading digits its cards share. Every request now passes through `TestCardGuard.check` before it is sent. Finish the three methods marked `TODO` in `src/main/java/com/example/practice/TestCardGuard.java`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "it carries every field of the request, with the MTI turned into the matching response MTI (a `0100` is answered with a `0110`, a `0200` with a `0210`);",
-        "an approved request gets response code `00` in field 39 and the approval code in field 38;",
-        "a request for a card set up to be declined gets that card's response code in field 39 and no field 38, because nothing was approved."
+        "`panOf`: the card number a request carries;",
+        "`isTestCard`: whether the harness may send it;",
+        "`refusal`: the text of the refusal, which goes to the build log."
       ]
     },
     {
       "type": "para",
-      "text": "Edge cases:"
+      "text": "When you're done, only cards the network issued for this certification reach the test host, keyed or swiped, and a refusal tells the tester which card it stopped. About fifteen lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The request is not changed. Your caller still holds it, for example to match the answer to what it sent.",
-        "A message that is already a response (`0110`, `0210`, ...) cannot be answered; refuse it with an `ISOException`."
-      ]
+      "type": "para",
+      "text": "The tests use other test ranges and card numbers than the lesson."
     },
     {
       "type": "heading",
@@ -62,7 +54,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    private final String approvalCode;\n    private final Map<String, String> declined = new HashMap<>();\n\n    public HostSimulator(String approvalCode) {\n        this.approvalCode = approvalCode;\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        declined.put(pan, responseCode);\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        String code = declined.get(request.getString(2));\n        if (code == null) {\n            response.set(39, \"00\");\n            response.set(38, approvalCode);\n        } else {\n            response.set(39, code);\n            response.unset(38);\n        }\n        return response;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        if (request.hasField(2))\n            return request.getString(2);\n        if (request.hasField(35)) {\n            String track = request.getString(35);\n            int end = 0;\n            while (end < track.length() && Character.isDigit(track.charAt(end)))\n                end++;\n            return track.substring(0, end);\n        }\n        return null;\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        if (pan.length() < 2 || issuedRanges.stream().noneMatch(pan::startsWith))\n            return false;\n        String body = pan.substring(0, pan.length() - 1);\n        return ISOUtil.calcLUHN(body) == pan.charAt(pan.length() - 1);\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        return \"refused, not an issued test card: \" + ISOUtil.protect(pan);\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -74,7 +66,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    public HostSimulator(String approvalCode) {\n        throw new UnsupportedOperationException(\"write HostSimulator\");\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        throw new UnsupportedOperationException(\"write declineCard\");\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        // TODO: Find the card number in the request, wherever this request carries it.\n        throw new IllegalStateException(\"TODO: panOf\");\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        // TODO: Decide whether this number is one the harness may send to the test host.\n        throw new IllegalStateException(\"TODO: isTestCard\");\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        // TODO: Tell the tester which card was stopped, in a form the build log may keep.\n        throw new IllegalStateException(\"TODO: refusal\");\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -85,7 +77,7 @@
     "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -93,11 +85,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "ebe0f0739dab591c91158618c854f36b75db951953f2fb590c68714999c5827e",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The answering half of a host simulator: it stands in for the card network. */\npublic final class HostSimulator {\n\n    public HostSimulator(String approvalCode) {\n        throw new UnsupportedOperationException(\"write HostSimulator\");\n    }\n\n    /** Sets up one test card to be declined with the given response code. */\n    public void declineCard(String pan, String responseCode) {\n        throw new UnsupportedOperationException(\"write declineCard\");\n    }\n\n    /** The network's answer to the request. */\n    public ISOMsg respond(ISOMsg request) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n",
+  "content_sha256": "fdb6963e96112d97f63d525b3a7117cb2f9e08d5dce1a3e9aeb5ec424057a1cb",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        // TODO: Find the card number in the request, wherever this request carries it.\n        throw new IllegalStateException(\"TODO: panOf\");\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        // TODO: Decide whether this number is one the harness may send to the test host.\n        throw new IllegalStateException(\"TODO: isTestCard\");\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        // TODO: Tell the tester which card was stopped, in a form the build log may keep.\n        throw new IllegalStateException(\"TODO: refusal\");\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/com/example/practice/HostSimulator.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/test/java/com/example/practice/HostSimulatorTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/com/example/practice/TestCardGuard.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/test/java/com/example/practice/TestCardGuardTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -118,24 +110,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.HostSimulatorTest#approvesARequestWithACopyThatCarriesTheResponseMti",
+        "id": "com.example.practice.TestCardGuardTest#issuedTestCardsAndCardlessMessagesGoThrough",
         "kind": "main",
-        "says": "an approved request is answered with a copy of it carrying the response MTI, response code 00 and the approval code"
+        "says": "a request with a card from an issued test range, keyed or not, and a message with no card at all are sent unchanged"
       },
       {
-        "id": "com.example.practice.HostSimulatorTest#declinesATestCardWithItsCodeAndNoApprovalCode",
+        "id": "com.example.practice.TestCardGuardTest#aMalformedNumberFromNoIssuedRangeIsRefused",
         "kind": "main",
-        "says": "a card set up to be declined gets its response code and no approval code"
+        "says": "a number from no issued range, with a wrong check digit, is refused"
       },
       {
-        "id": "com.example.practice.HostSimulatorTest#leavesTheRequestUntouched",
+        "id": "com.example.practice.TestCardGuardTest#aWellFormedCardFromNoIssuedRangeIsRefused",
         "kind": "edge",
-        "says": "answering a request does not change the request itself"
+        "says": "a number with a correct check digit is still refused when no issued range holds it, because the check digit says nothing about who owns the card"
       },
       {
-        "id": "com.example.practice.HostSimulatorTest#refusesToAnswerAResponse",
+        "id": "com.example.practice.TestCardGuardTest#aMistypedTestCardIsRefused",
         "kind": "edge",
-        "says": "a message that is already a response is refused with an ISOException"
+        "says": "a number from an issued range with a wrong check digit is refused, so a mistyped test card never reaches the host"
+      },
+      {
+        "id": "com.example.practice.TestCardGuardTest#aSwipedPurchaseIsCheckedThroughItsTrack",
+        "kind": "edge",
+        "says": "a swiped purchase with no field 2 is judged by the card number in its track 2, with either separator"
+      },
+      {
+        "id": "com.example.practice.TestCardGuardTest#theRefusalNamesNoCardInFull",
+        "kind": "edge",
+        "says": "the refusal lets the tester recognise the card without putting its full number into the build log"
       }
     ],
     "report": {
@@ -144,11 +146,10 @@
     },
     "origin": {
       "path": "src/10.md",
-      "section": "10.3. Simulation and test environments"
+      "section": "10.4. A Test Card Is Issued for Testing, and the Luhn Check Only Says It Is Well Formed"
     },
     "concepts": [
-      "A host simulator stands in for the network: it answers each request with a copy carrying the response MTI, a response code and, when approved, an approval code.",
-      "Designated test card numbers let a test choose the outcome it wants, such as an approval for one card and a decline for another."
+      "Only cards issued for testing go to a test host; the Luhn check digit only catches typing errors, and a real card number in a log puts every copy under PCI DSS."
     ]
   }
 }

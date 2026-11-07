@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 20,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Store the reversal before the terminal hears anything",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "After Tuesday's deploy, three cardholders called the bank. Their terminals had printed FAILED, and their statements show the purchases charged. The switch restarted twice during the deploy, both times while purchases were timing out. Reconciliation also found a purchase that the journal lists as being reversed, although no reversal for it ever reached the host. And on Wednesday a cardholder was charged for a purchase that the terminal had reported as failed, after the host's approval arrived a minute late."
+    },
+    {
+      "type": "para",
+      "text": "`TimeoutHandler` in `src/main/java/com/example/practice/TimeoutHandler.java` decides what happens once a purchase sent upstream has ended. `onAnswer` is written. Write `onNoAnswer` and `onLateAnswer`; the comment on each says what it must achieve. `Db`, at the top of the file, is the switch's database with its journal and its store-and-forward queue. Changes made in a `Tx` become real together when it commits."
+    },
+    {
+      "type": "para",
+      "text": "The tests make the process die after a chosen step (a commit, or a message to the terminal) and then look at what survived. About 10 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * What the acquirer's switch does once a purchase it sent upstream has ended: it records the\n * outcome in its journal, queues whatever the host must still hear about, and tells the terminal.\n */\npublic class TimeoutHandler {\n\n    /** What the journal says about a purchase, by its STAN. */\n    public enum Status { APPROVED, DECLINED, REVERSING, LATE_APPROVAL }\n\n    /** What the terminal is told. */\n    public enum Outcome { APPROVED, DECLINED, FAILED }\n\n    public interface Terminal {\n        void tell(String stan, Outcome outcome);\n    }\n\n    /** The process died here. Everything committed before it is on disk; nothing else is. */\n    public static final class Crash extends Error {\n        public Crash() { super(\"process died\"); }\n    }\n\n    /**\n     * The switch's database: the journal and the store-and-forward queue, written in transactions.\n     * A test can make the process die after a given number of steps; every commit is a step.\n     */\n    public static final class Db {\n        private final Map<String, Status> journal = new LinkedHashMap<>();\n        private final List<ISOMsg> queue = new ArrayList<>();\n        private int steps;\n        private int dieAfter = Integer.MAX_VALUE;\n\n        public void dieAfterSteps(int n) { dieAfter = n; }\n\n        /** Counts one step, and dies if this was the last one allowed. */\n        public void step() {\n            if (++steps >= dieAfter)\n                throw new Crash();\n        }\n\n        public Tx begin() { return new Tx(); }\n\n        public Status journal(String stan) { return journal.get(stan); }\n\n        public List<ISOMsg> queue() { return List.copyOf(queue); }\n\n        /** Changes that become real together, at commit, or not at all. */\n        public final class Tx {\n            private final List<Runnable> changes = new ArrayList<>();\n\n            public void journal(String stan, Status status) { changes.add(() -> journal.put(stan, status)); }\n\n            public void enqueue(ISOMsg m) { changes.add(() -> queue.add(m)); }\n\n            /** Takes out the queued message whose field 90 names the given original STAN. */\n            public void dequeue(String originalStan) {\n                changes.add(() -> queue.removeIf(m -> m.getString(90).substring(4, 10).equals(originalStan)));\n            }\n\n            public void commit() {\n                changes.forEach(Runnable::run);\n                changes.clear();\n                step();\n            }\n        }\n    }\n\n    private final Db db;\n    private final Terminal terminal;\n\n    public TimeoutHandler(Db db, Terminal terminal) {\n        this.db = db;\n        this.terminal = terminal;\n    }\n\n    /** The host answered in time. */\n    public void onAnswer(ISOMsg purchase, ISOMsg response) {\n        boolean approved = \"00\".equals(response.getString(39));\n        Db.Tx tx = db.begin();\n        tx.journal(purchase.getString(11), approved ? Status.APPROVED : Status.DECLINED);\n        tx.commit();\n        terminal.tell(purchase.getString(11), approved ? Outcome.APPROVED : Outcome.DECLINED);\n    }\n\n    /**\n     * The host did not answer in time. The purchase may have been approved, so the host must get its\n     * reversal (built by {@link #reversalOf}), and the terminal must hear that the purchase failed.\n     */\n    void onNoAnswer(ISOMsg purchase, String reversalStan, String now) throws ISOException {\n        Db.Tx tx = db.begin();\n        tx.enqueue(reversalOf(purchase, reversalStan, now));\n        tx.journal(purchase.getString(11), Status.REVERSING);\n        tx.commit();\n        terminal.tell(purchase.getString(11), Outcome.FAILED);\n    }\n\n    /**\n     * The host's answer came after {@link #onNoAnswer} had already run for this purchase.\n     * An approval is recorded as {@link Status#LATE_APPROVAL}.\n     */\n    void onLateAnswer(ISOMsg response) {\n        if (!\"00\".equals(response.getString(39)))\n            return;\n        Db.Tx tx = db.begin();\n        tx.journal(response.getString(11), Status.LATE_APPROVAL);\n        tx.commit();\n    }\n\n    /** A new 0420 with its own STAN and time that names the purchase in field 90. */\n    static ISOMsg reversalOf(ISOMsg purchase, String stan, String now) throws ISOException {\n        ISOMsg rev = (ISOMsg) purchase.clone(new int[] { 2, 3, 4, 32, 33, 37, 41, 42, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(7, now);\n        rev.set(11, stan);\n        rev.set(90, purchase.getMTI()\n                + ISOUtil.zeropad(purchase.getString(11), 6)\n                + ISOUtil.zeropad(purchase.getString(7), 10)\n                + ISOUtil.zeropad(purchase.hasField(32) ? purchase.getString(32) : \"\", 11)\n                + ISOUtil.zeropad(purchase.hasField(33) ? purchase.getString(33) : \"\", 11));\n        return rev;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * What the acquirer's switch does once a purchase it sent upstream has ended: it records the\n * outcome in its journal, queues whatever the host must still hear about, and tells the terminal.\n */\npublic class TimeoutHandler {\n\n    /** What the journal says about a purchase, by its STAN. */\n    public enum Status { APPROVED, DECLINED, REVERSING, LATE_APPROVAL }\n\n    /** What the terminal is told. */\n    public enum Outcome { APPROVED, DECLINED, FAILED }\n\n    public interface Terminal {\n        void tell(String stan, Outcome outcome);\n    }\n\n    /** The process died here. Everything committed before it is on disk; nothing else is. */\n    public static final class Crash extends Error {\n        public Crash() { super(\"process died\"); }\n    }\n\n    /**\n     * The switch's database: the journal and the store-and-forward queue, written in transactions.\n     * A test can make the process die after a given number of steps; every commit is a step.\n     */\n    public static final class Db {\n        private final Map<String, Status> journal = new LinkedHashMap<>();\n        private final List<ISOMsg> queue = new ArrayList<>();\n        private int steps;\n        private int dieAfter = Integer.MAX_VALUE;\n\n        public void dieAfterSteps(int n) { dieAfter = n; }\n\n        /** Counts one step, and dies if this was the last one allowed. */\n        public void step() {\n            if (++steps >= dieAfter)\n                throw new Crash();\n        }\n\n        public Tx begin() { return new Tx(); }\n\n        public Status journal(String stan) { return journal.get(stan); }\n\n        public List<ISOMsg> queue() { return List.copyOf(queue); }\n\n        /** Changes that become real together, at commit, or not at all. */\n        public final class Tx {\n            private final List<Runnable> changes = new ArrayList<>();\n\n            public void journal(String stan, Status status) { changes.add(() -> journal.put(stan, status)); }\n\n            public void enqueue(ISOMsg m) { changes.add(() -> queue.add(m)); }\n\n            /** Takes out the queued message whose field 90 names the given original STAN. */\n            public void dequeue(String originalStan) {\n                changes.add(() -> queue.removeIf(m -> m.getString(90).substring(4, 10).equals(originalStan)));\n            }\n\n            public void commit() {\n                changes.forEach(Runnable::run);\n                changes.clear();\n                step();\n            }\n        }\n    }\n\n    private final Db db;\n    private final Terminal terminal;\n\n    public TimeoutHandler(Db db, Terminal terminal) {\n        this.db = db;\n        this.terminal = terminal;\n    }\n\n    /** The host answered in time. */\n    public void onAnswer(ISOMsg purchase, ISOMsg response) {\n        boolean approved = \"00\".equals(response.getString(39));\n        Db.Tx tx = db.begin();\n        tx.journal(purchase.getString(11), approved ? Status.APPROVED : Status.DECLINED);\n        tx.commit();\n        terminal.tell(purchase.getString(11), approved ? Outcome.APPROVED : Outcome.DECLINED);\n    }\n\n    /**\n     * The host did not answer in time. The purchase may have been approved, so the host must get its\n     * reversal (built by {@link #reversalOf}), and the terminal must hear that the purchase failed.\n     */\n    void onNoAnswer(ISOMsg purchase, String reversalStan, String now) throws ISOException {\n        throw new IllegalStateException(\"TODO: onNoAnswer\");\n    }\n\n    /**\n     * The host's answer came after {@link #onNoAnswer} had already run for this purchase.\n     * An approval is recorded as {@link Status#LATE_APPROVAL}.\n     */\n    void onLateAnswer(ISOMsg response) {\n        throw new IllegalStateException(\"TODO: onLateAnswer\");\n    }\n\n    /** A new 0420 with its own STAN and time that names the purchase in field 90. */\n    static ISOMsg reversalOf(ISOMsg purchase, String stan, String now) throws ISOException {\n        ISOMsg rev = (ISOMsg) purchase.clone(new int[] { 2, 3, 4, 32, 33, 37, 41, 42, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(7, now);\n        rev.set(11, stan);\n        rev.set(90, purchase.getMTI()\n                + ISOUtil.zeropad(purchase.getString(11), 6)\n                + ISOUtil.zeropad(purchase.getString(7), 10)\n                + ISOUtil.zeropad(purchase.hasField(32) ? purchase.getString(32) : \"\", 11)\n                + ISOUtil.zeropad(purchase.hasField(33) ? purchase.getString(33) : \"\", 11));\n        return rev;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f147343715241771607804aa474ecfc22dac5adf91f5542f1d07640184672232",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * What the acquirer's switch does once a purchase it sent upstream has ended: it records the\n * outcome in its journal, queues whatever the host must still hear about, and tells the terminal.\n */\npublic class TimeoutHandler {\n\n    /** What the journal says about a purchase, by its STAN. */\n    public enum Status { APPROVED, DECLINED, REVERSING, LATE_APPROVAL }\n\n    /** What the terminal is told. */\n    public enum Outcome { APPROVED, DECLINED, FAILED }\n\n    public interface Terminal {\n        void tell(String stan, Outcome outcome);\n    }\n\n    /** The process died here. Everything committed before it is on disk; nothing else is. */\n    public static final class Crash extends Error {\n        public Crash() { super(\"process died\"); }\n    }\n\n    /**\n     * The switch's database: the journal and the store-and-forward queue, written in transactions.\n     * A test can make the process die after a given number of steps; every commit is a step.\n     */\n    public static final class Db {\n        private final Map<String, Status> journal = new LinkedHashMap<>();\n        private final List<ISOMsg> queue = new ArrayList<>();\n        private int steps;\n        private int dieAfter = Integer.MAX_VALUE;\n\n        public void dieAfterSteps(int n) { dieAfter = n; }\n\n        /** Counts one step, and dies if this was the last one allowed. */\n        public void step() {\n            if (++steps >= dieAfter)\n                throw new Crash();\n        }\n\n        public Tx begin() { return new Tx(); }\n\n        public Status journal(String stan) { return journal.get(stan); }\n\n        public List<ISOMsg> queue() { return List.copyOf(queue); }\n\n        /** Changes that become real together, at commit, or not at all. */\n        public final class Tx {\n            private final List<Runnable> changes = new ArrayList<>();\n\n            public void journal(String stan, Status status) { changes.add(() -> journal.put(stan, status)); }\n\n            public void enqueue(ISOMsg m) { changes.add(() -> queue.add(m)); }\n\n            /** Takes out the queued message whose field 90 names the given original STAN. */\n            public void dequeue(String originalStan) {\n                changes.add(() -> queue.removeIf(m -> m.getString(90).substring(4, 10).equals(originalStan)));\n            }\n\n            public void commit() {\n                changes.forEach(Runnable::run);\n                changes.clear();\n                step();\n            }\n        }\n    }\n\n    private final Db db;\n    private final Terminal terminal;\n\n    public TimeoutHandler(Db db, Terminal terminal) {\n        this.db = db;\n        this.terminal = terminal;\n    }\n\n    /** The host answered in time. */\n    public void onAnswer(ISOMsg purchase, ISOMsg response) {\n        boolean approved = \"00\".equals(response.getString(39));\n        Db.Tx tx = db.begin();\n        tx.journal(purchase.getString(11), approved ? Status.APPROVED : Status.DECLINED);\n        tx.commit();\n        terminal.tell(purchase.getString(11), approved ? Outcome.APPROVED : Outcome.DECLINED);\n    }\n\n    /**\n     * The host did not answer in time. The purchase may have been approved, so the host must get its\n     * reversal (built by {@link #reversalOf}), and the terminal must hear that the purchase failed.\n     */\n    void onNoAnswer(ISOMsg purchase, String reversalStan, String now) throws ISOException {\n        throw new IllegalStateException(\"TODO: onNoAnswer\");\n    }\n\n    /**\n     * The host's answer came after {@link #onNoAnswer} had already run for this purchase.\n     * An approval is recorded as {@link Status#LATE_APPROVAL}.\n     */\n    void onLateAnswer(ISOMsg response) {\n        throw new IllegalStateException(\"TODO: onLateAnswer\");\n    }\n\n    /** A new 0420 with its own STAN and time that names the purchase in field 90. */\n    static ISOMsg reversalOf(ISOMsg purchase, String stan, String now) throws ISOException {\n        ISOMsg rev = (ISOMsg) purchase.clone(new int[] { 2, 3, 4, 32, 33, 37, 41, 42, 49 });\n        rev.setMTI(\"0420\");\n        rev.set(7, now);\n        rev.set(11, stan);\n        rev.set(90, purchase.getMTI()\n                + ISOUtil.zeropad(purchase.getString(11), 6)\n                + ISOUtil.zeropad(purchase.getString(7), 10)\n                + ISOUtil.zeropad(purchase.hasField(32) ? purchase.getString(32) : \"\", 11)\n                + ISOUtil.zeropad(purchase.hasField(33) ? purchase.getString(33) : \"\", 11));\n        return rev;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-20/practice-1/src/main/java/com/example/practice/TimeoutHandler.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-20/practice-1/src/test/java/com/example/practice/TimeoutHandlerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#aTimeoutEndsWithTheReversalQueuedAndTheTerminalTold",
+        "kind": "main",
+        "says": "after a timeout the reversal naming the purchase is queued, the journal says it is being reversed, and the terminal hears FAILED"
+      },
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#aLateDeclineChangesNothing",
+        "kind": "main",
+        "says": "a decline that arrives after the timeout leaves the reversal, the journal and the terminal as they were"
+      },
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#theTerminalHearsOfTheFailureOnlyOnceTheReversalIsStored",
+        "kind": "edge",
+        "says": "wherever the process dies, a terminal that heard FAILED has its reversal stored"
+      },
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#theJournalAndTheQueueAgreeWhereverTheProcessDies",
+        "kind": "edge",
+        "says": "the journal says a purchase is being reversed exactly when its reversal is queued, wherever the process dies"
+      },
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#aLateApprovalLeavesTheReversalQueued",
+        "kind": "edge",
+        "says": "an approval that arrives after the terminal was told FAILED does not withdraw the reversal or change what the terminal was told"
+      },
+      {
+        "id": "com.example.practice.TimeoutHandlerTest#aLateApprovalIsRecorded",
+        "kind": "edge",
+        "says": "an approval that arrives after the timeout is recorded in the journal as a late approval"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-20/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/20.md",
+      "section": "20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged"
+    },
+    "concepts": [
+      "A queued reversal leaves only when the receiver answers it; a late approval does not withdraw it.",
+      "The reversal is stored, in the same transaction as its journal record, before the terminal is told the purchase failed."
+    ]
+  }
+}

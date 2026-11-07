@@ -8,7 +8,7 @@
   "unit": 4,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Transaction Processing",
   "blocks": [
     {
@@ -18,142 +18,655 @@
     },
     {
       "type": "para",
-      "text": "Transaction processing is a crucial part of any financial system, especially when dealing with ISO-8583 messages. In jPOS, transaction processing is handled by the TransactionManager and implemented through TransactionParticipants. This approach allows for a modular and flexible way to process transactions."
+      "text": "At ten past three a cardholder's 60.00 of groceries is declined with `61`, \"exceeds amount limit\". Her card allows 500.00 a day, and she hasn't bought anything today. Before lunch she tried a jacket for 300.00 and shoes for 150.00, both declined with `51` because her account holds 120.00. Our participant that counts each purchase against the daily limit counted those two as well, and nothing gave the amounts back."
+    },
+    {
+      "type": "para",
+      "text": "Unit s1 showed how a participant votes in `prepare` and how `SendResponse` answers on either path. This unit covers what happens after the votes, and how long a transaction holds a session, in six rules, one per section heading from 4.2."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.1 Transaction Manager"
+      "text": "4.1 A Server You Can Feed Without a Socket"
     },
     {
       "type": "para",
-      "text": "The TransactionManager is responsible for coordinating the execution of a series of participants for each transaction. It manages the transaction lifecycle, including commit and rollback operations."
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "Implementation"
-    },
-    {
-      "type": "para",
-      "text": "Let's implement a basic TransactionManager configuration:"
+      "text": "QServer hands each message to its request listener, with the channel it came in on (the `ISOSource` to answer through), and `IncomingListener` does the rest. A terminal that calls a real `IncomingListener` itself, as its own source, takes the same path as one on a socket:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.ConfigurationException;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.transaction.TransactionManager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class TransactionManagerConfig extends QBeanSupport {\n\n    @Bean\n    public TransactionManager transactionManager() throws ConfigurationException {\n        TransactionManager txnManager = new TransactionManager();\n        txnManager.setName(\"txnManager\");\n        // A TransactionManager reads its settings from a jPOS Configuration\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        cfg.put(\"queue\", \"txnQueue\");\n        cfg.put(\"max-sessions\", \"5\");\n        cfg.put(\"max-active-sessions\", \"10\");\n        cfg.put(\"debug\", \"true\");\n        txnManager.setConfiguration(cfg);\n        return txnManager;\n    }\n}"
+      "text": "package com.example.jpos.server.testing;\n\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.IncomingListener;\n\nimport java.util.concurrent.BlockingQueue;\nimport java.util.concurrent.LinkedBlockingQueue;\nimport java.util.concurrent.TimeUnit;\n\n/** A terminal with no socket: it hands each request to a real IncomingListener, as QServer does. */\npublic final class DirectTerminal implements ISOSource {\n    private final IncomingListener listener = new IncomingListener();\n    private final BlockingQueue<ISOMsg> answers = new LinkedBlockingQueue<>();\n\n    public DirectTerminal(String queue) throws ConfigurationException {\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        cfg.put(\"queue\", queue);                         // the TransactionManager's queue\n        listener.setConfiguration(cfg);\n    }\n\n    /** Sends one request and returns the server's answer, or null after wait ms. */\n    public ISOMsg request(ISOMsg m, long wait) throws InterruptedException {\n        listener.process(this, m);                       // Context {REQUEST, SOURCE, TIMESTAMP}\n        return answers.poll(wait, TimeUnit.MILLISECONDS);\n    }\n\n    @Override\n    public void send(ISOMsg m) {                         // SendResponse answers here\n        answers.add(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        return true;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "In this configuration, we're setting up a TransactionManager bean with the following properties:"
+      "text": "The other side is a real Q2, started in the same JVM on a `deploy/` directory that holds the logger of unit s1 and a TransactionManager descriptor:"
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Name: \"txnManager\"",
-        "Queue: \"txnQueue\" (where transactions will be queued)",
-        "MaxSessions: 5 (maximum number of concurrent sessions)",
-        "MaxActiveSessions: 10 (maximum number of active sessions; jPOS requires it to be at least MaxSessions)",
-        "Debug: true (for logging purposes)"
+      "type": "code",
+      "lang": "java",
+      "text": "q2 = new Q2(\"deploy\");\nq2.start();\nNameRegistrar.get(\"txnmgr\", 20000);"
+    },
+    {
+      "type": "para",
+      "text": "`NameRegistrar.get` waits up to 20 seconds for the TransactionManager, which registers only if it deployed. Every output in this unit, and every practice, runs this way on jPOS 2.1.7, with the real TransactionManager and `SendResponse`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.2 A Participant Hears the Outcome Only If It Joined"
+    },
+    {
+      "type": "para",
+      "text": "The descriptor behind the groceries story has two participants that decide and one that answers:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n  <participant class=\"com.example.jpos.server.participant.ReserveDailyLimit\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n    <property name=\"available\" value=\"12000\"/>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "`ReserveDailyLimit` adds each purchase to the card's total for the day and declines with `61` when the total would pass 500.00. `Authorize` stands in for the account check and declines with `51` above 120.00. Both build answers with `Responses.reply`, and the totals live in a shared `DailyTotals`; both are in the Reference. The first `ReserveDailyLimit` (it ran as `demo.LeakyReserveDailyLimit`) ended its `prepare` like this:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "if (!totals.reserve(request.getString(2), amount)) {\n    ctx.put(RESPONSE.toString(), Responses.reply(request, \"61\"));\n    return ABORTED | NO_JOIN;\n}\nreturn PREPARED | NO_JOIN;           // \"my part went fine\""
+    },
+    {
+      "type": "para",
+      "text": "Both votes say `NO_JOIN`: the participant had done its part and seemed to have nothing left to do. The cardholder's day, all on `4111111111111111`, with the card's total after each answer:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000030000: 0210 39=51   total today: 30000\npurchase 000000015000: 0210 39=51   total today: 45000\npurchase 000000006000: 0210 39=61   total today: 45000"
+    },
+    {
+      "type": "para",
+      "text": "Which participants does the trace of the first purchase name after the votes?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <abort>\n    txnmgr-0:idle:1\n            prepare: d.LeakyReserveDailyLimit PREPARED NO_JOIN\n            prepare: c.e.j.s.p.Authorize ABORTED NO_JOIN\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "Only `SendResponse` got an `abort` call: after the votes, the TransactionManager calls `commit` or `abort` only on the participants that joined. `NO_JOIN` doesn't mean \"I'm done\"; it means \"don't tell me how this ends\". A participant that changed something outside the Context in `prepare` must hear the outcome, because on the abort path it is the only one that knows what to undo."
+    },
+    {
+      "type": "para",
+      "text": "The participant joins when it reserves, and leaves the amount in the Context for its `abort`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.server.limits.DailyTotals;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Counts each purchase against the card's daily limit, and gives it back if the purchase fails. */\npublic class ReserveDailyLimit implements TransactionParticipant, Configurable {\n    private static final String RESERVED = \"RESERVED\";\n    private DailyTotals totals;                               // a shared service, not a request\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            totals = NameRegistrar.get(cfg.get(\"totals\", \"daily-totals\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no daily totals registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        try {\n            long amount = Long.parseLong(request.getString(4));\n            if (!totals.reserve(request.getString(2), amount)) {\n                ctx.put(RESPONSE.toString(), Responses.reply(request, \"61\"));  // exceeds limit\n                return ABORTED | NO_JOIN;                  // (1) nothing reserved, nothing to undo\n            }\n            ctx.put(RESERVED, amount);                     // (2) what abort has to give back\n            return PREPARED;                               // (3) joins: abort must reach us\n        } catch (Exception e) {\n            ctx.log(e);\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Long amount = ctx.get(RESERVED);\n        if (amount != null) {\n            ISOMsg request = ctx.get(REQUEST.toString());\n            totals.release(request.getString(2), amount);\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The same day:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000030000: 0210 39=51   total today: 0\npurchase 000000015000: 0210 39=51   total today: 0\npurchase 000000006000: 0210 39=00   total today: 6000"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.ReserveDailyLimit PREPARED\n            prepare: c.e.j.s.p.Authorize ABORTED NO_JOIN\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.ReserveDailyLimit\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "Joining depends on the flag, not on the vote: a participant that votes `ABORTED` also hears the abort unless it says `NO_JOIN`, as (1) does, and one that throws from `prepare` counts as a plain `ABORTED` and joins too. Had (1) voted plain `ABORTED`, `abort` would reach a participant that reserved nothing. The `RESERVED` check would save the total; an unchecked `abort` would subtract the amount of every purchase the limit declined."
+    },
+    {
+      "type": "para",
+      "text": "With the leak, the cardholder notices first, at the till, and the total stays wrong until the daily reset. The log shows nothing wrong: every transaction ended the way its votes said."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.3 After an Abort, Only Abort Participants Are Asked"
+    },
+    {
+      "type": "para",
+      "text": "For a card-testing alert (a stolen card number tried again and again until something goes through), the fraud team wants declines counted per card. The counting participant joins every transaction, counts in `abort`, and goes after `Authorize` in the chain of 4.2, once every decision is made:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n  <property name=\"available\" value=\"12000\"/>\n</participant>\n<participant class=\"com.example.jpos.server.participant.DeclineMonitor\" logger=\"Q2\"/>\n<participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>"
+    },
+    {
+      "type": "para",
+      "text": "Three purchases on `5555555555554444`, all larger than the account can pay:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000019900: 0210 39=51\npurchase 000000014900: 0210 39=51\npurchase 000000012900: 0210 39=51\ndeclines counted: 0"
+    },
+    {
+      "type": "para",
+      "text": "Unit s1 showed the reason in `SendResponse`: once a participant votes `ABORTED`, the TransactionManager offers the rest of the chain only to participants that implement `AbortParticipant`. The monitor was a plain participant, so its `prepare` never ran, it never joined, and its `abort` was never called; the trace names only `ReserveDailyLimit` and `SendResponse`. (The counts are a `ConcurrentHashMap`, registered under `declines` before Q2 starts, since every session updates it.)"
+    },
+    {
+      "type": "para",
+      "text": "The fix implements `AbortParticipant` instead of `TransactionParticipant`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.Map;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/** Counts declined purchases per card, for the fraud team's card-testing alert. */\npublic class DeclineMonitor implements AbortParticipant, Configurable {\n    private Map<String, Integer> declines;                   // a shared service, found by name\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            declines = NameRegistrar.get(cfg.get(\"counts\", \"declines\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no decline counts registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        return PREPARED | READONLY;                          // joins: it wants the outcome\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        ISOMsg request = ((Context) context).get(REQUEST.toString());\n        declines.merge(request.getString(2), 1, Integer::sum);\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "declines counted: 3"
+    },
+    {
+      "type": "para",
+      "text": "The end of the trace, after `Authorize` voted `ABORTED`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    prepareForAbort: c.e.j.s.p.DeclineMonitor\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.ReserveDailyLimit\n              abort: c.e.j.s.p.DeclineMonitor\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "On the abort path the TransactionManager calls `prepareForAbort`, whose default in `AbortParticipant` calls `prepare`. That is fine here, since this `prepare` decides nothing. A participant whose `prepare` does real work, such as reserving an amount, would do it on aborted transactions too; override `prepareForAbort` when the two paths need different things."
+    },
+    {
+      "type": "para",
+      "text": "The plain monitor placed at the top of the chain, ahead of `ReserveDailyLimit`, also counted all three: it was prepared before anyone aborted, and it joined. A participant sees every outcome if it comes before every participant that can abort, or if it implements `AbortParticipant`."
+    },
+    {
+      "type": "para",
+      "text": "With the plain monitor after `Authorize`, the alert never fires: a card under attack shows zero declines while the attacker works through amounts until one is approved."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.4 Commit Cannot Change the Outcome"
+    },
+    {
+      "type": "para",
+      "text": "Settlement reconciles the day against a journal of approvals. `RecordApproval` joins when the response says `00` and writes the line in `commit`, as unit s1 recommends for work that must happen only if the whole transaction succeeds. It sits between `Authorize` and `SendResponse`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "@Override\npublic void commit(long id, Serializable context) {\n    ISOMsg response = ((Context) context).get(RESPONSE.toString());\n    journal.accept(response.getString(41) + \" \" + response.getString(11) + \" \" + response.getString(4));\n}"
+    },
+    {
+      "type": "para",
+      "text": "The journal's disk is full, and every write throws. A purchase of 27.50:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00\njournal lines: 0"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <warn>\n    COMMIT: 1\n    <exception name=\"java.io.IOException: No space left on device\">"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <commit>\n    txnmgr-0:idle:1\n            prepare: c.e.j.s.p.ReserveDailyLimit PREPARED\n            prepare: c.e.j.s.p.Authorize PREPARED NO_JOIN\n            prepare: c.e.j.s.p.RecordApproval PREPARED READONLY\n            prepare: o.j.t.p.SendResponse PREPARED READONLY\n             commit: c.e.j.s.p.ReserveDailyLimit\n             commit: c.e.j.s.p.RecordApproval\n             commit: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "By the time `commit` runs, every participant has voted `PREPARED`, and the TransactionManager won't go back on that. An exception from `commit` becomes a warning, and the next participant's `commit` runs. In 2.1.7 the calls go in declaration order, so `SendResponse`, declared last, sent the approval after `RecordApproval` had failed. `abort` is called in the same order and treats exceptions the same way."
+    },
+    {
+      "type": "para",
+      "text": "The terminal printed a receipt, the money moved, and the journal has no line. Settlement is short by 27.50, and by every approval after it until someone frees the disk; the only trace is one `<warn>` per purchase."
+    },
+    {
+      "type": "para",
+      "text": "Do what can fail in `prepare`, in a form `abort` can undo, while a failure can still become a decline; `commit` only makes it final. A failure after `Authorize` has put its `00` in `RESPONSE` becomes a decline only if something replaces that `00`; otherwise the abort path sends it (unit s10). With a database, that means writing the row in `prepare` inside an open database transaction and committing it in `commit` (unit s9). A database commit can still fail, much more rarely, and then the TransactionManager can only log it, which is one reason settlement reconciles at all."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3** `commit` and `abort` are called in reverse declaration order."
+        }
       ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.2 Transaction Participant"
+      "text": "4.5 The Context Is Keyed by Strings"
     },
     {
       "type": "para",
-      "text": "TransactionParticipants are the building blocks of transaction processing in jPOS. Each participant performs a specific task in the transaction flow."
-    },
-    {
-      "type": "para",
-      "text": "Let's create a simple TransactionParticipant that validates a transaction:"
+      "text": "`ContextConstants` is an enum, and after `import static ...ContextConstants.REQUEST` the shorter call compiles:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\npublic class TransactionValidator implements TransactionParticipant, Configurable {\n\n    private Configuration cfg;\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // Validate the transaction\n        if (isValidTransaction((Context) context)) {\n            return PREPARED | READONLY;\n        }\n        return ABORTED;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // Nothing to commit for this participant\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // Handle abort scenario\n        ((Context) context).put(\"error\", \"Transaction validation failed\");\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n\n    private boolean isValidTransaction(Context context) {\n        // Implement your validation logic here\n        // For example, check if required fields are present\n        return context.get(\"amount\") != null && context.get(\"cardNumber\") != null;\n    }\n}"
+      "text": "ISOMsg request = ctx.get(REQUEST);"
     },
     {
       "type": "para",
-      "text": "This TransactionValidator checks if the transaction has the required fields (amount and cardNumber in this example)."
+      "text": "The Context is a map with `Object` keys, and `IncomingListener` stored the request under the string `\"REQUEST\"`. The enum constant is a different key:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "get(REQUEST.toString()): 0200\nget(REQUEST):            null"
+    },
+    {
+      "type": "para",
+      "text": "With that line in `Authorize` (it ran as `demo.EnumKeyAuthorize`, followed only by `SendResponse`), a purchase:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: no answer after 10000 ms"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: d.EnumKeyAuthorize ABORTED NO_JOIN\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "The `NullPointerException` from `request.getString(4)` fell into `Authorize`'s own `catch`, which logged it to the Context and voted `ABORTED | NO_JOIN` with no response set. The Context's log is printed only with the Context dump, which unit s1 turned off, so the log shows an abort and no warning. Every terminal waits out its timeout, and the acquirer then reverses each purchase."
+    },
+    {
+      "type": "para",
+      "text": "Write `REQUEST.toString()` everywhere, or keep the names in `static final String` constants. The same goes for your own keys: `\"RESERVED\"` above is a string, and a key you `put` with a typo is a key nobody `get`s."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.3 Custom Participants for Visa/Mastercard Logic"
+      "text": "4.6 A Session Is Busy for the Whole Transaction"
     },
     {
       "type": "para",
-      "text": "Now, let's create specific participants for Visa and Mastercard transactions:"
+      "text": "The server now forwards purchases to the card issuer's host through a QMUX, `issuer-mux` (the client side of unit c12). Visa's issuer answers at once; today Mastercard's takes two seconds for every answer. The obvious participant asks and waits:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "public class VisaTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable serializable) {\n        Context context = (Context) serializable;\n        // Visa-specific validation and processing\n        if (isValidVisaTransaction(context)) {\n            context.put(\"network\", \"VISA\");\n            return PREPARED;\n        }\n        return PREPARED | NO_JOIN | READONLY; // not a Visa card: pass it through, never abort it\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // Commit Visa transaction\n        // For example, send to Visa network\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // Handle Visa transaction abort\n    }\n\n    private boolean isValidVisaTransaction(Context context) {\n        // Implement Visa-specific validation\n        String pan = (String) context.get(\"pan\");\n        return pan != null && pan.startsWith(\"4\");\n    }\n}\n\npublic class MastercardTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable serializable) {\n        Context context = (Context) serializable;\n        // Mastercard-specific validation and processing\n        if (isValidMastercardTransaction(context)) {\n            context.put(\"network\", \"MASTERCARD\");\n            return PREPARED;\n        }\n        return PREPARED | NO_JOIN | READONLY; // not a Mastercard card: pass it through, never abort it\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // Commit Mastercard transaction\n        // For example, send to Mastercard network\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // Handle Mastercard transaction abort\n    }\n\n    private boolean isValidMastercardTransaction(Context context) {\n        // Implement Mastercard-specific validation\n        String pan = (String) context.get(\"pan\");\n        return pan != null && pan.startsWith(\"5\");\n    }\n}"
+      "text": "ISOMsg response = mux.request((ISOMsg) request.clone(), timeout);   // the session waits here\nif (response != null)\n    ctx.put(\"ISSUER_RESPONSE\", response);"
     },
     {
       "type": "para",
-      "text": "These participants handle Visa and Mastercard specific logic, such as identifying the card network based on the PAN (Primary Account Number) prefix."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "4.4 Configuring the Transaction Flow"
-    },
-    {
-      "type": "para",
-      "text": "To tie everything together, we need to configure the transaction flow. This is typically done in an XML configuration file for jPOS:"
+      "text": "After it, `AnswerFromIssuer` builds the response from the issuer's field 39, or `91` (issuer unavailable) when there was none, and votes. The TransactionManager runs four sessions. Eight Mastercard purchases arrive within 50 ms, each from its own terminal, and 100 ms later one Visa purchase. How long does the Visa purchase wait?"
     },
     {
       "type": "code",
-      "lang": "xml",
-      "text": "<txnmgr class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnQueue\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <participant class=\"TransactionValidator\" logger=\"Q2\"/>\n  <participant class=\"VisaTransactionParticipant\" logger=\"Q2\"/>\n  <participant class=\"MastercardTransactionParticipant\" logger=\"Q2\"/>\n  <!-- Add more participants as needed -->\n</txnmgr>"
+      "lang": "text",
+      "text": "Mastercard 29110011: 0210 39=00 after 2000 ms\nMastercard 29110012: 0210 39=00 after 2000 ms\nMastercard 29110013: 0210 39=00 after 2000 ms\nMastercard 29110014: 0210 39=00 after 2000 ms\nMastercard 29110015: 0210 39=00 after 4000 ms\nMastercard 29110016: 0210 39=00 after 3900 ms\nMastercard 29110017: 0210 39=00 after 3900 ms\nMastercard 29110018: 0210 39=00 after 3900 ms\nVisa       29110019: 0210 39=00 after 3800 ms"
     },
     {
       "type": "para",
-      "text": "This configuration sets up the TransactionManager and defines the order of participants in the transaction flow."
+      "text": "A session takes a Context from the queue and keeps it until the last `commit` or `abort` returns. While `mux.request` waits, the session's thread waits with it. The first four Mastercard purchases held all four sessions for two seconds, the next four took them for the next two, and the Visa purchase waited in the queue behind them. Each transaction's event shows the queue at the moment it ended: `outstanding` counts the Contexts that no session has taken yet."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "     in-transit=2/4, head=5, tail=1, paused=0, outstanding=5, active-sessions=4/4, ..."
+    },
+    {
+      "type": "para",
+      "text": "Four sessions, each held two seconds, finish two Mastercard purchases a second. We sent four a second, plus one Visa purchase a second, for 20 seconds:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "Visa sent at  0 s: answered after 0 ms\nVisa sent at  1 s: answered after 1200 ms\nVisa sent at  2 s: answered after 2200 ms\n...\nVisa sent at 13 s: answered after 13200 ms\nVisa sent at 14 s: answered after 14200 ms\nVisa sent at 15 s: no answer\nVisa sent at 16 s: answered after 14700 ms\nVisa sent at 17 s: no answer\nVisa sent at 18 s: answered after 14700 ms\nVisa sent at 19 s: no answer\nMastercard answered: 71 of 80"
+    },
+    {
+      "type": "para",
+      "text": "The wait grows by a second every second. After 15 seconds it reaches the listener's `timeout` (15000 ms by default, unit s1), and Contexts start to expire from the queue before any session takes them. From then on the server answers some requests 14.7 seconds late and the others never, whatever their brand. Acquirers reverse the purchases their terminals gave up on, and the reversals join the same queue."
+    },
+    {
+      "type": "para",
+      "text": "`max-sessions` lets the TransactionManager add sessions when the queue grows. In 2.1.7 each one is a platform thread, and a slow host holds every one you add. Size the sessions from the time a transaction holds one, and put a timeout shorter than the terminal's on every call a participant makes."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.5 Testing the Transaction Flow"
+      "text": "4.7 `PAUSE` Gives the Session Back While You Wait"
     },
     {
       "type": "para",
-      "text": "Let's create a test to verify our transaction flow:"
+      "text": "QMUX can also call you back instead of blocking: `mux.request(m, timeout, listener, handBack)` returns at once and later calls `listener.responseReceived(response, handBack)`, with `null` once the timeout passes. A participant that returns `PAUSE` tells the TransactionManager to set the transaction aside and free the session. `ctx.resume()` puts the Context back at the head of the queue, and the next free session continues with the participant after the one that paused:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.SimpleConfiguration;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.ArgumentMatchers.anyLong;\nimport static org.mockito.ArgumentMatchers.eq;\nimport static org.mockito.Mockito.never;\nimport static org.mockito.Mockito.spy;\nimport static org.mockito.Mockito.verify;\n\npublic class TransactionFlowTest implements TransactionConstants {\n\n    private VisaTransactionParticipant visa;\n    private MastercardTransactionParticipant mastercard;\n    private List<TransactionParticipant> participants;\n\n    @BeforeEach\n    public void setup() throws Exception {\n        // Configure participants, in the order the txnmgr descriptor lists them\n        TransactionValidator validator = new TransactionValidator();\n        validator.setConfiguration(new SimpleConfiguration());\n        visa = spy(new VisaTransactionParticipant());\n        mastercard = spy(new MastercardTransactionParticipant());\n        participants = List.of(validator, visa, mastercard);\n    }\n\n    // Runs one transaction the way the TransactionManager does: prepare each participant\n    // in order, then commit the ones that joined, or abort them if one aborted\n    private int process(long id, Context context) {\n        List<TransactionParticipant> joined = new ArrayList<>();\n        for (TransactionParticipant p : participants) {\n            int action = p.prepare(id, context);\n            if ((action & NO_JOIN) == 0) {\n                joined.add(p);\n            }\n            if ((action & PREPARED) == 0) {\n                joined.forEach(j -> j.abort(id, context));\n                return ABORTED;\n            }\n        }\n        joined.forEach(j -> j.commit(id, context));\n        return PREPARED;\n    }\n\n    @Test\n    public void testVisaTransaction() {\n        Context context = new Context();\n        context.put(\"amount\", \"100.00\");\n        context.put(\"cardNumber\", \"4111111111111111\");\n        context.put(\"pan\", \"4111111111111111\");\n\n        assertEquals(PREPARED, process(1L, context));\n\n        assertEquals(\"VISA\", context.get(\"network\"));\n        verify(visa).commit(eq(1L), any());\n        verify(mastercard, never()).commit(anyLong(), any());\n    }\n\n    @Test\n    public void testMastercardTransaction() {\n        Context context = new Context();\n        context.put(\"amount\", \"200.00\");\n        context.put(\"cardNumber\", \"5555555555554444\");\n        context.put(\"pan\", \"5555555555554444\");\n\n        assertEquals(PREPARED, process(2L, context));\n\n        assertEquals(\"MASTERCARD\", context.get(\"network\"));\n        verify(mastercard).commit(eq(2L), any());\n        verify(visa, never()).commit(anyLong(), any());\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/** Asks the issuer's host and gives the session back while the host thinks. */\npublic class QueryIssuer implements TransactionParticipant, ISOResponseListener, Configurable {\n    static final String ISSUER_RESPONSE = \"ISSUER_RESPONSE\";\n    private String muxName;\n    private long timeout;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"issuer-mux\");\n        timeout = cfg.getLong(\"timeout\", 10000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n        if (mux == null || !mux.isConnected())\n            return PREPARED | READONLY | NO_JOIN;                        // no answer: 91 follows\n        try {\n            mux.request((ISOMsg) request.clone(), timeout, this, ctx);   // (1) returns at once\n            return PREPARED | PAUSE | READONLY | NO_JOIN;                // (2) the session is free\n        } catch (ISOException e) {\n            ctx.log(e);\n            return PREPARED | READONLY | NO_JOIN;\n        }\n    }\n\n    /** Called by the MUX, on its own thread, with the answer or with null after the timeout. */\n    @Override\n    public void responseReceived(ISOMsg response, Object handBack) {\n        Context ctx = (Context) handBack;                                // (3) this transaction's Context\n        if (response != null)\n            ctx.put(ISSUER_RESPONSE, response);\n        ctx.resume();                                                    // (4) back into the queue\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This test class verifies that our transaction flow correctly identifies Visa and Mastercard transactions based on the PAN."
+      "text": "The same nine purchases and four sessions:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "Mastercard 29110011: 0210 39=00 after 2000 ms\n...\nMastercard 29110018: 0210 39=00 after 2000 ms\nVisa       29110019: 0210 39=00 after 0 ms"
     },
     {
       "type": "para",
-      "text": "In conclusion, this implementation demonstrates how to set up transaction processing in jPOS, including the TransactionManager, custom TransactionParticipants for general validation and card network-specific processing, and how to test the transaction flow. This modular approach allows for easy extension and modification of the transaction processing logic as needed."
+      "text": "The Visa purchase's event, written while the eight Mastercard purchases were paused:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.QueryIssuer PREPARED PAUSE READONLY NO_JOIN\n            prepare: c.e.j.s.p.AnswerFromIssuer PREPARED NO_JOIN\n            prepare: o.j.t.p.SendResponse PREPARED READONLY\n             commit: o.j.t.p.SendResponse\n     in-transit=8/9, head=10, tail=1, paused=8, outstanding=0, active-sessions=4/4, ..."
+    },
+    {
+      "type": "para",
+      "text": "Under the 20-second load of 4.6, all 80 Mastercard purchases were answered, and every Visa purchase in under 100 ms. A paused transaction holds no thread, so the limit is now the issuer and the MUX's timeout."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**(1) and (2): the vote is cast before the answer exists.** `PREPARED | PAUSE` says \"go on when I resume\". This participant can't change its vote once the issuer answers, so a participant after it decides, here `AnswerFromIssuer`.",
+        "**(3): the callback finds its transaction through `handBack`.** One `QueryIssuer` serves every session (unit s1), and dozens of transactions may be paused in it at once. A field holding \"the current Context\" would hold whichever transaction paused last.",
+        "**(4): every callback resumes, the empty one too.** When the timeout passes, QMUX calls the listener's `expired`, which by default calls `responseReceived(null, ...)`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "With the issuer silent and a 3-second timeout:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=91 after 3000 ms"
+    },
+    {
+      "type": "para",
+      "text": "`AnswerFromIssuer` found no issuer response and answered `91`. A MUX that isn't deployed or isn't connected gets the same answer at once, from the check before (1). A transaction that is never resumed stays paused, and its terminal waits out its own timeout; the TransactionManager's `pause-timeout` property, when set, resumes it on the abort path after that many milliseconds."
+    },
+    {
+      "type": "para",
+      "text": "jPOS's own `org.jpos.transaction.participant.QueryHost` does this, pausing while its `continuations` property is true, the default. It picks the MUX from a destination in the Context and reports a timeout through `ctx.getResult()`; unit s5 uses it. `Join` is the other tool for waiting: it runs the participants nested in it in parallel, for independent slow steps such as a call to an HSM and a database lookup."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3** sessions run on virtual threads. A blocked session costs little, and `PAUSE` is deprecated."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.8 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A participant hears the outcome only if it joined.** One that changes something outside the Context in `prepare` joins and undoes it in `abort`; with `NO_JOIN` what it reserved leaks. One that votes `ABORTED` joins too, unless it says `NO_JOIN`.",
+        "**After an abort, only abort participants are asked.** Plain participants later in the chain are never prepared and never hear the abort. `prepareForAbort` calls `prepare` unless you override it.",
+        "**Commit cannot change the outcome.** An exception in `commit` is a warning, and the approval still goes out. Do what can fail in `prepare`, in a form `abort` can undo.",
+        "**The Context is keyed by strings.** `ctx.get(REQUEST)` returns `null`; use `REQUEST.toString()`.",
+        "**A session is busy for the whole transaction.** Sessions divided by the time each transaction holds one is the throughput. Past it the queue grows until the listener's timeout drops requests, slow and fast alike.",
+        "**`PAUSE` gives the session back.** The callback finds its Context through `handBack` and always resumes, and a participant after the paused one decides."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.9 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Votes** (`org.jpos.transaction.TransactionConstants`, combined with `|`):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Value",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`PREPARED`",
+          "go on; the transaction commits if everyone says so"
+        ],
+        [
+          "`ABORTED` (0)",
+          "the transaction aborts"
+        ],
+        [
+          "`NO_JOIN`",
+          "no `commit` or `abort` call for this participant"
+        ],
+        [
+          "`READONLY`",
+          "the Context was not changed, so it is not snapshotted after this participant"
+        ],
+        [
+          "`FAIL`",
+          "`ABORTED | READONLY | NO_JOIN`"
+        ],
+        [
+          "`PAUSE`",
+          "free the session until `ctx.resume()`"
+        ],
+        [
+          "`RETRY`",
+          "with `ABORTED`: neither `commit` nor `abort`; the Context is queued again after `retry-interval`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Who is called (2.1.7):** until someone aborts, `prepare` on each participant in order; after that, only `prepareForAbort` on `AbortParticipant`s. Then `commit` (everyone `PREPARED`) or `abort` on those that joined, in declaration order. A throw from `prepare` counts as `ABORTED` and joins; a throw from `prepareForAbort` counts as `ABORTED | NO_JOIN`; a throw from `commit` or `abort` is logged and the next participant is called."
+    },
+    {
+      "type": "para",
+      "text": "**Participant lifecycle:** created once, from `class`, with its public no-argument constructor; then `setLogger` if it is a `LogSource`, `setTransactionManager(TransactionManager)` if it has that method, and `setConfiguration` if it is `Configurable`. A `ConfigurationException` there stops the TransactionManager from starting (unit s1). `destroy()` is called at stop if it implements `org.jpos.util.Destroyable`. On a session thread, `TransactionManager.getContext()` and `getId()` return the current transaction's Context and id."
+    },
+    {
+      "type": "para",
+      "text": "**Context keys used by jPOS 2.1.7 components** (`ContextConstants`, as strings):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Key",
+        "Put by",
+        "Holds"
+      ],
+      "rows": [
+        [
+          "`REQUEST`, `SOURCE`, `TIMESTAMP`",
+          "`IncomingListener`",
+          "the request, where to answer, when it arrived"
+        ],
+        [
+          "`RESPONSE`",
+          "your participants",
+          "what `SendResponse` sends"
+        ],
+        [
+          "`TX`",
+          "your database participants",
+          "an open database transaction; `SendResponse` refuses to send while it is set (unit s9)"
+        ],
+        [
+          "`DESTINATION`",
+          "`SelectDestination`",
+          "the name `QueryHost` turns into a MUX (unit s5)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`ctx.put(key, value)` stores a transient entry. `ctx.put(key, value, true)` also stores it in the persistent map, which is the part a persistent space keeps; never put card data there."
+    },
+    {
+      "type": "para",
+      "text": "**TransactionManager properties used or mentioned in this unit:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Property",
+        "Default",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`queue`",
+          "required",
+          "the Space queue its sessions read"
+        ],
+        [
+          "`sessions`",
+          "1",
+          "sessions started at boot"
+        ],
+        [
+          "`max-sessions`",
+          "`sessions`",
+          "ceiling on all sessions, including those added when the queue grows"
+        ],
+        [
+          "`threshold`",
+          "`sessions / 2`",
+          "queued Contexts above which extra sessions start"
+        ],
+        [
+          "`debug`, `debug-context`, `profiler`",
+          "true, `debug`, `debug`",
+          "the per-transaction event, the Context dump, the timings; turning on either of the last two turns on `debug`"
+        ],
+        [
+          "`pause-timeout`",
+          "0 (none)",
+          "resume a paused transaction after this many ms"
+        ],
+        [
+          "`abort-on-pause-timeout`",
+          "true",
+          "resume it on the abort path"
+        ],
+        [
+          "`retry-interval`, `retry-timeout`",
+          "5000, 60000",
+          "for `RETRY`"
+        ],
+        [
+          "`call-selector-on-abort`",
+          "true",
+          "ask a `GroupSelector` even on the abort path (unit s5)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The event's status line:** `in-transit` active transactions (paused ones included) over `head - tail`; `head` and `tail` the next and the oldest unfinished transaction ids; `paused`; `outstanding` Contexts queued and not yet taken; `active-sessions` running over `max-sessions`."
+    },
+    {
+      "type": "para",
+      "text": "**The other classes of the examples.** The reply helper, which units s5 and s9 use as well:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic final class Responses {\n    private Responses() { }\n\n    /** A reply to {@code request} carrying response code {@code rc} in field 39. */\n    public static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        r.unset(14, 35, 45, 52, 55, 64);   // expiry, tracks, PIN block, chip data, the request's MAC\n        return r;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The daily totals, registered with `NameRegistrar.register(\"daily-totals\", new DailyTotals(50000))` before Q2 starts:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.limits;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/** Today's total per card, in minor units, against one daily limit. Shared by every session. */\npublic final class DailyTotals {\n    private final Map<String, Long> totals = new HashMap<>();\n    private final long limit;\n\n    public DailyTotals(long limit) {\n        this.limit = limit;\n    }\n\n    /** Adds the amount to the card's total, unless that would pass the limit. */\n    public synchronized boolean reserve(String card, long amount) {\n        long now = totals.getOrDefault(card, 0L);\n        if (now + amount > limit)\n            return false;\n        totals.put(card, now + amount);\n        return true;\n    }\n\n    public synchronized void release(String card, long amount) {\n        totals.merge(card, -amount, Long::sum);\n    }\n\n    public synchronized long total(String card) {\n        return totals.getOrDefault(card, 0L);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The account check that `Authorize` stands in for:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Stands in for the account check: approves what the account can pay, declines the rest with 51. */\npublic class Authorize implements TransactionParticipant, Configurable {\n    private long available;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        available = cfg.getLong(\"available\", -1);\n        if (available < 0)\n            throw new ConfigurationException(\"'available' must be set\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        try {\n            if (Long.parseLong(request.getString(4)) > available) {\n                ctx.put(RESPONSE.toString(), Responses.reply(request, \"51\"));  // insufficient funds\n                return ABORTED | NO_JOIN;\n            }\n            ISOMsg response = Responses.reply(request, \"00\");\n            response.set(38, String.format(\"%06d\", id % 1000000));          // approval code\n            ctx.put(RESPONSE.toString(), response);\n            return PREPARED | NO_JOIN;\n        } catch (Exception e) {\n            ctx.log(e);\n            return ABORTED | NO_JOIN;\n        }\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.10 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The daily limit of 4.2 lives in memory. Move it to a database table. Where does the reservation happen, what does `commit` do now, and what happens to a reservation when the server dies between `prepare` and `abort`?",
+        "Your issuer answers in 300 ms on a normal day and in 8 seconds on a bad one. Terminals give up after 30 seconds and the peak is 200 purchases a second. How many sessions do you need with a blocking participant, and what limits you with `PAUSE`?",
+        "`DeclineMonitor` counts declines. The fraud team now wants to refuse the card after the fifth decline in an hour, before the sixth attempt reaches the issuer. Where in the chain does the check go, and what does it vote?",
+        "`RecordApproval` failed with only a warning. Design the alert: what do you watch, and how soon would you have known about the full disk?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.11 Design Note: Why Does the TransactionManager Ask Twice?"
+    },
+    {
+      "type": "para",
+      "text": "A TransactionManager could run each participant once and stop at the first failure. jPOS asks in two rounds instead, the way a database coordinates a distributed commit: first every participant says whether it can, then each one that joined is told what happened."
+    },
+    {
+      "type": "para",
+      "text": "The reason is the late decline. In an authorization the step that says no is often not the first: the limit and the card are fine, and then the account check or the issuer declines. Every step before it may have changed something, such as a reserved amount, a counter or a row, and each has to undo exactly what it did. Two rounds let each participant keep its undo next to its own work, and the TransactionManager only has to remember who joined."
+    },
+    {
+      "type": "para",
+      "text": "The price is discipline the TransactionManager can't enforce. It doesn't know what a participant changed, so it believes the flags: after `NO_JOIN` it never calls that participant again, and after `READONLY` it skips the snapshot. And once everyone has voted `PREPARED` it has no way back, so a `commit` that fails can only be logged."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 7,
-    "paras": 14,
-    "code": 5,
-    "tables": 0,
-    "lists": 1,
+    "headings": 12,
+    "paras": 58,
+    "code": 33,
+    "tables": 3,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "459014eabe102f71a044f26b05cc767009f48a241fa49e88a9c163de44771569"
+  "content_sha256": "8d1da9a5b3c5d53101976b2710506da889f1a0f1d98ec4349cd016f9ba996df1"
 }

@@ -8,8 +8,8 @@
   "unit": 8,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "A debug mode you can switch off",
+  "ingested": "2026-11-05",
+  "title": "Page someone when a transaction stops finishing",
   "blocks": [
     {
       "type": "heading",
@@ -18,23 +18,15 @@
     },
     {
       "type": "para",
-      "text": "During an incident an operator turns a server's debug mode on, reads what it says, and turns it off again. The page adds and removes a listener to do that. Here the switch is a flag, and what it controls is one extra event per transaction."
+      "text": "Last month a server lost both of its sessions to an issuer call that never returned, and terminals reversed purchases for forty minutes before anyone looked at the log. Operations want a page the moment a transaction stops finishing, and not one page more."
     },
     {
       "type": "para",
-      "text": "Write `DebuggableServer`, built from a jPOS `Logger`, with `setDebugMode(boolean on)` and `processTransaction(ISOMsg msg)`. Every transaction is logged as one event tagged `transaction.process`, saying `Processing transaction: <MTI>`. While debug mode is on, a `transaction.debug` event comes first, saying `MTI: <MTI>` and then `Amount: <field 4>`."
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Debug mode starts off, and switching it off again stops the debug events.",
-        "A message with no amount (field 4) is logged as `Amount: none`. An operator reading `Amount: null` cannot tell a missing field from a bug."
-      ]
+      "text": "Finish `poll` in `src/main/java/com/example/practice/StuckWatch.java`. A monitor calls it every few seconds for the life of the server, with the TransactionManager's `getHead()` and `getTail()` and the time of the poll. It returns the id of a transaction that has been running for longer than the limit given to the constructor, or `-1`. The server is busy at lunchtime and almost silent at night, and the page has to be right at both. About ten lines in total."
     },
     {
       "type": "para",
-      "text": "The card number is deliberately not logged, even in debug mode: see the client's unit 8."
+      "text": "The first test runs a real TransactionManager with two sessions, in which one purchase hangs in a participant until the test releases it. The others pass head and tail values directly."
     },
     {
       "type": "heading",
@@ -49,7 +41,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    private final LogSource source;\n    private boolean debug;\n\n    public DebuggableServer(Logger logger) {\n        this.source = new SimpleLogSource(logger, \"server\");\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        this.debug = on;\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        if (debug) {\n            LogEvent details = new LogEvent(source, \"transaction.debug\");\n            details.addMessage(\"MTI: \" + msg.getMTI());\n            details.addMessage(\"Amount: \" + (msg.hasField(4) ? msg.getString(4) : \"none\"));\n            Logger.log(details);\n        }\n        LogEvent event = new LogEvent(source, \"transaction.process\");\n        event.addMessage(\"Processing transaction: \" + msg.getMTI());\n        Logger.log(event);\n    }\n}\n"
+          "text": "package com.example.practice;\n\n/**\n * Polled every few seconds with a TransactionManager's head and tail (getHead(), getTail()), and\n * the time of the poll. Names a transaction that has stopped finishing, so that someone is paged\n * before the server runs out of sessions.\n */\npublic class StuckWatch {\n    /** No transaction on this server legitimately takes longer than this. */\n    private final long limitMillis;\n    private long watchedTail = -1;\n    private long since;\n\n    public StuckWatch(long limitMillis) {\n        this.limitMillis = limitMillis;\n    }\n\n    /** The id of a transaction that has been running for longer than the limit, or -1. */\n    public long poll(long head, long tail, long nowMillis) {\n        if (tail >= head) {                                 // nothing unfinished\n            watchedTail = -1;\n            return -1;\n        }\n        if (tail != watchedTail) {                          // a new oldest transaction\n            watchedTail = tail;\n            since = nowMillis;\n        }\n        return nowMillis - since > limitMillis ? tail : -1;\n    }\n}\n"
         }
       ]
     },
@@ -61,7 +53,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    public DebuggableServer(Logger logger) {\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        throw new UnsupportedOperationException(\"write setDebugMode\");\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write processTransaction\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\n/**\n * Polled every few seconds with a TransactionManager's head and tail (getHead(), getTail()), and\n * the time of the poll. Names a transaction that has stopped finishing, so that someone is paged\n * before the server runs out of sessions.\n */\npublic class StuckWatch {\n    /** No transaction on this server legitimately takes longer than this. */\n    private final long limitMillis;\n\n    public StuckWatch(long limitMillis) {\n        this.limitMillis = limitMillis;\n    }\n\n    /** The id of a transaction that has been running for longer than the limit, or -1. */\n    public long poll(long head, long tail, long nowMillis) {\n        // TODO: Decide from what head and tail say, and from what earlier polls saw. Add the fields\n        //       you need: one instance is polled for the life of the server.\n        throw new IllegalStateException(\"TODO: poll\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -72,7 +64,7 @@
     "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -80,11 +72,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "d37f4d9a21fae77cee260105bc2962fe20f541f2fefc48f6c337bfa33d7e8f44",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A server whose debug output can be switched on and off. */\npublic final class DebuggableServer {\n\n    public DebuggableServer(Logger logger) {\n    }\n\n    /** Switch debug mode on or off. */\n    public void setDebugMode(boolean on) {\n        throw new UnsupportedOperationException(\"write setDebugMode\");\n    }\n\n    /** Log `msg` as processed, after a debug event while debug mode is on. */\n    public void processTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write processTransaction\");\n    }\n}\n",
+  "content_sha256": "1976a9c4eb7766137cc4645c01a8d4dbb7dc30dd6ec33921f5f04d6b32b3ccec",
+  "starting_code": "package com.example.practice;\n\n/**\n * Polled every few seconds with a TransactionManager's head and tail (getHead(), getTail()), and\n * the time of the poll. Names a transaction that has stopped finishing, so that someone is paged\n * before the server runs out of sessions.\n */\npublic class StuckWatch {\n    /** No transaction on this server legitimately takes longer than this. */\n    private final long limitMillis;\n\n    public StuckWatch(long limitMillis) {\n        this.limitMillis = limitMillis;\n    }\n\n    /** The id of a transaction that has been running for longer than the limit, or -1. */\n    public long poll(long head, long tail, long nowMillis) {\n        // TODO: Decide from what head and tail say, and from what earlier polls saw. Add the fields\n        //       you need: one instance is polled for the life of the server.\n        throw new IllegalStateException(\"TODO: poll\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-08/practice-2/src/main/java/com/example/practice/DebuggableServer.java",
-    "test_path": "practice/jpos-server/prose/unit-08/practice-2/src/test/java/com/example/practice/DebuggableServerTest.java",
+    "main_path": "practice/jpos-server/prose/unit-08/practice-2/src/main/java/com/example/practice/StuckWatch.java",
+    "test_path": "practice/jpos-server/prose/unit-08/practice-2/src/test/java/com/example/practice/StuckWatchTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -105,19 +97,24 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.DebuggableServerTest#withDebugOnADebugEventPrecedesTheProcessingEvent",
+        "id": "com.example.practice.StuckWatchTest#aHungTransactionIsNamed",
         "kind": "main",
-        "says": "with debug on, a debug event comes before the processing event, and not otherwise"
+        "says": "with a real TransactionManager, a transaction hung in a participant is named once it has been the oldest unfinished one for longer than the limit, and nothing is named after it finishes"
       },
       {
-        "id": "com.example.practice.DebuggableServerTest#switchingDebugOffStopsTheDebugEvents",
+        "id": "com.example.practice.StuckWatchTest#anIdleServerIsNotStuck",
         "kind": "edge",
-        "says": "switching debug off again stops the debug events"
+        "says": "when head equals tail nothing is running, so a tail that hasn't moved for hours is not a stuck transaction"
       },
       {
-        "id": "com.example.practice.DebuggableServerTest#aMissingAmountIsSaidNotPrintedAsNull",
+        "id": "com.example.practice.StuckWatchTest#aQuietNightStillShowsTheHungTransaction",
         "kind": "edge",
-        "says": "a message with no amount says so, instead of logging the word null"
+        "says": "a hung transaction is named even when no new transactions arrive and head stays where it is"
+      },
+      {
+        "id": "com.example.practice.StuckWatchTest#aBusyServerWhoseOldestKeepsFinishingIsNotStuck",
+        "kind": "edge",
+        "says": "the time is counted from when the current tail became the oldest, so a busy server whose tail keeps moving is never named"
       }
     ],
     "report": {
@@ -126,10 +123,10 @@
     },
     "origin": {
       "path": "src/s8.md",
-      "section": "8.4 Debugging Techniques"
+      "section": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
     },
     "concepts": [
-      "A debug mode that can be switched on and off adds a detailed event per transaction only while it is on, and says plainly when a field is absent."
+      "A transaction that never ends writes no event; tail stays at its id while it is the oldest unfinished one, whether or not head moves, and an idle server has tail equal to head."
     ]
   }
 }

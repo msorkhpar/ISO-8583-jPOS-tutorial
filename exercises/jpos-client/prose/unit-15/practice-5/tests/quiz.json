@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "ordinal": 5,
+  "title": "Check yourself: the lifecycle the host starts and the one that goes wrong",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-host-sign-off-unanswered",
+        "stem": "Your client's QMUX has one request listener, which answers 0800 echoes (code 301) and nothing else. Links A and B sit behind a pool with check-enabled, and the sign-on manager signs on once per connection and echoes every five minutes. At 23:40 host A sends an 0800 with code 002, and it goes on answering echoes as usual. What happens to the purchases the pool sends to link A over the following hours?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The host declines them, since the client still treats the connection as signed on and keeps routing purchases to it",
+            "correct": true,
+            "says": "the 002 ends on the unhandled queue; the logon mark still matches, the echoes are answered, so the link stays enabled until the logon mark expires"
+          },
+          {
+            "id": "b",
+            "text": "The host declines them until the next echo, since the manager takes the link out when an echo follows a host sign-off",
+            "correct": false,
+            "says": "the host keeps answering echoes, so every echo succeeds and nothing takes the link out"
+          },
+          {
+            "id": "c",
+            "text": "They all go to link B instead, since QMUX answers the 002 itself and removes the enabled mark of link A",
+            "correct": false,
+            "says": "QMUX answers nothing by itself; a message nobody waits for goes to the listeners and then to the unhandled queue"
+          },
+          {
+            "id": "d",
+            "text": "They all go to link B instead, since the adaptor drops a connection that the host has signed off and connects again",
+            "correct": false,
+            "says": "a sign-off is a message on the connection; the adaptor neither reads it nor closes the connection"
+          }
+        ],
+        "origin": {
+          "path": "src/c15.md",
+          "section": "15.1 The Host Starts Network Messages Too, and Each One Needs Its Own Answer"
+        }
+      },
+      {
+        "id": "q-backoff-cap",
+        "stem": "After a refused sign-on, a client waits 5 seconds, doubles the wait after each further refusal, and caps it at 10 minutes. The host refuses every sign-on from 01:00 and accepts them again from 03:00. When does the link carry purchases again?",
+        "options": [
+          {
+            "id": "a",
+            "text": "At the first sign-on after 03:00, which may come up to 10 minutes later, since the wait stops growing at the cap",
+            "correct": true,
+            "says": "the cap is also the longest a link can stay out after its host has recovered"
+          },
+          {
+            "id": "b",
+            "text": "At the first sign-on after 03:00, which may come hours later, since the wait keeps doubling while the host refuses",
+            "correct": false,
+            "says": "the doubling stops at the cap, so no wait is longer than 10 minutes"
+          },
+          {
+            "id": "c",
+            "text": "Within a second or so of 03:00, since the host's change of mind resets the client's wait at once",
+            "correct": false,
+            "says": "the client learns that the host accepts again only from its next sign-on, which comes when its wait is over"
+          },
+          {
+            "id": "d",
+            "text": "Within a second or so of 03:00, since once the wait reaches the cap the manager tries again on every pass",
+            "correct": false,
+            "says": "at the cap the manager waits the cap between attempts; trying on every pass is what the backoff replaces"
+          }
+        ],
+        "origin": {
+          "path": "src/c15.md",
+          "section": "15.2 A Refused Sign-On Waits Longer Each Time"
+        }
+      },
+      {
+        "id": "q-echo-limit-hung-host",
+        "stem": "Two links share a pool. The manager's echo timeout is 20 seconds, and it takes a link out after 4 failed echoes in a row. Host A's application hangs just as an echo goes out. Purchases arrive at 6 a second, split evenly between the links. What happens to purchases until link A leaves the pool?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Roughly 240 go to A and get no answer, since A stays in the pool for about four echo timeouts",
+            "correct": true,
+            "says": "each failure the limit allows keeps the dead host in the pool for one more echo timeout: about 80 s at 3 purchases a second"
+          },
+          {
+            "id": "b",
+            "text": "Roughly 60 go to A and get no answer, since A leaves the pool at the first failed echo and later ones only confirm it",
+            "correct": false,
+            "says": "the link stays enabled until the limit-th failure in a row; the first failure only starts the count"
+          },
+          {
+            "id": "c",
+            "text": "None of them go to A after the hang, since the pool skips a link as soon as one of its purchases times out",
+            "correct": false,
+            "says": "the pool looks only at the connection and the enabled mark; a purchase timing out changes neither"
+          },
+          {
+            "id": "d",
+            "text": "None of them go to A after the hang, since QMUX holds back purchases while an echo on the link is unanswered",
+            "correct": false,
+            "says": "QMUX sends every request it is given; an echo waiting for its answer does not stop other requests"
+          }
+        ],
+        "origin": {
+          "path": "src/c15.md",
+          "section": "15.3 One Lost Echo Is Not a Dead Host"
+        }
+      },
+      {
+        "id": "q-stop-without-drain",
+        "stem": "A release stops Q2 at 10:15:00. The sign-on manager's stop takes the link out of the pool, signs it off and forgets the session, without waiting for anything. A purchase sent at 10:14:59.8 is approved by the host at 10:15:01. The caller's timeout is 15 seconds. What does the caller get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "null at about 10:15:15, so it must reverse the purchase, since the approval found the connection already closed",
+            "correct": true,
+            "says": "Q2 undeploys the QMUX and the adaptor right after the manager's stop; the answer is lost and the outcome is unknown"
+          },
+          {
+            "id": "b",
+            "text": "null at about 10:15:15, so it may send the purchase again later, since a host that was signed off discards the purchase",
+            "correct": false,
+            "says": "the host received the purchase before the sign-off and approved it; sending it again charges twice"
+          },
+          {
+            "id": "c",
+            "text": "the approval at 10:15:01, since Q2 keeps a link open until every request sent on it has had its answer",
+            "correct": false,
+            "says": "Q2 stops each component in turn; without a drain in the manager's stop nothing waits for requests in flight"
+          },
+          {
+            "id": "d",
+            "text": "the approval at 10:15:01, since QMUX keeps the answer and hands it to the caller when the client is back",
+            "correct": false,
+            "says": "an answer that arrives on a closed connection never reaches QMUX; the caller's request ends with null"
+          }
+        ],
+        "origin": {
+          "path": "src/c15.md",
+          "section": "15.4 Drain a Link Before You Sign It Off"
+        }
+      }
+    ]
+  }
+}

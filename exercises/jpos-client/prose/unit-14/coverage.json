@@ -1,0 +1,180 @@
+{
+  "coverage_api": 2,
+  "page": "src/c14.md",
+  "kind": "code",
+  "quiz": "pool-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/c14.md": "sha256:1d1a320f9e9bf304d787268a8f638e4dfc7784103f51a51554c10b83f655c890"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 4,
+    "aspects": [
+      {
+        "id": "choose-once",
+        "says": "A pool chooses a member once per request and never moves it, so a null from the pool is an unknown outcome to reverse; a retry through the pool lands on another link as a second purchase.",
+        "basis": [
+          "section:14.2 A Pool Chooses a Link Once per Request",
+          "example:src/c14.md:3",
+          "example:src/c14.md:4"
+        ],
+        "exercise": "pool-checkout",
+        "reason": null
+      },
+      {
+        "id": "counter-wrap",
+        "says": "The 2.1.7 round-robin counter is an int that goes negative after 2^31 increments, and from then on every request on the pool throws.",
+        "basis": [
+          "section:14.4.1 Spot the Problem: Eight Months of Uptime",
+          "example:src/c14.md:7"
+        ],
+        "exercise": null,
+        "reason": "the wrap needs 2^31 requests or reflection into the pool's private counter; the lesson shows the run, and the router practice uses a floor modulo without testing a wrap"
+      },
+      {
+        "id": "follow-up-router",
+        "says": "When host instances do not share state, a follow-up must go to its original's link, found through field 41 and field 90, and wait while that link is down; the override strategy falls back to round-robin instead, so it needs a router of your own.",
+        "basis": [
+          "section:14.6 A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own",
+          "example:src/c14.md:10",
+          "example:src/c14.md:11",
+          "example:src/c14.md:12"
+        ],
+        "exercise": "completion-router",
+        "reason": null
+      },
+      {
+        "id": "nothing-usable",
+        "says": "With nothing usable the pool polls once a second inside the request's own budget and returns null with nothing sent, so the caller checks isConnected first.",
+        "basis": [
+          "section:14.5 With Nothing Usable, the Pool Spends the Request's Own Time",
+          "example:src/c14.md:8"
+        ],
+        "exercise": "pool-checkout",
+        "reason": null
+      },
+      {
+        "id": "strategy-on-failure",
+        "says": "primary-secondary fails back at once, round-robin spreads a dead member's share evenly by advancing its counter per skipped member, and split-by-divisor falls back to round-robin when its member is down.",
+        "basis": [
+          "section:14.4 The Strategy Decides Where Traffic Goes When a Link Fails",
+          "example:src/c14.md:6"
+        ],
+        "exercise": "pool-quiz",
+        "reason": null
+      },
+      {
+        "id": "usable-signed-on",
+        "says": "With check-enabled a member is usable only while its enabled mark is the very ready object of its current connection; without it a connected member is usable.",
+        "basis": [
+          "section:14.3 A Link Is Usable When It Is Connected and Signed On",
+          "example:src/c14.md:5"
+        ],
+        "exercise": "pool-monitor",
+        "reason": null
+      },
+      {
+        "id": "zero-timeout",
+        "says": "request(m, 0) on a 2.1.7 pool sends the message and then hands it to a member again.",
+        "basis": [
+          "section:14.5 With Nothing Usable, the Pool Spends the Request's Own Time",
+          "example:src/c14.md:9"
+        ],
+        "exercise": null,
+        "reason": "it depends on two calls landing in the same millisecond, which a deterministic test cannot arrange; the lesson shows the run"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "pool-monitor",
+        "aspects": [
+          "usable-signed-on"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "pool-checkout",
+        "aspects": [
+          "choose-once",
+          "nothing-usable"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "completion-router",
+        "aspects": [
+          "follow-up-router"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "pool-quiz",
+        "aspects": [
+          "strategy-on-failure"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-client/prose/unit-14/practice-1",
+    "exercises/jpos-client/prose/unit-14/practice-2",
+    "exercises/jpos-client/prose/unit-14/practice-3",
+    "exercises/jpos-client/prose/unit-14/practice-4"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-1",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.3 A Link Is Usable When It Is Connected and Signed On"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-2",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.5 With Nothing Usable, the Pool Spends the Request's Own Time"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-3",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.6 A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-4:q-reconnected-primary",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.3 A Link Is Usable When It Is Connected and Signed On"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-4:q-round-robin-share",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.4 The Strategy Decides Where Traffic Goes When a Link Fails"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-4:q-split-member-down",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.4 The Strategy Decides Where Traffic Goes When a Link Fails"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-14/practice-4:q-nothing-usable",
+      "origin": {
+        "path": "src/c14.md",
+        "section": "14.5 With Nothing Usable, the Pool Spends the Request's Own Time"
+      }
+    }
+  ],
+  "shortfalls": []
+}

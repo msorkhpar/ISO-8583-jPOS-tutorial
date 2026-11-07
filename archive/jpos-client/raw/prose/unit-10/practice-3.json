@@ -1,0 +1,133 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Report a load run so the timeouts show",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Before a peak season the team runs a load test every night: twenty threads call `mux.request` against the test host, and each call adds a `Sample` with how long the thread waited and whether an answer came back. Last season the nightly report said the 99th percentile was under 5 ms, and on the first busy Saturday the help desk took calls from cashiers whose terminals had shown \"outcome unknown\" after the full timeout. The logs showed the same thing had happened every night in the load test."
+    },
+    {
+      "type": "para",
+      "text": "The report is built by `LoadReport` in `src/main/java/com/example/practice/LoadReport.java`. Finish the three methods marked `TODO`: `nulls`, `latencies` and `percentile`. `percentile` uses the nearest-rank definition its comment gives: with 20 waits, the 95th percentile is the 19th smallest. When you're done, a run whose purchases end in `null` can't produce a report that looks healthy. About ten lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\n\n/**\n * The summary of one load run. Each sample is one call to mux.request: how long the calling\n * thread waited, in microseconds, and whether an answer came back (false: request returned null).\n * The threads add samples in the order their requests finish.\n */\npublic final class LoadReport {\n    public record Sample(long micros, boolean answered) {}\n\n    public final int count;\n    public final int nulls;\n    public final long p50, p95, p99, max;              // microseconds\n\n    private LoadReport(int count, int nulls, List<Long> latencies) {\n        this.count = count;\n        this.nulls = nulls;\n        this.p50 = percentile(latencies, 50);\n        this.p95 = percentile(latencies, 95);\n        this.p99 = percentile(latencies, 99);\n        this.max = percentile(latencies, 100);\n    }\n\n    public static LoadReport of(List<Sample> samples) {\n        return new LoadReport(samples.size(), nulls(samples), latencies(samples));\n    }\n\n    @Override\n    public String toString() {\n        return String.format(\"n=%d nulls=%d p50=%d p95=%d p99=%d max=%d (us)\", count, nulls, p50, p95, p99, max);\n    }\n\n    /** How many requests came back with no answer. */\n    static int nulls(List<Sample> samples) {\n        int n = 0;\n        for (Sample s : samples)\n            if (!s.answered())\n                n++;\n        return n;\n    }\n\n    /** The waits the percentiles are taken from, ready for percentile(). */\n    static List<Long> latencies(List<Sample> samples) {\n        List<Long> waits = new ArrayList<>();\n        for (Sample s : samples)\n            waits.add(s.micros());\n        Collections.sort(waits);\n        return waits;\n    }\n\n    /** The smallest wait such that at least p percent of all waits are at or below it. */\n    static long percentile(List<Long> latencies, int p) {\n        int rank = (p * latencies.size() + 99) / 100;   // nearest rank, rounded up\n        return latencies.get(Math.max(rank, 1) - 1);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\n\n/**\n * The summary of one load run. Each sample is one call to mux.request: how long the calling\n * thread waited, in microseconds, and whether an answer came back (false: request returned null).\n * The threads add samples in the order their requests finish.\n */\npublic final class LoadReport {\n    public record Sample(long micros, boolean answered) {}\n\n    public final int count;\n    public final int nulls;\n    public final long p50, p95, p99, max;              // microseconds\n\n    private LoadReport(int count, int nulls, List<Long> latencies) {\n        this.count = count;\n        this.nulls = nulls;\n        this.p50 = percentile(latencies, 50);\n        this.p95 = percentile(latencies, 95);\n        this.p99 = percentile(latencies, 99);\n        this.max = percentile(latencies, 100);\n    }\n\n    public static LoadReport of(List<Sample> samples) {\n        return new LoadReport(samples.size(), nulls(samples), latencies(samples));\n    }\n\n    @Override\n    public String toString() {\n        return String.format(\"n=%d nulls=%d p50=%d p95=%d p99=%d max=%d (us)\", count, nulls, p50, p95, p99, max);\n    }\n\n    /** How many requests came back with no answer. */\n    static int nulls(List<Sample> samples) {\n        // TODO\n        throw new IllegalStateException(\"TODO: nulls\");\n    }\n\n    /** The waits the percentiles are taken from, ready for percentile(). */\n    static List<Long> latencies(List<Sample> samples) {\n        // TODO: which waits belong in a latency report, and in what order percentile() needs them.\n        throw new IllegalStateException(\"TODO: latencies\");\n    }\n\n    /** The smallest wait such that at least p percent of all waits are at or below it. */\n    static long percentile(List<Long> latencies, int p) {\n        // TODO: nearest rank, as the comment above says. p is 1 to 100.\n        throw new IllegalStateException(\"TODO: percentile\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "e6f018a103f6b062c3ab2be6669c3dac79320594b69d67954fb946b2a93ceaf7",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\n\n/**\n * The summary of one load run. Each sample is one call to mux.request: how long the calling\n * thread waited, in microseconds, and whether an answer came back (false: request returned null).\n * The threads add samples in the order their requests finish.\n */\npublic final class LoadReport {\n    public record Sample(long micros, boolean answered) {}\n\n    public final int count;\n    public final int nulls;\n    public final long p50, p95, p99, max;              // microseconds\n\n    private LoadReport(int count, int nulls, List<Long> latencies) {\n        this.count = count;\n        this.nulls = nulls;\n        this.p50 = percentile(latencies, 50);\n        this.p95 = percentile(latencies, 95);\n        this.p99 = percentile(latencies, 99);\n        this.max = percentile(latencies, 100);\n    }\n\n    public static LoadReport of(List<Sample> samples) {\n        return new LoadReport(samples.size(), nulls(samples), latencies(samples));\n    }\n\n    @Override\n    public String toString() {\n        return String.format(\"n=%d nulls=%d p50=%d p95=%d p99=%d max=%d (us)\", count, nulls, p50, p95, p99, max);\n    }\n\n    /** How many requests came back with no answer. */\n    static int nulls(List<Sample> samples) {\n        // TODO\n        throw new IllegalStateException(\"TODO: nulls\");\n    }\n\n    /** The waits the percentiles are taken from, ready for percentile(). */\n    static List<Long> latencies(List<Sample> samples) {\n        // TODO: which waits belong in a latency report, and in what order percentile() needs them.\n        throw new IllegalStateException(\"TODO: latencies\");\n    }\n\n    /** The smallest wait such that at least p percent of all waits are at or below it. */\n    static long percentile(List<Long> latencies, int p) {\n        // TODO: nearest rank, as the comment above says. p is 1 to 100.\n        throw new IllegalStateException(\"TODO: percentile\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-10/practice-3/src/main/java/com/example/practice/LoadReport.java",
+    "test_path": "practice/jpos-client/prose/unit-10/practice-3/src/test/java/com/example/practice/LoadReportTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LoadReportTest#aSteadyRunIsSummarised",
+        "kind": "main",
+        "says": "a run where every request is answered gets its count, no nulls, the slowest wait as max and ordered percentiles"
+      },
+      {
+        "id": "com.example.practice.LoadReportTest#requestsWithNoAnswerAreCounted",
+        "kind": "main",
+        "says": "the requests that came back null are counted"
+      },
+      {
+        "id": "com.example.practice.LoadReportTest#requestsWithNoAnswerAreInTheTail",
+        "kind": "edge",
+        "says": "a request with no answer is a wait as long as the timeout, so it stays in the latencies and shows in the p99"
+      },
+      {
+        "id": "com.example.practice.LoadReportTest#samplesArriveInCompletionOrder",
+        "kind": "edge",
+        "says": "samples arrive in the order requests finish, so the waits must be ordered before a percentile is read"
+      },
+      {
+        "id": "com.example.practice.LoadReportTest#percentilesAreNearestRank",
+        "kind": "edge",
+        "says": "the p-th percentile is the smallest wait with at least p percent of the waits at or below it"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-10/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c10.md",
+      "section": "10.5 A Load Test Is Judged by Its Slow Tail and Its Nulls"
+    },
+    "concepts": [
+      "A load run is judged by percentiles over every request, with each null counted at the time it waited, and by the number of nulls; the mean and answered-only percentiles hide the timeouts."
+    ]
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Answer what the host starts, the way its specification says",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A new acquirer link, `acq-mux`, goes live next week, and the host's certification team ran their network management script against it today. Their report:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "echoes, sign-ons, sign-offs, key changes and the nightly cutover advice all went unanswered;",
+        "the client is required to stop sending purchases when the host signs the link off, and to sign on again once the host accepts sign-ons;",
+        "the host must never receive a key back from a client, and must not be told a key is in place when it isn't;",
+        "a function the client does not know must not be approved."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Write the listener that answers them: `NetworkRequests` in `src/main/java/com/example/practice/NetworkRequests.java`. The host's rules for these messages are copied into its class comment. They are not the same as the page's. Finish `process` and `resultFor`, the two methods marked `TODO`. About twenty lines in total. The `KeyInstaller` you are given does the security module's part."
+    },
+    {
+      "type": "para",
+      "text": "The tests put the host's messages on the in queue of a real QMUX that has your listener, and read what comes out on its out queue."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\nimport java.io.IOException;\n\n/**\n * Answers the network management messages the host starts on link {@code link}. It is the\n * QMUX's first request listener; what it does not take goes to the next one.\n *\n * <p>From the host's specification, \"Network management\":\n * <ul>\n *   <li>0800 requests carry fields 7, 11 and 70, and their 0810 answers carry 7, 11, 70 and 39.\n *       Field 70: 001 sign-on, 002 sign-off, 301 echo, 161 PIN key change. A key change also\n *       carries the new key in field 48.</li>\n *   <li>0820 advices (and their repeats, 0821) report events such as a cutover (201). They are\n *       acknowledged with an 0830 carrying 7, 11, 70 and 39 = 00.</li>\n *   <li>Response code 00: done. Response code 06: not done.</li>\n * </ul>\n */\npublic class NetworkRequests implements ISORequestListener {\n    /** Puts a new key in place; true only when it is installed and its check value matched. */\n    public interface KeyInstaller {\n        boolean install(ISOMsg keyChange);\n    }\n\n    private final Space<String, Object> sp;\n    private final String link;\n    private final KeyInstaller keys;\n\n    public NetworkRequests(Space<String, Object> sp, String link, KeyInstaller keys) {\n        this.sp = sp;\n        this.link = link;\n        this.keys = keys;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            String mti = m.getMTI();\n            if (!mti.startsWith(\"08\") || !m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone(0, 7, 11, 70);\n            answer.setResponseMTI();\n            answer.set(39, resultFor(m));\n            source.send(answer);\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n\n    /** Field 39 of the answer to a network management request, after doing what it asks. */\n    String resultFor(ISOMsg m) throws ISOException {\n        if (m.getMTI().startsWith(\"082\"))\n            return \"00\";\n        String code = m.hasField(70) ? m.getString(70) : \"\";\n        switch (code) {\n            case \"001\":\n            case \"301\":\n                return \"00\";\n            case \"002\":\n                SpaceUtil.wipe(sp, link + \".enabled\");\n                SpaceUtil.wipe(sp, link + \".logon\");\n                return \"00\";\n            case \"161\":\n                return keys.install(m) ? \"00\" : \"06\";\n            default:\n                return \"06\";\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\nimport java.io.IOException;\n\n/**\n * Answers the network management messages the host starts on link {@code link}. It is the\n * QMUX's first request listener; what it does not take goes to the next one.\n *\n * <p>From the host's specification, \"Network management\":\n * <ul>\n *   <li>0800 requests carry fields 7, 11 and 70, and their 0810 answers carry 7, 11, 70 and 39.\n *       Field 70: 001 sign-on, 002 sign-off, 301 echo, 161 PIN key change. A key change also\n *       carries the new key in field 48.</li>\n *   <li>0820 advices (and their repeats, 0821) report events such as a cutover (201). They are\n *       acknowledged with an 0830 carrying 7, 11, 70 and 39 = 00.</li>\n *   <li>Response code 00: done. Response code 06: not done.</li>\n * </ul>\n */\npublic class NetworkRequests implements ISORequestListener {\n    /** Puts a new key in place; true only when it is installed and its check value matched. */\n    public interface KeyInstaller {\n        boolean install(ISOMsg keyChange);\n    }\n\n    private final Space<String, Object> sp;\n    private final String link;\n    private final KeyInstaller keys;\n\n    public NetworkRequests(Space<String, Object> sp, String link, KeyInstaller keys) {\n        this.sp = sp;\n        this.link = link;\n        this.keys = keys;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            String mti = m.getMTI();\n            if (!mti.startsWith(\"08\") || !m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone(0, 7, 11, 70);\n            answer.setResponseMTI();\n            answer.set(39, resultFor(m));\n            source.send(answer);\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n\n    /** Field 39 of the answer to a network management request, after doing what it asks. */\n    String resultFor(ISOMsg m) throws ISOException {\n        // TODO: decide by what the host asks for, and do it. The sign-on manager's marks for this\n        //       link are <link>.enabled and <link>.logon in sp.\n        throw new IllegalStateException(\"TODO: resultFor\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "25431bc224970d14778bb47fad9d0ff1c4e4bb29cf07a69075f4e64bddda2072",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\nimport java.io.IOException;\n\n/**\n * Answers the network management messages the host starts on link {@code link}. It is the\n * QMUX's first request listener; what it does not take goes to the next one.\n *\n * <p>From the host's specification, \"Network management\":\n * <ul>\n *   <li>0800 requests carry fields 7, 11 and 70, and their 0810 answers carry 7, 11, 70 and 39.\n *       Field 70: 001 sign-on, 002 sign-off, 301 echo, 161 PIN key change. A key change also\n *       carries the new key in field 48.</li>\n *   <li>0820 advices (and their repeats, 0821) report events such as a cutover (201). They are\n *       acknowledged with an 0830 carrying 7, 11, 70 and 39 = 00.</li>\n *   <li>Response code 00: done. Response code 06: not done.</li>\n * </ul>\n */\npublic class NetworkRequests implements ISORequestListener {\n    /** Puts a new key in place; true only when it is installed and its check value matched. */\n    public interface KeyInstaller {\n        boolean install(ISOMsg keyChange);\n    }\n\n    private final Space<String, Object> sp;\n    private final String link;\n    private final KeyInstaller keys;\n\n    public NetworkRequests(Space<String, Object> sp, String link, KeyInstaller keys) {\n        this.sp = sp;\n        this.link = link;\n        this.keys = keys;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            String mti = m.getMTI();\n            if (!mti.startsWith(\"08\") || !m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone(0, 7, 11, 70);\n            answer.setResponseMTI();\n            answer.set(39, resultFor(m));\n            source.send(answer);\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n\n    /** Field 39 of the answer to a network management request, after doing what it asks. */\n    String resultFor(ISOMsg m) throws ISOException {\n        // TODO: decide by what the host asks for, and do it. The sign-on manager's marks for this\n        //       link are <link>.enabled and <link>.logon in sp.\n        throw new IllegalStateException(\"TODO: resultFor\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-15/practice-4/src/main/java/com/example/practice/NetworkRequests.java",
+    "test_path": "practice/jpos-client/prose/unit-15/practice-4/src/test/java/com/example/practice/NetworkRequestsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-4/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-4/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.NetworkRequestsTest#anEchoIsAnsweredOnTheLink",
+        "kind": "main",
+        "says": "the host's 0800 echo is answered on the link with an 0810 carrying its fields 7, 11 and 70 and 39=00"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#aHostSignOnIsAcceptedAndTheMarksStay",
+        "kind": "main",
+        "says": "the host's own sign-on is answered 00 and changes no mark"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#whatIsNotNetworkManagementIsLeftToTheNextListener",
+        "kind": "edge",
+        "says": "a host's 0100, a late 0210 and an 0810 are not answered and go on to the unhandled queue"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#aHostSignOffTakesTheLinkOutAndLetsTheManagerSignOnAgain",
+        "kind": "edge",
+        "says": "a host sign-off removes both the enabled and the logon mark, so the pool stops and the manager signs on again"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#theKeyNeverTravelsBack",
+        "kind": "edge",
+        "says": "the answer is built from the fields an 0810 carries, so the key in field 48 is not sent back"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#aKeyThatWasNotInstalledIsRefused",
+        "kind": "edge",
+        "says": "a key change is acknowledged only when the installer put the key in place; otherwise it is refused with 06"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#advicesAreAcknowledged",
+        "kind": "edge",
+        "says": "an 0820 advice and its repeat 0821 are acknowledged with an 0830 and 39=00"
+      },
+      {
+        "id": "com.example.practice.NetworkRequestsTest#anUnknownFunctionIsRefused",
+        "kind": "edge",
+        "says": "an 0800 whose function the client does not know is refused, not approved"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-15/practice-4/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c15.md",
+      "section": "15.5 A New Key Is Acknowledged Only Once It Is Installed"
+    },
+    "concepts": [
+      "Each host-initiated network management request is answered by its function, from a list of fields, through its source: a sign-off removes the enabled and logon marks, an unknown function is refused, advices are acknowledged with 0830, and other messages are left to the next listener.",
+      "A key change is answered 00 only after the key is imported, its check value matches and it is stored; otherwise it is refused, the old key stays, and the key never travels back in the answer."
+    ]
+  }
+}

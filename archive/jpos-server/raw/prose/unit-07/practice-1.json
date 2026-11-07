@@ -8,8 +8,8 @@
   "unit": 7,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Put the PIN block for the next hop into field 52",
+  "ingested": "2026-11-05",
+  "title": "Let only genuine requests through to the network",
   "blocks": [
     {
       "type": "heading",
@@ -18,33 +18,27 @@
     },
     {
       "type": "para",
-      "text": "A cardholder's PIN must never travel, or sit in memory longer than it has to, in the clear. The server hands it to a security module, which returns it encrypted under the module's own Local Master Key (LMK). That block is only good inside the module's domain: nobody else holds the LMK, so the next hop could never read it. Before it goes on the wire, the module re-encrypts (exports) the PIN under the Zone PIN Key (ZPK) the two parties share, in the PIN block format they agreed on. That exported block is what goes into field 52. Because the application only talks to the `SMAdapter` interface, the module behind it can be jPOS's software `JCESecurityModule` or a hardware HSM, and in a test a mock."
+      "text": "An acquirer forwards every terminal request to its network. On the morning of the security test, the testers report three findings: a purchase whose amount they changed on the way was approved, a purchase they sent with no MAC was approved, and every PIN purchase from a new terminal comes back from the network as `55`, incorrect PIN, though the cardholders typed the right one."
     },
     {
       "type": "para",
-      "text": "Write `PinEncryptionService`, built from an `SMAdapter<SecureDESKey>`, the ZPK (a `SecureDESKey`) and the PIN block format (a `byte`, such as `SMAdapter.FORMAT05`), with `ISOMsg encryptPIN(ISOMsg msg, String clearPin)`. It:"
+      "text": "`TerminalGate` in `src/main/java/com/example/practice/TerminalGate.java` is the first participant of the chain. `prepare` already decides what happens; finish the two methods it calls, marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "asks the module to encrypt the PIN with the card number from field 2, through `encryptPIN(pin, accountNumber)`. Pass the whole card number; jPOS takes the digits it needs;",
-        "exports that result under the ZPK in the service's format, through `exportPIN(pinUnderLmk, zpk, format)`;",
-        "puts the exported block (`EncryptedPIN.getPINBlock()`) into field 52 and returns the same message;",
-        "never puts the clear PIN into any field."
+        "`macVerifies`: whether this request really comes from the terminal it names;",
+        "`forNetwork`: what the network receives in place of the terminal's request."
       ]
     },
     {
       "type": "para",
-      "text": "Watch for:"
+      "text": "`QueryHost` comes later in the chain and sends whatever `forNetwork` returned. `macInput`, `hsm()` and `keys()` are given. About twelve lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "field 52 is binary: it holds the block's 8 bytes themselves, not their hex digits as text;",
-        "a message with no card number cannot have a PIN block. Throw `IllegalArgumentException` before asking the module anything."
-      ]
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager with a real `QueryHost` and QMUX in the test's own JVM, with a real software security module and key file. Two terminals and the network hold their own copies of the keys."
     },
     {
       "type": "heading",
@@ -59,7 +53,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/** Replaces a clear PIN by the PIN block for the next hop, under the zone PIN key, in field 52. */\npublic class PinEncryptionService {\n\n    private final SMAdapter<SecureDESKey> securityModule;\n    private final SecureDESKey zpk;\n    private final byte pinBlockFormat;\n\n    public PinEncryptionService(SMAdapter<SecureDESKey> securityModule, SecureDESKey zpk, byte pinBlockFormat) {\n        this.securityModule = securityModule;\n        this.zpk = zpk;\n        this.pinBlockFormat = pinBlockFormat;\n    }\n\n    /** Encrypt `clearPin` with the card in field 2, export it under the ZPK, and put the block in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        String pan = msg.getString(2);\n        if (pan == null) {\n            throw new IllegalArgumentException(\"no card number (field 2): cannot make a PIN block\");\n        }\n        EncryptedPIN pinUnderLmk = securityModule.encryptPIN(clearPin, pan);\n        EncryptedPIN pinUnderZpk = securityModule.exportPIN(pinUnderLmk, zpk, pinBlockFormat);\n        msg.set(52, pinUnderZpk.getPINBlock());\n        return msg;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/**\n * The first participant of the acquirer's chain. QueryHost, further down, sends whatever this\n * participant leaves in the Context under UPSTREAM to the network.\n */\npublic class TerminalGate implements TransactionParticipant, Configurable {\n    public static final String UPSTREAM = \"UPSTREAM\";\n    private String networkKey;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        networkKey = cfg.get(\"network-key\", \"zpk.network\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        if (!macVerifies(request))\n            return refuse(ctx, request, \"63\");\n        try {\n            ctx.put(UPSTREAM, forNetwork(request));\n            return PREPARED | NO_JOIN;\n        } catch (Exception e) {\n            return refuse(ctx, request, \"96\");\n        }\n    }\n\n    /** True when the request carries a MAC that verifies under the key of the terminal that sent it. */\n    boolean macVerifies(ISOMsg request) {\n        try {\n            SecureDESKey tak = keys().getKey(\"tak.\" + request.getString(41));\n            byte[] received = request.getBytes(64);\n            return received != null && MessageDigest.isEqual(received, hsm().generateCBC_MAC(macInput(request), tak));\n        } catch (Exception e) {\n            return false;\n        }\n    }\n\n    /** The message the network receives in place of the terminal's request. */\n    ISOMsg forNetwork(ISOMsg request) throws Exception {\n        ISOMsg up = (ISOMsg) request.clone();\n        up.unset(64);\n        if (request.hasField(52)) {\n            SecureDESKey tpk = keys().getKey(\"tpk.\" + request.getString(41));\n            EncryptedPIN in = new EncryptedPIN(request.getBytes(52), SMAdapter.FORMAT01, request.getString(2));\n            up.set(52, hsm().translatePIN(in, tpk, keys().getKey(networkKey), SMAdapter.FORMAT01).getPINBlock());\n        }\n        return up;\n    }\n\n    // ---- given ----\n\n    /** Leaves an answer with this response code for SendResponse, and stops the transaction. */\n    static int refuse(Context ctx, ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55, 64);\n            ctx.put(ContextConstants.RESPONSE.toString(), r);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    /** What the terminal MACed: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] macInput(ISOMsg msg) throws ISOException {\n        ISOMsg copy = (ISOMsg) msg.clone();\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        int macLength = ((ISOBasePackager) copy.getPackager()).getFieldPackager(64).getMaxPackedLength();\n        return Arrays.copyOf(packed, packed.length - macLength);\n    }\n\n    static SMAdapter<SecureDESKey> hsm() {\n        return NameRegistrar.getIfExists(\"hsm\");\n    }\n\n    static SecureKeyStore keys() {\n        return NameRegistrar.getIfExists(\"ks\");\n    }\n}\n"
         }
       ]
     },
@@ -71,7 +65,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/** Replaces a clear PIN by the PIN block for the next hop, under the zone PIN key, in field 52. */\npublic class PinEncryptionService {\n\n    public PinEncryptionService(SMAdapter<SecureDESKey> securityModule, SecureDESKey zpk, byte pinBlockFormat) {\n    }\n\n    /** Encrypt `clearPin` with the card in field 2, export it under the ZPK, and put the block in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        throw new UnsupportedOperationException(\"write encryptPIN\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/**\n * The first participant of the acquirer's chain. QueryHost, further down, sends whatever this\n * participant leaves in the Context under UPSTREAM to the network.\n */\npublic class TerminalGate implements TransactionParticipant, Configurable {\n    public static final String UPSTREAM = \"UPSTREAM\";\n    private String networkKey;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        networkKey = cfg.get(\"network-key\", \"zpk.network\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        if (!macVerifies(request))\n            return refuse(ctx, request, \"63\");\n        try {\n            ctx.put(UPSTREAM, forNetwork(request));\n            return PREPARED | NO_JOIN;\n        } catch (Exception e) {\n            return refuse(ctx, request, \"96\");\n        }\n    }\n\n    /** True when the request carries a MAC that verifies under the key of the terminal that sent it. */\n    boolean macVerifies(ISOMsg request) {\n        // TODO: Field 64 is the terminal's MAC over macInput(request), under its MAC key. The key\n        //       file holds one per terminal, as \"tak.\" + the terminal ID (field 41); hsm() and\n        //       keys() give the module and the key file. A request that can't be shown genuine\n        //       must come back false, whatever the reason.\n        throw new IllegalStateException(\"TODO: macVerifies\");\n    }\n\n    /** The message the network receives in place of the terminal's request. */\n    ISOMsg forNetwork(ISOMsg request) throws Exception {\n        // TODO: Today the network receives the terminal's request exactly as it arrived. The\n        //       network shares exactly one key with us for PINs, the one named by networkKey; the\n        //       terminal's PIN key is \"tpk.\" + its terminal ID. The terminal's request in the\n        //       Context must stay as the terminal sent it. Throw when this request can't be passed\n        //       on as it should be.\n        throw new IllegalStateException(\"TODO: forNetwork\");\n    }\n\n    // ---- given ----\n\n    /** Leaves an answer with this response code for SendResponse, and stops the transaction. */\n    static int refuse(Context ctx, ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55, 64);\n            ctx.put(ContextConstants.RESPONSE.toString(), r);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    /** What the terminal MACed: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] macInput(ISOMsg msg) throws ISOException {\n        ISOMsg copy = (ISOMsg) msg.clone();\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        int macLength = ((ISOBasePackager) copy.getPackager()).getFieldPackager(64).getMaxPackedLength();\n        return Arrays.copyOf(packed, packed.length - macLength);\n    }\n\n    static SMAdapter<SecureDESKey> hsm() {\n        return NameRegistrar.getIfExists(\"hsm\");\n    }\n\n    static SecureKeyStore keys() {\n        return NameRegistrar.getIfExists(\"ks\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -79,10 +73,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -90,11 +84,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "ba9560b3419c03574a8160d73d87d87d5db5326b53377f3dbc1072670751f08c",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/** Replaces a clear PIN by the PIN block for the next hop, under the zone PIN key, in field 52. */\npublic class PinEncryptionService {\n\n    public PinEncryptionService(SMAdapter<SecureDESKey> securityModule, SecureDESKey zpk, byte pinBlockFormat) {\n    }\n\n    /** Encrypt `clearPin` with the card in field 2, export it under the ZPK, and put the block in field 52. */\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPin) throws ISOException, SMException {\n        throw new UnsupportedOperationException(\"write encryptPIN\");\n    }\n}\n",
+  "content_sha256": "20d09b56f4ea588287ab067803134f73f77a5fbba954a900d4b952810cedb63c",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/**\n * The first participant of the acquirer's chain. QueryHost, further down, sends whatever this\n * participant leaves in the Context under UPSTREAM to the network.\n */\npublic class TerminalGate implements TransactionParticipant, Configurable {\n    public static final String UPSTREAM = \"UPSTREAM\";\n    private String networkKey;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        networkKey = cfg.get(\"network-key\", \"zpk.network\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        if (!macVerifies(request))\n            return refuse(ctx, request, \"63\");\n        try {\n            ctx.put(UPSTREAM, forNetwork(request));\n            return PREPARED | NO_JOIN;\n        } catch (Exception e) {\n            return refuse(ctx, request, \"96\");\n        }\n    }\n\n    /** True when the request carries a MAC that verifies under the key of the terminal that sent it. */\n    boolean macVerifies(ISOMsg request) {\n        // TODO: Field 64 is the terminal's MAC over macInput(request), under its MAC key. The key\n        //       file holds one per terminal, as \"tak.\" + the terminal ID (field 41); hsm() and\n        //       keys() give the module and the key file. A request that can't be shown genuine\n        //       must come back false, whatever the reason.\n        throw new IllegalStateException(\"TODO: macVerifies\");\n    }\n\n    /** The message the network receives in place of the terminal's request. */\n    ISOMsg forNetwork(ISOMsg request) throws Exception {\n        // TODO: Today the network receives the terminal's request exactly as it arrived. The\n        //       network shares exactly one key with us for PINs, the one named by networkKey; the\n        //       terminal's PIN key is \"tpk.\" + its terminal ID. The terminal's request in the\n        //       Context must stay as the terminal sent it. Throw when this request can't be passed\n        //       on as it should be.\n        throw new IllegalStateException(\"TODO: forNetwork\");\n    }\n\n    // ---- given ----\n\n    /** Leaves an answer with this response code for SendResponse, and stops the transaction. */\n    static int refuse(Context ctx, ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55, 64);\n            ctx.put(ContextConstants.RESPONSE.toString(), r);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    /** What the terminal MACed: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] macInput(ISOMsg msg) throws ISOException {\n        ISOMsg copy = (ISOMsg) msg.clone();\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        int macLength = ((ISOBasePackager) copy.getPackager()).getFieldPackager(64).getMaxPackedLength();\n        return Arrays.copyOf(packed, packed.length - macLength);\n    }\n\n    static SMAdapter<SecureDESKey> hsm() {\n        return NameRegistrar.getIfExists(\"hsm\");\n    }\n\n    static SecureKeyStore keys() {\n        return NameRegistrar.getIfExists(\"ks\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-07/practice-1/src/main/java/com/example/practice/PinEncryptionService.java",
-    "test_path": "practice/jpos-server/prose/unit-07/practice-1/src/test/java/com/example/practice/PinEncryptionServiceTest.java",
+    "main_path": "practice/jpos-server/prose/unit-07/practice-1/src/main/java/com/example/practice/TerminalGate.java",
+    "test_path": "practice/jpos-server/prose/unit-07/practice-1/src/test/java/com/example/practice/TerminalGateTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -115,19 +109,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.PinEncryptionServiceTest#theModuleEncryptsThePinWithTheCardNumber",
+        "id": "com.example.practice.TerminalGateTest#aGenuinePurchaseIsApproved",
         "kind": "main",
-        "says": "the security module encrypts the PIN with the card number from field 2, the result is exported under the zone PIN key in the service's format, and field 52 carries that exported block, not the LMK one, with no clear PIN anywhere in the message"
+        "says": "a purchase signed by a known terminal reaches the network and comes back approved"
       },
       {
-        "id": "com.example.practice.PinEncryptionServiceTest#thePinBlockGoesInAsItsRawBytes",
-        "kind": "edge",
-        "says": "field 52 carries the exported block's raw bytes, not a hex or text rendering of them"
+        "id": "com.example.practice.TerminalGateTest#aForgedMacReachesNobody",
+        "kind": "main",
+        "says": "a request changed after the terminal signed it is refused with 63 and never reaches the network"
       },
       {
-        "id": "com.example.practice.PinEncryptionServiceTest#aMessageWithNoCardNumberIsRefusedBeforeTheModuleIsAsked",
+        "id": "com.example.practice.TerminalGateTest#aRequestWithoutAMacReachesNobody",
         "kind": "edge",
-        "says": "a message with no card number is refused, and the security module is never asked"
+        "says": "a request with no MAC at all is refused like a forged one"
+      },
+      {
+        "id": "com.example.practice.TerminalGateTest#aTerminalNobodyKnowsIsAnswered",
+        "kind": "edge",
+        "says": "a terminal with no key on file is answered 63 rather than left without an answer"
+      },
+      {
+        "id": "com.example.practice.TerminalGateTest#theTerminalsMacStaysOnItsLink",
+        "kind": "edge",
+        "says": "what the network receives carries no MAC under the terminal's key"
+      },
+      {
+        "id": "com.example.practice.TerminalGateTest#aPinPurchaseIsApproved",
+        "kind": "edge",
+        "says": "a PIN purchase reaches the network with the PIN under the key the network shares, so the network can check it"
+      },
+      {
+        "id": "com.example.practice.TerminalGateTest#aPinWithNoKeyOnFileGoesNowhere",
+        "kind": "edge",
+        "says": "a PIN purchase whose PIN can't be translated is refused with 96 and never reaches the network, not sent on without its PIN"
       }
     ],
     "report": {
@@ -136,11 +150,11 @@
     },
     "origin": {
       "path": "src/s7.md",
-      "section": "7.3 Implementing PIN Encryption"
+      "section": "7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart"
     },
     "concepts": [
-      "Application code never does PIN or key cryptography itself: it asks a security module through the SMAdapter interface, so a software (JCE) module and a hardware one are interchangeable and a test can stand in a mock.",
-      "A PIN travels only as a PIN block encrypted together with the card number from field 2, and the block goes into field 52 as its raw bytes; the clear PIN is never put in the message."
+      "A request's MAC is verified under the key of the terminal it names, before any participant acts on it; a missing MAC or an unknown terminal fails like a wrong MAC, and a participant that sends in prepare acts before a later abort.",
+      "A PIN block is translated from the TPK of the terminal in field 41 to the network's key, on a copy for the network without the terminal's MAC; a block that can't be translated is refused, never sent on without it."
     ]
   }
 }

@@ -1,24 +1,14 @@
-In a jPOS switch, each step of handling a transaction is a `TransactionParticipant`. Its
-`prepare` reads what it needs from the transaction's `Context`, and either leaves its result there
-and says `PREPARED`, or records why it cannot go on and says `ABORTED`. Here you write the step
-that approves Visa purchases.
+The support desk wants to see what Visa's side of a link really sends, frame by frame, instead of
+what the application logged after unpacking. A small pass-through will sit on the connection: it
+reads everything the network sends and hands each frame to the desk as two byte arrays, the header
+bytes and the message bytes. Because it sits on a live link, it has to treat everything that
+arrives the way jPOS's `VAPChannel` does, or the link suffers.
 
-Field 3, the processing code, is six digits, and its **first two** name the transaction:
-`00` purchase, `01` cash advance, `02` void, `20` refund. The other four digits say which
-accounts are involved and do not change what the transaction is.
+`Base1Frames` in `src/main/java/com/example/practice/Base1Frames.java` already reads the prefixes and
+returns the frames. Finish the three methods marked `TODO`:
 
-Write `VisaPurchaseParticipant`:
+- `poll`: what to do with a prefix that has no message behind it;
+- `readHeaders`: every header byte in front of the message, on any frame the network may send;
+- `messageLength`: how many message bytes follow.
 
-- `static String transactionType(String processingCode)` returns `"Purchase"`, `"Cash Advance"`,
-  `"Void"` or `"Refund"`, or `null` for a code that is none of them (or is `null`).
-- The constructor takes the merchant's card acceptor ID and its name and location.
-- `prepare(long id, Serializable context)` takes the `ISOMsg` under `"REQUEST"` in the `Context`.
-  When it is an 0100 whose processing code names a purchase, it puts under `"RESPONSE"` an 0110
-  carrying everything the request carried, plus field 39 `00`, field 42 set to the acceptor ID
-  and field 43 to the name and location, right-padded with spaces to 15 and 40 characters,
-  and returns `PREPARED`.
-- Anything else (another MTI, another transaction, no processing code) puts
-  `"Invalid transaction type"` under `"RESULT"` and returns `ABORTED`.
-- The request stays in the context as it arrived: the response is a message of its own.
-
-`commit` and `abort` have nothing to do here.
+About 20 lines in total.

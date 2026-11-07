@@ -20,6 +20,8 @@ public final class BitmapTest {
         equal("fields 2, 3, 4, 11", "7020000000000000", Bitmap.primary(2, 3, 4, 11));
         // Bit 2 alone: 0100 0000.
         equal("field 2", "4000000000000000", Bitmap.primary(2));
+        // Bit 8 is the last bit of the first byte: 0000 0001.
+        equal("field 8", "0100000000000000", Bitmap.primary(8));
         // Bit 64 is the last bit of the last byte.
         equal("field 64", "0000000000000001", Bitmap.primary(64));
         equal("no fields at all", "0000000000000000", Bitmap.primary());

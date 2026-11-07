@@ -1,0 +1,154 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Send the core system's answer, whatever it contains",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The core banking system now sends a message for the terminal's screen with every decision, and its new release issues longer approval codes. Since the upgrade, some terminals get no answer at all, and their acquirers reverse purchases the core system approved. The server's log shows a `<send>` for each of them."
+    },
+    {
+      "type": "para",
+      "text": "`CoreAnswer`, in `src/main/java/com/example/practice/CoreAnswer.java`, turns the core's `Decision` into the response that `SendResponse` sends. The server runs it on several links, and their layouts differ. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`packs(...)`: whether a message can go out where the request came from;",
+        "`makeSendable(...)`: what to change when it can't."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, every decision reaches the terminal as close to what the core system said as the link allows. About fifteen lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests put the channel the request came in on into the Context, as `IncomingListener` does, and pack your response with that channel's packager."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\n/** Turns the core banking system's decision into the response SendResponse will send. */\npublic class CoreAnswer implements TransactionParticipant {\n    /** What the core system decided; an earlier participant puts it in the Context under CORE. */\n    public record Decision(String responseCode, String approvalCode, String message) {}\n\n    static final String CORE = \"CORE\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Decision decision = ctx.get(CORE);\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, decision.responseCode());\n            if (\"00\".equals(decision.responseCode()))\n                response.set(38, decision.approvalCode());    // an approval carries the core's code\n            if (decision.message() != null)\n                response.set(44, decision.message());         // shown on the terminal; optional\n            makeSendable(response, ctx.get(ContextConstants.SOURCE.toString()));\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(response.getString(39)) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** Changes the response, if it must, so that the channel the request came in on can send it. */\n    void makeSendable(ISOMsg response, ISOSource source) {\n        if (packs(response, source))\n            return;\n        response.unset(44);\n        if (packs(response, source))\n            return;\n        response.unset(38);\n        response.set(39, \"96\");\n    }\n\n    /** Whether the channel the request came in on can pack this message. */\n    static boolean packs(ISOMsg m, ISOSource source) {\n        if (!(source instanceof ISOChannel))\n            return true;\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(((ISOChannel) source).getPackager());\n        try {\n            copy.pack();\n            return true;\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\n/** Turns the core banking system's decision into the response SendResponse will send. */\npublic class CoreAnswer implements TransactionParticipant {\n    /** What the core system decided; an earlier participant puts it in the Context under CORE. */\n    public record Decision(String responseCode, String approvalCode, String message) {}\n\n    static final String CORE = \"CORE\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Decision decision = ctx.get(CORE);\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, decision.responseCode());\n            if (\"00\".equals(decision.responseCode()))\n                response.set(38, decision.approvalCode());    // an approval carries the core's code\n            if (decision.message() != null)\n                response.set(44, decision.message());         // shown on the terminal; optional\n            makeSendable(response, ctx.get(ContextConstants.SOURCE.toString()));\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(response.getString(39)) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** Changes the response, if it must, so that the channel the request came in on can send it. */\n    void makeSendable(ISOMsg response, ISOSource source) {\n        // TODO: Today a response with a field that doesn't fit is never sent. Keep as much of the\n        //       core's answer as the terminal can get: the message is optional, an approval is not\n        //       an approval without its code, and 96 is the answer when nothing else can go.\n        throw new IllegalStateException(\"TODO: makeSendable\");\n    }\n\n    /** Whether the channel the request came in on can pack this message. */\n    static boolean packs(ISOMsg m, ISOSource source) {\n        // TODO: Answer the question the channel will ask when SendResponse sends. Don't change m.\n        throw new IllegalStateException(\"TODO: packs\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "c98005d33d991321678fbadf723263cc61a69ad2822a5bf2605c2a0ee6b066c0",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\n/** Turns the core banking system's decision into the response SendResponse will send. */\npublic class CoreAnswer implements TransactionParticipant {\n    /** What the core system decided; an earlier participant puts it in the Context under CORE. */\n    public record Decision(String responseCode, String approvalCode, String message) {}\n\n    static final String CORE = \"CORE\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Decision decision = ctx.get(CORE);\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, decision.responseCode());\n            if (\"00\".equals(decision.responseCode()))\n                response.set(38, decision.approvalCode());    // an approval carries the core's code\n            if (decision.message() != null)\n                response.set(44, decision.message());         // shown on the terminal; optional\n            makeSendable(response, ctx.get(ContextConstants.SOURCE.toString()));\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(response.getString(39)) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** Changes the response, if it must, so that the channel the request came in on can send it. */\n    void makeSendable(ISOMsg response, ISOSource source) {\n        // TODO: Today a response with a field that doesn't fit is never sent. Keep as much of the\n        //       core's answer as the terminal can get: the message is optional, an approval is not\n        //       an approval without its code, and 96 is the answer when nothing else can go.\n        throw new IllegalStateException(\"TODO: makeSendable\");\n    }\n\n    /** Whether the channel the request came in on can pack this message. */\n    static boolean packs(ISOMsg m, ISOSource source) {\n        // TODO: Answer the question the channel will ask when SendResponse sends. Don't change m.\n        throw new IllegalStateException(\"TODO: packs\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-06/practice-3/src/main/java/com/example/practice/CoreAnswer.java",
+    "test_path": "practice/jpos-server/prose/unit-06/practice-3/src/test/java/com/example/practice/CoreAnswerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CoreAnswerTest#anApprovalCarriesTheCoresCodeAndMessage",
+        "kind": "main",
+        "says": "an approval goes out with the core's approval code and message"
+      },
+      {
+        "id": "com.example.practice.CoreAnswerTest#aDeclineCarriesItsMessage",
+        "kind": "main",
+        "says": "a decline goes out with its response code and message and no approval code"
+      },
+      {
+        "id": "com.example.practice.CoreAnswerTest#anApprovalCodeThatDoesNotFitEndsAsASystemError",
+        "kind": "edge",
+        "says": "an approval code too long for field 38 turns the answer into a sendable 96, without the code that didn't fit"
+      },
+      {
+        "id": "com.example.practice.CoreAnswerTest#aLongMessageDoesNotTurnADeclineIntoSomethingElse",
+        "kind": "edge",
+        "says": "a message too long for field 44 is dropped from a decline, which still goes out, because only packing reveals which field doesn't fit"
+      },
+      {
+        "id": "com.example.practice.CoreAnswerTest#aLongMessageDoesNotCostTheApproval",
+        "kind": "edge",
+        "says": "a message too long for field 44 is dropped and the approval keeps its code"
+      },
+      {
+        "id": "com.example.practice.CoreAnswerTest#aLinkWithRoomForTheMessageGetsAllOfIt",
+        "kind": "edge",
+        "says": "the check uses the packager of the channel the request came in on, so a link whose field 44 is longer keeps the whole message"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-06/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s6.md",
+      "section": "6.5 `set` Checks Nothing; the Packager Checks After the Vote"
+    },
+    "concepts": [
+      "set checks nothing and the packager checks when SendResponse sends, after the vote; a participant packs a copy with the source channel's packager in prepare and answers without the field that didn't fit."
+    ]
+  }
+}

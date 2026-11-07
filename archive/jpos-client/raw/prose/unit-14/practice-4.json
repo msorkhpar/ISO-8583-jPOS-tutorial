@@ -1,0 +1,187 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: where the pool sends a request",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-reconnected-primary",
+        "stem": "A primary-secondary pool with check-enabled lists acq-mux-1 first and acq-mux-2 second. acq-mux-1's link drops at 09:00:00, its adaptor reconnects at 09:00:20, and the link's next sign-on is approved at 09:00:23. Where does a purchase sent at 09:00:21 go?",
+        "options": [
+          {
+            "id": "a",
+            "text": "To acq-mux-1, since the sign-on it made before the drop still counts for the link",
+            "correct": false,
+            "says": "the old enabled mark holds the previous connection's ready Date, and the pool compares it with the new one by identity"
+          },
+          {
+            "id": "b",
+            "text": "To acq-mux-2, since acq-mux-1's earlier sign-on belonged to the connection it lost",
+            "correct": true,
+            "says": "with check-enabled a member is usable only while its enabled mark is the ready object of its current connection"
+          },
+          {
+            "id": "c",
+            "text": "To acq-mux-1, since a reconnected link counts as signed on until a sign-on is refused",
+            "correct": false,
+            "says": "with check-enabled a connected member is usable only after a sign-on over that connection has written the enabled mark"
+          },
+          {
+            "id": "d",
+            "text": "To acq-mux-2, since the pool keeps a member out for a fixed hold-down after a sign-on",
+            "correct": false,
+            "says": "primary-secondary has no hold-down: it takes the first usable member on every request"
+          }
+        ],
+        "origin": {
+          "path": "src/c14.md",
+          "section": "14.3 A Link Is Usable When It Is Connected and Signed On"
+        }
+      },
+      {
+        "id": "q-round-robin-share",
+        "stem": "A round-robin pool has four members. One of them is unusable for an hour while the other three stay usable, and the pool handles 9,000 requests in that hour, one at a time. Roughly how are they spread?",
+        "options": [
+          {
+            "id": "a",
+            "text": "About 3,000 to each of the three, since every skipped member moves the counter on once more",
+            "correct": true,
+            "says": "the 2.1.7 pool increments its counter for each member it skips, which spreads the dead member's share evenly"
+          },
+          {
+            "id": "b",
+            "text": "About 3,000 to each of the three, since the pool rebuilds its member list without the unusable one",
+            "correct": false,
+            "says": "the members are fixed when the pool is deployed; the unusable one stays in the list and is skipped"
+          },
+          {
+            "id": "c",
+            "text": "About 4,500 to the member after the unusable one, since it takes that member's turns as well",
+            "correct": false,
+            "says": "that is the simpler rule the extra increment avoids"
+          },
+          {
+            "id": "d",
+            "text": "About 4,500 to the member listed first, since the pool sends a skipped turn back to the start",
+            "correct": false,
+            "says": "a skipped turn moves to the next member and the counter moves on; nothing goes back to the start of the list"
+          }
+        ],
+        "origin": {
+          "path": "src/c14.md",
+          "section": "14.4 The Strategy Decides Where Traffic Goes When a Link Fails"
+        }
+      },
+      {
+        "id": "q-split-member-down",
+        "stem": "A split-by-divisor pool of three members splits on field 41, and terminal 29220005 maps to the third member. The third member is unusable for ten minutes while the other two stay usable. What happens to that terminal's purchases in those ten minutes?",
+        "options": [
+          {
+            "id": "a",
+            "text": "They go to the other two members in turn, since a split member that is down means round-robin",
+            "correct": true,
+            "says": "split-by-divisor falls back to round-robin when the member of the remainder is not usable"
+          },
+          {
+            "id": "b",
+            "text": "They all go to the first member, since a request for a member that is down moves on to the next",
+            "correct": false,
+            "says": "the fallback is the shared round-robin counter, so the requests alternate between the usable members"
+          },
+          {
+            "id": "c",
+            "text": "They fail with null after their timeout, since a terminal is bound to the member of its remainder",
+            "correct": false,
+            "says": "stickiness is a preference; while the member is down the requests go elsewhere"
+          },
+          {
+            "id": "d",
+            "text": "They fail with an exception at once, since the split field names a member that cannot be used",
+            "correct": false,
+            "says": "nothing is refused: the pool falls back to round-robin"
+          }
+        ],
+        "origin": {
+          "path": "src/c14.md",
+          "section": "14.4 The Strategy Decides Where Traffic Goes When a Link Fails"
+        }
+      },
+      {
+        "id": "q-nothing-usable",
+        "stem": "Every member of a pool is unusable. A balance inquiry is sent with request(m, 300). What does the caller get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "null after about 300 ms, since the pool gives up when the request's own timeout is spent",
+            "correct": false,
+            "says": "the pool sleeps a whole second before it looks at the deadline again"
+          },
+          {
+            "id": "b",
+            "text": "null after about one second, since the pool looks for a usable member once per second",
+            "correct": true,
+            "says": "with nothing usable the pool sleeps one second between looks and returns null with nothing sent"
+          },
+          {
+            "id": "c",
+            "text": "null after about 300 ms, since the inquiry waits in the first member's queue until it expires",
+            "correct": false,
+            "says": "with no usable member the pool hands the message to nobody"
+          },
+          {
+            "id": "d",
+            "text": "an ISOException after about one second, since the pool refuses requests it cannot hand to a member",
+            "correct": false,
+            "says": "only send and the asynchronous request throw; the blocking request returns null"
+          }
+        ],
+        "origin": {
+          "path": "src/c14.md",
+          "section": "14.5 With Nothing Usable, the Pool Spends the Request's Own Time"
+        }
+      }
+    ],
+    "concepts": [
+      "primary-secondary fails back at once, round-robin spreads a dead member's share evenly by advancing its counter per skipped member, and split-by-divisor falls back to round-robin when its member is down."
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "ordinal": 3,
+  "title": "Check yourself: will the client recognise the answer?",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-layout-one-way",
+        "stem": "A server's descriptor names jar:packager/iso93ascii.xml, while its terminals' clients pack with iso87ascii.xml. The terminals send 0100s carrying fields 2, 3, 4, 7, 11, 41 and 49, and the server approves each one with fields 38 and 39 set. What do the terminals' clients get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Every approval arrives and matches, since the server read every field of each request correctly",
+            "correct": false,
+            "says": "the request's fields read the same under both layouts, but the response adds field 39, which the two layouts encode differently"
+          },
+          {
+            "id": "b",
+            "text": "Every approval arrives and matches, since both layouts are ASCII with the same hex bitmap",
+            "correct": false,
+            "says": "the bitmaps agree, but field 39 is two characters in 1987 and three digits in 1993, so the client misreads the answer"
+          },
+          {
+            "id": "c",
+            "text": "Every request times out, since the server cannot unpack a 1987 request with the 1993 layout",
+            "correct": false,
+            "says": "the server unpacks these requests field for field; the two layouts agree on every field they carry"
+          },
+          {
+            "id": "d",
+            "text": "Every request times out, since the answer's field 39 shifts the fields after it on the client",
+            "correct": true,
+            "says": "the server packs 39 as three digits, the client reads two, and field 41 comes back shifted, so the answer matches nothing"
+          }
+        ],
+        "origin": {
+          "path": "src/s2.md",
+          "section": "2.2 The Server Reads With Its Packager, the Client With Its Own"
+        }
+      },
+      {
+        "id": "q-built-from-scratch",
+        "stem": "A participant answers each 0200 with a new ISOMsg(\"0210\"), into which it copies fields 4, 11 and 37 from the request and sets 38 and 39. The client's QMUX has the default key configuration. What becomes of an approved purchase on the client's side?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The client takes it as the answer, since its key is built from field 11 and the MTI",
+            "correct": false,
+            "says": "the default key also has field 41, which the answer lacks"
+          },
+          {
+            "id": "b",
+            "text": "The client takes it as the answer, since its key is built from fields 11 and 37",
+            "correct": false,
+            "says": "field 37 is in the key only when the client configures it, and the default key has field 41, which the answer lacks"
+          },
+          {
+            "id": "c",
+            "text": "The client gets null and reverses, since its key is built from fields 41 and 11",
+            "correct": true,
+            "says": "without field 41 the answer's key matches nothing; the request returns null and the client reverses an approved purchase"
+          },
+          {
+            "id": "d",
+            "text": "The client gets null and reverses, since its key is built from fields 11 and 42",
+            "correct": false,
+            "says": "field 42 is not in the default key; the answer fails to match because field 41 is missing"
+          }
+        ],
+        "origin": {
+          "path": "src/s2.md",
+          "section": "2.3 The Client Finds Your Answer by the Fields You Echo"
+        }
+      },
+      {
+        "id": "q-advice-answered-as-purchase",
+        "stem": "A participant answers every request by cloning the network's list of fields, field 0 included, and then calling setMTI(\"0210\"). A terminal's client sends an 0220 completion advice. What follows?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The client accepts it, since its QMUX maps an 0210 answer onto an 0220 request",
+            "correct": false,
+            "says": "QMUX maps only the response digit: an 0210 answer has the key of an 0200, not of the 0220"
+          },
+          {
+            "id": "b",
+            "text": "The client accepts it, since its QMUX maps any 02x0 answer onto any 02x0 request",
+            "correct": false,
+            "says": "the key keeps the MTI's first three digits, mapped; 021 becomes 020, which differs from 022"
+          },
+          {
+            "id": "c",
+            "text": "The client sends the advice again, since its QMUX maps an 0210 answer onto an 0200 request",
+            "correct": true,
+            "says": "the 0210 matches nothing it is waiting for, so the advice is never acknowledged and is repeated as an 0221"
+          },
+          {
+            "id": "d",
+            "text": "The client sends the advice again, since its QMUX rejects any answer whose MTI was set by hand",
+            "correct": false,
+            "says": "QMUX can't tell how the MTI was set; the 0210 is unmatched because its key is the key of an 0200"
+          }
+        ],
+        "origin": {
+          "path": "src/s2.md",
+          "section": "2.4 `setResponseMTI` Answers Every Kind of Request"
+        }
+      },
+      {
+        "id": "q-repeat-answer",
+        "stem": "A client sends an 0421, the repeat of a reversal it sent earlier. The server answers with a list-based copy of the request on which it calls setResponseMTI. What goes back, and what does the client make of it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "An 0431 goes back, and the client matches it, since its key leaves out the last digit",
+            "correct": false,
+            "says": "setResponseMTI turns a repeat's fourth digit 1 into 0, so the answer is an 0430"
+          },
+          {
+            "id": "b",
+            "text": "An 0431 goes back, and the client ignores it, since its key keeps the last digit",
+            "correct": false,
+            "says": "the answer is an 0430, and the client's key leaves out the fourth digit"
+          },
+          {
+            "id": "c",
+            "text": "An 0430 goes back, and the client matches it, since its key leaves out the last digit",
+            "correct": true,
+            "says": "0421 becomes 0430, and the client's key uses only the first three digits, so the answer matches"
+          },
+          {
+            "id": "d",
+            "text": "An 0430 goes back, and the client ignores it, since its key keeps the last digit",
+            "correct": false,
+            "says": "the key leaves out the fourth digit, so 0421 and 0430 share it"
+          }
+        ],
+        "origin": {
+          "path": "src/s2.md",
+          "section": "2.4 `setResponseMTI` Answers Every Kind of Request"
+        }
+      }
+    ]
+  }
+}

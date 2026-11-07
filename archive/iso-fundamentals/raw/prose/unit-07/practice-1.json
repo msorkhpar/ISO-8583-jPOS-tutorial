@@ -8,8 +8,8 @@
   "unit": 7,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Authorize a request through a MUX",
+  "ingested": "2026-11-05",
+  "title": "Keep the account right after decisions you did not make",
   "blocks": [
     {
       "type": "heading",
@@ -18,30 +18,23 @@
     },
     {
       "type": "para",
-      "text": "The acquirer does not talk to the issuer directly. It hands the authorization request to a jPOS `MUX`, which sends it on and matches the answer that comes back, and it waits only so long. What the acquirer does with that answer, or with its absence, decides what the cardholder is told at the terminal."
-    },
-    {
-      "type": "para",
-      "text": "Write `Authorizer.authorize(MUX mux, ISOMsg request)`. It sends the request with `mux.request(request, Authorizer.TIMEOUT_MILLIS)` (30 seconds) and returns a `Decision`:"
+      "text": "You run the issuer's authorization host for a credit card programme. `Account` keeps one cardholder's account, and its `authorize` already answers the network's `0100`s. Two kinds of complaint keep reaching the call centre:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`approved`: whether the issuer approved, which it does only with `00` in field 39;",
-        "`responseCode`: the code the issuer returned in field 39, so a decline such as `05` or `51` can be passed on."
+        "after a stay or a fill-up, part of what the merchant first asked for still shows as blocked, long after the final charge has posted;",
+        "after last Saturday's outage, cardholders whose purchases went through during it got further approvals afterwards, and their accounts ended up below zero once everything cleared."
       ]
     },
     {
       "type": "para",
-      "text": "Edge case to handle:"
+      "text": "Finish `standIn` and `clear` in `src/main/java/com/example/practice/Account.java`. When you're done, `ledger()` and `available()` match what each cardholder has really spent and committed to, whoever approved the purchase and whatever the clearing file says. About six lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "When the MUX gives back no response (it returns `null`, which is how a timeout arrives), the issuer has **not** declined: nobody knows what it decided. Throw an `IOException` saying there was no response; never turn it into a declined `Decision`."
-      ]
+      "type": "para",
+      "text": "The tests use other cards, amounts and approval codes than the lesson, including a purchase a terminal approved on its own."
     },
     {
       "type": "heading",
@@ -56,7 +49,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        ISOMsg response = mux.request(request, TIMEOUT_MILLIS);\n        if (response == null) {\n            throw new IOException(\"no response from the issuer\");\n        }\n        String code = response.getString(39);\n        return new Decision(\"00\".equals(code), code);\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * A credit card account as the issuer's authorization host keeps it. Amounts are in minor units\n * (cents). Holds are kept by the approval code that went out in field 38.\n */\npublic class Account {\n    private long ledger;\n    private final Map<String, Long> holds = new HashMap<>();\n    private int codes;\n\n    public Account(long ledger) {\n        this.ledger = ledger;\n    }\n\n    /** The money posted to the account. */\n    public synchronized long ledger() {\n        return ledger;\n    }\n\n    /** What the cardholder can still spend: the ledger minus every open hold. */\n    public synchronized long available() {\n        long held = 0;\n        for (long h : holds.values())\n            held += h;\n        return ledger - held;\n    }\n\n    /** An 0100 from the network. Returns the 0110. */\n    public synchronized ISOMsg authorize(ISOMsg request) throws ISOException {\n        long amount = Long.parseLong(request.getString(4));\n        if (amount > available())\n            return answer(request, \"51\", null);\n        String code = String.format(\"I%05d\", ++codes);\n        holds.put(code, amount);\n        return answer(request, \"00\", code);\n    }\n\n    /**\n     * An 0120 from the network: it approved this purchase while our host did not answer.\n     * Field 38 holds the approval code the network gave out. Returns the answer to send back.\n     */\n    public synchronized ISOMsg standIn(ISOMsg advice) throws ISOException {\n        holds.put(advice.getString(38), Long.parseLong(advice.getString(4)));\n        return answer(advice, \"00\", null);\n    }\n\n    /** A clearing record from the network's file: the final amount of one purchase. */\n    public synchronized void clear(ClearingRecord record) {\n        holds.remove(record.approvalCode());\n        ledger -= record.amount();\n    }\n\n    /** One line of the clearing file. */\n    public record ClearingRecord(String approvalCode, long amount) { }\n\n    static ISOMsg answer(ISOMsg in, String rc, String approvalCode) throws ISOException {\n        ISOMsg r = (ISOMsg) in.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        if (approvalCode != null)\n            r.set(38, approvalCode);\n        return r;\n    }\n}\n"
         }
       ]
     },
@@ -68,7 +61,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * A credit card account as the issuer's authorization host keeps it. Amounts are in minor units\n * (cents). Holds are kept by the approval code that went out in field 38.\n */\npublic class Account {\n    private long ledger;\n    private final Map<String, Long> holds = new HashMap<>();\n    private int codes;\n\n    public Account(long ledger) {\n        this.ledger = ledger;\n    }\n\n    /** The money posted to the account. */\n    public synchronized long ledger() {\n        return ledger;\n    }\n\n    /** What the cardholder can still spend: the ledger minus every open hold. */\n    public synchronized long available() {\n        long held = 0;\n        for (long h : holds.values())\n            held += h;\n        return ledger - held;\n    }\n\n    /** An 0100 from the network. Returns the 0110. */\n    public synchronized ISOMsg authorize(ISOMsg request) throws ISOException {\n        long amount = Long.parseLong(request.getString(4));\n        if (amount > available())\n            return answer(request, \"51\", null);\n        String code = String.format(\"I%05d\", ++codes);\n        holds.put(code, amount);\n        return answer(request, \"00\", code);\n    }\n\n    /**\n     * An 0120 from the network: it approved this purchase while our host did not answer.\n     * Field 38 holds the approval code the network gave out. Returns the answer to send back.\n     */\n    public synchronized ISOMsg standIn(ISOMsg advice) throws ISOException {\n        // TODO: Our host was down, so the network decided for us. Make the account reflect that\n        //       decision, and return what the network expects back.\n        throw new IllegalStateException(\"TODO: standIn\");\n    }\n\n    /** A clearing record from the network's file: the final amount of one purchase. */\n    public synchronized void clear(ClearingRecord record) {\n        // TODO: This is where the purchase's money actually leaves the account. Afterwards, the\n        //       ledger and what is available should both be right for this purchase.\n        throw new IllegalStateException(\"TODO: clear\");\n    }\n\n    /** One line of the clearing file. */\n    public record ClearingRecord(String approvalCode, long amount) { }\n\n    static ISOMsg answer(ISOMsg in, String rc, String approvalCode) throws ISOException {\n        ISOMsg r = (ISOMsg) in.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        if (approvalCode != null)\n            r.set(38, approvalCode);\n        return r;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -79,7 +72,7 @@
     "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -87,11 +80,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "586205f2c0e4856cc16f566f405ed928220c40a4013579a54672bfdde57f91c7",
-  "starting_code": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** The acquirer's side of an authorization: send through the MUX, read the issuer's answer. */\npublic final class Authorizer {\n\n    /** How long to wait for the issuer's answer. */\n    public static final long TIMEOUT_MILLIS = 30_000L;\n\n    /** The issuer's answer. */\n    public record Decision(boolean approved, String responseCode) {\n    }\n\n    private Authorizer() {\n    }\n\n    /** Send the request and report the issuer's decision. */\n    public static Decision authorize(MUX mux, ISOMsg request) throws ISOException, IOException {\n        throw new UnsupportedOperationException(\"write authorize\");\n    }\n}\n",
+  "content_sha256": "45b15c7af4dd38eec4bb748fd443a979e1529184a80b7a7f9396aa6d885078b7",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * A credit card account as the issuer's authorization host keeps it. Amounts are in minor units\n * (cents). Holds are kept by the approval code that went out in field 38.\n */\npublic class Account {\n    private long ledger;\n    private final Map<String, Long> holds = new HashMap<>();\n    private int codes;\n\n    public Account(long ledger) {\n        this.ledger = ledger;\n    }\n\n    /** The money posted to the account. */\n    public synchronized long ledger() {\n        return ledger;\n    }\n\n    /** What the cardholder can still spend: the ledger minus every open hold. */\n    public synchronized long available() {\n        long held = 0;\n        for (long h : holds.values())\n            held += h;\n        return ledger - held;\n    }\n\n    /** An 0100 from the network. Returns the 0110. */\n    public synchronized ISOMsg authorize(ISOMsg request) throws ISOException {\n        long amount = Long.parseLong(request.getString(4));\n        if (amount > available())\n            return answer(request, \"51\", null);\n        String code = String.format(\"I%05d\", ++codes);\n        holds.put(code, amount);\n        return answer(request, \"00\", code);\n    }\n\n    /**\n     * An 0120 from the network: it approved this purchase while our host did not answer.\n     * Field 38 holds the approval code the network gave out. Returns the answer to send back.\n     */\n    public synchronized ISOMsg standIn(ISOMsg advice) throws ISOException {\n        // TODO: Our host was down, so the network decided for us. Make the account reflect that\n        //       decision, and return what the network expects back.\n        throw new IllegalStateException(\"TODO: standIn\");\n    }\n\n    /** A clearing record from the network's file: the final amount of one purchase. */\n    public synchronized void clear(ClearingRecord record) {\n        // TODO: This is where the purchase's money actually leaves the account. Afterwards, the\n        //       ledger and what is available should both be right for this purchase.\n        throw new IllegalStateException(\"TODO: clear\");\n    }\n\n    /** One line of the clearing file. */\n    public record ClearingRecord(String approvalCode, long amount) { }\n\n    static ISOMsg answer(ISOMsg in, String rc, String approvalCode) throws ISOException {\n        ISOMsg r = (ISOMsg) in.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        if (approvalCode != null)\n            r.set(38, approvalCode);\n        return r;\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/main/java/com/example/practice/Authorizer.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/test/java/com/example/practice/AuthorizerTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/main/java/com/example/practice/Account.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-07/practice-1/src/test/java/com/example/practice/AccountTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -112,14 +105,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.AuthorizerTest#approvesOn00AndPassesADeclineCodeOn",
+        "id": "com.example.practice.AccountTest#heldThenClearedForTheSameAmount",
         "kind": "main",
-        "says": "sends the request through the MUX with a bounded wait, approves on 00 and reports any other code as a decline"
+        "says": "an authorized purchase cleared for the amount it was held for leaves the ledger and what is available both lower by that amount"
       },
       {
-        "id": "com.example.practice.AuthorizerTest#noAnswerIsAnErrorNotADecline",
+        "id": "com.example.practice.AccountTest#aStandInApprovalIsAcknowledgedAndCounted",
+        "kind": "main",
+        "says": "a stand-in advice is acknowledged with an 0130 and 39=00, lowers what is available but not the ledger, and its clearing record posts it"
+      },
+      {
+        "id": "com.example.practice.AccountTest#theFinalAmountIsWhatPosts",
         "kind": "edge",
-        "says": "when the MUX returns no answer the call fails with an IOException instead of reporting a decline"
+        "says": "a purchase cleared for less than was authorized costs the cardholder the cleared amount"
+      },
+      {
+        "id": "com.example.practice.AccountTest#nothingStaysHeldAfterClearing",
+        "kind": "edge",
+        "says": "once a purchase clears, none of its hold is left, even when the final amount is smaller"
+      },
+      {
+        "id": "com.example.practice.AccountTest#aClearingWithNoAuthorizationStillPosts",
+        "kind": "edge",
+        "says": "a purchase approved offline arrives only as a clearing record and is still posted, leaving other holds alone"
+      },
+      {
+        "id": "com.example.practice.AccountTest#aStandInApprovalOverTheBalanceStillCounts",
+        "kind": "edge",
+        "says": "a stand-in approval larger than what is available is still acknowledged with 00 and counted, so available goes below zero"
       }
     ],
     "report": {
@@ -128,11 +141,11 @@
     },
     "origin": {
       "path": "src/7.md",
-      "section": "7.1. Authorization Flow"
+      "section": "7.4. A Decision Taken Elsewhere Arrives as an Advice, and the Issuer Must Apply It"
     },
     "concepts": [
-      "The issuer's decision comes back in field 39 of the response: 00 approves, any other code declines and is passed on.",
-      "The acquirer sends the authorization request through a MUX and waits a bounded time for the answer; no answer is a failure to report, never a decline."
+      "A stand-in or offline approval reaches the issuer as an advice or a clearing record, and the issuer applies it as if it had approved it, even when the account goes below zero.",
+      "In the dual-message flow an approval only holds the money; the clearing record posts the final amount and releases the whole hold, and without it the hold lapses and the merchant is never paid."
     ]
   }
 }

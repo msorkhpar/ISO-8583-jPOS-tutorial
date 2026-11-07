@@ -1,0 +1,127 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Give the issuer only the time the ATM still waits",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An acquirer's ATMs wait 15 seconds for the answer to a withdrawal, then show \"unable to process\" and send a reversal. On payday evenings the server's queue and its PIN checks are slow, and the issuer's team reports approvals for withdrawals that were reversed a few seconds later, and requests for withdrawals whose ATM had already given up. Each one holds the cardholder's money until the reversal arrives."
+    },
+    {
+      "type": "para",
+      "text": "`AskIssuer`, in `src/main/java/com/example/practice/AskIssuer.java`, asks the issuer about each withdrawal and leaves the answer for the participant after it. Its `terminal-wait` property is how long the ATMs wait. Finish `remaining` and `ask`, marked `TODO`: the issuer must never be given longer than the ATM is still waiting, and a withdrawal its ATM has stopped waiting for must not reach the issuer at all. Then the transaction stops, and its `Result` says why, so the participant that answers on the abort path has a cause. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests call `prepare` the way the TransactionManager does, with a Context like the one `IncomingListener` builds, and an issuer link registered as a MUX that records what it was sent."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.rc.CMF;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.Date;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.TIMESTAMP;\n\n/** Asks the card's issuer about a withdrawal and leaves the answer for the participant after it. */\npublic class AskIssuer implements TransactionParticipant, Configurable {\n    public static final String ISSUER_RESPONSE = \"ISSUER_RESPONSE\";\n\n    private String muxName;\n    private long terminalWait;          // how long the ATM waits for its answer, in ms\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"issuer\");\n        terminalWait = cfg.getLong(\"terminal-wait\", 20000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n        if (mux == null || !mux.isConnected())\n            return ctx.getResult().fail(CMF.ISSUER_UNAVAILABLE, Caller.info(), \"issuer link down\").FAIL();\n        try {\n            return ask(ctx, mux);\n        } catch (ISOException e) {\n            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), e.getMessage()).FAIL();\n        }\n    }\n\n    /** The time, in ms, that this transaction's ATM will still wait for its answer. */\n    long remaining(Context ctx) {\n        Date received = ctx.get(TIMESTAMP.toString());\n        return terminalWait - (System.currentTimeMillis() - received.getTime());\n    }\n\n    /**\n     * Asks the issuer about the request under REQUEST and leaves its answer, if one comes, under\n     * ISSUER_RESPONSE. Returns this participant's vote.\n     */\n    int ask(Context ctx, MUX mux) throws ISOException {\n        long left = remaining(ctx);\n        if (left <= 0)\n            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(),\n                \"ATM gave up %d ms ago\", -left).FAIL();\n        ISOMsg request = ctx.get(REQUEST.toString());\n        ISOMsg response = mux.request((ISOMsg) request.clone(), left);\n        if (response != null)\n            ctx.put(ISSUER_RESPONSE, response);\n        return PREPARED | NO_JOIN | READONLY;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.rc.CMF;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.Date;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.TIMESTAMP;\n\n/** Asks the card's issuer about a withdrawal and leaves the answer for the participant after it. */\npublic class AskIssuer implements TransactionParticipant, Configurable {\n    public static final String ISSUER_RESPONSE = \"ISSUER_RESPONSE\";\n\n    private String muxName;\n    private long terminalWait;          // how long the ATM waits for its answer, in ms\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"issuer\");\n        terminalWait = cfg.getLong(\"terminal-wait\", 20000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n        if (mux == null || !mux.isConnected())\n            return ctx.getResult().fail(CMF.ISSUER_UNAVAILABLE, Caller.info(), \"issuer link down\").FAIL();\n        try {\n            return ask(ctx, mux);\n        } catch (ISOException e) {\n            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), e.getMessage()).FAIL();\n        }\n    }\n\n    /**\n     * TODO: the time, in ms, that this transaction's ATM will still wait for its answer\n     * (negative once it has given up).\n     */\n    long remaining(Context ctx) {\n        throw new IllegalStateException(\"TODO: remaining\");\n    }\n\n    /**\n     * TODO: ask the issuer about the request under REQUEST and leave its answer, if one comes, under\n     * ISSUER_RESPONSE. The issuer gets no longer than the ATM still waits. A withdrawal the ATM has\n     * given up on is not sent: report why in the Result and vote to abort.\n     */\n    int ask(Context ctx, MUX mux) throws ISOException {\n        throw new IllegalStateException(\"TODO: ask\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "070886438d01a2e61c1db376adcb80a8c959a252703d5376bc6ee81d12574c22",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.rc.CMF;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.Date;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.TIMESTAMP;\n\n/** Asks the card's issuer about a withdrawal and leaves the answer for the participant after it. */\npublic class AskIssuer implements TransactionParticipant, Configurable {\n    public static final String ISSUER_RESPONSE = \"ISSUER_RESPONSE\";\n\n    private String muxName;\n    private long terminalWait;          // how long the ATM waits for its answer, in ms\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"issuer\");\n        terminalWait = cfg.getLong(\"terminal-wait\", 20000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n        if (mux == null || !mux.isConnected())\n            return ctx.getResult().fail(CMF.ISSUER_UNAVAILABLE, Caller.info(), \"issuer link down\").FAIL();\n        try {\n            return ask(ctx, mux);\n        } catch (ISOException e) {\n            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), e.getMessage()).FAIL();\n        }\n    }\n\n    /**\n     * TODO: the time, in ms, that this transaction's ATM will still wait for its answer\n     * (negative once it has given up).\n     */\n    long remaining(Context ctx) {\n        throw new IllegalStateException(\"TODO: remaining\");\n    }\n\n    /**\n     * TODO: ask the issuer about the request under REQUEST and leave its answer, if one comes, under\n     * ISSUER_RESPONSE. The issuer gets no longer than the ATM still waits. A withdrawal the ATM has\n     * given up on is not sent: report why in the Result and vote to abort.\n     */\n    int ask(Context ctx, MUX mux) throws ISOException {\n        throw new IllegalStateException(\"TODO: ask\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-13/practice-1/src/main/java/com/example/practice/AskIssuer.java",
+    "test_path": "practice/jpos-server/prose/unit-13/practice-1/src/test/java/com/example/practice/AskIssuerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-13/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-13/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AskIssuerTest#aFreshWithdrawalGetsTheIssuersAnswer",
+        "kind": "main",
+        "says": "a withdrawal that has just arrived is sent to the issuer and its answer is left in the Context"
+      },
+      {
+        "id": "com.example.practice.AskIssuerTest#theIssuerGetsOnlyWhatTheAtmStillWaits",
+        "kind": "edge",
+        "says": "the issuer's timeout is the ATM's wait minus the time since the withdrawal arrived, not the whole wait"
+      },
+      {
+        "id": "com.example.practice.AskIssuerTest#aWithdrawalTheAtmGaveUpOnIsNotSent",
+        "kind": "edge",
+        "says": "a withdrawal older than the ATM's wait is not sent at all; the transaction stops with a reported cause"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-13/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s13.md",
+      "section": "13.2.1 The 2.1.7 Way to a Deadline: Compare the Arrival Time With the Clock"
+    },
+    "concepts": [
+      "On 2.1.7 a deadline is measured from the TIMESTAMP IncomingListener stores on arrival, so queue time counts, and work the terminal no longer waits for is not done."
+    ]
+  }
+}

@@ -8,7 +8,7 @@
   "unit": 9,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Database Integration",
   "blocks": [
     {
@@ -18,139 +18,486 @@
     },
     {
       "type": "para",
-      "text": "Database integration is crucial for storing and retrieving transaction data, user information, and other relevant details in a payment processing system. In this section, we'll implement custom Spring Data JPA repositories to handle database operations for our jPOS server."
+      "text": "Terminal `29110001` may take 1,000.00 a day. Shortly after lunch it declines a 25.00 purchase with `61`, \"exceeds amount limit\", and every purchase after it. The merchant has sold nothing today, yet the terminal's row in the limits table says 1,000.00 is used."
+    },
+    {
+      "type": "para",
+      "text": "The morning's two purchases, 600.00 and 400.00, were declined with `51` because the cardholders' accounts couldn't pay. The participant that reserves the amount against the limit had already written both reservations to the database, and nothing took them back. Unit s4 kept a limit in memory and gave a declined amount back in `abort`. A row in a database needs more than that: six rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.1 Setting up the Database Configuration"
+      "text": "9.1 A Database Beside the Server"
     },
     {
       "type": "para",
-      "text": "First, let's set up the database configuration using Spring Boot. We'll use PostgreSQL as our database."
+      "text": "Every server output in this unit comes from jPOS 2.1.7, with unit s4's `DirectTerminal` feeding a real Q2, TransactionManager and `SendResponse`, and an H2 database (`com.h2database:h2` 2.2.224, in memory, in its PostgreSQL mode) in the same JVM. The database has two tables:"
+    },
+    {
+      "type": "code",
+      "lang": "sql",
+      "text": "CREATE TABLE terminal_limits (\n  terminal_id  CHAR(8)  PRIMARY KEY,\n  daily_limit  BIGINT   NOT NULL,          -- minor units\n  used         BIGINT   NOT NULL DEFAULT 0\n);\n\nCREATE TABLE tranlog (\n  id           BIGSERIAL PRIMARY KEY,\n  created_at   TIMESTAMP   NOT NULL,\n  mti          CHAR(4)     NOT NULL,\n  stan         CHAR(6)     NOT NULL,\n  terminal_id  CHAR(8),\n  amount       BIGINT,\n  rc           CHAR(2),\n  outcome      VARCHAR(10) NOT NULL,       -- COMMITTED or ABORTED\n  pan_hmac     CHAR(64),                   -- keyed lookup value (9.7)\n  pan_enc      BYTEA,                      -- AES-GCM: iv || ciphertext || tag\n  pan_last4    CHAR(4)\n);\nCREATE INDEX tranlog_pan_hmac ON tranlog (pan_hmac);"
     },
     {
       "type": "para",
-      "text": "Add the following dependencies to your `pom.xml`:"
+      "text": "There is no column for track data, the CVV2 or the PIN block. After authorization they aren't stored anywhere, encrypted or not."
+    },
+    {
+      "type": "para",
+      "text": "Participants find the database through a `javax.sql.DataSource` in the `NameRegistrar`. A QBean creates the pool, registers it, and closes it when Q2 stops. The pool here is HikariCP (`com.zaxxer:HikariCP` 5.0.1):"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "// not-compiled: needs com.zaxxer:HikariCP on the classpath\npackage com.example.jpos.server.db;\n\nimport com.zaxxer.hikari.HikariConfig;\nimport com.zaxxer.hikari.HikariDataSource;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/** A connection pool for the participants, registered under its name while Q2 runs it. */\npublic class DataSourceService extends QBeanSupport {\n    private HikariDataSource ds;\n\n    @Override\n    protected void startService() {\n        HikariConfig hc = new HikariConfig();\n        hc.setJdbcUrl(cfg.get(\"url\"));\n        hc.setUsername(cfg.get(\"user\"));\n        hc.setPassword(cfg.get(\"password\"));\n        hc.setMaximumPoolSize(cfg.getInt(\"max-pool-size\", 10));\n        hc.setConnectionTimeout(cfg.getLong(\"connection-timeout\", 2000L));   // ms to wait for a free one\n        ds = new HikariDataSource(hc);\n        NameRegistrar.register(cfg.get(\"name\", \"ds.txn\"), ds);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(cfg.get(\"name\", \"ds.txn\"));\n        if (ds != null)\n            ds.close();\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`deploy/15_datasource.xml` deploys it before the TransactionManager's `30_txnmgr.xml`. The password comes from the environment:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<dependencies>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-data-jpa</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.postgresql</groupId>\n        <artifactId>postgresql</artifactId>\n        <scope>runtime</scope>\n    </dependency>\n</dependencies>"
+      "text": "<datasource class=\"com.example.jpos.server.db.DataSourceService\" logger=\"Q2\">\n  <property name=\"name\" value=\"ds.txn\"/>\n  <property name=\"url\" value=\"jdbc:h2:mem:payments;MODE=PostgreSQL;DB_CLOSE_DELAY=-1\"/>\n  <property name=\"user\" value=\"payments\"/>\n  <property name=\"password\" value=\"${DB_PASSWORD}\"/>\n  <property name=\"max-pool-size\" value=\"10\"/>\n  <property name=\"connection-timeout\" value=\"2000\"/>\n</datasource>"
     },
     {
       "type": "para",
-      "text": "Now, configure the database connection in your `application.properties` file:"
-    },
-    {
-      "type": "code",
-      "lang": "properties",
-      "text": "spring.datasource.url=jdbc:postgresql://localhost:5432/jpos_db\nspring.datasource.username=your_username\nspring.datasource.password=your_password\nspring.jpa.hibernate.ddl-auto=update\nspring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
+      "text": "Hikari hands out connections with auto-commit on, as JDBC does."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.2 Creating Entity Classes"
+      "text": "9.2 One Database Transaction Spans the TransactionManager Transaction"
     },
     {
       "type": "para",
-      "text": "Let's create some entity classes to represent our data models. We'll start with a `Transaction` entity:"
+      "text": "The first version of the limit check (it ran as `demo.AutoCommitReserve`) borrowed a connection of its own and ran a conditional `UPDATE`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jposserver.entity;\n\nimport jakarta.persistence.*;\nimport java.math.BigDecimal;\nimport java.time.LocalDateTime;\n\n@Entity\n@Table(name = \"transactions\")\npublic class Transaction {\n\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    @Column(name = \"transaction_id\", nullable = false, unique = true)\n    private String transactionId;\n\n    @Column(name = \"amount\", nullable = false)\n    private BigDecimal amount;\n\n    @Column(name = \"currency\", nullable = false)\n    private String currency;\n\n    @Column(name = \"card_number\", nullable = false)\n    private String cardNumber;\n\n    @Column(name = \"transaction_type\", nullable = false)\n    private String transactionType;\n\n    @Column(name = \"status\", nullable = false)\n    private String status;\n\n    @Column(name = \"created_at\", nullable = false)\n    private LocalDateTime createdAt;\n\n    // Getters and setters\n    // ...\n\n    @PrePersist\n    protected void onCreate() {\n        createdAt = LocalDateTime.now();\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.3 Creating Repository Interfaces"
+      "text": "try (Connection conn = NameRegistrar.<DataSource>get(\"ds.txn\").getConnection();\n     PreparedStatement ps = conn.prepareStatement(SQL)) {\n    // ... amount and terminal\n    if (ps.executeUpdate() == 1)\n        return PREPARED | NO_JOIN;"
     },
     {
       "type": "para",
-      "text": "Now, let's create a repository interface for our `Transaction` entity using Spring Data JPA:"
+      "text": "After it come unit s4's `Authorize`, set to decline anything above 200.00 with `51`, and `SendResponse`. The terminal's day:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000060000: 0210 39=51   used today: 60000\npurchase 000000040000: 0210 39=51   used today: 100000\npurchase 000000002500: 0210 39=61   used today: 100000"
+    },
+    {
+      "type": "para",
+      "text": "With auto-commit on, each statement is committed as it runs, so the reservation was permanent before `Authorize` voted. Unit s4's fix, joining and giving the amount back in `abort`, fails when that second `UPDATE` fails: `abort` can only log, and the amount stays reserved."
+    },
+    {
+      "type": "para",
+      "text": "So we make the whole TransactionManager transaction one database transaction. `Open` borrows a connection, turns auto-commit off and leaves it in the Context under `DB`, and under `TX`, which tells `SendResponse` not to answer yet (9.4). Every participant after it writes through that connection. `Close` commits or rolls back. Both log failures through their own logger, for a reason 9.4 explains:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jposserver.repository;\n\nimport com.example.jposserver.entity.Transaction;\nimport org.springframework.data.jpa.repository.JpaRepository;\nimport org.springframework.stereotype.Repository;\n\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\n@Repository\npublic interface TransactionRepository extends JpaRepository<Transaction, Long> {\n\n    Optional<Transaction> findByTransactionId(String transactionId);\n\n    List<Transaction> findByCardNumber(String cardNumber);\n\n    List<Transaction> findByStatus(String status);\n\n    List<Transaction> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.4 Creating a Service Layer"
-    },
-    {
-      "type": "para",
-      "text": "To encapsulate the business logic and database operations, let's create a service layer:"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.NameRegistrar;\n\nimport javax.sql.DataSource;\nimport java.io.Serializable;\nimport java.sql.Connection;\n\nimport static org.jpos.transaction.ContextConstants.DB;\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\nimport static org.jpos.transaction.ContextConstants.TX;\n\n/** Starts one database transaction for this TransactionManager transaction. Close ends it. */\npublic class Open extends Log implements TransactionParticipant, Configurable {\n    private String dataSourceName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        dataSourceName = cfg.get(\"datasource\", \"ds.txn\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        try {\n            DataSource ds = NameRegistrar.get(dataSourceName);\n            Connection conn = ds.getConnection();              // waits up to the pool's timeout\n            conn.setAutoCommit(false);\n            ctx.put(DB.toString(), conn);\n            ctx.put(TX.toString(), conn);                       // SendResponse won't answer while set\n            return PREPARED | NO_JOIN;                          // Close finishes it, not Open\n        } catch (Exception e) {\n            warn(\"no database connection: \" + id, e);       // the Context's log may never be printed\n            try {\n                ISOMsg request = ctx.get(REQUEST.toString());\n                ctx.put(RESPONSE.toString(), Responses.reply(request, \"96\"));   // system malfunction\n            } catch (Exception ignored) {\n                // nothing to answer\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n}"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jposserver.service;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.repository.TransactionRepository;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\n@Service\npublic class TransactionService {\n\n    private final TransactionRepository transactionRepository;\n\n    @Autowired\n    public TransactionService(TransactionRepository transactionRepository) {\n        this.transactionRepository = transactionRepository;\n    }\n\n    public Transaction saveTransaction(Transaction transaction) {\n        return transactionRepository.save(transaction);\n    }\n\n    public Optional<Transaction> getTransactionById(String transactionId) {\n        return transactionRepository.findByTransactionId(transactionId);\n    }\n\n    public List<Transaction> getTransactionsByCardNumber(String cardNumber) {\n        return transactionRepository.findByCardNumber(cardNumber);\n    }\n\n    public List<Transaction> getTransactionsByStatus(String status) {\n        return transactionRepository.findByStatus(status);\n    }\n\n    public List<Transaction> getTransactionsBetweenDates(LocalDateTime start, LocalDateTime end) {\n        return transactionRepository.findByCreatedAtBetween(start, end);\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.5 Integrating with jPOS"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.util.Log;\n\nimport java.io.Serializable;\nimport java.sql.Connection;\n\nimport static org.jpos.transaction.ContextConstants.DB;\nimport static org.jpos.transaction.ContextConstants.TX;\n\n/** Commits or rolls back the transaction Open started. Declared before SendResponse. */\npublic class Close extends Log implements AbortParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        return ctx.get(DB.toString()) != null\n            ? PREPARED | READONLY                       // joins: commit or abort finishes the work\n            : PREPARED | READONLY | NO_JOIN;            // Open failed: nothing to finish\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Connection conn = ctx.get(DB.toString());\n        try {\n            conn.commit();\n            ctx.remove(TX.toString());                  // only now may SendResponse answer\n        } catch (Exception e) {\n            warn(\"commit failed, response withheld: \" + id, e);    // (1) TX stays\n        } finally {\n            close(ctx, conn);\n        }\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Connection conn = ctx.get(DB.toString());\n        try {\n            conn.rollback();\n        } catch (Exception e) {\n            warn(\"rollback failed: \" + id, e);          // Hikari rolls back on close anyway\n        } finally {\n            ctx.remove(TX.toString());                  // (2) nothing was committed: the decline may go\n            close(ctx, conn);\n        }\n    }\n\n    private void close(Context ctx, Connection conn) {\n        try {\n            conn.close();                               // back to the pool, whatever happened\n        } catch (Exception e) {\n            warn(\"close failed\", e);\n        }\n        ctx.remove(DB.toString());\n    }\n}"
     },
     {
       "type": "para",
-      "text": "Now that we have our database integration set up, let's create a custom `TransactionParticipant` that uses our `TransactionService` to store transaction data:"
+      "text": "The limit check now uses `Open`'s connection:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jposserver.participant;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.service.TransactionService;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\n\n@Component\npublic class TransactionStorageParticipant implements TransactionParticipant, Configurable {\n\n    private final TransactionService transactionService;\n    private Configuration cfg;\n\n    @Autowired\n    public TransactionStorageParticipant(TransactionService transactionService) {\n        this.transactionService = transactionService;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Transaction transaction = createTransactionFromContext(ctx);\n        transactionService.saveTransaction(transaction);\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // No action needed, as the transaction is already saved in the prepare phase\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // No action needed, as we're not modifying any data in this participant\n    }\n\n    private Transaction createTransactionFromContext(Context ctx) {\n        Transaction transaction = new Transaction();\n        transaction.setTransactionId(ctx.getString(\"transactionId\"));\n        transaction.setAmount(new BigDecimal(ctx.getString(\"amount\")));\n        transaction.setCurrency(ctx.getString(\"currency\"));\n        transaction.setCardNumber(ctx.getString(\"cardNumber\"));\n        transaction.setTransactionType(ctx.getString(\"transactionType\"));\n        transaction.setStatus(ctx.getString(\"status\"));\n        return transaction;\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.6 Configuring the TransactionStorageParticipant"
-    },
-    {
-      "type": "para",
-      "text": "To use the `TransactionStorageParticipant` in your jPOS transaction manager, add it to your `deploy/05_spring_context.xml` file:"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\n\nimport java.io.Serializable;\nimport java.sql.Connection;\nimport java.sql.PreparedStatement;\n\nimport static org.jpos.transaction.ContextConstants.DB;\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Reserves the amount against the terminal's daily limit, inside Open's transaction. */\npublic class ReserveTerminalLimit extends Log implements TransactionParticipant {\n    static final String SQL =\n        \"UPDATE terminal_limits SET used = used + ? WHERE terminal_id = ? AND used + ? <= daily_limit\";\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        Connection conn = ctx.get(DB.toString());              // Open's connection\n        try (PreparedStatement ps = conn.prepareStatement(SQL)) {\n            long amount = Long.parseLong(request.getString(4));\n            ps.setLong(1, amount);\n            ps.setString(2, request.getString(41));\n            ps.setLong(3, amount);\n            if (ps.executeUpdate() == 1)                       // checks and reserves in one statement\n                return PREPARED | NO_JOIN;                     // Close commits it or rolls it back\n            ctx.put(RESPONSE.toString(), Responses.reply(request, \"61\"));   // exceeds amount limit\n            return ABORTED | NO_JOIN;\n        } catch (Exception e) {\n            warn(\"limit check failed: \" + id, e);\n            try {\n                ctx.put(RESPONSE.toString(), Responses.reply(request, \"96\"));\n            } catch (Exception ignored) {\n                // no request to answer\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n}"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<bean id=\"transactionStorageParticipant\" class=\"com.example.jposserver.participant.TransactionStorageParticipant\" />\n\n<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"space\" value=\"tspace:default\" />\n    <property name=\"queue\" value=\"txnmgr\" />\n    <property name=\"participants\">\n        <list>\n            <!-- Other participants -->\n            <ref bean=\"transactionStorageParticipant\" />\n        </list>\n    </property>\n</bean>"
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n  <participant class=\"com.example.jpos.server.participant.Open\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.ReserveTerminalLimit\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n    <property name=\"available\" value=\"20000\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.Close\" logger=\"Q2\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "The same day, and the trace of the first purchase:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000060000: 0210 39=51   used today: 0\npurchase 000000040000: 0210 39=51   used today: 0\npurchase 000000002500: 0210 39=00   used today: 2500"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.Open PREPARED NO_JOIN\n            prepare: c.e.j.s.p.ReserveTerminalLimit PREPARED NO_JOIN\n            prepare: c.e.j.s.p.Authorize ABORTED NO_JOIN\n    prepareForAbort: c.e.j.s.p.Close\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.Close\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "`ReserveTerminalLimit` votes `NO_JOIN` and has no `abort`: the rollback undoes its statement along with every other statement on the connection. `Close` is an `AbortParticipant`, so it is asked after `Authorize` aborts, and it joins whenever `Open` succeeded. A participant added next year that writes through `DB` is covered without an `abort` of its own. `DB` and `TX` are `ContextConstants` names."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.7 Testing the Database Integration"
+      "text": "9.3 Write in `prepare`, So the Database Can Still Say No"
     },
     {
       "type": "para",
-      "text": "Let's create a test class to ensure our database integration is working correctly:"
+      "text": "A colleague asks why the `UPDATE` runs in `prepare` at all. Why not check the limit there with a `SELECT`, and write the reservation in `commit`, once the purchase is certain? Terminal `29110001` has 100.00 of its limit left, and two purchases of 80.00 arrive from two of its lanes at the same moment. How many are approved?"
+    },
+    {
+      "type": "para",
+      "text": "We ran that version as `demo.CheckThenReserve`. A demo participant held each transaction after its check until both had checked, so that the timing came out the same on every run:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000411: 0210 39=00 after 0 ms\npurchase 000412: 0210 39=00 after 0 ms\nused today: 106000 of 100000"
+    },
+    {
+      "type": "para",
+      "text": "Both checks read 90000, both passed, and both reservations were written. Two sessions run the same participant at once (unit s1), and a `SELECT` takes no lock, so nothing kept the second check from reading the row before the first write. A write in `commit` has a second problem: if it fails, the transaction can't become a decline any more (unit s4)."
+    },
+    {
+      "type": "para",
+      "text": "`ReserveTerminalLimit` checks and reserves in one statement. `WHERE used + ? <= daily_limit` changes the row only if the amount fits, and `executeUpdate` returns 1 or 0. The row stays locked until `Close` commits or rolls back. The same two purchases, with a 300 ms fraud check (`demo.SlowStep`) between the reservation and `Close`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000411: 0210 39=61 after 300 ms\npurchase 000412: 0210 39=00 after 300 ms\nused today: 98000 of 100000"
+    },
+    {
+      "type": "para",
+      "text": "Whichever `UPDATE` came second waited for the row until the first transaction committed, then found 20.00 left and changed nothing. A lock timeout or a deadlock in that statement throws in `prepare` and becomes a `96` decline. In `commit` it would be a warning after the approval had gone. Holding the lock costs time: every purchase on that terminal waits behind it for as long as the transaction runs."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.4 The Answer Waits for the Commit"
+    },
+    {
+      "type": "para",
+      "text": "A database commit rarely fails, but it can: the connection drops, or the database fails over. Take an `Open` that doesn't set `TX`, and declare `Close` after `SendResponse`, since the commit is quick. One purchase of 25.00, against a `DataSource` whose `commit` throws:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00   used today: 0"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            ...\n            prepare: o.j.t.p.SendResponse PREPARED READONLY\n            prepare: c.e.j.s.p.Close PREPARED READONLY\n             commit: o.j.t.p.SendResponse\n             commit: c.e.j.s.p.Close"
+    },
+    {
+      "type": "para",
+      "text": "In 2.1.7 the TransactionManager calls `commit` in declaration order (unit s4), so the approval left before the database had committed. Then the commit failed, and the reservation went with it. The terminal approved the sale, and the server has no record of it. No reversal will come to clean it up, because the terminal got its answer."
+    },
+    {
+      "type": "para",
+      "text": "Now with `Open` as shown, which also puts the connection under `TX`, and `Close` before `SendResponse`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: no answer   used today: 0"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"participant\" at=\"2026-11-06T20:15:22.867838132\">\n  <warn>\n    commit failed, response withheld: 1\n    <SQLException>connection lost during commit</SQLException>"
+    },
+    {
+      "type": "para",
+      "text": "`Close` committed first, failed, and left `TX` in the Context (1). `SendResponse` won't send while `TX` is set. The terminal times out and sends a reversal for a purchase the database never recorded. On the abort path `Close` removes `TX` after the rollback, even a failed one (2), because nothing was committed and the decline is true."
+    },
+    {
+      "type": "para",
+      "text": "`SendResponse` notes the refusal, `*** PANIC - TX not null - RESPONSE OMITTED ***`, in the Context's log, which is printed only when `debug-context` is on (unit s8). So `Close`, `Open` and `ReserveTerminalLimit` log failures themselves. They extend `Log`, and the TransactionManager gives each the logger named on its element."
+    },
+    {
+      "type": "para",
+      "text": "With `TX` set and `Close` declared after `SendResponse`, no purchase is answered at all, approved or declined, because `SendResponse` always runs while the transaction is open. The first test purchase shows the mistake."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3** the documentation describes `commit` and `abort` in reverse declaration order. Check where `Close` has to stand on your version: it must commit before `SendResponse` sends."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.5 A Transaction Holds Its Connection From `Open` to `Close`"
+    },
+    {
+      "type": "para",
+      "text": "The server now asks the card's issuer before it approves (unit s4's `QueryIssuer`, which pauses). The question sits between `ReserveTerminalLimit` and `Close`, so that an issuer's decline rolls the reservation back:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"com.example.jpos.server.participant.ReserveTerminalLimit\" logger=\"Q2\"/>\n<participant class=\"com.example.jpos.server.participant.QueryIssuer\" logger=\"Q2\">\n  <property name=\"mux\" value=\"issuer-mux\"/>\n  <property name=\"timeout\" value=\"10000\"/>\n</participant>\n<participant class=\"com.example.jpos.server.participant.AnswerFromIssuer\" logger=\"Q2\"/>\n<participant class=\"com.example.jpos.server.participant.Close\" logger=\"Q2\"/>"
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager runs four sessions, and the pool has four connections, one per session, with a `connection-timeout` of 1000 ms. Eight purchases from eight terminals arrive within 40 ms, and the issuer takes two seconds over each. How many are approved?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "29110011: 0210 39=00 after 2000 ms\n29110012: 0210 39=00 after 2000 ms\n29110013: 0210 39=00 after 2000 ms\n29110014: 0210 39=00 after 2000 ms\n29110015: 0210 39=96 after 1000 ms\n29110016: 0210 39=96 after 1000 ms\n29110017: 0210 39=96 after 1000 ms\n29110018: 0210 39=96 after 1000 ms"
+    },
+    {
+      "type": "para",
+      "text": "`PAUSE` gave each session back while the issuer worked, so four more transactions started. Their `Open` asked for a connection, but the four paused transactions held all four: a paused transaction keeps its Context, and the Context keeps the connection. After a second the pool gave up, and `Open` answered `96`. With a pool of 16 all eight were approved after 2000 ms."
+    },
+    {
+      "type": "para",
+      "text": "Size the pool to the number of transactions that can be between `Open` and `Close` at the same time. Without `PAUSE` that is `max-sessions` (which defaults to `sessions`). With `PAUSE` the sessions don't limit it, so count the paused transactions too, or cap them: in 2.1.7 the TransactionManager's `max-active-sessions` limits the transactions in flight, paused ones included, and queues the rest again for later (with a persistent journal they come back without the request and are never answered: unit s15). Add whatever else borrows from the pool, such as reports. Keep the pool's `connection-timeout` well under the terminal's timeout. A starved pool then answers `96` quickly. A wait longer than the terminal's would leave every queued purchase unanswered, and each would come back as a reversal."
+    },
+    {
+      "type": "para",
+      "text": "The row lock lasts as long as the connection. A second purchase on terminal `29110011` would wait out the issuer's two seconds, as the second purchase in 9.3 waited out the fraud check."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.6 A Decline Is Recorded Outside the Transaction That Rolls It Back"
+    },
+    {
+      "type": "para",
+      "text": "Disputes and monitoring need a row for every transaction, approved or declined, in the transaction log `tranlog`. A first version writes it through `Open`'s connection, from an abort participant declared before `Close` (`demo.LogInTransaction`), so that the row commits together with the reservation. Five purchases, two of them too large for the account. How many rows?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000000003000: 0210 39=00\npurchase 000000025000: 0210 39=51\npurchase 000000004500: 0210 39=00\npurchase 000000030000: 0210 39=51\npurchase 000000001200: 0210 39=00\n  000801 000000003000 00 COMMITTED - -\n  000803 000000004500 00 COMMITTED - -\n  000805 000000001200 00 COMMITTED - -\ntranlog rows: 3"
+    },
+    {
+      "type": "para",
+      "text": "The two declines were written, then rolled back with everything else `Close` undid. When the cardholder disputes the 250.00 decline, the server has no record of it, and a monitor that counts declines in the tranlog counts none."
+    },
+    {
+      "type": "para",
+      "text": "`RecordOutcome` writes the row on a connection of its own, with auto-commit on, from `commit` and `abort`. It is an `AbortParticipant` declared after `SendResponse`, so it hears both outcomes, and its insert doesn't add to the terminal's wait:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jposserver.service;\n\nimport com.example.jposserver.entity.Transaction;\nimport com.example.jposserver.repository.TransactionRepository;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.transaction.annotation.Transactional;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport java.util.Optional;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\n@Transactional\nclass TransactionServiceTest {\n\n    @Autowired\n    private TransactionService transactionService;\n\n    @Autowired\n    private TransactionRepository transactionRepository;\n\n    private Transaction testTransaction;\n\n    @BeforeEach\n    void setUp() {\n        testTransaction = new Transaction();\n        testTransaction.setTransactionId(\"TEST123\");\n        testTransaction.setAmount(new BigDecimal(\"100.00\"));\n        testTransaction.setCurrency(\"USD\");\n        testTransaction.setCardNumber(\"1234567890123456\");\n        testTransaction.setTransactionType(\"PURCHASE\");\n        testTransaction.setStatus(\"APPROVED\");\n    }\n\n    @Test\n    void testSaveTransaction() {\n        Transaction savedTransaction = transactionService.saveTransaction(testTransaction);\n        assertThat(savedTransaction.getId()).isNotNull();\n        assertThat(savedTransaction.getTransactionId()).isEqualTo(\"TEST123\");\n    }\n\n    @Test\n    void testGetTransactionById() {\n        transactionRepository.save(testTransaction);\n        Optional<Transaction> foundTransaction = transactionService.getTransactionById(\"TEST123\");\n        assertThat(foundTransaction).isPresent();\n        assertThat(foundTransaction.get().getTransactionId()).isEqualTo(\"TEST123\");\n    }\n\n    @Test\n    void testGetTransactionsByCardNumber() {\n        transactionRepository.save(testTransaction);\n        List<Transaction> transactions = transactionService.getTransactionsByCardNumber(\"1234567890123456\");\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getCardNumber()).isEqualTo(\"1234567890123456\");\n    }\n\n    @Test\n    void testGetTransactionsByStatus() {\n        transactionRepository.save(testTransaction);\n        List<Transaction> transactions = transactionService.getTransactionsByStatus(\"APPROVED\");\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getStatus()).isEqualTo(\"APPROVED\");\n    }\n\n    @Test\n    void testGetTransactionsBetweenDates() {\n        transactionRepository.save(testTransaction);\n        LocalDateTime start = LocalDateTime.now().minusDays(1);\n        LocalDateTime end = LocalDateTime.now().plusDays(1);\n        List<Transaction> transactions = transactionService.getTransactionsBetweenDates(start, end);\n        assertThat(transactions).hasSize(1);\n        assertThat(transactions.get(0).getCreatedAt()).isBetween(start, end);\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.server.security.PanProtector;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.util.Log;\nimport org.jpos.util.NameRegistrar;\n\nimport javax.sql.DataSource;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.sql.Connection;\nimport java.sql.PreparedStatement;\nimport java.sql.Timestamp;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Writes one tranlog row per transaction, approved or not. Declared after SendResponse. */\npublic class RecordOutcome extends Log implements AbortParticipant, Configurable {\n    static final String SQL =\n        \"INSERT INTO tranlog (created_at, mti, stan, terminal_id, amount, rc, outcome,\"\n      + \" pan_hmac, pan_enc, pan_last4) VALUES (?,?,?,?,?,?,?,?,?,?)\";\n\n    private String dataSourceName;\n    private PanProtector protector;                     // a shared service, not a request\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        dataSourceName = cfg.get(\"datasource\", \"ds.txn\");\n        try {\n            protector = PanProtector.fromKeyStore(\n                Path.of(cfg.get(\"keystore\")), cfg.get(\"keystore-password\").toCharArray());\n        } catch (Exception e) {\n            throw new ConfigurationException(\"cannot load the PAN keys\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        return PREPARED | READONLY;                     // joins, so commit or abort records it\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        record((Context) context, \"COMMITTED\");\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        record((Context) context, \"ABORTED\");\n    }\n\n    private void record(Context ctx, String outcome) {\n        ISOMsg request = ctx.get(REQUEST.toString());\n        ISOMsg response = ctx.get(RESPONSE.toString());\n        try (Connection conn = NameRegistrar.<DataSource>get(dataSourceName).getConnection();\n             PreparedStatement ps = conn.prepareStatement(SQL)) {\n            conn.setAutoCommit(true);                   // its own connection: no rollback reaches it\n            String pan = request.getString(2);\n            ps.setTimestamp(1, new Timestamp(System.currentTimeMillis()));\n            ps.setString(2, request.getMTI());\n            ps.setString(3, request.getString(11));\n            ps.setString(4, request.getString(41));\n            ps.setLong(5, Long.parseLong(request.getString(4)));\n            ps.setString(6, response != null ? response.getString(39) : null);\n            ps.setString(7, outcome);\n            ps.setString(8, protector.lookupKey(pan));\n            ps.setBytes(9, protector.encrypt(pan));\n            ps.setString(10, pan.substring(pan.length() - 4));\n            ps.executeUpdate();\n        } catch (Exception e) {\n            warn(\"tranlog insert failed: \" + e.getClass().getSimpleName());   // no card data\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n<participant class=\"com.example.jpos.server.participant.RecordOutcome\" logger=\"Q2\">\n  <property name=\"keystore\" value=\"cfg/pan-keys.p12\"/>\n  <property name=\"keystore-password\" value=\"${KEYSTORE_PASSWORD}\"/>\n</participant>"
     },
     {
       "type": "para",
-      "text": "This completes the coverage of section 9 for the jPOS server implementation, focusing on Database Integration. We've set up the database configuration, created entity classes and repositories, implemented a service layer, integrated it with jPOS using a custom `TransactionParticipant`, and provided tests to ensure everything is working correctly."
+      "text": "The same five purchases:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  000801 000000003000 00 COMMITTED 1111 03759449e4639d64...\n  000802 000000025000 51 ABORTED   1111 03759449e4639d64...\n  000803 000000004500 00 COMMITTED 1111 03759449e4639d64...\n  000804 000000030000 51 ABORTED   1111 03759449e4639d64...\n  000805 000000001200 00 COMMITTED 1111 03759449e4639d64...\ntranlog rows: 5"
+    },
+    {
+      "type": "para",
+      "text": "`record` never throws. A failed insert is logged without card data, and the outcome stands. Give `RecordOutcome` a small pool of its own, a second `DataSourceService` under another name: on the shared pool of 9.5, each of the four `96` declines would have waited for a connection again in `abort` and lost its row."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.7 A Stored Card Number Can Be Found Only With a Key"
+    },
+    {
+      "type": "para",
+      "text": "Support must find every transaction on a card that a cardholder reads out over the phone. The tranlog needs a value per PAN that is the same every time, so it can be indexed, and that tells nothing to someone who has a copy of the table. A SHA-256 of the PAN is the same every time. Is it safe?"
+    },
+    {
+      "type": "para",
+      "text": "Suppose a copy of the table leaks, with a SHA-256 column next to `pan_last4`. The first six digits are the card's range, printed on receipts and listed in public BIN tables: `411111` for this test card. That leaves six unknown digits (`demo.Reverse`):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "middle digits tried: 1000000, Luhn-valid: 100000\nmatches the stored value: 4111111111111111, all candidates hashed in 249 ms"
+    },
+    {
+      "type": "para",
+      "text": "The check digit rules out nine in ten of the million combinations, and one thread hashed the rest in a quarter of a second. Every other card in the table can be recovered the same way."
+    },
+    {
+      "type": "para",
+      "text": "`pan_hmac` is an HMAC-SHA-256 under a secret key. Equal PANs still give equal values, but computing a candidate's value takes the key, and the key isn't in the database. The PAN itself is stored encrypted with AES-GCM under a second key, with a new IV for each row:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.security;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.GCMParameterSpec;\nimport java.io.InputStream;\nimport java.nio.ByteBuffer;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.security.GeneralSecurityException;\nimport java.security.KeyStore;\nimport java.security.SecureRandom;\nimport java.util.HexFormat;\n\n/** Encrypts card numbers for storage and computes the keyed value they are found by. */\npublic final class PanProtector {\n    private static final int IV_BYTES = 12, TAG_BITS = 128;\n    private final SecretKey encKey;\n    private final SecretKey macKey;\n    private final SecureRandom random = new SecureRandom();\n\n    public PanProtector(SecretKey encKey, SecretKey macKey) {\n        this.encKey = encKey;\n        this.macKey = macKey;\n    }\n\n    /** Loads the secret keys \"pan-enc\" and \"pan-mac\" from a PKCS12 file. */\n    public static PanProtector fromKeyStore(Path file, char[] password) throws Exception {\n        KeyStore ks = KeyStore.getInstance(\"PKCS12\");\n        try (InputStream in = Files.newInputStream(file)) {\n            ks.load(in, password);\n        }\n        SecretKey enc = (SecretKey) ks.getKey(\"pan-enc\", password);\n        SecretKey mac = (SecretKey) ks.getKey(\"pan-mac\", password);\n        if (enc == null || mac == null)\n            throw new IllegalStateException(\"pan-enc or pan-mac missing from \" + file);\n        return new PanProtector(enc, mac);\n    }\n\n    /** iv || ciphertext || tag, with a new random IV each time. */\n    public byte[] encrypt(String pan) throws GeneralSecurityException {\n        byte[] iv = new byte[IV_BYTES];\n        random.nextBytes(iv);\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.ENCRYPT_MODE, encKey, new GCMParameterSpec(TAG_BITS, iv));\n        byte[] ct = c.doFinal(pan.getBytes(StandardCharsets.US_ASCII));\n        return ByteBuffer.allocate(iv.length + ct.length).put(iv).put(ct).array();\n    }\n\n    public String decrypt(byte[] stored) throws GeneralSecurityException {\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.DECRYPT_MODE, encKey, new GCMParameterSpec(TAG_BITS, stored, 0, IV_BYTES));\n        return new String(c.doFinal(stored, IV_BYTES, stored.length - IV_BYTES), StandardCharsets.US_ASCII);\n    }\n\n    /** The same PAN always gives the same value, and nobody without the key can compute it. */\n    public String lookupKey(String pan) throws GeneralSecurityException {\n        Mac mac = Mac.getInstance(\"HmacSHA256\");\n        mac.init(macKey);\n        return HexFormat.of().formatHex(mac.doFinal(pan.getBytes(StandardCharsets.US_ASCII)));\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The keys are made once, outside the application, with the password read from the environment:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "keytool -genseckey -alias pan-enc -keyalg AES -keysize 256 -storetype PKCS12 \\\n        -keystore cfg/pan-keys.p12 -storepass:env KEYSTORE_PASSWORD\nkeytool -genseckey -alias pan-mac -keyalg HmacSHA256 -keysize 256 -storetype PKCS12 \\\n        -keystore cfg/pan-keys.p12 -storepass:env KEYSTORE_PASSWORD"
+    },
+    {
+      "type": "para",
+      "text": "Keep the file out of the repository and off the database host (unit s7 covers keys in a security module). A search by card computes `lookupKey(pan)` and binds it to `WHERE pan_hmac = ?`, so the PAN never appears in SQL or in the database's log. The authorization path never decrypts. Decrypting is for disputes, in a separate component whose use is audited."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.8 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**One database transaction spans the TransactionManager transaction.** `Open` turns auto-commit off and puts the connection under `DB` and `TX`; `Close`, an abort participant, commits or rolls back and always closes. With auto-commit, a declined purchase keeps its reservation.",
+        "**Write in `prepare`.** A conditional `UPDATE` checks and reserves in one statement and locks the row until `Close`. A check in `prepare` with the write in `commit` lets two purchases pass the same check, and a failed write can't decline any more.",
+        "**The answer waits for the commit.** `Close` stands before `SendResponse`, and `TX` keeps the approval back until the commit succeeds. A failed commit becomes a timeout and a reversal, never an approval without a record.",
+        "**A transaction holds its connection from `Open` to `Close`.** Paused transactions hold theirs too. Size the pool to what can be in between at once, with a timeout under the terminal's.",
+        "**A decline is recorded outside the transaction that rolls it back,** by an abort participant after `SendResponse`, on its own auto-committed connection.",
+        "**A stored card number can be found only with a key.** An unkeyed hash of a PAN is reversed in a quarter of a second; store an HMAC to search by and an AES-GCM ciphertext."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.9 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**The participants of this unit, in descriptor order:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Participant",
+        "`prepare` votes",
+        "`commit`",
+        "`abort`"
+      ],
+      "rows": [
+        [
+          "`Open`",
+          "`PREPARED | NO_JOIN`; `ABORTED | NO_JOIN` with a `96` reply when no connection",
+          "—",
+          "—"
+        ],
+        [
+          "`ReserveTerminalLimit` and every other writer",
+          "`PREPARED | NO_JOIN`, or `ABORTED | NO_JOIN` with its reply",
+          "—",
+          "—"
+        ],
+        [
+          "`Close`",
+          "`PREPARED | READONLY`, plus `NO_JOIN` when there is no `DB`",
+          "commit, remove `TX` on success, close",
+          "roll back, remove `TX`, close"
+        ],
+        [
+          "`SendResponse`",
+          "`PREPARED | READONLY`",
+          "sends `RESPONSE` unless `TX` is set",
+          "same"
+        ],
+        [
+          "`RecordOutcome`",
+          "`PREPARED | READONLY`",
+          "inserts on its own connection",
+          "same"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Context keys:** `DB` holds the open connection, `TX` the open database transaction. Both are `ContextConstants` names, used as strings (unit s4)."
+    },
+    {
+      "type": "para",
+      "text": "**Pool sizing:** the maximum covers the transactions that can be between `Open` and `Close` at once (`max-sessions`, plus paused transactions when a participant in between pauses), plus other users of the pool. Its `connection-timeout` stays well under the terminal's timeout."
+    },
+    {
+      "type": "para",
+      "text": "**The reply helper** is unit s4's:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic final class Responses {\n    private Responses() { }\n\n    /** A reply to {@code request} carrying response code {@code rc} in field 39. */\n    public static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        r.unset(14, 35, 45, 52, 55, 64);   // expiry, tracks, PIN block, chip data, the request's MAC\n        return r;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.10 Challenges"
+    },
+    {
+      "type": "para",
+      "text": "These have no single answer."
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The server dies after `ReserveTerminalLimit` ran and before `Close`. What happens to the reservation, and to the terminal's purchase?",
+        "The issuer call in 9.5 holds the terminal's row for up to ten seconds. Reserve before the call in a short transaction of its own, and give the amount back if the issuer declines. What can now go wrong that couldn't before?",
+        "Your peak is 300 purchases a second and the issuer answers in 400 ms, sometimes in 8 seconds. How big is the pool with `PAUSE`, and what does the database server say about that many connections?",
+        "The HMAC key leaks, but the AES key doesn't. What can an attacker with the table do now, and what does rotating the HMAC key cost?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.11 Design Note: Why Hold the Database Transaction So Long?"
+    },
+    {
+      "type": "para",
+      "text": "`Open` and `Close` keep one connection, and every lock taken through it, for the whole TransactionManager transaction. The alternative is a short transaction per participant, each committed at once, with a compensating write in `abort`. Locks are brief and the pool can be small. But each compensation is one more write that can fail where failure can only be logged, and each participant has to remember to write one. One rollback needs neither."
+    },
+    {
+      "type": "para",
+      "text": "So this unit holds the transaction, and pays for it with row locks held across the issuer call and a pool sized for the slow cases."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 8,
-    "paras": 11,
-    "code": 8,
-    "tables": 0,
-    "lists": 0,
+    "headings": 12,
+    "paras": 48,
+    "code": 27,
+    "tables": 1,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "4472c99731c204d9b8bbbf8ab62e323d43af5a4537a3c54e02c364f9b2dbfe22"
+  "content_sha256": "e7981bcdab4f1e41ce799ca60200be7b907e2db6626c4cb1b2e4c6ad060543fd"
 }

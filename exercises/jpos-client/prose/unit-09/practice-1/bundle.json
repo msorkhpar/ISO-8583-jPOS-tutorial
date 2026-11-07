@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 9,
   "ordinal": 1,
-  "title": "Turn every failure into the response its caller should see",
+  "title": "Keep a message the link can't carry off the link",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ErrorHandler.java",
-  "test_file": "src/test/java/com/example/practice/ErrorHandlerTest.java",
+  "main_file": "src/main/java/com/example/practice/PaymentClient.java",
+  "test_file": "src/test/java/com/example/practice/PaymentClientTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ErrorHandlerTest#eachKindOfFailureGetsItsOwnResponse",
+      "id": "com.example.practice.PaymentClientTest#aGoodPurchaseIsApproved",
       "kind": "main",
-      "says": "an ISO-8583 error, a network error, a timeout and a decline each get their own type, message and status"
+      "says": "a purchase the link can carry goes to the host and its approval is reported"
     },
     {
-      "id": "com.example.practice.ErrorHandlerTest#aNarrowerNetworkFailureIsStillANetworkError",
-      "kind": "edge",
-      "says": "a subclass of IOException, such as a refused connection, is still a network error"
+      "id": "com.example.practice.PaymentClientTest#aPurchaseTheHostNeverAnswersIsLeftForReversal",
+      "kind": "main",
+      "says": "a purchase the host never answers has an unknown outcome and is left for the reversal process"
     },
     {
-      "id": "com.example.practice.ErrorHandlerTest#anUnexpectedFailureRevealsNothingOfItsCause",
+      "id": "com.example.practice.PaymentClientTest#aFieldTooLongForTheLinkNeverReachesIt",
       "kind": "edge",
-      "says": "an unexpected failure is answered generically, without its own message"
+      "says": "a field longer than the link's packager allows is refused before anything is queued"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#anAmountThatIsNotANumberNeverReachesIt",
+      "kind": "edge",
+      "says": "an amount the packager would accept but the host would misread is refused too, because the packager checks lengths and not content"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aRefusedMessageIsNotLeftForReversal",
+      "kind": "edge",
+      "says": "a refused message never reached the host, so it is reported as refused and not left for reversal"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aMessageWithoutAnAmountIsCheckedToo",
+      "kind": "edge",
+      "says": "a message without an amount is checked and sent like any other"
     }
   ],
   "report": {
@@ -54,6 +69,6 @@
   },
   "origin": {
     "path": "src/c9.md",
-    "section": "9.2 Implementing Exception Handlers"
+    "section": "9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
   }
 }

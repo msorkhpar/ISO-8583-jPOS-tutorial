@@ -1,0 +1,223 @@
+{
+  "coverage_api": 2,
+  "page": "src/c13.md",
+  "kind": "code",
+  "quiz": "packager-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/c13.md": "sha256:09faa9d290820087b211f76fddf8a91e057d81addfa3fe5a3f57f524936c73a1"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 3,
+    "aspects": [
+      {
+        "id": "bcd-no-letters",
+        "says": "BCD can't carry letters: a letter in a BCD field silently becomes another digit, so track 2 is normalised to = before it is set.",
+        "basis": [
+          "section:13.4 An Odd Number of BCD Digits Needs a Filler, on the Same Side at Both Ends",
+          "example:src/c13.md:13"
+        ],
+        "exercise": null,
+        "reason": "the page shows the effect; a practice would only replace one character before a set"
+      },
+      {
+        "id": "binary-max-unchecked",
+        "says": "Variable-length binary field packagers don't check their maximum, and a BCD prefix too short for the length is written wrong without an error.",
+        "basis": [
+          "section:13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which",
+          "example:src/c13.md:10"
+        ],
+        "exercise": "packager-quiz",
+        "reason": null
+      },
+      {
+        "id": "error-points-past",
+        "says": "An unpack error names a field after the wrong one, and an unpack can succeed with shifted values; the first field whose value is wrong is the row to fix.",
+        "basis": [
+          "section:13.7 An Unpack Error Points Past the Field That Is Wrong",
+          "example:src/c13.md:21",
+          "example:src/c13.md:22"
+        ],
+        "exercise": "first-wrong-field",
+        "reason": null
+      },
+      {
+        "id": "filler-side",
+        "says": "An odd number of BCD digits carries a filler nibble whose side is the pad setting, and both ends must agree; only odd-length values are affected.",
+        "basis": [
+          "section:13.4 An Odd Number of BCD Digits Needs a Filler, on the Same Side at Both Ends",
+          "example:src/c13.md:11",
+          "example:src/c13.md:12"
+        ],
+        "exercise": "regional-packager",
+        "reason": null
+      },
+      {
+        "id": "load-from-classpath",
+        "says": "A packager name with jar: is read from the classpath; a plain name is a file path relative to the directory the JVM started in.",
+        "basis": [
+          "section:13.6.1 Where the File Comes From",
+          "example:src/c13.md:19",
+          "example:src/c13.md:20"
+        ],
+        "exercise": "packager-quiz",
+        "reason": null
+      },
+      {
+        "id": "name-spells-row",
+        "says": "A field packager's class name gives the encoding, the length rule and the type of a specification row; B means BCD, and IFA_BINARY sends bytes as hex text.",
+        "basis": [
+          "section:13.2 A Field Packager's Name Spells Out the Specification's Row",
+          "example:src/c13.md:4",
+          "example:src/c13.md:5"
+        ],
+        "exercise": "regional-packager",
+        "reason": null
+      },
+      {
+        "id": "no-boundaries",
+        "says": "The bytes carry no field boundaries, so a receiver whose layout differs in one field reads every later field from the wrong place.",
+        "basis": [
+          "section:13.1 The Bytes Carry No Field Boundaries, Only the Packager Knows Them",
+          "example:src/c13.md:1",
+          "example:src/c13.md:2"
+        ],
+        "exercise": "first-wrong-field",
+        "reason": null
+      },
+      {
+        "id": "parts-combine",
+        "says": "Field packagers are a padder, an interpreter and a prefixer, and a combination no stock class offers can be built from them.",
+        "basis": [
+          "section:13.2.1 Classes Are Combinations, and You Can Make Your Own",
+          "example:src/c13.md:6",
+          "example:src/c13.md:7"
+        ],
+        "exercise": null,
+        "reason": "a custom combination is needed only for an unusual specification; the stock classes cover the practice's rows, and the page shows the pattern"
+      },
+      {
+        "id": "prefix-counts",
+        "says": "A BCD length prefix counts digits for numeric fields and bytes for text and binary fields, and the wrong choice can misread a message without an error.",
+        "basis": [
+          "section:13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which",
+          "example:src/c13.md:8",
+          "example:src/c13.md:9"
+        ],
+        "exercise": "regional-packager",
+        "reason": null
+      },
+      {
+        "id": "sample-not-round-trip",
+        "says": "A round trip can't find a wrong layout because the packager reads back what it wrote; a test from the specification's sample bytes, checking values, bytes used and bytes repacked, can.",
+        "basis": [
+          "section:13.5 A Round Trip Can't Check the Layout; the Specification's Sample Can",
+          "example:src/c13.md:14",
+          "example:src/c13.md:15",
+          "example:src/c13.md:16"
+        ],
+        "exercise": "regional-packager",
+        "reason": null
+      },
+      {
+        "id": "xml-same-classes",
+        "says": "GenericPackager XML names the same field packager classes and packs the same bytes; a sub-field layout can carry a bitmap of its own.",
+        "basis": [
+          "section:13.6 The XML Names the Same Classes, and Is Read From the Classpath",
+          "example:src/c13.md:17",
+          "example:src/c13.md:18"
+        ],
+        "exercise": null,
+        "reason": "writing sub-field XML is practised in unit c6, and the XML rows are the same choices the regional-packager practice grades in Java"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "regional-packager",
+        "aspects": [
+          "filler-side",
+          "name-spells-row",
+          "prefix-counts",
+          "sample-not-round-trip"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "first-wrong-field",
+        "aspects": [
+          "error-points-past",
+          "no-boundaries"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "packager-quiz",
+        "aspects": [
+          "binary-max-unchecked",
+          "load-from-classpath"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-client/prose/unit-13/practice-1",
+    "exercises/jpos-client/prose/unit-13/practice-2",
+    "exercises/jpos-client/prose/unit-13/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-1",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.5 A Round Trip Can't Check the Layout; the Specification's Sample Can"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-2",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.7 An Unpack Error Points Past the Field That Is Wrong"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-3:q-pan-prefix",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-3:q-track2-filler",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.4 An Odd Number of BCD Digits Needs a Filler, on the Same Side at Both Ends"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-3:q-config-path",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.6.1 Where the File Comes From"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-3:q-which-row",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.7 An Unpack Error Points Past the Field That Is Wrong"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-13/practice-3:q-chip-length",
+      "origin": {
+        "path": "src/c13.md",
+        "section": "13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which"
+      }
+    }
+  ],
+  "shortfalls": []
+}

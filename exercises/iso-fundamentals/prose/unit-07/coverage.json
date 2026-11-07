@@ -1,87 +1,140 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/7.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/7.md": "sha256:f50ee5d0caa51a96b6952fbbef2fd5d25679acbdbeb478c77d2c843b22899812"
+    "src/7.md": "sha256:e686e88abd4034f15fc19d325947534b4975bdf00e5f27c1814aab96b12f91cd"
   },
   "plan": {
     "plan_api": 2,
-    "tier": "introductory",
-    "count": 1,
+    "tier": "core",
+    "count": 2,
     "aspects": [
       {
-        "id": "chain-of-parties",
-        "says": "An authorization travels from terminal to acquirer to card network to issuer, and the answer returns along the same chain.",
+        "id": "advice-applied-by-issuer",
+        "says": "A stand-in or offline approval reaches the issuer as an advice or a clearing record, and the issuer applies it as if it had approved it, even when the account goes below zero.",
         "basis": [
-          "section:7.1. Authorization Flow"
+          "section:7.4. A Decision Taken Elsewhere Arrives as an Advice, and the Issuer Must Apply It",
+          "section:7.4.1. Spot the Problem: The Advice Nobody Recorded",
+          "example:src/7.md:4",
+          "example:src/7.md:5",
+          "example:src/7.md:6",
+          "example:src/7.md:7"
         ],
-        "exercise": null,
-        "reason": "background to the MUX call; an offline run plays only the acquirer's part of the chain"
-      },
-      {
-        "id": "chargeback-from-original",
-        "says": "A chargeback is raised from the original transaction's identifiers, and the transaction is marked only once the network accepts it.",
-        "basis": [
-          "example:src/7.md:3",
-          "section:7.3. Chargebacks and Disputes"
-        ],
-        "exercise": null,
-        "reason": "the page's chargeback advice is built from the original transaction, which needs a transaction store a graded run does not have"
-      },
-      {
-        "id": "daily-clearing-batch",
-        "says": "After authorization, clearing and settlement move the money in a daily batch that gathers the previous day's transactions into a clearing file.",
-        "basis": [
-          "example:src/7.md:2",
-          "section:7.2. Clearing and Settlement"
-        ],
-        "exercise": null,
-        "reason": "the page's batch is a scheduled wiring of a repository, a file generator and a settlement service it never defines; there is no rule in it to check"
-      },
-      {
-        "id": "decision-in-field-39",
-        "says": "The issuer's decision comes back in field 39 of the response: 00 approves, any other code declines and is passed on.",
-        "basis": [
-          "example:src/7.md:1",
-          "example:src/7.md:4"
-        ],
-        "exercise": "authorize-through-mux",
+        "exercise": "apply-what-was-decided",
         "reason": null
       },
       {
-        "id": "request-through-mux",
-        "says": "The acquirer sends the authorization request through a MUX and waits a bounded time for the answer; no answer is a failure to report, never a decline.",
+        "id": "clearing-moves-dual-message-money",
+        "says": "In the dual-message flow an approval only holds the money; the clearing record posts the final amount and releases the whole hold, and without it the hold lapses and the merchant is never paid.",
         "basis": [
+          "section:7.2. An Approval Holds the Money in the Dual-Message Flow and Moves It in the Single-Message Flow",
           "example:src/7.md:1",
-          "section:7.1. Authorization Flow"
+          "example:src/7.md:2"
         ],
-        "exercise": "authorize-through-mux",
+        "exercise": "apply-what-was-decided",
+        "reason": null
+      },
+      {
+        "id": "each-hop-its-own-link",
+        "says": "A payment crosses merchant, acquirer, network and issuer; only the issuer decides, and each hop is its own link, so only what the next link's specification defines gets across.",
+        "basis": [
+          "section:7.1. A Payment Crosses Four Parties, and Each Hop Is a Link of Its Own"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "settlement-nets",
+        "says": "Settlement moves one net amount per institution for the settlement day, so no purchase appears in a transfer of its own, and 05xx messages agree totals without moving money.",
+        "basis": [
+          "section:7.3. Settlement Moves One Net Amount per Institution, Days After the Purchases",
+          "example:src/7.md:3"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "uncleared-approval-is-not-payment",
+        "says": "Approvals that never reach clearing move no money: the cardholder is not charged and the merchant is not paid.",
+        "basis": [
+          "section:7.2. An Approval Holds the Money in the Dual-Message Flow and Moves It in the Single-Message Flow"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "undo-depends-on-stage",
+        "says": "A reversal undoes a transaction only while it is open; once cleared, it is undone by a refund from the merchant or a chargeback from the issuer through the network's dispute process.",
+        "basis": [
+          "section:7.5. What Undoes a Transaction Depends on How Far It Has Gone"
+        ],
+        "exercise": "check-yourself",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "authorize-through-mux",
+        "name": "apply-what-was-decided",
         "aspects": [
-          "decision-in-field-39",
-          "request-through-mux"
+          "advice-applied-by-issuer",
+          "clearing-moves-dual-message-money"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "check-yourself",
+        "aspects": [
+          "each-hop-its-own-link",
+          "settlement-nets",
+          "uncleared-approval-is-not-payment",
+          "undo-depends-on-stage"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-07/practice-1"
+    "exercises/iso-fundamentals/prose/unit-07/practice-1",
+    "exercises/iso-fundamentals/prose/unit-07/practice-2"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-07/practice-1",
       "origin": {
         "path": "src/7.md",
-        "section": "7.1. Authorization Flow"
+        "section": "7.4. A Decision Taken Elsewhere Arrives as an Advice, and the Issuer Must Apply It"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-07/practice-2:q-device-id",
+      "origin": {
+        "path": "src/7.md",
+        "section": "7.1. A Payment Crosses Four Parties, and Each Hop Is a Link of Its Own"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-07/practice-2:q-stuck-batch",
+      "origin": {
+        "path": "src/7.md",
+        "section": "7.2. An Approval Holds the Money in the Dual-Message Flow and Moves It in the Single-Message Flow"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-07/practice-2:q-settlement-day",
+      "origin": {
+        "path": "src/7.md",
+        "section": "7.3. Settlement Moves One Net Amount per Institution, Days After the Purchases"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-07/practice-2:q-never-delivered",
+      "origin": {
+        "path": "src/7.md",
+        "section": "7.5. What Undoes a Transaction Depends on How Far It Has Gone"
       }
     }
   ],

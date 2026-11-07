@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 7,
   "ordinal": 1,
-  "title": "Authorize a request through a MUX",
+  "title": "Keep the account right after decisions you did not make",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/Authorizer.java",
-  "test_file": "src/test/java/com/example/practice/AuthorizerTest.java",
+  "main_file": "src/main/java/com/example/practice/Account.java",
+  "test_file": "src/test/java/com/example/practice/AccountTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,14 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.AuthorizerTest#approvesOn00AndPassesADeclineCodeOn",
+      "id": "com.example.practice.AccountTest#heldThenClearedForTheSameAmount",
       "kind": "main",
-      "says": "sends the request through the MUX with a bounded wait, approves on 00 and reports any other code as a decline"
+      "says": "an authorized purchase cleared for the amount it was held for leaves the ledger and what is available both lower by that amount"
     },
     {
-      "id": "com.example.practice.AuthorizerTest#noAnswerIsAnErrorNotADecline",
+      "id": "com.example.practice.AccountTest#aStandInApprovalIsAcknowledgedAndCounted",
+      "kind": "main",
+      "says": "a stand-in advice is acknowledged with an 0130 and 39=00, lowers what is available but not the ledger, and its clearing record posts it"
+    },
+    {
+      "id": "com.example.practice.AccountTest#theFinalAmountIsWhatPosts",
       "kind": "edge",
-      "says": "when the MUX returns no answer the call fails with an IOException instead of reporting a decline"
+      "says": "a purchase cleared for less than was authorized costs the cardholder the cleared amount"
+    },
+    {
+      "id": "com.example.practice.AccountTest#nothingStaysHeldAfterClearing",
+      "kind": "edge",
+      "says": "once a purchase clears, none of its hold is left, even when the final amount is smaller"
+    },
+    {
+      "id": "com.example.practice.AccountTest#aClearingWithNoAuthorizationStillPosts",
+      "kind": "edge",
+      "says": "a purchase approved offline arrives only as a clearing record and is still posted, leaving other holds alone"
+    },
+    {
+      "id": "com.example.practice.AccountTest#aStandInApprovalOverTheBalanceStillCounts",
+      "kind": "edge",
+      "says": "a stand-in approval larger than what is available is still acknowledged with 00 and counted, so available goes below zero"
     }
   ],
   "report": {
@@ -49,6 +69,6 @@
   },
   "origin": {
     "path": "src/7.md",
-    "section": "7.1. Authorization Flow"
+    "section": "7.4. A Decision Taken Elsewhere Arrives as an Advice, and the Issuer Must Apply It"
   }
 }

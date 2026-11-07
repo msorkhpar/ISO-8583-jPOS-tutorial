@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 18,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Refuse a chip authorization the issuer has already seen",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your issuer's fraud team found the same chip authorization approved twice, an hour apart, at two different merchants: identical DE 55, identical cryptogram, and the HSM verified both. They want the host to keep its own record of chip counters, and they have already had one complaint from a cardholder whose new card was declined for days after it arrived."
+    },
+    {
+      "type": "para",
+      "text": "`AtcGuard` in `src/main/java/com/example/practice/AtcGuard.java` is called once per chip authorization, after the HSM has checked the cryptogram. Finish the three methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`card`: which card the counter belongs to;",
+        "`atc`: the counter the card sent in DE 55;",
+        "`decide`: the verdict, keeping the record up to date."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The `Verdict` values say what each answer means. About ten lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        return request.getString(2) + \"/\" + request.getString(23);\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        TLVList chip = new TLVList();\n        chip.unpack(request.getBytes(55));\n        byte[] v = chip.getValue(0x9F36);\n        return ((v[0] & 0xFF) << 8) | (v[1] & 0xFF);\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        if (!cryptogramVerified)\n            return Verdict.CRYPTOGRAM_FAILED;\n        Integer last = lastVerified.get(card);\n        if (last != null && atc <= last)\n            return Verdict.REPLAYED;\n        lastVerified.put(card, atc);\n        return Verdict.ACCEPTED;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        // TODO: two cards can share a card number. Say which one this is.\n        throw new IllegalStateException(\"TODO: card\");\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        // TODO: read the counter the card sent.\n        throw new IllegalStateException(\"TODO: atc\");\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        // TODO: decide, and remember what later requests from this card must be compared with.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "3ab06c75bdf4c3333747dc93109fefd51d86f3ca52775f413df422e60c8fab5b",
+  "starting_code": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        // TODO: two cards can share a card number. Say which one this is.\n        throw new IllegalStateException(\"TODO: card\");\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        // TODO: read the counter the card sent.\n        throw new IllegalStateException(\"TODO: atc\");\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        // TODO: decide, and remember what later requests from this card must be compared with.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-18/practice-2/src/main/java/com/example/practice/AtcGuard.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-18/practice-2/src/test/java/com/example/practice/AtcGuardTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-18/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-18/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AtcGuardTest#risingCountersAreAcceptedAndAFailedCryptogramIsNot",
+        "kind": "main",
+        "says": "verified authorizations with rising counters are accepted, for each card, and a failed cryptogram is not"
+      },
+      {
+        "id": "com.example.practice.AtcGuardTest#theSameCounterTwiceIsAReplay",
+        "kind": "edge",
+        "says": "a counter equal to or below the last one verified for the card is a replay, even though its cryptogram verifies"
+      },
+      {
+        "id": "com.example.practice.AtcGuardTest#aReplacementCardKeepsItsOwnCounter",
+        "kind": "edge",
+        "says": "a card is its number and its sequence number, so a replacement card with the same number keeps its own counter"
+      },
+      {
+        "id": "com.example.practice.AtcGuardTest#theCounterIsABinaryNumber",
+        "kind": "edge",
+        "says": "the counter is binary, not BCD, so its bytes are read as a number"
+      },
+      {
+        "id": "com.example.practice.AtcGuardTest#aForgedCounterDoesNotLockOutTheCard",
+        "kind": "edge",
+        "says": "only a counter whose cryptogram verified is recorded, so a forged high counter does not lock out the genuine card"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-18/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/18.md",
+      "section": "18.4. A Valid Cryptogram Proves the Card, Not That the Request Is New"
+    },
+    "concepts": [
+      "A verified cryptogram proves the card but not freshness: only the last verified ATC per card catches a replay, recorded only after verification; the card key needs the PAN sequence number, and a failed cryptogram is a decline."
+    ]
+  }
+}

@@ -1,72 +1,128 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c8.md",
   "kind": "code",
+  "quiz": "logging-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c8.md": "sha256:104044c0d87c8a8e8095b0bb8a0c3d28aafbc0ac92598f92fb5deee7987d4d9d"
+    "src/c8.md": "sha256:7ab8578a7b88212feeffb6dba3df88e1417a736aa115ec9c2a5f3802f50948ff"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 2,
+    "count": 3,
     "aspects": [
       {
-        "id": "custom-listener-bridge",
-        "says": "A custom LogListener can forward jPOS events into another logging system, and a configured Logger is shared by the client's components.",
+        "id": "component-logger-attribute",
+        "says": "The channel inside an adaptor logs only with its own logger attribute, and a node without 00_logger.xml writes everything to the console unmasked.",
         "basis": [
-          "example:src/c8.md:4",
-          "example:src/c8.md:5"
+          "section:8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing",
+          "example:src/c8.md:5",
+          "example:src/c8.md:6"
         ],
-        "exercise": null,
-        "reason": "wiring detail; the listener contract is what both exercises' tests attach, so it is not practised on its own"
-      },
-      {
-        "id": "logger-events-listeners",
-        "says": "A jPOS Logger hands each LogEvent, with its tag and its messages, to the LogListeners attached to it, and the event reaches them only through its source.",
-        "basis": [
-          "example:src/c8.md:1",
-          "example:src/c8.md:2",
-          "example:src/c8.md:3",
-          "section:8.1 jPOS Logging Framework"
-        ],
-        "exercise": "logger-through-source",
+        "exercise": "logging-quiz",
         "reason": null
       },
       {
-        "id": "transaction-event",
-        "says": "A client logs each transaction as one event carrying its message type and amount, and never a full card number.",
+        "id": "dumps-are-text",
+        "says": "Hex dumps and packager traces are text no filter touches; a dump to share is made from a masked copy, which keeps the lengths and bitmap the host saw.",
         "basis": [
-          "example:src/c8.md:6",
-          "section:8.2 Implementing Logging in jPOS Client"
+          "section:8.4 Bytes and Packager Traces Are Text Too",
+          "example:src/c8.md:13"
         ],
-        "exercise": "masked-transaction-log",
+        "exercise": "support-dump",
         "reason": null
       },
       {
-        "id": "wire-logging",
-        "says": "A channel given a logger and a realm logs the raw messages it sends and receives, which is how communication problems are diagnosed.",
+        "id": "filter-masks-messages",
+        "says": "ProtectedLogListener masks a copy of each ISOMsg that is itself a message of the event; strings and wrappers that dump messages themselves pass through in clear.",
         "basis": [
+          "section:8.3 The Filter Masks Messages, Never Text",
+          "section:8.3.1 Spot the Problem: The Exchange Record",
           "example:src/c8.md:7",
-          "section:8.3 Debugging Techniques"
+          "example:src/c8.md:9",
+          "example:src/c8.md:10"
         ],
-        "exercise": null,
-        "reason": "it needs a channel connected to a live host; a graded run has no network"
+        "exercise": "support-dump",
+        "reason": null
+      },
+      {
+        "id": "late-answer-counted",
+        "says": "QMUX writes no event for an answer nobody waits for; it counts it in rx_unhandled, which SystemMonitor prints with the other counters.",
+        "basis": [
+          "section:8.6 A Late Answer Is Counted, Not Logged, by the MUX",
+          "example:src/c8.md:18"
+        ],
+        "exercise": "logging-quiz",
+        "reason": null
+      },
+      {
+        "id": "one-event-per-work",
+        "says": "A log event holds one piece of work, is created when the work starts and is written once in finally, so it keeps request, answer, duration and outcome together even when the work fails.",
+        "basis": [
+          "section:8.1 A Log Event Holds One Piece of Work and Is Written When the Work Ends",
+          "example:src/c8.md:2"
+        ],
+        "exercise": "echo-responder",
+        "reason": null
+      },
+      {
+        "id": "realm-filter-stops-chain",
+        "says": "RealmLogFilter compares the realm before the first slash exactly and stops the chain for every realm it doesn't name, Q2.system included.",
+        "basis": [
+          "section:8.5 A Realm Filter Narrows the Log and Drops Everything It Doesn't Name",
+          "example:src/c8.md:15",
+          "example:src/c8.md:16"
+        ],
+        "exercise": "logging-quiz",
+        "reason": null
+      },
+      {
+        "id": "slf4j-both-ways",
+        "says": "A bridge into SLF4J is a writer after the filter that keeps events whole; Q2's own SLF4J binding fails quietly on a current JDK without --add-opens.",
+        "basis": [
+          "section:8.7 A Bridge to SLF4J Sits After the Filter and Keeps Each Event Whole",
+          "example:src/c8.md:22"
+        ],
+        "exercise": "logging-quiz",
+        "reason": null
+      },
+      {
+        "id": "source-logger",
+        "says": "Logger.log delivers an event to its source's logger: an event without a source goes to Q2, and an event from a Log or channel that has no logger goes nowhere.",
+        "basis": [
+          "section:8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing",
+          "example:src/c8.md:4"
+        ],
+        "exercise": "echo-responder",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "logger-through-source",
+        "name": "echo-responder",
         "aspects": [
-          "logger-events-listeners"
+          "one-event-per-work",
+          "source-logger"
         ]
       },
       {
         "slot": 2,
-        "name": "masked-transaction-log",
+        "name": "support-dump",
         "aspects": [
-          "transaction-event"
+          "dumps-are-text",
+          "filter-masks-messages"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "logging-quiz",
+        "aspects": [
+          "component-logger-attribute",
+          "late-answer-counted",
+          "realm-filter-stops-chain",
+          "slf4j-both-ways"
         ]
       }
     ],
@@ -74,21 +130,50 @@
   },
   "shipped": [
     "exercises/jpos-client/prose/unit-08/practice-1",
-    "exercises/jpos-client/prose/unit-08/practice-2"
+    "exercises/jpos-client/prose/unit-08/practice-2",
+    "exercises/jpos-client/prose/unit-08/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-08/practice-1",
       "origin": {
         "path": "src/c8.md",
-        "section": "8.1 jPOS Logging Framework"
+        "section": "8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing"
       }
     },
     {
       "exercise": "exercises/jpos-client/prose/unit-08/practice-2",
       "origin": {
         "path": "src/c8.md",
-        "section": "8.2 Implementing Logging in jPOS Client"
+        "section": "8.4 Bytes and Packager Traces Are Text Too"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-08/practice-3:q-channel-without-logger",
+      "origin": {
+        "path": "src/c8.md",
+        "section": "8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-08/practice-3:q-realm-filter-deploy-error",
+      "origin": {
+        "path": "src/c8.md",
+        "section": "8.5 A Realm Filter Narrows the Log and Drops Everything It Doesn't Name"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-08/practice-3:q-late-approval-evidence",
+      "origin": {
+        "path": "src/c8.md",
+        "section": "8.6 A Late Answer Is Counted, Not Logged, by the MUX"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-08/practice-3:q-library-warning",
+      "origin": {
+        "path": "src/c8.md",
+        "section": "8.7 A Bridge to SLF4J Sits After the Filter and Keeps Each Event Whole"
       }
     }
   ],

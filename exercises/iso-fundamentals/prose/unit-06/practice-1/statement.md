@@ -1,30 +1,29 @@
-On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not
-a field of its own: it is the processing code in field 3. That code is six digits: two for the
-transaction type, two for the account the money comes from and two for the account it goes to.
-Both sides must agree on the codes, and a message whose code you do not recognise must never be
-treated as something it is not.
+A new card-network link is booked for certification next week. Its specification lists the
+fields of an authorization and gives sample messages as hex dumps; the certification analyst
+will compare your messages with those samples, byte for byte.
 
-Write `MastercardRequests`, using its nested enum `ProcessingCode` with the page's codes, both
-account types left at `00`: `PURCHASE` `000000`, `CASH_ADVANCE` `010000`, `VOID` `020000`,
-`REFUND` `200000`.
+`src/main/java/com/example/practice/MastercardLayout.java` builds a `GenericPackager` from a list of field definitions. Finish
+`fields()`, which returns one `<isofield .../>` element per field, so that the packager writes
+messages the way the samples do. About ten lines.
 
-- `ProcessingCode.fromCode(String code)` returns the type a six-digit code stands for. The type
-  is named by the code's first two digits.
-- `request(ProcessingCode type, String pan, String amount, String merchantId)` builds an `0200`
-  with the card number in field 2, the type's six-digit code in field 3, the amount in field 4
-  and the merchant id in field 42.
-- `refund(String pan, String amount, String merchantId, String originalReference)` builds the
-  same request for `REFUND`, and also carries the original transaction's reference in field 37.
-- `typeOf(ISOMsg message)` reads a message's type back from its field 3.
-- `isApproved(ISOMsg response)` says whether the response approves the transaction: its
-  field 39 is `00`.
+The specification's field table:
 
-Edge cases to handle:
+| Field | Name | Format |
+|---|---|---|
+| 0 | message type indicator | n 4 |
+| 1 | bitmap | b 64 |
+| 2 | primary account number | n ..19, two-digit length |
+| 3 | processing code | n 6 |
+| 4 | amount, transaction | n 12 |
+| 11 | system trace audit number | n 6 |
+| 41 | card acceptor terminal ID | ans 8 |
+| 42 | card acceptor ID | ans 15 |
+| 49 | currency code, transaction | n 3 |
 
-- A code that is not six digits, or whose first two digits are not one of the four types, is
-  refused with an `IllegalArgumentException`, whether it reaches `fromCode` directly or through
-  `typeOf`.
-- The account-type digits do not change the transaction: a code that starts with `20` is a
-  refund whatever its last four digits are.
-- A response with no field 39 at all is not approved, and `isApproved` answers `false` rather
-  than failing.
+One of its samples, an `0200` with fields 3, 4, 11, 41 and 49:
+
+```text
+F0F2F0F03020000000808000F0F0F3F0F0F0F0F0F0F0F0F0F0F0F4F8F7F5F0F0F0F9F1F5D2C9D6E2D2F0F740F9F7F8
+```
+
+The tests pack other messages and compare them with the specification's other samples.

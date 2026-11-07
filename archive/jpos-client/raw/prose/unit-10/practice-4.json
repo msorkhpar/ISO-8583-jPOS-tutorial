@@ -1,0 +1,189 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what each stand-in can catch",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-gateway-tests",
+        "stem": "A gateway forwards purchases from many terminals under one terminal ID. Its tests drive the forwarding code from eight threads at once against a FakeMux, and all of them pass. In production the log fills with Duplicate key errors. Why did the tests show nothing?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The fake compares no keys, so it answered two requests that had one key",
+            "correct": true,
+            "says": "only a real QMUX builds keys and refuses a second request with the key of one still waiting; a fake answers whatever it is given"
+          },
+          {
+            "id": "b",
+            "text": "The tests used too few threads, so their STANs never collided at one moment",
+            "correct": false,
+            "says": "no number of threads helps against a fake: it never compares keys, so it answers colliding requests like any others"
+          },
+          {
+            "id": "c",
+            "text": "The fake renumbers each STAN, so it never received two requests with one key",
+            "correct": false,
+            "says": "a fake changes nothing in the request; it answered colliding requests because it never compares keys"
+          },
+          {
+            "id": "d",
+            "text": "The tests used no real host, so nobody was there to report the repeated STAN",
+            "correct": false,
+            "says": "QMUX raises Duplicate key itself, before sending; no host is involved in it"
+          }
+        ],
+        "origin": {
+          "path": "src/c10.md",
+          "section": "10.2 A Fake Checks Your Decisions, and Only QMUX Checks jPOS's Rules"
+        }
+      },
+      {
+        "id": "q-script-started-q2",
+        "stem": "To save time, a team starts the client's Q2 once from a script before Maven runs, and the integration tests call QMUX.getMUX(\"host-mux\") to reach it. What do those tests get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The running QMUX, since getMUX reaches it through the host and port named in its descriptor",
+            "correct": false,
+            "says": "getMUX opens no connection; it reads the NameRegistrar of the JVM it runs in"
+          },
+          {
+            "id": "b",
+            "text": "A NotFoundException, since the registry that getMUX reads exists only in the JVM that runs Q2",
+            "correct": true,
+            "says": "the NameRegistrar is a static map per JVM, so Q2 has to run inside the test's JVM"
+          },
+          {
+            "id": "c",
+            "text": "The running QMUX, since Q2 publishes each deployed component for other processes to look up",
+            "correct": false,
+            "says": "the lookup reads the in-process NameRegistrar; nothing another process deployed is in it"
+          },
+          {
+            "id": "d",
+            "text": "A NotFoundException, since getMUX finds a MUX only after the test itself has called q2.ready",
+            "correct": false,
+            "says": "q2.ready only waits for a deployment; the lookup fails because the QMUX lives in another JVM's registry"
+          }
+        ],
+        "origin": {
+          "path": "src/c10.md",
+          "section": "10.3 Only a Test That Deploys Your Files Tests Them"
+        }
+      },
+      {
+        "id": "q-sometimes-unavailable",
+        "stem": "An embedded test calls q2.ready() with a generous timeout, then calls authorize on unit c4's client right away. The host stand-in was started before Q2. On the build server the test sometimes gets HOST_UNAVAILABLE. Which change stops that?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Add a two-second sleep after ready(), so the link has time to come up first",
+            "correct": false,
+            "says": "a sleep is right only by accident; a first connect that fails waits a whole reconnect-delay, ten seconds by default"
+          },
+          {
+            "id": "b",
+            "text": "Wait for the QMUX in the NameRegistrar, so the purchase goes out once it is there",
+            "correct": false,
+            "says": "ready() returns after the deployment, so the QMUX is already registered; what may be missing is the link"
+          },
+          {
+            "id": "c",
+            "text": "Add a longer timeout to ready(), so Q2 has time to deploy every file first",
+            "correct": false,
+            "says": "ready() already returned true; the files were deployed, and the timeout changes nothing about the connection"
+          },
+          {
+            "id": "d",
+            "text": "Wait for the ready entry in the Space, so the purchase goes out once it is there",
+            "correct": true,
+            "says": "ready() means deployed, not connected; a blocking rd on host-channel.ready returns as soon as the link is up"
+          }
+        ],
+        "origin": {
+          "path": "src/c10.md",
+          "section": "10.4 A Test Waits for a Condition, Never for a Time"
+        }
+      },
+      {
+        "id": "q-merchant-city",
+        "stem": "A new merchant's city is one character longer than its field allows. The client is tested only against a FakeMux. Where does the problem first show?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In the fake-MUX tests, since the fake packs each message before it answers it",
+            "correct": false,
+            "says": "a fake MUX never packs; it answers the ISOMsg object it was handed"
+          },
+          {
+            "id": "b",
+            "text": "In production, in the calling thread, since QMUX packs each request before it queues it",
+            "correct": false,
+            "says": "QMUX queues the ISOMsg; the adaptor's sender thread packs it when it writes to the socket"
+          },
+          {
+            "id": "c",
+            "text": "In the fake-MUX tests, since ISOMsg.set checks each value against its field",
+            "correct": false,
+            "says": "an ISOMsg holds strings and checks nothing; only the packager knows the field's length"
+          },
+          {
+            "id": "d",
+            "text": "In production, on the adaptor's thread, since the channel packs each message as it sends it",
+            "correct": true,
+            "says": "nothing packs the message before the adaptor's sender thread does, so without a round trip through the link's packager the first failure drops the link"
+          }
+        ],
+        "origin": {
+          "path": "src/c10.md",
+          "section": "10.3.1 The Packager Without the Socket"
+        }
+      }
+    ],
+    "concepts": [
+      "Descriptors, channel and packager are tested only by running Q2 in the test's JVM on the shipped files against a host on 127.0.0.1, because the NameRegistrar is per JVM.",
+      "A fake MUX checks the client's decisions but not QMUX's rules: missing key fields, duplicate keys and unmatched answers show up only with a real QMUX, which can run in the test against a host on its queues.",
+      "A round trip through the link's packager finds a field that doesn't fit in the build, where otherwise it first fails on the adaptor's thread."
+    ]
+  }
+}

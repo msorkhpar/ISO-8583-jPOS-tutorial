@@ -1,0 +1,494 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "What changes in jPOS 3",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "13. What changes in jPOS 3"
+    },
+    {
+      "type": "para",
+      "text": "Our terminals give up on a purchase after two seconds. A colleague reads the TransactionManager page on jpos.org, finds a `max-time` attribute that skips a participant once the transaction has run too long, and adds `max-time=\"2000\"` to the issuer call. The server deploys it with no warning. On a morning when the PIN check takes two and a half seconds, a purchase reaches the issuer anyway, the issuer approves it, and the terminal, which stopped waiting at two seconds, sends a reversal."
+    },
+    {
+      "type": "para",
+      "text": "The attribute is real, but it belongs to jPOS 3, and the server runs 2.1.7. Six rules, one per section heading."
+    },
+    {
+      "type": "para",
+      "text": "Every output comes from jPOS 2.1.7, run with unit s4's `DirectTerminal` and Q2 in the same JVM. jPOS 3 can't run on the course's Java 17, so what this unit says about it comes from the project's release announcements up to 3.0.2 (September 2026)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.1 jPOS 3 Is the Tip, 2.1.x Is the Tail, and jpos.org Describes the Tip"
+    },
+    {
+      "type": "para",
+      "text": "After jPOS 3.0.0 came out in November 2024, the project adopted the **tip and tail** model of OpenJDK's JEP 14. The tip, 3.x on the `main` branch, gets new features and most fixes. The tail, 2.x on the `tail` branch, gets only critical fixes, and as little as possible is backported to it. jPOS-EE and jPOS-template, the project skeleton, moved to the same branches in March 2026."
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Release",
+        "Date",
+        "Java"
+      ],
+      "rows": [
+        [
+          "2.1.7 (this course)",
+          "January 2022",
+          "built for Java 8 (class files version 52); runs here on 17"
+        ],
+        [
+          "2.1.8",
+          "February 2023",
+          ""
+        ],
+        [
+          "2.1.9, the latest tail release",
+          "December 2023",
+          ""
+        ],
+        [
+          "3.0.0",
+          "November 2024",
+          "23"
+        ],
+        [
+          "3.0.1",
+          "February 2026",
+          ""
+        ],
+        [
+          "3.0.2",
+          "September 2026",
+          "26"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "jPOS 3 waited for Java 23 because of virtual threads (13.3): Java 21 still had problems with pinned platform threads that 22 and 23 improved. Whether 3.0.2 still runs on Java 23 to 25 isn't stated; check before you plan a runtime older than 26."
+    },
+    {
+      "type": "para",
+      "text": "A new project starts on jPOS 3 unless something holds it to an older Java. An application on 2.x isn't abandoned, but new behaviour, hardening and observability arrive on the tip first. If you stay on the tail, stay on its latest release: 2.1.9, not 2.1.7."
+    },
+    {
+      "type": "para",
+      "text": "The documentation is the trap: the jpos.org tutorials, the blog and most answers you will find describe jPOS 3. Code and descriptors copied from them into a 2.1.x server either fail to compile or deploy and do something else."
+    },
+    {
+      "type": "para",
+      "text": "jPOS 3 is still the Maven artifact `org.jpos:jpos`. Releases are on Maven Central, and snapshots of jPOS and jPOS-EE are on the project's own repository, `https://jpos.org/maven`. The project's tools are Gradle-based: jPOS-template applies the jPOS Gradle plugin, which builds the layout of unit s1 (`lib/`, `deploy/`, `cfg/`, `bin/q2`), and `distnc`, a distribution without `cfg/` and `deploy/`, so configuration can ship separately. A Maven build like this course's keeps working; it builds the layout itself."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.2 A jPOS 3 Descriptor Deploys on 2.1.7, and What 2.1.7 Doesn't Read Does Nothing"
+    },
+    {
+      "type": "para",
+      "text": "Here is the colleague's descriptor. `SlowStep` stands in for this morning's PIN check: it takes 2.5 seconds. `QueryIssuer` and `AnswerFromIssuer` are unit s4's:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"1\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n  <participant class=\"demo.SlowStep\" logger=\"Q2\">\n    <property name=\"ms\" value=\"2500\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.QueryIssuer\" logger=\"Q2\"\n               max-time=\"2000\">\n    <requires>REQUEST</requires>\n    <property name=\"mux\" value=\"issuer-mux\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.AnswerFromIssuer\" logger=\"Q2\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "On jPOS 3, a transaction that has run longer than `max-time` when it reaches the participant skips it and takes the abort path. Does 2.1.7 refuse the attribute, warn about it, or honour it?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00 after 2500 ms\nissuer asked: 1"
+    },
+    {
+      "type": "para",
+      "text": "2.1.7 does none of the three. Its TransactionManager reads `class`, `logger`, `realm`, `enabled` and the `<property>` elements of a participant, and acts on nothing else (a participant that implements `XmlConfigurable` is handed the whole element, but nothing reads these options). The log has no warning. The issuer approved a purchase the terminal had stopped waiting for, so the terminal reverses it, and on a morning like this every purchase takes that path."
+    },
+    {
+      "type": "para",
+      "text": "jPOS 3's other participant options:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**`timeout`** turns a participant's `PREPARED` into `ABORTED` when the participant itself took longer than that. On 2.1.7 it does nothing.",
+        "**`<requires>`, `<optional>` and `<provides>`** are a contract, introduced as experimental: jPOS 3 aborts when a required entry is missing, hands the participant a copy of the Context with only the listed entries, and keeps only the `provides` entries it wrote. On 2.1.7 we required an entry that wasn't there and provided one that nobody wrote, and the purchase was approved as before."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "QMUX does the same with an attribute it doesn't know. The jPOS 3 documentation narrows a key override to one processing code with `pcode`. A host that renumbers STANs on balance inquiries and echoes only the retrieval reference number would get:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux class=\"org.jpos.q2.iso.QMUX\" name=\"host-mux\" logger=\"Q2\">\n  <in>host-receive</in>\n  <out>host-send</out>\n  <ready>host-channel.ready</ready>\n  <key>41, 11</key>\n  <key mti=\"02\" pcode=\"310000\">41, 37</key>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "Which key does a purchase get on 2.1.7?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "balance  3=310000 11=000501: host-send.0200000000029110001531012000501\npurchase 3=000000 11=000502: host-send.0200000000029110001\npurchase 3=000000 11=000503: host-send.0200000000029110001\nsecond purchase: Duplicate key 'host-send.0200000000029110001.req' detected"
+    },
+    {
+      "type": "para",
+      "text": "QMUX 2.1.7 reads only `mti`, so the override covers every 02xx. A purchase has no field 37, and a missing key field is skipped (unit c12), so every purchase from a terminal gets the same key. Two at once from one terminal, or two through a gateway that uses one field 41, and the second is refused."
+    },
+    {
+      "type": "para",
+      "text": "So check every attribute and element of a jPOS 3 descriptor against the 2.1.7 source of its class, and prove it with a test that sends a request through it."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "13.2.1 The 2.1.7 Way to a Deadline: Compare the Arrival Time With the Clock"
+    },
+    {
+      "type": "para",
+      "text": "`IncomingListener` puts the time a request arrived into the Context under `TIMESTAMP` (unit s1). A participant placed before the slow or costly step can compare it with the clock:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.rc.CMF;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\nimport java.util.Date;\n\nimport static org.jpos.transaction.ContextConstants.TIMESTAMP;\n\n/** Stops a transaction that has run longer than max-time: its terminal has given up on it. */\npublic class CheckDeadline implements TransactionParticipant, Configurable {\n    private long maxTime;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        maxTime = cfg.getLong(\"max-time\", 20000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Date received = ctx.get(TIMESTAMP.toString());          // put by IncomingListener on arrival\n        long elapsed = System.currentTimeMillis() - received.getTime();\n        if (elapsed > maxTime)\n            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(),\n                \"%d ms since arrival, max-time %d\", elapsed, maxTime).FAIL();\n        return PREPARED | NO_JOIN | READONLY;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "It reports the cause and aborts, and unit s10's `AnswerFailures`, declared before `SendResponse`, answers. In the descriptor, `max-time` is now a `<property>`, which 2.1.7 does read:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"com.example.jpos.server.participant.CheckDeadline\" logger=\"Q2\">\n  <property name=\"max-time\" value=\"2000\"/>\n</participant>\n<participant class=\"com.example.jpos.server.participant.QueryIssuer\" logger=\"Q2\">\n  <property name=\"mux\" value=\"issuer-mux\"/>\n</participant>"
+    },
+    {
+      "type": "para",
+      "text": "The same morning:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=96 after 2500 ms\nissuer asked: 0"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "txn 1 11=000301 41=29110001 39=96 SYSTEM_ERROR c.e.j.s.p.CheckDeadline.prepare:30 2504 ms since arrival, max-time 2000"
+    },
+    {
+      "type": "para",
+      "text": "The issuer never saw the purchase. The terminal's reversal still comes, and unit s10 answers it `00` with nothing to undo. Because the clock starts on arrival, the time a Context waited in the queue for a free session counts too, as it does for the terminal."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.3 The Same Descriptor Can Behave Differently on the Two Lines"
+    },
+    {
+      "type": "para",
+      "text": "**Commit order.** In 2.1.7 the TransactionManager calls `commit` and `abort` in declaration order (unit s4). The jPOS 3 documentation says reverse order. Unit s9 relies on the 2.1.7 order: `Close` is declared before `SendResponse`, so the database commits before the answer leaves, and `SendResponse` won't answer while `TX` is still in the Context. On a TransactionManager that commits in reverse, `SendResponse` comes first. We can't run jPOS 3 here, but swapping the two lines on 2.1.7 produces the same order of calls:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "             commit: o.j.t.p.SendResponse\n             commit: c.e.j.s.p.Close"
+    },
+    {
+      "type": "para",
+      "text": "One purchase of 25.00, with unit s9's descriptor and then with the two lines swapped:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00   used today: 2500\npurchase: no answer   used today: 2500"
+    },
+    {
+      "type": "para",
+      "text": "In the second run `SendResponse` found `TX` set and sent nothing, and then `Close` committed. The terminal got nothing, so it reverses a purchase the database recorded. Every purchase does the same, and nothing in the descriptor looks wrong. Where `Close` belongs depends on the line, so check it with one purchase through the real TransactionManager on the version you deploy."
+    },
+    {
+      "type": "para",
+      "text": "**A link that is down.** The jPOS 3 documentation says `request` throws `ISOException` while the MUX isn't connected. QMUX 2.1.7, with no channel behind it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected: false\nrequest: null after 1000 ms\nsend: org.jpos.iso.ISOException: MUX is not connected"
+    },
+    {
+      "type": "para",
+      "text": "`request` queues the message and returns `null` when its timeout runs out, which a caller reads as \"outcome unknown\" and reverses. `send` throws at once. Code that checks `isConnected()` before a request, as unit c4's client does, and handles both `null` and an exception from `request` works on either line."
+    },
+    {
+      "type": "para",
+      "text": "**Sessions.** jPOS 3 runs TransactionManager sessions on virtual threads, and from 3.0.1 the `virtual-thread` property switches them (default `true` for the TransactionManager, `false` for `ISOServer` and `ChannelAdaptor`). A blocked session then holds no platform thread, so the `sessions` and `max-sessions` you sized in unit s4 stop being a thread budget, and `PAUSE` (continuations) is deprecated, though still supported."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.4 Code That Finds Its Transaction Through a Thread-Local Breaks on Both Lines"
+    },
+    {
+      "type": "para",
+      "text": "`TransactionManager` in 2.x has static `getContext()`, `getSerializable()` and `getId()`. They return the current transaction from a thread-local, so a helper deep in your code can find it without being passed anything. Here is such a helper, called from unit s4's `QueryIssuer` in `prepare` and in its callback, and from `AnswerFromIssuer`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package demo;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionManager;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/** A helper that finds the current transaction through the TransactionManager's static accessors. */\npublic final class Audit {\n    static String where(String step) {\n        Context ctx = TransactionManager.getContext();\n        if (ctx == null)\n            return step + \": no transaction\";\n        ISOMsg request = ctx.get(REQUEST.toString());\n        return step + \": txn \" + TransactionManager.getId() + \", 11=\" + request.getString(11);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Which of the three calls finds the purchase?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "QueryIssuer.prepare: txn 1, 11=000301\nQueryIssuer.responseReceived: no transaction\nAnswerFromIssuer.prepare: txn 1, 11=000301"
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager sets the thread-local on the session's thread around each call it makes, including the calls after a paused transaction resumes. The callback runs on whatever thread delivered the issuer's answer, where nothing was set. A helper that writes the issuer's answer into \"the current Context\" loses it there, and the transaction resumes without it."
+    },
+    {
+      "type": "para",
+      "text": "jPOS 3.0.2 removed the three accessors, so code that uses them stops compiling. Pass the Context and the id as arguments; the callback already has its Context through `handBack` (unit s4)."
+    },
+    {
+      "type": "para",
+      "text": "Code that uses the `compat_1_5_2` module or `QNode`, separate modules on 2.x, stops compiling too: 3.0.0 removed them. It also ships Java module descriptors, so classes of your own in an `org.jpos...` package clash with jPOS's on the module path."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.5 Logs, Metrics and Security Defaults Change What Operations Sees"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The log.** The XML events of 2.x (`<log realm=... at=...>`, unit s8) are being phased out. 3.0.0 added a structured audit log, events as Java records, and 3.0.2 added `JsonlLogWriter` (JSON Lines with typed payloads, tags, and masking of ISO fields, nested ones too) and deprecated the other writers. 3.0.2 also adds trace identifiers that follow one exchange through the server, the TransactionManager and the response, and keeps Context values stored under `Inhibit` keys out of the log. Every script, alert and test that parses the log text has to be rewritten. Whether `ProtectedLogListener` keeps working unchanged isn't stated; prove with test cards that no clear PAN, track data or PIN block reaches any output.",
+        "**Metrics.** 2.x keeps TransactionManager timings in HdrHistogram. jPOS 3 reports through Micrometer for channels, servers, MUXes, the TransactionManager and each participant, adds Java Flight Recorder events, and serves a Prometheus endpoint when Q2 starts with `--metrics-port`. Keep tags few: one per MTI is fine, one per PAN or STAN floods the monitoring system and puts card data in it.",
+        "**TLS.** 3.0.2 checks the host name with the JDK's endpoint identification. A test certificate whose subject alternative names don't match the name you connect to now fails (unit c3).",
+        "**XML and serialization.** 3.0.2 stops `XML2003Packager` from re-enabling DOCTYPE and external entities, makes `FSDMsg` refuse them and unsafe schema paths (advisory GHSA-2267-c568-hxcc), and filters Java deserialization.",
+        "**Q2.** From 3.0.2 an embedded Q2 that fails to start no longer ends its JVM, and `ENABLE` and `DISABLE` refuse paths outside the deploy directory. Templates, `eager-start` and the other deployment features are in unit s14.",
+        "**Messages.** 3.0.2 reads ISO 8583:2023 composite fields as datasets (`ISODatasetField`, `DatasetPackager`, the `cmfv3.xml` packager), and corrects lengths, encodings and result codes in its CMF packagers (fundamentals units 3 and 17). Tests that compare packed CMF bytes need new baselines."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.6 A Migration Is Proved by Running Your Tests on the New Line"
+    },
+    {
+      "type": "para",
+      "text": "Every failure in this unit passed deployment and showed up only when a request went through the real component: an approval after the deadline, a duplicate key, no answer, a lost issuer response. So tests of unit s4's kind, run on the target version, are the migration plan, and the reading tells you where to aim them."
+    },
+    {
+      "type": "para",
+      "text": "During development, follow the `-SNAPSHOT` of the line you target, where certification fixes and security updates land first. For production, pin a release or one exact timestamped snapshot (`3.0.2-YYYYMMDD.hhmmss-N`) and deploy what QA tested; the Gradle plugin's `pins`, `pin` and `unpin` tasks (0.0.19) do it. When a scanner flags a transitive dependency, override its version in your own build rather than wait for a jPOS release."
+    },
+    {
+      "type": "para",
+      "text": "Move one release at a time and read the jPOS ChangeLog (and jPOS-EE's) for each; the Reference has a checklist."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**jPOS 3 is the tip, 2.1.x the tail.** The tail gets critical fixes only, and 2.1.9 is its latest release. jPOS 3 needs Java 23, and 3.0.2 targets 26. jpos.org describes jPOS 3.",
+        "**A jPOS 3 descriptor deploys on 2.1.7, and what 2.1.7 doesn't read does nothing.** `max-time`, `timeout`, the `<requires>` contract and QMUX's `pcode` are passed over without a warning. On 2.1.7, a deadline is a participant that compares `TIMESTAMP` with the clock.",
+        "**The same descriptor can behave differently.** Commit order decides whether unit s9's `Close` commits before the answer; a request on a dead link returns `null` in 2.1.7.",
+        "**Thread-local accessors break on both lines.** They return `null` on a callback's thread in 2.1.7 and are gone in 3.0.2: pass the Context.",
+        "**Operations changes.** Log parsers, metrics, TLS names, XML and serialization filters and CMF packagers all need a look.",
+        "**A migration is proved by tests** through the real components on the target version, with pinned builds, one release at a time."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**What 2.1.7 does with jPOS 3 configuration and API:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "jPOS 3",
+        "Where",
+        "In 2.1.7"
+      ],
+      "rows": [
+        [
+          "`max-time`, `timeout` attributes",
+          "TransactionManager `<participant>`",
+          "ignored; use a participant such as `CheckDeadline`"
+        ],
+        [
+          "`<requires>`, `<optional>`, `<provides>`",
+          "TransactionManager `<participant>`",
+          "ignored; the participant sees the whole Context"
+        ],
+        [
+          "`pcode` attribute",
+          "QMUX `<key mti=\"..\">`",
+          "ignored; the override covers the whole MTI class"
+        ],
+        [
+          "`virtual-thread` property",
+          "TransactionManager, `ISOServer`, `ChannelAdaptor` (3.0.1)",
+          "not read; sessions are platform threads"
+        ],
+        [
+          "`commit` / `abort` order",
+          "TransactionManager",
+          "declaration order; the jPOS 3 docs say reverse"
+        ],
+        [
+          "`request` on a disconnected MUX",
+          "QMUX",
+          "returns `null` after the timeout; the jPOS 3 docs say it throws"
+        ],
+        [
+          "static `getContext()`, `getSerializable()`, `getId()`",
+          "`TransactionManager`",
+          "present, `null` outside the TransactionManager's calls; removed in 3.0.2"
+        ],
+        [
+          "`compat_1_5_2`, `QNode`",
+          "separate modules",
+          "available on 2.x; removed in 3.0.0"
+        ],
+        [
+          "continuations (`PAUSE`)",
+          "TransactionManager",
+          "the way to wait; deprecated in 3.0.0"
+        ],
+        [
+          "structured audit log, `JsonlLogWriter`",
+          "logging (3.0.0, 3.0.2)",
+          "XML log events and `ProtectedLogListener`"
+        ],
+        [
+          "Micrometer, `--metrics-port`",
+          "Q2 (3.0.0)",
+          "HdrHistogram in the TransactionManager"
+        ],
+        [
+          "templates, `eager-start`, `ConfigValidator`, `Q2.node()`",
+          "Q2",
+          "absent (unit s14)"
+        ],
+        [
+          "embedded Q2 survives a failed start",
+          "Q2 (3.0.2)",
+          "can end the JVM"
+        ],
+        [
+          "datasets, `cmfv3.xml`",
+          "packagers (3.0.2)",
+          "composite fields are opaque binary"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Migration checklist, 2.1.x to 3.0.2:**"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "**Runtime and build.** Java 26 for 3.0.2. Decide between jPOS-template with Gradle and a Maven build that lays out `lib/`, `deploy/` and `cfg/` itself. Check that Spring, if you use it at the edge, supports the new Java.",
+        "**Compile.** Replace the static `TransactionManager` accessors with arguments. Remove uses of `QNode` and `compat_1_5_2`. Move your classes out of `org.jpos` packages. Plan to drop OSGi and SecurityManager code, both deprecated.",
+        "**TransactionManager.** Re-test every flow whose result depends on the order of `commit` or `abort`, such as `Close` before `SendResponse`. Revisit `sessions`, `max-sessions` and every `PAUSE`. Consider `max-time`, `timeout` and Context contracts for new participants.",
+        "**Descriptors.** Check every attribute and element against the target version, review QMUX keys and adaptor settings, and check that every `${...}` still resolves.",
+        "**Logging.** Choose the writer, configure field protection, port log parsers and log-based tests, and check with test cards that no clear PAN, track data or PIN block reaches any output.",
+        "**Security.** Re-test TLS peers against host name verification, remove DOCTYPE and entities from XML packagers and FSD schemas, and check your serialized classes against the filters.",
+        "**Messages.** Re-run packager round trips. Compare private CMF packager copies and result-code mappings with 3.0.2's.",
+        "**Observability.** Enable the metrics endpoint, build dashboards and alerts, and check tag cardinality.",
+        "**Tests.** Run every flow through the real TransactionManager, then a soak test under realistic load, and read the ChangeLog of every release between yours and the target."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.9 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your server runs 2.1.7 and must stay on Java 17 for another year. Which jPOS 3 changes in this unit can you adopt now in 2.1.7 code, so that the move is smaller later?",
+        "`CheckDeadline` measures from arrival on this server. The terminal's clock started earlier, when it sent the request. How would you find out how much earlier, and would you subtract it?",
+        "Unit s9's `Close` must commit before `SendResponse` answers. Design a descriptor, or a change to the two participants, that is correct whichever order the TransactionManager uses.",
+        "A team proposes to keep two descriptor sets, one per line, during the migration. What does that cost, and what would you test to know when to drop the old one?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13.10 Design Note: Why Did jPOS Break Compatibility?"
+    },
+    {
+      "type": "para",
+      "text": "For most of its history jPOS kept almost every release backward compatible, so an application could take each new version without touching its code. The price was that jPOS stayed close to old Java. Virtual threads, module descriptors and records arrived in the JDK, and jPOS couldn't use them without dropping the old runtimes."
+    },
+    {
+      "type": "para",
+      "text": "With tip and tail, the tip moves with the JDK and may deprecate or remove what stands in the way: continuations, which virtual threads make unnecessary, are deprecated, and the thread-local accessors are gone. The tail keeps the old promise but gets no new features. A payment system can stay on the tail while it plans; the move it makes later is larger, and meanwhile it does without the tip's hardening and observability."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 38,
+    "code": 13,
+    "tables": 2,
+    "lists": 5,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 2,
+    "disclosures": 0
+  },
+  "content_sha256": "cab561b585082d85edff2bb1276bc5b9ccc78629898b2900d7f082b675c43208"
+}

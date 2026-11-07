@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 2,
   "ordinal": 1,
-  "title": "Build messages from named templates and pack them",
+  "title": "Answer every request the terminals send",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/MessageTemplates.java",
-  "test_file": "src/test/java/com/example/practice/MessageTemplatesTest.java",
+  "main_file": "src/main/java/com/example/practice/Responder.java",
+  "test_file": "src/test/java/com/example/practice/ResponderTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,44 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.MessageTemplatesTest#buildsEachMessageFromItsTemplateAndSurvivesAPackRoundTrip",
+      "id": "com.example.practice.ResponderTest#anApprovedPurchaseReachesTheTerminal",
       "kind": "main",
-      "says": "a message made from a template carries the template's MTI and fields plus its own, and packing then unpacking it gives the same fields back"
+      "says": "an approved purchase reaches the terminal's client as its answer, with the approval code"
     },
     {
-      "id": "com.example.practice.MessageTemplatesTest#eachMessageStartsFromAnUntouchedTemplate",
-      "kind": "edge",
-      "says": "changing one message never changes the template or the next message made from it"
+      "id": "com.example.practice.ResponderTest#aDeclinedPurchaseReachesTheTerminal",
+      "kind": "main",
+      "says": "a declined purchase reaches the terminal's client as its answer, with the response code"
     },
     {
-      "id": "com.example.practice.MessageTemplatesTest#anUnknownTemplateIsRefused",
+      "id": "com.example.practice.ResponderTest#aCompletionAdviceIsAcknowledged",
       "kind": "edge",
-      "says": "asking for a template that was never defined is refused, not answered with an empty message"
+      "says": "a completion advice gets an answer its client recognises, so it is not sent again"
+    },
+    {
+      "id": "com.example.practice.ResponderTest#aRepeatedReversalIsAcknowledged",
+      "kind": "edge",
+      "says": "the repeat of a reversal gets an answer its client recognises, so it is not repeated again"
+    },
+    {
+      "id": "com.example.practice.ResponderTest#anAuthorizationWithTheAcquirersReferenceIsAnswered",
+      "kind": "edge",
+      "says": "a client that also matches on the retrieval reference number recognises the answer"
+    },
+    {
+      "id": "com.example.practice.ResponderTest#cardDataStaysWithTheServer",
+      "kind": "edge",
+      "says": "expiry, track data, PIN block and chip data never go back to the terminal"
+    },
+    {
+      "id": "com.example.practice.ResponderTest#theRequestIsLeftAsItArrived",
+      "kind": "edge",
+      "says": "the request the server was handed is still the request after it has been answered"
+    },
+    {
+      "id": "com.example.practice.ResponderTest#aDeclineCarriesNoApprovalCode",
+      "kind": "edge",
+      "says": "a declined request carries no approval code"
     }
   ],
   "report": {
@@ -54,6 +79,6 @@
   },
   "origin": {
     "path": "src/s2.md",
-    "section": "2.4 Putting It All Together"
+    "section": "2.5 A Response Copies What Identifies the Request, and Leaves the Request Alone"
   }
 }

@@ -1,0 +1,141 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Let a slow exchange rate end its pause, and only its own",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer now offers cardholders the price in their card's currency. `QuoteRate`, in `src/main/java/com/example/practice/QuoteRate.java`, asks an exchange-rate service for a quote and pauses the transaction. The service has no timeout of its own, so the participant schedules one; without a rate, the purchase goes on and no conversion is offered. After `QuoteRate` the transaction pauses again while the card's issuer is asked."
+    },
+    {
+      "type": "para",
+      "text": "Since the release, a few purchases a day are answered `91` (issuer unavailable) a few milliseconds after the issuer was asked. The issuer approves each of them shortly afterwards, so the cardholder is charged for a purchase the terminal reported as failed. Every one of them had a slow or failed quote."
+    },
+    {
+      "type": "para",
+      "text": "Finish `Pending`, the nested class marked `TODO`: one `Pending` exists per transaction, and the quote, a failure and the timeout reach it on other threads, in any order. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager with one session, with Q2 in the test's JVM. The exchange-rate service and the issuer answer when the tests say so, and the timeout is one second."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.ScheduledExecutorService;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.atomic.AtomicBoolean;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/**\n * Asks the exchange-rate service for a quote in the card's currency (field 49) and pauses the\n * transaction until the quote, a failure or this participant's own timeout arrives. A participant\n * after it decides; without a rate, no conversion is offered.\n */\npublic class QuoteRate implements TransactionParticipant, Configurable {\n\n    /** The exchange-rate service. It has no timeout of its own and answers on its own thread. */\n    public interface FxService {\n        void quote(String currency, long amount, Listener listener);\n\n        interface Listener {\n            void quoted(long rateMicros);\n\n            void failed(Exception e);\n        }\n    }\n\n    public static final String RATE = \"RATE\";\n    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -> {\n        Thread t = new Thread(r, \"quote-timeout\");\n        t.setDaemon(true);\n        return t;\n    });\n    private String serviceName;\n    private long timeout;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"fx\");\n        timeout = cfg.getLong(\"timeout\", 3000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        FxService fx = NameRegistrar.getIfExists(serviceName);\n        if (fx == null || request == null || !request.hasField(49))\n            return PREPARED | NO_JOIN | READONLY;                 // no quote, no offer\n        Pending pending = new Pending(ctx);\n        TIMER.schedule(pending::timedOut, timeout, TimeUnit.MILLISECONDS);\n        fx.quote(request.getString(49), Long.parseLong(request.getString(4)), pending);\n        return PREPARED | PAUSE | NO_JOIN;\n    }\n\n    /** One per transaction: the quote, a failure and the timeout of this transaction all arrive here. */\n    static final class Pending implements FxService.Listener {\n        private final Context ctx;\n        private final AtomicBoolean over = new AtomicBoolean();\n\n        Pending(Context ctx) {\n            this.ctx = ctx;\n        }\n\n        /** The service quoted a rate, in millionths. */\n        @Override\n        public void quoted(long rateMicros) {\n            if (over.compareAndSet(false, true)) {\n                ctx.put(RATE, rateMicros);\n                ctx.resume();\n            }\n        }\n\n        /** The service could not quote. */\n        @Override\n        public void failed(Exception e) {\n            if (over.compareAndSet(false, true)) {\n                ctx.log(\"no quote: \" + e);\n                ctx.resume();\n            }\n        }\n\n        /** The timeout of this participant ran out. */\n        void timedOut() {\n            if (over.compareAndSet(false, true)) {\n                ctx.log(\"no quote in time\");\n                ctx.resume();\n            }\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.ScheduledExecutorService;\nimport java.util.concurrent.TimeUnit;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/**\n * Asks the exchange-rate service for a quote in the card's currency (field 49) and pauses the\n * transaction until the quote, a failure or this participant's own timeout arrives. A participant\n * after it decides; without a rate, no conversion is offered.\n */\npublic class QuoteRate implements TransactionParticipant, Configurable {\n\n    /** The exchange-rate service. It has no timeout of its own and answers on its own thread. */\n    public interface FxService {\n        void quote(String currency, long amount, Listener listener);\n\n        interface Listener {\n            void quoted(long rateMicros);\n\n            void failed(Exception e);\n        }\n    }\n\n    public static final String RATE = \"RATE\";\n    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -> {\n        Thread t = new Thread(r, \"quote-timeout\");\n        t.setDaemon(true);\n        return t;\n    });\n    private String serviceName;\n    private long timeout;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"fx\");\n        timeout = cfg.getLong(\"timeout\", 3000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        FxService fx = NameRegistrar.getIfExists(serviceName);\n        if (fx == null || request == null || !request.hasField(49))\n            return PREPARED | NO_JOIN | READONLY;                 // no quote, no offer\n        Pending pending = new Pending(ctx);\n        TIMER.schedule(pending::timedOut, timeout, TimeUnit.MILLISECONDS);\n        fx.quote(request.getString(49), Long.parseLong(request.getString(4)), pending);\n        return PREPARED | PAUSE | NO_JOIN;\n    }\n\n    /**\n     * One per transaction: the quote, a failure and the timeout of this transaction all arrive\n     * here, on other threads, in any order.\n     *\n     * TODO: Each of the three methods below must let the transaction go on to the next participant,\n     * the quote with its rate under RATE. About ten lines in total, fields included.\n     */\n    static final class Pending implements FxService.Listener {\n        private final Context ctx;\n\n        Pending(Context ctx) {\n            this.ctx = ctx;\n        }\n\n        /** The service quoted a rate, in millionths. */\n        @Override\n        public void quoted(long rateMicros) {\n            throw new IllegalStateException(\"TODO: quoted\");\n        }\n\n        /** The service could not quote. */\n        @Override\n        public void failed(Exception e) {\n            throw new IllegalStateException(\"TODO: failed\");\n        }\n\n        /** The timeout of this participant ran out. */\n        void timedOut() {\n            throw new IllegalStateException(\"TODO: timedOut\");\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6a76dc3273205bc70d983fb0b52e9bc087d003da76d5e9e349c28c036d575ce8",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.ScheduledExecutorService;\nimport java.util.concurrent.TimeUnit;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\n\n/**\n * Asks the exchange-rate service for a quote in the card's currency (field 49) and pauses the\n * transaction until the quote, a failure or this participant's own timeout arrives. A participant\n * after it decides; without a rate, no conversion is offered.\n */\npublic class QuoteRate implements TransactionParticipant, Configurable {\n\n    /** The exchange-rate service. It has no timeout of its own and answers on its own thread. */\n    public interface FxService {\n        void quote(String currency, long amount, Listener listener);\n\n        interface Listener {\n            void quoted(long rateMicros);\n\n            void failed(Exception e);\n        }\n    }\n\n    public static final String RATE = \"RATE\";\n    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -> {\n        Thread t = new Thread(r, \"quote-timeout\");\n        t.setDaemon(true);\n        return t;\n    });\n    private String serviceName;\n    private long timeout;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        serviceName = cfg.get(\"service\", \"fx\");\n        timeout = cfg.getLong(\"timeout\", 3000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        FxService fx = NameRegistrar.getIfExists(serviceName);\n        if (fx == null || request == null || !request.hasField(49))\n            return PREPARED | NO_JOIN | READONLY;                 // no quote, no offer\n        Pending pending = new Pending(ctx);\n        TIMER.schedule(pending::timedOut, timeout, TimeUnit.MILLISECONDS);\n        fx.quote(request.getString(49), Long.parseLong(request.getString(4)), pending);\n        return PREPARED | PAUSE | NO_JOIN;\n    }\n\n    /**\n     * One per transaction: the quote, a failure and the timeout of this transaction all arrive\n     * here, on other threads, in any order.\n     *\n     * TODO: Each of the three methods below must let the transaction go on to the next participant,\n     * the quote with its rate under RATE. About ten lines in total, fields included.\n     */\n    static final class Pending implements FxService.Listener {\n        private final Context ctx;\n\n        Pending(Context ctx) {\n            this.ctx = ctx;\n        }\n\n        /** The service quoted a rate, in millionths. */\n        @Override\n        public void quoted(long rateMicros) {\n            throw new IllegalStateException(\"TODO: quoted\");\n        }\n\n        /** The service could not quote. */\n        @Override\n        public void failed(Exception e) {\n            throw new IllegalStateException(\"TODO: failed\");\n        }\n\n        /** The timeout of this participant ran out. */\n        void timedOut() {\n            throw new IllegalStateException(\"TODO: timedOut\");\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-15/practice-2/src/main/java/com/example/practice/QuoteRate.java",
+    "test_path": "practice/jpos-server/prose/unit-15/practice-2/src/test/java/com/example/practice/QuoteRateTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-15/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-15/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.QuoteRateTest#aQuoteInTimeIsOffered",
+        "kind": "main",
+        "says": "a quote that arrives in time reaches the next participants with its rate"
+      },
+      {
+        "id": "com.example.practice.QuoteRateTest#noQuoteInTimeMeansNoOffer",
+        "kind": "main",
+        "says": "without a quote the participant's own timeout lets the purchase go on without a rate"
+      },
+      {
+        "id": "com.example.practice.QuoteRateTest#aFailedQuoteMeansNoOffer",
+        "kind": "main",
+        "says": "a failed quote lets the purchase go on without a rate"
+      },
+      {
+        "id": "com.example.practice.QuoteRateTest#aLateQuoteLeavesTheIssuerPauseAlone",
+        "kind": "edge",
+        "says": "a quote that arrives after the timeout must not resume the transaction again, or the issuer's pause ends before the issuer answers"
+      },
+      {
+        "id": "com.example.practice.QuoteRateTest#aFailureFollowedByTheTimeoutLeavesTheIssuerPauseAlone",
+        "kind": "edge",
+        "says": "a timeout that fires after a failure must not resume the transaction again: whether a rate arrived is not whether the pause already ended"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-15/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s15.md",
+      "section": "15.6 A Paused Transaction Resumes Once, and an Extra `resume()` Is Kept for the Next Pause"
+    },
+    "concepts": [
+      "A paused transaction must be resumed exactly once per pause; an extra resume() is kept and ends the next pause at once."
+    ]
+  }
+}

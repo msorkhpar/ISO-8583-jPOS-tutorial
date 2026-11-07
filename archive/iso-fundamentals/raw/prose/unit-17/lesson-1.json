@@ -1,0 +1,521 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "ISO 8583:2023 and Datasets",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17. ISO 8583:2023 and Datasets"
+    },
+    {
+      "type": "para",
+      "text": "A gateway forwards e-commerce purchases on a link that follows the 2023 edition. It finds dataset `01` in DE 34 by looking for the first byte `01` and reading the two bytes after it as a length. In certification DE 34 held only that dataset, and every case passed. On Monday the network starts putting a dataset the gateway has never seen in front of dataset `01`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "DE 34  010009DF0106A1B2C3D4E5F6\n  search: 0x01 = DF0106A1B2C3D4E5F6\nDE 34  740007C0000100020531010009DF0106A1B2C3D4E5F6\n  search: 0x01 = 0531"
+    },
+    {
+      "type": "para",
+      "text": "The gateway now forwards `0531` to the issuer as the content of dataset `01`, and nothing in it fails. Which part of its reader was wrong, and what should it have done with dataset `74`? Seven rules, one per section heading, answer that."
+    },
+    {
+      "type": "para",
+      "text": "The 2023 standard is a paid ISO document, and each network that adopts it publishes its own specification on top of it. The dataset identifiers and tags on this page are illustrative. Some follow the draft of version 3 of the jPOS Common Message Format (CMF) as jpos.org describes it, and the `DF01`, `DF02` tags are made up. Your network's specification decides. jPOS 2.1.7 has no dataset classes: everything here works on the bytes of a binary field, with `org.jpos.tlv.TLVList` doing the splitting."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.1. A Composite Field Is a Row of Datasets, and Each Announces Its Own Length"
+    },
+    {
+      "type": "para",
+      "text": "Unit 1 introduced three kinds of data element. A **primitive** element holds one value, such as the STAN. A **constructed** element has fixed sub-elements in fixed places, such as DE 90 (unit 4). A **composite** element holds one or more **datasets**, one after another, in the order the sender chooses. Each dataset has the same envelope:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "+------------+---------------------+-----------------------------+\n| identifier | length              | content                     |\n| 1 byte     | 2 bytes, big-endian | exactly \"length\" bytes      |\n+------------+---------------------+-----------------------------+"
+    },
+    {
+      "type": "para",
+      "text": "Here is a DE 49 with two datasets, packed by the 2.1.7 `cmf.xml` packager with DE 49 redefined as a plain binary field:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "GenericPackager datasets = new GenericPackager(\"jar:packager/cmf.xml\");\ndatasets.setFieldPackager(49, new IFB_LLLLBINARY(9999, \"Verification data, as datasets\"));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "wire:   2100002000000000800000000000073100150100055F2A020978710004C0000102"
+    },
+    {
+      "type": "para",
+      "text": "After the MTI `2100`, the bitmap (bits 11 and 49) and a 12-digit STAN come the bytes of DE 49:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0015                       field prefix: 15 bytes follow\n01 0005 5F2A 02 0978       dataset 01, 5 bytes: TLV element 5F2A, 2 bytes, 0978\n71 0004 C0000102           dataset 71, 4 bytes: a bitmap and the elements it announces"
+    },
+    {
+      "type": "para",
+      "text": "Three lengths are nested here. The field prefix counts every byte of every dataset. A dataset length counts that dataset's content only, without its identifier and its own two bytes, so a dataset holds at most 65535 bytes. Inside a TLV dataset, each element's BER length counts its value (unit 3). They must agree. A dataset length that runs past the field's end, or a TLV length that runs past its dataset's end, means the data is damaged. A reader that goes on anyway takes bytes from the next dataset, or the next field, and gives them a meaning they don't have."
+    },
+    {
+      "type": "para",
+      "text": "Why an envelope on every dataset? In the 1987 edition new information needed a free field number or a private field (DE 48, 62, 63) with a layout each network invented. A composite field gives it a standard place, and because each dataset says how long it is, a reader can step over one it doesn't know. So the standard can add datasets without new field numbers or breaking older readers."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.2. The Identifier's Range Says How to Read a Dataset, and Only the Field's Definition Says What It Holds"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "identifier",
+        "content"
+      ],
+      "rows": [
+        [
+          "`00`",
+          "not an identifier"
+        ],
+        [
+          "`01` to `70`",
+          "TLV dataset: BER-TLV elements, in any order"
+        ],
+        [
+          "`71` to `FE`",
+          "bitmap dataset: a bitmap, the elements it announces, optional TLV elements after them"
+        ],
+        [
+          "`FF`",
+          "not an identifier"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The range tells a reader how the content is encoded even for a dataset it has never heard of. A reader that knows nothing about dataset `05` in DE 34 still knows it is TLV and can list its elements. The value says what the data means, and that meaning is defined per field: dataset `71` in DE 49 and dataset `71` in DE 34 are unrelated. A check written as `id < 0x70` reads dataset `70` as a bitmap dataset, and no test notices until a network sends dataset `70`."
+    },
+    {
+      "type": "para",
+      "text": "A bitmap dataset works like a small ISO message: the bitmap says which elements are present, and the elements follow in bit order, each in the format its definition gives. The bitmap doesn't say where one element ends and the next starts; only the formats do, as with a message's fields (unit 2). So a reader without the definition can separate a bitmap dataset from its neighbours by its length, and can do nothing more with it. jpos.org describes the CMF v3 bitmap as two bytes with a continuation bit that extends it. Take the exact layout from your network's specification and test it against the network's sample messages."
+    },
+    {
+      "type": "para",
+      "text": "`cmf.xml` in jPOS 2.1.7 already defines DE 49, as \"Verification data\". Can it read the 2023 DE 49 above? Unpacking that wire with the unchanged `cmf.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "cmf.xml, DE 49: bitmap {8, 22, 24, 26, 28, 29, 30, 31, 32, 35, 37, 39, 47, 53, 56, 58, 59, 60, 61}, sub-fields with a value: 0"
+    },
+    {
+      "type": "para",
+      "text": "There is no error. The 2.1.7 `cmf.xml` describes an older CMF, where DE 49 is a sub-message (`GenericSubFieldPackager`) that starts with a bitmap (8 bytes, 16 when its first bit is set). It took the first 8 bytes, the envelope of dataset `01` and its element, as that bitmap, found none of its six sub-fields announced, and dropped the rest. Compare a packager's layout with the specification byte for byte, even when its field number and name match."
+    },
+    {
+      "type": "para",
+      "text": "Dataset identifier `71` has nothing to do with EMV tag `71`, issuer script template 1 (unit 18), which sits one level down. A tool that looks for `71` in a hex dump without walking the structure confuses them."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.3. DE 55 Is Composite but Has No Envelope"
+    },
+    {
+      "type": "para",
+      "text": "DE 55 is a composite field in the 2023 edition, and it is the exception: it carries the raw BER-TLV list from the card and the terminal, exactly as in unit 3, with no identifier and no dataset length. The chip data is produced by the card and the EMV kernel, the card's cryptogram covers much of it (unit 14), and chip systems already read it as raw TLV. Wrapping it would change the bytes of every chip transaction. jpos.org reports that jPOS 3.0.2's dataset-aware packager writes DE 55 byte for byte as the old `cmf.xml` does."
+    },
+    {
+      "type": "para",
+      "text": "What happens when a reader gets the level wrong? DE 55 read as datasets, and DE 34 read as plain BER-TLV:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "DE 55 as datasets: BAD TLV FORMAT: tag (9f) length (9736) exceeds available data\nDE 34 as BER-TLV: BAD TLV FORMAT: (8) remaining bytes are not enough to get tag id of length (95)\nDE 55 as BER-TLV: 3 elements, 9F36 = 004C"
+    },
+    {
+      "type": "para",
+      "text": "Tag `9F26` became identifier `9F` with a length of `2608`, 9736 bytes. Dataset `01` became tag `01` with length `00`; the length's second byte `09` became a tag, and `DF` a length announcing 95 more length bytes. Both were refused only because the lengths overran; with other bytes the reader returns garbage. A reader must know which fields have an envelope. Keep that list in configuration, next to the packager, rather than in each caller."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.4. A Reader Walks the Envelopes, Steps Over What It Doesn't Know and Refuses What Overruns"
+    },
+    {
+      "type": "para",
+      "text": "The opening gateway's reader:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "static byte[] search(byte[] field, int id) {\n    for (int i = 0; i + 3 <= field.length; i++) {\n        if ((field[i] & 0xFF) == id) {                           // (1)\n            int len = ((field[i + 1] & 0xFF) << 8) | (field[i + 2] & 0xFF);\n            return java.util.Arrays.copyOfRange(field, i + 3, i + 3 + len);   // (2)\n        }\n    }\n    return null;\n}"
+    },
+    {
+      "type": "para",
+      "text": "Line (1) accepts the byte `01` wherever it appears. On Monday it first appears inside the content of dataset `74`, as its third byte. The two bytes after it are `00 02`, so (2) returns the next two bytes, `0531`. This reader can't refuse anything: when a length runs past the end, `copyOfRange` pads the result with zeros. Only an envelope's first byte is an identifier, and the only way to know where an envelope starts is to start at the first one and skip each by its length."
+    },
+    {
+      "type": "para",
+      "text": "A `TLVList` can do the walk. Its builder takes a fixed tag size and a fixed length size, which turn off the BER rules, and a dataset envelope is exactly a TLV with a one-byte tag and a two-byte big-endian length. A second, ordinary `TLVList` reads the content of a TLV dataset:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.iso.datasets;\n\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\nimport org.jpos.tlv.TLVMsg;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\npublic final class DatasetReader {\n\n    /** One dataset of a composite field: its identifier and its content bytes. */\n    public record Dataset(int id, byte[] content) {\n        public boolean isTlv() { return id >= 0x01 && id <= 0x70; }\n    }\n\n    private DatasetReader() { }\n\n    /** Splits a composite field (never DE 55) into its datasets, in wire order. */\n    public static List<Dataset> split(byte[] field) {\n        TLVList envelopes = TLVList.TLVListBuilder.createInstance()\n                .fixedTagSize(1)                 // the identifier\n                .fixedLengthSize(2)              // the length, big-endian\n                .build();\n        envelopes.unpack(field);                 // refuses a length that runs past the end\n        List<Dataset> datasets = new ArrayList<>();\n        for (TLVMsg m : envelopes.getTags()) {\n            if (m.getTag() == 0x00 || m.getTag() == 0xFF)\n                throw new IllegalArgumentException(\"invalid dataset identifier \" + m.getTag());\n            datasets.add(new Dataset(m.getTag(), m.getValue()));\n        }\n        return datasets;\n    }\n\n    /** The BER-TLV elements of a TLV dataset. */\n    public static TLVList elements(Dataset ds) {\n        if (!ds.isTlv())\n            throw new IllegalArgumentException(String.format(\n                    \"dataset 0x%02X is a bitmap dataset: read it with its definition\", ds.id()));\n        TLVList tlv = new TLVList();\n        tlv.unpack(ds.content());\n        return tlv;\n    }\n\n    public static void main(String[] args) {\n        byte[] de49 = ISOUtil.hex2byte(\"010005\" + \"5F2A020978\" + \"710004\" + \"C0000102\");\n        for (Dataset ds : split(de49)) {\n            System.out.printf(\"dataset 0x%02X, %d bytes, %s%n\", ds.id(), ds.content().length,\n                    ds.isTlv() ? \"TLV\" : \"bitmap\");\n            if (ds.isTlv())\n                for (TLVMsg e : elements(ds).getTags())\n                    System.out.printf(\"  tag %X = %s%n\", e.getTag(), ISOUtil.hexString(e.getValue()));\n            else\n                System.out.println(\"  content \" + ISOUtil.hexString(ds.content()));\n        }\n        try {\n            split(ISOUtil.hex2byte(\"010009\" + \"5F2A020978\"));\n        } catch (IllegalArgumentException e) {\n            System.out.println(\"dataset 0x01 claims 9 bytes, 5 follow: \" + e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "dataset 0x01, 5 bytes, TLV\n  tag 5F2A = 0978\ndataset 0x71, 4 bytes, bitmap\n  content C0000102\ndataset 0x01 claims 9 bytes, 5 follow: BAD TLV FORMAT: tag (1) length (9) exceeds available data"
+    },
+    {
+      "type": "para",
+      "text": "Walking Monday's DE 34 this way steps over dataset `74` by its seven bytes and returns `DF0106A1B2C3D4E5F6` for dataset `01`. The reader checks `00` and `FF` itself, because a fixed-size `TLVList` takes any byte as a tag."
+    },
+    {
+      "type": "para",
+      "text": "The two `TLVList` modes treat padding differently. In BER mode `TLVList` skips `00` and `FF` bytes before a tag, because ISO/IEC 7816 uses them as padding. In fixed-size mode it skips nothing:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "BER, DF020105 0000: 1 element(s)\nenvelope, 010004DF020105 0000: BAD TLV FORMAT: (1) remaining bytes are not enough to get tag id of length (2)\nenvelope, 010004DF020105 000000: invalid dataset identifier 0"
+    },
+    {
+      "type": "para",
+      "text": "Inside a TLV dataset, the two zero bytes vanish without a trace. That is right for chip data and can hide a sender's bug in a dataset. After the last dataset, they are refused."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Refuse** a dataset whose length runs past the end of the field, and never cut it to what is left. Refuse identifiers `00` and `FF`; meeting one usually means padding or a walk that lost its place.",
+        "**Step over** a dataset whose identifier is valid but unknown to you. A reader that refuses unknown datasets breaks the day the network adds one, as this network did on Monday.",
+        "**Decide** what a repeated identifier means (first wins, or refuse) from the specification, and write a test for it."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A refused field should end in a decline with the network's format-error code, and the raw bytes stay out of the log: DE 34 and DE 49 can carry authentication values and card verification data. Wipe them in the `ProtectedLogListener` configuration (unit c8) as you wipe DE 55."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.5. A Path Names One Element at One Level"
+    },
+    {
+      "type": "para",
+      "text": "Code that works with datasets needs a name for one element. jPOS 3.0.2's `ISOMsg` accepts dotted paths (jpos.org), and the notation is useful in 2.1.7 code too, because each part names one level. The two-part path to a dataset's content is this course's addition:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "path",
+        "means"
+      ],
+      "rows": [
+        [
+          "`55.0x9F26`",
+          "DE 55, the TLV element with tag `9F26`"
+        ],
+        [
+          "`49.0x01`",
+          "DE 49, the content of dataset `01`"
+        ],
+        [
+          "`49.0x01.0x5F2A`",
+          "DE 49, dataset `01`, the TLV element with tag `5F2A`"
+        ],
+        [
+          "`49.0x71.2`",
+          "DE 49, dataset `71`, bitmap element 2"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The second part depends on the field. In `55.0x9F26` it is a tag, because DE 55 has no dataset level; in `49.0x01` it is a dataset identifier. The third part depends on the dataset: a tag when the identifier is in the TLV range, an element number when it is in the bitmap range, and an element number can only be resolved with the dataset's definition. In 2.1.7 code, a resolver without that definition should refuse such a path instead of guessing, and should treat an absent field, dataset or tag as absent rather than as an error: the caller decides whether the message needed it."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3.** jpos.org says 3.0.2 adds `ISODatasetField`, `DatasetPackager` and a `cmfv3.xml` packager, and that `getBytes`, `getString` and `with` take these paths directly. None of them exists in 2.1.7. Unit s13 lists what changes in jPOS 3."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.6. A Writer Encodes Every Length Itself, Because the Packager Sees Only Bytes"
+    },
+    {
+      "type": "para",
+      "text": "In 2.1.7 the packager carries a composite field as plain bytes: an `IFB_LLLLBINARY` in `cmf.xml` for DE 34, 55, 71 and 104, set with `set(34, bytes)`. Every length inside is the application's. The writer below puts each element's tag, BER length and value into the content, then the identifier and the two-byte length in front:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.iso.datasets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.tlv.TLVList;\nimport org.jpos.tlv.TLVMsg;\n\nimport java.io.ByteArrayOutputStream;\n\npublic final class DatasetWriter {\n    private final ByteArrayOutputStream out = new ByteArrayOutputStream();\n\n    /** Appends one TLV dataset holding the elements of {@code tlv}, in their order. */\n    public DatasetWriter tlvDataset(int id, TLVList tlv) {\n        if (id < 0x01 || id > 0x70)\n            throw new IllegalArgumentException(\"TLV dataset identifiers are 0x01 to 0x70\");\n        ByteArrayOutputStream content = new ByteArrayOutputStream();\n        for (TLVMsg element : tlv.getTags())\n            content.writeBytes(element.getTLV());       // tag, BER length, value\n        return dataset(id, content.toByteArray());\n    }\n\n    /** Appends one dataset whose content is already encoded, such as a bitmap dataset. */\n    public DatasetWriter dataset(int id, byte[] content) {\n        if (id < 0x01 || id > 0xFE)\n            throw new IllegalArgumentException(\"dataset identifiers are 0x01 to 0xFE\");\n        if (content.length > 0xFFFF)\n            throw new IllegalArgumentException(\"a dataset holds at most 65535 bytes\");\n        out.write(id);\n        out.write(content.length >> 8);                 // two bytes, big-endian\n        out.write(content.length & 0xFF);\n        out.writeBytes(content);\n        return this;\n    }\n\n    public byte[] toBytes() {\n        return out.toByteArray();\n    }\n\n    public static void main(String[] args) throws ISOException {\n        TLVList request = new TLVList()\n                .append(0xDF01, \"A1B2C3D4E5F6\")\n                .append(0xDF02, \"05\");\n        byte[] de34 = new DatasetWriter().tlvDataset(0x01, request).toBytes();\n        System.out.println(\"DE 34: \" + ISOUtil.hexString(de34));\n\n        GenericPackager cmf = new GenericPackager(\"jar:packager/cmf.xml\");\n        ISOMsg msg = new ISOMsg(\"2100\");\n        msg.setPackager(cmf);\n        msg.set(11, \"000000000731\");\n        msg.set(34, de34);\n        byte[] wire = msg.pack();\n        System.out.println(\"wire:  \" + ISOUtil.hexString(wire));\n\n        ISOMsg back = new ISOMsg();\n        back.setPackager(cmf);\n        back.unpack(wire);\n        DatasetReader.Dataset ds = DatasetReader.split(back.getBytes(34)).get(0);\n        System.out.println(\"DF02 after the round trip: \" + DatasetReader.elements(ds).getString(0xDF02));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "DE 34: 01000DDF0106A1B2C3D4E5F6DF020105\nwire:  21000020000040000000000000000731001601000DDF0106A1B2C3D4E5F6DF020105\nDF02 after the round trip: 05"
+    },
+    {
+      "type": "para",
+      "text": "The field prefix `0016` counts 16 bytes, the dataset length `000D` counts 13, and the TLV lengths `06` and `01` count 6 and 1. The packager wrote only the first."
+    },
+    {
+      "type": "para",
+      "text": "Why not `TLVList.pack()`, which encodes a whole list? In 2.1.7 it writes into a fixed buffer of 516 bytes. Two 300-byte elements:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "pack(): java.nio.BufferOverflowException\nwriter: 613 bytes, dataset length 0262"
+    },
+    {
+      "type": "para",
+      "text": "Chip data in DE 55 rarely gets that long, so `pack()` passes chip tests. `getTLV()` encodes one element at a time and writes the long length forms (`81 xx`, `82 xx xx`) when a value reaches 128 bytes. An encoder that always writes one length byte passes short test values and corrupts any value of 128 bytes or more."
+    },
+    {
+      "type": "para",
+      "text": "Test the writer by reading its output back with your reader, and against the network's sample messages."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.7. The Same Field Number Means Different Things on a 1987 Link and a 2023 Link"
+    },
+    {
+      "type": "para",
+      "text": "Few systems will speak the 2023 edition on every link at once. A switch receives one edition from its acquirers and sends another to each network, and some field numbers change meaning between them. In 1987, DE 43 is a fixed 40-character name and location and DE 49 is a three-digit currency code (unit 3). In the 2023 layout both are composites, and DE 49 holds verification datasets. A field number means something only together with the edition, and the edition comes from the link's specification, not from the message."
+    },
+    {
+      "type": "para",
+      "text": "So a switch never copies a field from one side to the other because the numbers match. A 1987 DE 49 of `840` copied as text into a 2023 DE 49 reaches a dataset reader as three bytes:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "1987 DE 49 \"840\" as datasets: BAD TLV FORMAT: tag (38) length (13360) exceeds available data"
+    },
+    {
+      "type": "para",
+      "text": "The character `8` became identifier `38`, and `40` a length of 13360. Refused here, misread when the bytes fit, as in 17.3. The currency travels where the 2023 specification puts it: in the CMF v3 draft, as jpos.org shows it, tag `5F2A` in dataset `01` of DE 49. (The 2.1.7 `cmf.xml` packs it inside the amount field, with `IFB_AMOUNT2003`.) Map through your internal format, as unit 12 does with its record."
+    },
+    {
+      "type": "para",
+      "text": "Data that a 1987 network sends in a private field with its own sub-field layout, such as the 3-D Secure values of unit 14, belongs in a dataset of DE 34 on a 2023 link. Write that mapping per network, with test messages from both sides."
+    },
+    {
+      "type": "para",
+      "text": "DE 55 crosses unchanged: it has no envelope in either edition, and the issuer checks the cryptogram over values inside it (unit 14)."
+    },
+    {
+      "type": "para",
+      "text": "Keep the edition in configuration too. In 2.1.7 the composite fields are `IFB_LLLLBINARY` in the packager XML, and the dataset logic lives in one class. Moving to a dataset-aware packager later then replaces that class, not every caller."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.8. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A composite field is a row of datasets**, each a one-byte identifier, a two-byte big-endian length that counts its content, and the content. The field prefix, the dataset lengths and the TLV lengths must agree, or the data is damaged.",
+        "**The identifier's range says how to read a dataset**: `01`–`70` TLV, `71`–`FE` bitmap, `00` and `FF` invalid. Its meaning, and a bitmap dataset's elements, come from the field's definition. A packager that names the field right can still have the wrong layout.",
+        "**DE 55 has no envelope.** Read at the wrong level, chip data and datasets give errors or garbage, so the list of enveloped fields belongs in configuration.",
+        "**A reader walks the envelopes.** Searching for an identifier finds it inside other datasets. Unknown datasets are stepped over by their length; overruns and `00`/`FF` are refused.",
+        "**A path names one element at one level**, and what its second and third parts mean depends on the field and on the dataset's range. Absent is not an error.",
+        "**A writer encodes every length itself.** The packager sees bytes; `TLVList.pack()` throws `BufferOverflowException` past 516 bytes in 2.1.7, and a dataset can hold 65535.",
+        "**A field number means something only with its edition.** Map between 1987 and 2023 links through an internal format, and pass DE 55 through unchanged."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.9. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**The dataset envelope:** identifier (1 byte), length of the content (2 bytes, big-endian, 0 to 65535), content."
+    },
+    {
+      "type": "para",
+      "text": "**Identifiers:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "identifier",
+        "kind"
+      ],
+      "rows": [
+        [
+          "`00`, `FF`",
+          "invalid"
+        ],
+        [
+          "`01`–`70`",
+          "TLV dataset"
+        ],
+        [
+          "`71`–`FE`",
+          "bitmap dataset"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Lengths in a composite field:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "level",
+        "written by",
+        "counts"
+      ],
+      "rows": [
+        [
+          "field prefix",
+          "the field packager (`IFB_LLLLBINARY`: four BCD digits)",
+          "every byte of every dataset"
+        ],
+        [
+          "dataset length",
+          "the application",
+          "the dataset's content"
+        ],
+        [
+          "TLV length",
+          "the application",
+          "one element's value: one byte up to 127, `81 xx` up to 255, `82 xx xx` up to 65535"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Composite fields** that jpos.org names for the 2023 edition: DE 34 (electronic commerce data), 43 (card acceptor data), 49 (verification data), 55 (ICC data, no envelope), 71, and 104 (transaction-specific data). Your network's specification has the full list."
+    },
+    {
+      "type": "para",
+      "text": "**jPOS 2.1.7 and datasets:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "need",
+        "2.1.7"
+      ],
+      "rows": [
+        [
+          "carry a composite field",
+          "`IFB_LLLLBINARY` (or the prefix the specification gives), `getBytes`/`set(n, byte[])`"
+        ],
+        [
+          "split the envelopes",
+          "`TLVList.TLVListBuilder`, `fixedTagSize(1)`, `fixedLengthSize(2)`"
+        ],
+        [
+          "read a TLV dataset or DE 55",
+          "`new TLVList()`, `unpack`"
+        ],
+        [
+          "encode one element",
+          "`TLVMsg.getTLV()`"
+        ],
+        [
+          "encode a list over 516 bytes",
+          "not `TLVList.pack()`"
+        ],
+        [
+          "DE 43 and DE 49 in `cmf.xml`",
+          "older CMF sub-messages with their own bitmap, not datasets"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.10. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your network sends DE 34 with the same identifier twice in one message. Its specification is silent. Which do you choose, first wins, last wins or refuse, and what does each cost when the network's next release makes the repeat meaningful?",
+        "A bitmap dataset may end with TLV elements after its bitmapped ones. Without the definition, a reader can't find where the bitmapped part ends. How would you design a test suite that catches a definition that is one byte off?",
+        "Measure the cost of the envelope: for a DE 34 of four datasets with two short elements each, what share of the bytes is envelope and BER overhead? Would a fixed layout have been worth the loss of extensibility?",
+        "A fraud team wants to search the logs for one tag across all datasets. The fields are wiped from the log. What would you log instead, and where?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.11. Design Note: Why Every Dataset Carries Its Length"
+    },
+    {
+      "type": "para",
+      "text": "A bitmap already tells a reader which elements are present, so why put a length on every dataset as well? Because the bitmap only works for a reader that knows the formats. A message's bitmap is enough because both ends hold the same packager. A dataset added in next year's release has no definition in this year's code. Only its length lets old code step over it."
+    },
+    {
+      "type": "para",
+      "text": "The cost is three bytes per dataset and a second place where a length can lie. Every level of nesting is a level where a reader must check that the inner length fits inside the outer one. The 1987 design avoided this with fixed layouts and a different field number for each new thing, and ran out of numbers. Private fields solved that by letting each network invent its own layout, which no general reader can parse. The 2023 envelope is a compromise between the two: a fixed outer shape that any reader can walk, and inside it a layout that only the field's definition explains."
+    },
+    {
+      "type": "para",
+      "text": "DE 55 shows where the compromise stops. Its contents had a self-describing format, BER-TLV, long before 2023, so an envelope would have added nothing a reader needs."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 44,
+    "code": 15,
+    "tables": 5,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 1,
+    "html": 2,
+    "disclosures": 0
+  },
+  "content_sha256": "6acdb40fe720acb66849da0284e92ee0c2eb9ec5c67c3558cb7703c6ee25600e"
+}

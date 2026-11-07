@@ -1,0 +1,172 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Answer from the acquirer's test sheet",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer doesn't send its test cases as rules. It sends a sheet, one case per line:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "C03;0200;5555555555554444;;;54\nC14;0200;;250.01;;51\nC15;0200;;12.00;13.00;--\nC99;0200;;;;00"
+    },
+    {
+      "type": "para",
+      "text": "The columns are the case, the MTI, the PAN, the amount from, the amount to, and the response code. A blank column means \"any\". Amounts are written as the acquirer's analysts write them, in currency units with exactly two decimals and nothing else (`250.01`). A response code is two letters or digits, and `--` means the host doesn't answer. The acquirer's notes add one sentence: the host goes through the rows in the order they are listed."
+    },
+    {
+      "type": "para",
+      "text": "QA wants to load the sheet as it comes, instead of retyping it into rules. `src/main/java/com/example/practice/SheetHost.java` already reads the lines and answers, but three methods are still `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`matches(row, request)`: does this row apply to the request?",
+        "`decide(request)`: which row answers it?",
+        "`check(row)`: the sheet is typed by hand, and a row the simulator can't read exactly as the acquirer means it must stop the sheet from loading, with an `IllegalArgumentException`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The tests load sheets you haven't seen, with amounts at the edges of their ranges. About 15 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * A host simulator that answers from the acquirer's test sheet. Each line of the sheet is\n * {@code case;mti;pan;amount from;amount to;rc}, for example\n * {@code C14;0200;;500.01;;51}. A blank column means \"any\", amounts are written in currency\n * units with two decimals, and an rc of {@code --} means the host answers nothing.\n */\npublic class SheetHost implements ISORequestListener {\n    record Row(String caseId, String mti, String pan, String from, String to, String rc) { }\n\n    private final List<Row> rows = new ArrayList<>();\n\n    public SheetHost(List<String> sheet) {\n        for (String line : sheet)\n            rows.add(load(line));\n    }\n\n    static Row load(String line) {\n        String[] c = line.split(\";\", -1);\n        if (c.length != 6)\n            throw new IllegalArgumentException(\"expected 6 columns: \" + line);\n        Row row = new Row(c[0].trim(), c[1].trim(), c[2].trim(), c[3].trim(), c[4].trim(), c[5].trim());\n        check(row);\n        return row;\n    }\n\n    /** Refuses a row the simulator could not answer from as the sheet means it. */\n    static void check(Row row) {\n        if (!row.from().isEmpty() && !row.from().matches(\"\\\\d+\\\\.\\\\d\\\\d\")\n                || !row.to().isEmpty() && !row.to().matches(\"\\\\d+\\\\.\\\\d\\\\d\"))\n            throw new IllegalArgumentException(\"unreadable amount in \" + row.caseId());\n        if (!row.from().isEmpty() && !row.to().isEmpty() && minor(row.from()) > minor(row.to()))\n            throw new IllegalArgumentException(\"empty range in \" + row.caseId());\n        if (!row.rc().matches(\"\\\\w\\\\w|--\"))\n            throw new IllegalArgumentException(\"bad rc in \" + row.caseId());\n    }\n\n    static long minor(String amount) {\n        return new BigDecimal(amount).movePointRight(2).longValueExact();\n    }\n\n    /** Whether this row applies to the request. */\n    static boolean matches(Row row, ISOMsg m) throws ISOException {\n        if (!row.mti().isEmpty() && !row.mti().equals(m.getMTI())) return false;\n        if (!row.pan().isEmpty() && !row.pan().equals(m.getString(2))) return false;\n        if (row.from().isEmpty() && row.to().isEmpty()) return true;\n        if (!m.hasField(4)) return false;\n        long amount = Long.parseLong(m.getString(4));\n        return (row.from().isEmpty() || amount >= minor(row.from()))\n            && (row.to().isEmpty() || amount <= minor(row.to()));\n    }\n\n    /** The row that answers this request, or null when the sheet has none. */\n    Row decide(ISOMsg m) throws ISOException {\n        for (Row row : rows)\n            if (matches(row, m))\n                return row;\n        return null;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            Row row = decide(m);\n            if (row == null)\n                return false;\n            if (row.rc().equals(\"--\"))\n                return true;\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.unset(35, 45, 52, 55);\n            r.set(39, row.rc());\n            source.send(r);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * A host simulator that answers from the acquirer's test sheet. Each line of the sheet is\n * {@code case;mti;pan;amount from;amount to;rc}, for example\n * {@code C14;0200;;500.01;;51}. A blank column means \"any\", amounts are written in currency\n * units with two decimals, and an rc of {@code --} means the host answers nothing.\n */\npublic class SheetHost implements ISORequestListener {\n    record Row(String caseId, String mti, String pan, String from, String to, String rc) { }\n\n    private final List<Row> rows = new ArrayList<>();\n\n    public SheetHost(List<String> sheet) {\n        for (String line : sheet)\n            rows.add(load(line));\n    }\n\n    static Row load(String line) {\n        String[] c = line.split(\";\", -1);\n        if (c.length != 6)\n            throw new IllegalArgumentException(\"expected 6 columns: \" + line);\n        Row row = new Row(c[0].trim(), c[1].trim(), c[2].trim(), c[3].trim(), c[4].trim(), c[5].trim());\n        check(row);\n        return row;\n    }\n\n    /** Refuses a row the simulator could not answer from as the sheet means it. */\n    static void check(Row row) {\n        // TODO: The sheet is typed by hand. A row the simulator can't read exactly as the acquirer\n        //       means it must stop the sheet from loading (IllegalArgumentException), rather than\n        //       turn into a rule that answers the wrong requests. Look at the amount columns and rc.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n\n    /** Whether this row applies to the request. */\n    static boolean matches(Row row, ISOMsg m) throws ISOException {\n        // TODO: Compare the row's columns with the request. Field 4 holds the amount in minor\n        //       units, twelve digits; the sheet writes amounts as 500.00.\n        throw new IllegalStateException(\"TODO: matches\");\n    }\n\n    /** The row that answers this request, or null when the sheet has none. */\n    Row decide(ISOMsg m) throws ISOException {\n        // TODO: More than one row can apply to a request. The acquirer's notes say how to choose.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            Row row = decide(m);\n            if (row == null)\n                return false;\n            if (row.rc().equals(\"--\"))\n                return true;\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.unset(35, 45, 52, 55);\n            r.set(39, row.rc());\n            source.send(r);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 2,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "fc693682fc67187eadee758a56dc6651ef87ddcad20e46f51301c0acb3497d58",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * A host simulator that answers from the acquirer's test sheet. Each line of the sheet is\n * {@code case;mti;pan;amount from;amount to;rc}, for example\n * {@code C14;0200;;500.01;;51}. A blank column means \"any\", amounts are written in currency\n * units with two decimals, and an rc of {@code --} means the host answers nothing.\n */\npublic class SheetHost implements ISORequestListener {\n    record Row(String caseId, String mti, String pan, String from, String to, String rc) { }\n\n    private final List<Row> rows = new ArrayList<>();\n\n    public SheetHost(List<String> sheet) {\n        for (String line : sheet)\n            rows.add(load(line));\n    }\n\n    static Row load(String line) {\n        String[] c = line.split(\";\", -1);\n        if (c.length != 6)\n            throw new IllegalArgumentException(\"expected 6 columns: \" + line);\n        Row row = new Row(c[0].trim(), c[1].trim(), c[2].trim(), c[3].trim(), c[4].trim(), c[5].trim());\n        check(row);\n        return row;\n    }\n\n    /** Refuses a row the simulator could not answer from as the sheet means it. */\n    static void check(Row row) {\n        // TODO: The sheet is typed by hand. A row the simulator can't read exactly as the acquirer\n        //       means it must stop the sheet from loading (IllegalArgumentException), rather than\n        //       turn into a rule that answers the wrong requests. Look at the amount columns and rc.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n\n    /** Whether this row applies to the request. */\n    static boolean matches(Row row, ISOMsg m) throws ISOException {\n        // TODO: Compare the row's columns with the request. Field 4 holds the amount in minor\n        //       units, twelve digits; the sheet writes amounts as 500.00.\n        throw new IllegalStateException(\"TODO: matches\");\n    }\n\n    /** The row that answers this request, or null when the sheet has none. */\n    Row decide(ISOMsg m) throws ISOException {\n        // TODO: More than one row can apply to a request. The acquirer's notes say how to choose.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            Row row = decide(m);\n            if (row == null)\n                return false;\n            if (row.rc().equals(\"--\"))\n                return true;\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.unset(35, 45, 52, 55);\n            r.set(39, row.rc());\n            source.send(r);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-16/practice-1/src/main/java/com/example/practice/SheetHost.java",
+    "test_path": "practice/jpos-client/prose/unit-16/practice-1/src/test/java/com/example/practice/SheetHostTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.SheetHostTest#aCardRowAnswersThatCard",
+        "kind": "main",
+        "says": "a row naming a card answers that card with the row's response code"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#anAmountInsideARangeGetsThatRowsRc",
+        "kind": "main",
+        "says": "a purchase inside a row's amount range, closed or open below, gets that row's response code; a row for another MTI does not apply, and a purchase no row covers is not answered"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#aSilentRowAnswersNothingButHandlesTheRequest",
+        "kind": "main",
+        "says": "a row whose rc is -- sends nothing but reports the request as handled"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#theFirstRowThatAppliesAnswers",
+        "kind": "edge",
+        "says": "when several rows apply, the one listed first answers, even when a later row is more specific"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#bothEndsOfARangeBelongToIt",
+        "kind": "edge",
+        "says": "an amount equal to either end of a row's range belongs to that row, and a range whose two ends are equal holds that one amount"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#amountsWithCentsAreReadExactly",
+        "kind": "edge",
+        "says": "the sheet's amounts are converted to minor units exactly, with no floating-point rounding"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#aBlankUpperBoundHasNoLimit",
+        "kind": "edge",
+        "says": "a blank upper bound leaves the range open above"
+      },
+      {
+        "id": "com.example.practice.SheetHostTest#aRowThatCannotBeReadRefusesTheSheet",
+        "kind": "edge",
+        "says": "a row with an amount not written with two decimals in either bound, an empty range, or a missing or malformed response code stops the sheet from loading"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-16/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c16.md",
+      "section": "16.1 A Simulator's Rules Are Data, and the First Rule That Matches Decides"
+    },
+    "concepts": [
+      "A rule's amount range is compared as a number of minor units and includes both of its ends.",
+      "A simulator's behaviour is an ordered table: the first rule that applies answers, so exceptions go above ranges and the catch-all goes last.",
+      "A rule the simulator cannot read stops the configuration instead of being skipped, so a typo fails the deploy rather than quietly changing the answers."
+    ]
+  }
+}

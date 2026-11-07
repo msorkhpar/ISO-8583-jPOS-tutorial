@@ -1,21 +1,13 @@
-The page's factory stamps the fields every request shares, so a message type only adds what is
-its own. But its trace number is a fixed `"123456"` and its date is a constant. A host matches a
-response, and later a reversal, to the request by these fields; two requests with the same trace
-number are two requests nobody can tell apart.
+An online bookshop sends its purchases to the acquirer through `Submitter.submit`, in
+`src/main/java/com/example/practice/Submitter.java`. Yesterday a merchant whose name and location
+ran one character too long in field 43 took the link down. The purchase in flight beside it was
+approved by the host but reported to the shop as unanswered, and the support team couldn't tell
+which of the two had actually reached the host.
 
-Write `RequestFactory`, built from a terminal id, a `java.time.Clock` and the last trace number
-already used (`0` for a fresh start).
+Finish the three places marked `TODO` so that every `Result` tells the truth: `ANSWERED` with the
+host's response, `NO_ANSWER` for a request that went out and heard nothing back, and `NOT_SENT`
+with a reason for a request that never left. The `packager` passed to the constructor is the one
+the link's channel uses. About 10 lines in total.
 
-- `create(mti)` returns an `ISOMsg` with that MTI, field 7 as the clock's time in UTC formatted
-  `MMddHHmmss`, field 11 as the next trace number (six digits, zero-padded) and field 41 as the
-  terminal id.
-- `authorization(pan, amountMinor)` is an `0100` and `financial(pan, amountMinor)` an `0200`;
-  both carry field 2 (the PAN), field 3 `000000`, field 4 (the amount in minor units, twelve
-  digits zero-padded) and field 49 `840`.
-- `reversal(original)` is an `0400` carrying the original's fields 2, 3, 4 and 49, and field 90:
-  the original's MTI, then its field 11, then its field 7, then 22 zeros (42 digits in all).
-
-Edge cases:
-
-- After `999999` the trace number starts again at `000001`; `000000` is never used.
-- A reversal is a new message: it takes its own trace number, not the original's.
+The tests run a real QMUX against a test host on the far side of its queues, and some of them use
+a network whose fields are not the standard's lengths.

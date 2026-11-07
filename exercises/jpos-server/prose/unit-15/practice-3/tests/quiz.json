@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "ordinal": 3,
+  "title": "Check yourself: the TransactionManager in depth",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-crash-in-commit",
+        "stem": "A gift-card server journals to a Berkeley DB space. Its chain is RedeemCard (joins, and tells the card service to settle the redemption in commit), then SendResponse, then Audit (joins, writes a line in commit). The process dies inside Audit's commit of transaction 77, after the approval has gone out. What happens to transaction 77 at the next start?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is committed again from the first participant, so RedeemCard tells the card service to settle a second time",
+            "correct": true,
+            "says": "the journal holds the state COMMITTING, not which commits already ran, so recovery commits every participant again"
+          },
+          {
+            "id": "b",
+            "text": "It is committed again from Audit onwards, so only the commit that was cut short is repeated",
+            "correct": false,
+            "says": "the journal records no progress inside the commit phase; recovery starts from the first participant"
+          },
+          {
+            "id": "c",
+            "text": "It is aborted on every participant, since the process died before the transaction was marked done",
+            "correct": false,
+            "says": "only a transaction left in PREPARING is aborted; one in COMMITTING had its outcome decided and is committed"
+          },
+          {
+            "id": "d",
+            "text": "It is aborted on the joined participants, since recovery cannot tell whether the approval reached the terminal",
+            "correct": false,
+            "says": "recovery decides by the journal's state, COMMITTING here, and it calls every participant of the chain, joined or not"
+          }
+        ],
+        "origin": {
+          "path": "src/s15.md",
+          "section": "15.3 Recovery Aborts What Was Preparing and Commits Again What Was Committing"
+        }
+      },
+      {
+        "id": "q-retry-after-hold",
+        "stem": "A cinema server's chain is HoldSeat (holds a seat with an outside booking service in prepare, joins, releases the hold in abort), then CheckVoucher, then SendResponse. Its journal is in memory. CheckVoucher finds the voucher row locked and answers RETRY once; on the next attempt it votes PREPARED. When the purchase is approved, what has the booking service seen?",
+        "options": [
+          {
+            "id": "a",
+            "text": "One hold, since the retry carries on with the same transaction from CheckVoucher",
+            "correct": false,
+            "says": "a retried Context starts as a new transaction, under a new id, from the first participant, so HoldSeat holds again"
+          },
+          {
+            "id": "b",
+            "text": "One hold, since HoldSeat's abort released the first hold before the retry",
+            "correct": false,
+            "says": "after RETRY nobody gets commit or abort, so the first hold is never released"
+          },
+          {
+            "id": "c",
+            "text": "Two holds, both confirmed, since each attempt commits what it prepared",
+            "correct": false,
+            "says": "the first attempt ends with neither commit nor abort; only the second attempt commits"
+          },
+          {
+            "id": "d",
+            "text": "Two holds, one never released, since nobody told HoldSeat how the first attempt ended",
+            "correct": true,
+            "says": "RETRY calls neither commit nor abort and the retry runs the chain again, so the first hold leaks"
+          }
+        ],
+        "origin": {
+          "path": "src/s15.md",
+          "section": "15.5 `RETRY` Starts Over Under a New Id, and Nobody Hears How the First Attempt Ended"
+        }
+      },
+      {
+        "id": "q-pause-without-prepared",
+        "stem": "A participant asks a sanctions-screening service and returns PAUSE | NO_JOIN | READONLY. 80 ms later the service's callback stores a pass and calls ctx.resume(). The next participant, a plain TransactionParticipant, builds the approval, and SendResponse comes last. What does the terminal receive?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The approval, since the next participant runs as soon as the callback resumes the transaction",
+            "correct": false,
+            "says": "the next participant runs only on the prepare path; this transaction resumes on the abort path"
+          },
+          {
+            "id": "b",
+            "text": "The approval, since READONLY tells the TransactionManager that the pause changed nothing",
+            "correct": false,
+            "says": "READONLY only skips a snapshot; the missing PREPARED bit makes the vote an abort"
+          },
+          {
+            "id": "c",
+            "text": "Nothing, since the resumed transaction goes on along the abort path and skips the next participant",
+            "correct": true,
+            "says": "a vote without PREPARED is an abort; after the resume only abort participants are asked, and no response was built"
+          },
+          {
+            "id": "d",
+            "text": "Nothing, since a paused transaction with no pause-timeout is never taken off the queue again",
+            "correct": false,
+            "says": "resume() puts the Context back in the queue (unit s4) and a session takes it, as the trail shows; pause-timeout is only a safety net"
+          }
+        ],
+        "origin": {
+          "path": "src/s15.md",
+          "section": "15.4 A Vote Is Read Bit by Bit, and Only `PREPARED` Says Yes"
+        }
+      },
+      {
+        "id": "q-join-no-join",
+        "stem": "Inside a Join, CheckLimit votes PREPARED | NO_JOIN | READONLY and ReserveStock votes PREPARED. A participant after the Join declines the purchase. On jPOS 2.1.7, which call does CheckLimit get after its prepare?",
+        "options": [
+          {
+            "id": "a",
+            "text": "None, since its NO_JOIN keeps it out of commit and abort as it would outside a Join",
+            "correct": false,
+            "says": "Join starts a fresh runner for every nested participant on abort, and a fresh runner remembers no vote"
+          },
+          {
+            "id": "b",
+            "text": "None, since only the Join itself joins the transaction and hears its outcome",
+            "correct": false,
+            "says": "the Join does hear the outcome, and it passes it on to every nested participant"
+          },
+          {
+            "id": "c",
+            "text": "An abort, since Join passes the outcome to each of its participants whatever it voted",
+            "correct": true,
+            "says": "in 2.1.7 Join calls abort on every nested participant, joined or not"
+          },
+          {
+            "id": "d",
+            "text": "A commit, since the Join as a whole had voted PREPARED before the decline",
+            "correct": false,
+            "says": "a later decline aborts the transaction, so the joined Join gets abort, not commit"
+          }
+        ],
+        "origin": {
+          "path": "src/s15.md",
+          "section": "15.7 `Join` Tells Every Nested Participant the Outcome, Joined or Not"
+        }
+      }
+    ]
+  }
+}

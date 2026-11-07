@@ -1,15 +1,14 @@
-A message reached your switch with its primary bitmap captured separately, in a trace, as
-sixteen hexadecimal digits. Before anybody trusts the parsed fields, you want to know where
-the bitmap and the message disagree.
+Your switch's support desk answers tickets from several acquirers. Each ticket gives a terminal
+ID, a STAN as the analyst typed it, and the moment the acquirer's records say the message was sent.
+The desk pastes the day's log into `TicketSearch.find`, which returns every logged message the
+ticket is about: the request and its answer, in log order, or nothing when the log never saw it.
 
-Write `BitmapCheck.mismatches(String bitmapHex, ISOMsg message)`. It returns, in ascending
-order, every data element from 2 to 64 whose bit in the bitmap says one thing while the
-message says the other: a bit set for a field the message does not carry, or a field the
-message carries whose bit is clear. A message that matches its bitmap gives an empty list.
+`find` is written. Finish the three methods marked `TODO` in
+`src/main/java/com/example/practice/TicketSearch.java`:
 
-- Bit 1 is not a data element. It flags that a secondary bitmap follows, so it is never
-  reported, whatever it says.
-- A bitmap that is not exactly sixteen hexadecimal digits is refused with an
-  `IllegalArgumentException`.
+- `stan(...)`: the ticket's STAN as a message carries it;
+- `sent(...)`: the ticket's moment as a message carries it;
+- `names(...)`: whether a logged message is one the ticket is about.
 
-Bits are counted from 1, most significant first: bit *n* stands for data element *n*.
+About six lines in total. The tests' logs hold terminals in more than one country, more than one
+day, and STANs that come round again; some tests run on a machine whose clock is not set to UTC.

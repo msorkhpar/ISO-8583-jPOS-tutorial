@@ -1,26 +1,18 @@
-A jPOS client fails in a handful of distinct ways: the message itself is wrong
-(`ISOException`), the network let you down (`IOException`), the host never answered
-(`TimeoutException`), or the host answered and declined. Whoever called the client needs to
-know which of these happened, because each one calls for a different reaction: fix the
-request, try again later, or tell the cardholder. Handling them in one place keeps that
-decision consistent across the whole application.
+Twice this week the acquirer link dropped in the middle of the day. Each time, a handful of
+cardholders at other merchants were told "outcome unknown" for purchases the host had approved,
+and the reversal process then reversed a purchase the host had never received. Both times the
+log showed a warning from the channel adaptor and nothing else. And one purchase, keyed in as
+`31.75`, reached the host as an amount nobody had typed.
 
-Write `ErrorHandler.handle(Throwable failure)`, returning an `ErrorResponse` with a type, a
-message and an HTTP-style status:
+The client is `PaymentClient` in `src/main/java/com/example/practice/PaymentClient.java`. Its
+constructor already gets the packager the link's channel uses. Finish the two places marked
+`TODO`:
 
-- `ISOException`: type `ISO-8583 Error`, the exception's own message, status 400;
-- `IOException`: type `Network Error`, message `Failed to communicate with the server`,
-  status 503;
-- `TimeoutException`: type `Timeout Error`, message `The operation timed out`, status 408;
-- `TransactionDeclinedException`: type `Transaction Declined`, message
-  `Transaction was declined with response code: <code>`, status 402;
-- anything else: type `Internal Server Error`, message `An unexpected error occurred`,
-  status 500.
+- `refusal(...)`: the reason a message must not go to the link, or `null`;
+- `pay(...)`: what happens to such a message, and the `Outcome` the caller gets for it.
 
-`TransactionDeclinedException` is yours to write too, as a nested class: an unchecked
-exception that carries the host's response code.
+When you're done, a message the link can't carry never reaches it, and the caller's outcome says
+what the host knows about the message. About ten lines in total.
 
-- A narrower kind of failure belongs with its family: a refused connection is an
-  `IOException`, so it is a network error.
-- An unexpected failure says nothing about its cause. Its message may carry internals a
-  caller has no business seeing.
+The tests run a real QMUX against a host on the far side of its queues. There is no channel
+between them, so nothing on the test's side packs the messages: only your code does.

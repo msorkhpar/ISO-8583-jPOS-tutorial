@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "ordinal": 3,
+  "title": "Check yourself: Integration with Payment Gateways",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-second-gateway",
+        "stem": "A switch maps 1987 terminals, a REST API and a 1993 network link into one internal record, and sends to an acquirer and to one REST gateway. A second REST gateway is added; its API wants every amount as a whole number of minor units. Where does the new work go?",
+        "options": [
+          {
+            "id": "a",
+            "text": "One new mapping, out of the internal record, since the record already holds each amount with its currency",
+            "correct": true,
+            "says": "with an internal format each endpoint has one mapping; the new destination maps out of the record, and the sources are untouched"
+          },
+          {
+            "id": "b",
+            "text": "Three new mappings, one from each source, since each source writes its amounts in a different form",
+            "correct": false,
+            "says": "that is the pair-by-pair approach the internal format replaces; the sources' forms were already resolved when they mapped into the record"
+          },
+          {
+            "id": "c",
+            "text": "A change to every inbound mapping, since the record must hold amounts the way each destination wants them",
+            "correct": false,
+            "says": "the record holds full values, a decimal amount and its currency; each destination converts on its way out"
+          },
+          {
+            "id": "d",
+            "text": "A change to the packager configuration, since converting an amount is a matter of how field 4 is packed",
+            "correct": false,
+            "says": "packagers and channels only move bytes; the new gateway speaks REST, and the work is in its mapping"
+          }
+        ],
+        "origin": {
+          "path": "src/12.md",
+          "section": "12.1. Each Endpoint Maps Into One Internal Format and Out of It"
+        }
+      },
+      {
+        "id": "q-unlisted-status",
+        "stem": "A REST gateway answers a charge with a status that the switch's table of statuses has no entry for. The terminal that sent the 0200 is waiting for field 39. What should the switch do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Answer 00, since the gateway answered and only a failed call leaves the charge in doubt",
+            "correct": false,
+            "says": "a status the table lacks may be anything, an approval or not; it is never guessed as an approval"
+          },
+          {
+            "id": "b",
+            "text": "Answer 05, since a status that is not in the table counts as a decline",
+            "correct": false,
+            "says": "the status may have been an approval, and a decline needs no cancellation, so the money stays taken while the terminal says declined"
+          },
+          {
+            "id": "c",
+            "text": "Answer 96 and cancel the charge at the gateway, since the status may stand for an approval",
+            "correct": true,
+            "says": "a status the table lacks gets 96, and the payment is cancelled at the gateway, since it may have been an approval"
+          },
+          {
+            "id": "d",
+            "text": "Answer 96 and leave the charge as it is, since a terminal that gets an error does not complete the sale",
+            "correct": false,
+            "says": "if the status was an approval the card stays charged for a sale that never completed; the charge must be cancelled"
+          }
+        ],
+        "origin": {
+          "path": "src/12.md",
+          "section": "12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
+        }
+      },
+      {
+        "id": "q-post-times-out",
+        "stem": "Your switch forwards a terminal's 0200 to a third-party REST gateway as POST /charges with an Idempotency-Key header. After 15 seconds the call has not returned, and the terminal is still waiting. What should the switch do next?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Repeat the POST with the same key, since the gateway answers it with whatever came of the first call",
+            "correct": true,
+            "says": "after a timeout the REST client repeats the call with the same key, and the stored outcome tells it what happened"
+          },
+          {
+            "id": "b",
+            "text": "Repeat the POST with a new key, since the first key belongs to a call that never completed",
+            "correct": false,
+            "says": "a new key is a new payment; if the first call was charged, the cardholder pays twice"
+          },
+          {
+            "id": "c",
+            "text": "Send the terminal a decline, since a charge whose call timed out was never taken from the card",
+            "correct": false,
+            "says": "a timeout says nothing about the outcome; the gateway may have charged the card"
+          },
+          {
+            "id": "d",
+            "text": "Send the gateway a refund for the amount, since a refund cancels the charge if there was one",
+            "correct": false,
+            "says": "a refund is a new transaction that credits the card even when nothing was charged; the stored outcome under the key says what happened"
+          }
+        ],
+        "origin": {
+          "path": "src/12.md",
+          "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+        }
+      },
+      {
+        "id": "q-try-again",
+        "stem": "A shop's POST /payments with key k-77 was answered \"failed\": the acquirer's host never answered, and the gateway reversed the purchase. The cardholder is still at the checkout and wants to try again. What should the shop send?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The same body with a new key, since k-77 will keep answering with the stored failure",
+            "correct": true,
+            "says": "a retry with the key gets the stored failure; to try again, the shop sends a new payment with a new key"
+          },
+          {
+            "id": "b",
+            "text": "The same body with key k-77, since the gateway sends a new 0200 for a key whose call failed",
+            "correct": false,
+            "says": "the gateway stores the failure under the key and answers every later call with it; it sends one 0200 per key"
+          },
+          {
+            "id": "c",
+            "text": "Nothing yet, since the gateway resends the purchase by itself once the host is back",
+            "correct": false,
+            "says": "the gateway never resends an 0200; it reversed this one"
+          },
+          {
+            "id": "d",
+            "text": "Nothing yet, since a late approval from the host will turn the stored failure into an approval",
+            "correct": false,
+            "says": "the gateway reversed the purchase and stored the failure; that is the outcome every call with the key gets"
+          }
+        ],
+        "origin": {
+          "path": "src/12.md",
+          "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+        }
+      }
+    ]
+  }
+}

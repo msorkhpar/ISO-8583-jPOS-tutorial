@@ -8,8 +8,8 @@
   "unit": 11,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Record the transactions a jPOS logger carries",
+  "ingested": "2026-11-05",
+  "title": "Send refunds in the currency's own units",
   "blocks": [
     {
       "type": "heading",
@@ -18,31 +18,27 @@
     },
     {
       "type": "para",
-      "text": "A jPOS `Logger` hands each `LogEvent` to its listeners one after another. A transaction log is one such listener: it keeps the ISO messages of the events that are transactions and lets everything else go by. Get it wrong and you either lose transactions from the log or, worse, silently starve every listener added after yours."
+      "text": "The acquirer's merchant portal now serves merchants outside the euro and dollar countries, and the complaints have started. A restaurant in Santiago refunded a dinner and the cardholder got a hundred times too much back. A shop in Manama says its refunds come out wrong, and a Seoul merchant says the portal shows every purchase with two decimals the won doesn't have."
     },
     {
       "type": "para",
-      "text": "Write `TransactionRecorder`, a `org.jpos.util.LogListener`:"
+      "text": "Merchants type the amount to refund as they would write it on a receipt (`42.10`, `25000`), and the portal shows the amount of each past purchase. Finish the two methods marked `TODO` in `src/main/java/com/example/practice/RefundAmounts.java`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`log(LogEvent event)` records every `ISOMsg` in the payload (`event.getPayLoad()`, a list) of an event whose tag is `\"TX\"`; events with any other tag are not recorded;",
-        "`recorded()` returns the recorded messages in the order they arrived."
+        "`field4`: field 4 of the refund, for the amount the merchant typed in the purchase's currency. An amount the currency can't carry exactly is refused with an `IllegalArgumentException`;",
+        "`shown`: the amount of a past purchase as the merchant would write it, such as `42.10`."
       ]
     },
     {
       "type": "para",
-      "text": "Edge cases:"
+      "text": "When you're done, the issuer reads the amount the merchant typed, in every currency. About five lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The logger passes to the next listener whatever your `log` returns, and stops when it returns `null`. Every event, recorded or not, must reach the listeners after yours.",
-        "A `TX` event's payload can carry more than the message, such as a text note. Record only the `ISOMsg` items, and do not fail on the rest."
-      ]
+      "type": "para",
+      "text": "The tests use other currencies and amounts than the lesson."
     },
     {
       "type": "heading",
@@ -57,7 +53,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    private final List<ISOMsg> recorded = new ArrayList<>();\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        if (\"TX\".equals(event.getTag())) {\n            for (Object item : event.getPayLoad()) {\n                if (item instanceof ISOMsg) {\n                    recorded.add((ISOMsg) item);\n                }\n            }\n        }\n        return event;\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        return List.copyOf(recorded);\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.math.BigDecimal;\n\n/**\n * The merchant portal's refunds. A merchant types the amount to refund as they would write it\n * (\"42.10\", \"25000\"), and the portal shows the amounts of past purchases from their field 4.\n */\npublic class RefundAmounts {\n\n    /** A refund (0200, processing code 20) for part or all of an earlier purchase, in its currency. */\n    public ISOMsg refund(ISOMsg purchase, String typed) throws ISOException {\n        String currency = purchase.getString(49);\n        ISOMsg refund = new ISOMsg(\"0200\");\n        refund.set(2, purchase.getString(2));\n        refund.set(3, \"200000\");\n        refund.set(4, field4(typed, currency));\n        refund.set(41, purchase.getString(41));\n        refund.set(49, currency);\n        return refund;\n    }\n\n    /** What the portal shows for a past purchase. */\n    public String shown(ISOMsg purchase) {\n        return shown(purchase.getString(4), purchase.getString(49));\n    }\n\n    /**\n     * Field 4 for an amount typed by the merchant in the given currency (ISO 4217 numeric code).\n     * Throws IllegalArgumentException when the amount can't be sent in that currency as typed.\n     */\n    String field4(String typed, String currency) {\n        try {\n            return ISOCurrency.toISO87String(new BigDecimal(typed), currency);\n        } catch (ArithmeticException e) {\n            throw new IllegalArgumentException(typed + \" is finer than currency \" + currency + \" allows\", e);\n        }\n    }\n\n    /** The amount in field 4 as the merchant would write it, for example 42.10. */\n    String shown(String field4, String currency) {\n        return ISOCurrency.parseFromISO87String(field4, currency).toPlainString();\n    }\n}\n"
         }
       ]
     },
@@ -69,7 +65,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        throw new UnsupportedOperationException(\"write recorded\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.math.BigDecimal;\n\n/**\n * The merchant portal's refunds. A merchant types the amount to refund as they would write it\n * (\"42.10\", \"25000\"), and the portal shows the amounts of past purchases from their field 4.\n */\npublic class RefundAmounts {\n\n    /** A refund (0200, processing code 20) for part or all of an earlier purchase, in its currency. */\n    public ISOMsg refund(ISOMsg purchase, String typed) throws ISOException {\n        String currency = purchase.getString(49);\n        ISOMsg refund = new ISOMsg(\"0200\");\n        refund.set(2, purchase.getString(2));\n        refund.set(3, \"200000\");\n        refund.set(4, field4(typed, currency));\n        refund.set(41, purchase.getString(41));\n        refund.set(49, currency);\n        return refund;\n    }\n\n    /** What the portal shows for a past purchase. */\n    public String shown(ISOMsg purchase) {\n        return shown(purchase.getString(4), purchase.getString(49));\n    }\n\n    /**\n     * Field 4 for an amount typed by the merchant in the given currency (ISO 4217 numeric code).\n     * Throws IllegalArgumentException when the amount can't be sent in that currency as typed.\n     */\n    String field4(String typed, String currency) {\n        // TODO: The merchants who complain are in Chile, Bahrain and Korea. Build field 4 so that\n        //       the amount the issuer reads is the amount the merchant typed, and refuse what the\n        //       currency can't carry.\n        throw new IllegalStateException(\"TODO: field4\");\n    }\n\n    /** The amount in field 4 as the merchant would write it, for example 42.10. */\n    String shown(String field4, String currency) {\n        // TODO: Today the portal shows every amount with two decimals.\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -77,10 +73,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -88,11 +84,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "f6b30ebbff2f00a72d569d88d601096e78ccb4ee14721b88318ccc0a0df35c89",
-  "starting_code": "package com.example.practice;\n\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** A transaction log: keeps the messages of the events tagged TX. */\npublic final class TransactionRecorder implements LogListener {\n\n    @Override\n    public LogEvent log(LogEvent event) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n\n    /** The recorded messages, in arrival order. */\n    public List<ISOMsg> recorded() {\n        throw new UnsupportedOperationException(\"write recorded\");\n    }\n}\n",
+  "content_sha256": "869c718568e07ad0e7fe88bef4092f4972ebbbc79e8c1b5270b6f9e85d95c966",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.math.BigDecimal;\n\n/**\n * The merchant portal's refunds. A merchant types the amount to refund as they would write it\n * (\"42.10\", \"25000\"), and the portal shows the amounts of past purchases from their field 4.\n */\npublic class RefundAmounts {\n\n    /** A refund (0200, processing code 20) for part or all of an earlier purchase, in its currency. */\n    public ISOMsg refund(ISOMsg purchase, String typed) throws ISOException {\n        String currency = purchase.getString(49);\n        ISOMsg refund = new ISOMsg(\"0200\");\n        refund.set(2, purchase.getString(2));\n        refund.set(3, \"200000\");\n        refund.set(4, field4(typed, currency));\n        refund.set(41, purchase.getString(41));\n        refund.set(49, currency);\n        return refund;\n    }\n\n    /** What the portal shows for a past purchase. */\n    public String shown(ISOMsg purchase) {\n        return shown(purchase.getString(4), purchase.getString(49));\n    }\n\n    /**\n     * Field 4 for an amount typed by the merchant in the given currency (ISO 4217 numeric code).\n     * Throws IllegalArgumentException when the amount can't be sent in that currency as typed.\n     */\n    String field4(String typed, String currency) {\n        // TODO: The merchants who complain are in Chile, Bahrain and Korea. Build field 4 so that\n        //       the amount the issuer reads is the amount the merchant typed, and refuse what the\n        //       currency can't carry.\n        throw new IllegalStateException(\"TODO: field4\");\n    }\n\n    /** The amount in field 4 as the merchant would write it, for example 42.10. */\n    String shown(String field4, String currency) {\n        // TODO: Today the portal shows every amount with two decimals.\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/com/example/practice/TransactionRecorder.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/test/java/com/example/practice/TransactionRecorderTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/com/example/practice/RefundAmounts.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-11/practice-1/src/test/java/com/example/practice/RefundAmountsTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -113,19 +109,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.TransactionRecorderTest#recordsTheMessagesOfTransactionEventsOnly",
+        "id": "com.example.practice.RefundAmountsTest#aPoundRefundIsBuiltAndShown",
         "kind": "main",
-        "says": "the messages of events tagged TX are recorded, in order, and events with other tags are not"
+        "says": "a refund typed in pounds is sent as pence, and a past purchase in pounds is shown with its pence"
       },
       {
-        "id": "com.example.practice.TransactionRecorderTest#handsEveryEventOnToTheNextListener",
+        "id": "com.example.practice.RefundAmountsTest#aPesoRefundIsSentAsTyped",
         "kind": "edge",
-        "says": "every event, recorded or not, reaches the listener added after the recorder"
+        "says": "a currency with no minor unit is sent without scaling, so the issuer reads the amount the merchant typed"
       },
       {
-        "id": "com.example.practice.TransactionRecorderTest#skipsPayloadThatIsNotAMessage",
+        "id": "com.example.practice.RefundAmountsTest#aDinarRefundCarriesItsThreeDecimals",
         "kind": "edge",
-        "says": "a TX event that also carries a note records only its message, without failing"
+        "says": "a three-decimal currency is scaled by its own decimals, also when the merchant types fewer"
+      },
+      {
+        "id": "com.example.practice.RefundAmountsTest#anAmountFinerThanItsCurrencyIsRefused",
+        "kind": "edge",
+        "says": "an amount finer than the currency's smallest unit is refused instead of rounded"
+      },
+      {
+        "id": "com.example.practice.RefundAmountsTest#noPennyIsLostOnTheWay",
+        "kind": "edge",
+        "says": "the conversion is exact: no amount loses a minor unit on its way into field 4"
+      },
+      {
+        "id": "com.example.practice.RefundAmountsTest#pastPurchasesAreShownInTheirOwnCurrency",
+        "kind": "edge",
+        "says": "field 4 is shown with the decimals of the purchase's own currency"
       }
     ],
     "report": {
@@ -134,10 +145,10 @@
     },
     "origin": {
       "path": "src/11.md",
-      "section": "11.2.1. Transaction Logging"
+      "section": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
     },
     "concepts": [
-      "A jPOS LogListener sees every event the logger delivers, picks out the transaction events by their tag, and hands every event on so the listeners after it still see it."
+      "Field 4 counts minor units of the currency in field 49, so the amount is scaled by that currency's decimals, exactly, and an amount finer than the currency allows is refused."
     ]
   }
 }

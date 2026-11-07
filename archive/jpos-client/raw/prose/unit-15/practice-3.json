@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Let the purchases in flight finish before the sign-off",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Every release of the acquirer's client stops Q2, and every release leaves the same trail:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "two or three purchases that the host approved come back `null` to the payment service, which reverses them while their cardholders are told they failed;",
+        "the host's operators find purchases that arrived on link `acq-mux` after it had been signed off;",
+        "on the night of a release when the host had hung, the stop never finished, and the release was rolled back by hand."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`LinkStop.stop()` in `src/main/java/com/example/practice/LinkStop.java` is what the sign-on manager runs for each link when Q2 stops it. `disable`, `signOff` and `forget` already work. Finish `stop` and `drain`, the two methods marked `TODO`. `stop` returns how many requests were still waiting for an answer when the sign-off went out, for the operator's log. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests run a real QMUX against a host on the far side of its queues, which can hold a purchase without answering it. The `Pause` they give you takes no time."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The planned stop of one link, called by the sign-on manager when it is undeployed. The marks\n * are the sign-on manager's: {@code <link>.enabled}, {@code <link>.logon} and {@code <link>.echo}.\n */\npublic class LinkStop {\n    /** Waits a short moment between two looks at the link. */\n    public interface Pause {\n        void pause() throws InterruptedException;\n    }\n\n    private final Space<String, Object> sp;\n    private final QMUX mux;\n    private final String link;\n    private final String readyKey;\n    private final Pause pause;\n    private final int maxPauses;\n    private int stan = 900;\n\n    public LinkStop(Space<String, Object> sp, QMUX mux, String link, String readyKey, Pause pause, int maxPauses) {\n        this.sp = sp;\n        this.mux = mux;\n        this.link = link;\n        this.readyKey = readyKey;\n        this.pause = pause;\n        this.maxPauses = maxPauses;\n    }\n\n    /**\n     * Takes the link out of service and signs it off. Returns the number of requests that were\n     * still waiting for an answer when the sign-off went out, for the operator's log.\n     */\n    public int stop() throws ISOException, InterruptedException {\n        disable();\n        int left = drain();\n        signOff();\n        forget();\n        return left;\n    }\n\n    /** Lets the requests already on the link finish. Returns how many are still waiting. */\n    int drain() throws InterruptedException {\n        int pauses = 0;\n        while (mux.getRXPending() > 0 && pauses < maxPauses) {\n            pause.pause();\n            pauses++;\n        }\n        return mux.getRXPending();\n    }\n\n    /** The pool sends nothing more to this link from the next request on. */\n    void disable() {\n        SpaceUtil.wipe(sp, link + \".enabled\");\n    }\n\n    /** Sends the 0800 / 002, but only on the connection that signed on. True if answered 00. */\n    boolean signOff() throws ISOException {\n        Object ready = sp.rdp(readyKey);\n        if (ready == null || ready != sp.rdp(link + \".logon\"))\n            return false;\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(7, \"1107023000\");\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(70, \"002\");\n        ISOMsg r = ((MUX) mux).request(m, 5000);\n        return r != null && \"00\".equals(r.getString(39));\n    }\n\n    /** The session is over, whatever the host answered. */\n    void forget() {\n        SpaceUtil.wipe(sp, link + \".logon\");\n        SpaceUtil.wipe(sp, link + \".echo\");\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The planned stop of one link, called by the sign-on manager when it is undeployed. The marks\n * are the sign-on manager's: {@code <link>.enabled}, {@code <link>.logon} and {@code <link>.echo}.\n */\npublic class LinkStop {\n    /** Waits a short moment between two looks at the link. */\n    public interface Pause {\n        void pause() throws InterruptedException;\n    }\n\n    private final Space<String, Object> sp;\n    private final QMUX mux;\n    private final String link;\n    private final String readyKey;\n    private final Pause pause;\n    private final int maxPauses;\n    private int stan = 900;\n\n    public LinkStop(Space<String, Object> sp, QMUX mux, String link, String readyKey, Pause pause, int maxPauses) {\n        this.sp = sp;\n        this.mux = mux;\n        this.link = link;\n        this.readyKey = readyKey;\n        this.pause = pause;\n        this.maxPauses = maxPauses;\n    }\n\n    /**\n     * Takes the link out of service and signs it off. Returns the number of requests that were\n     * still waiting for an answer when the sign-off went out, for the operator's log.\n     */\n    public int stop() throws ISOException, InterruptedException {\n        // TODO: today's stop signs off at once and forgets the session. After every release,\n        //       purchases the host approved come back null, and the host still receives\n        //       purchases on links it was told are leaving. Use the steps below.\n        throw new IllegalStateException(\"TODO: stop\");\n    }\n\n    /** Lets the requests already on the link finish. Returns how many are still waiting. */\n    int drain() throws InterruptedException {\n        // TODO: the QMUX knows how many of its requests still wait for an answer. Some never get\n        //       one. Wait with pause.pause(), no more than maxPauses times.\n        throw new IllegalStateException(\"TODO: drain\");\n    }\n\n    /** The pool sends nothing more to this link from the next request on. */\n    void disable() {\n        SpaceUtil.wipe(sp, link + \".enabled\");\n    }\n\n    /** Sends the 0800 / 002, but only on the connection that signed on. True if answered 00. */\n    boolean signOff() throws ISOException {\n        Object ready = sp.rdp(readyKey);\n        if (ready == null || ready != sp.rdp(link + \".logon\"))\n            return false;\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(7, \"1107023000\");\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(70, \"002\");\n        ISOMsg r = ((MUX) mux).request(m, 5000);\n        return r != null && \"00\".equals(r.getString(39));\n    }\n\n    /** The session is over, whatever the host answered. */\n    void forget() {\n        SpaceUtil.wipe(sp, link + \".logon\");\n        SpaceUtil.wipe(sp, link + \".echo\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "eb1893f4081274bb329d325a35ecd1849f68f5c6ae2cf4a3ff8bf1fea08f1fa8",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The planned stop of one link, called by the sign-on manager when it is undeployed. The marks\n * are the sign-on manager's: {@code <link>.enabled}, {@code <link>.logon} and {@code <link>.echo}.\n */\npublic class LinkStop {\n    /** Waits a short moment between two looks at the link. */\n    public interface Pause {\n        void pause() throws InterruptedException;\n    }\n\n    private final Space<String, Object> sp;\n    private final QMUX mux;\n    private final String link;\n    private final String readyKey;\n    private final Pause pause;\n    private final int maxPauses;\n    private int stan = 900;\n\n    public LinkStop(Space<String, Object> sp, QMUX mux, String link, String readyKey, Pause pause, int maxPauses) {\n        this.sp = sp;\n        this.mux = mux;\n        this.link = link;\n        this.readyKey = readyKey;\n        this.pause = pause;\n        this.maxPauses = maxPauses;\n    }\n\n    /**\n     * Takes the link out of service and signs it off. Returns the number of requests that were\n     * still waiting for an answer when the sign-off went out, for the operator's log.\n     */\n    public int stop() throws ISOException, InterruptedException {\n        // TODO: today's stop signs off at once and forgets the session. After every release,\n        //       purchases the host approved come back null, and the host still receives\n        //       purchases on links it was told are leaving. Use the steps below.\n        throw new IllegalStateException(\"TODO: stop\");\n    }\n\n    /** Lets the requests already on the link finish. Returns how many are still waiting. */\n    int drain() throws InterruptedException {\n        // TODO: the QMUX knows how many of its requests still wait for an answer. Some never get\n        //       one. Wait with pause.pause(), no more than maxPauses times.\n        throw new IllegalStateException(\"TODO: drain\");\n    }\n\n    /** The pool sends nothing more to this link from the next request on. */\n    void disable() {\n        SpaceUtil.wipe(sp, link + \".enabled\");\n    }\n\n    /** Sends the 0800 / 002, but only on the connection that signed on. True if answered 00. */\n    boolean signOff() throws ISOException {\n        Object ready = sp.rdp(readyKey);\n        if (ready == null || ready != sp.rdp(link + \".logon\"))\n            return false;\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(7, \"1107023000\");\n        m.set(11, ISOUtil.zeropad(++stan, 6));\n        m.set(70, \"002\");\n        ISOMsg r = ((MUX) mux).request(m, 5000);\n        return r != null && \"00\".equals(r.getString(39));\n    }\n\n    /** The session is over, whatever the host answered. */\n    void forget() {\n        SpaceUtil.wipe(sp, link + \".logon\");\n        SpaceUtil.wipe(sp, link + \".echo\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-15/practice-3/src/main/java/com/example/practice/LinkStop.java",
+    "test_path": "practice/jpos-client/prose/unit-15/practice-3/src/test/java/com/example/practice/LinkStopTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkStopTest#anIdleSignedOnLinkIsSignedOffAndForgotten",
+        "kind": "main",
+        "says": "a signed-on link with nothing in flight is signed off, its marks are removed and the ready entry stays"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#aConnectionThatNeverSignedOnIsForgottenWithoutASignOff",
+        "kind": "main",
+        "says": "a connection that never signed on gets no 0800 / 002, and its marks are removed"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#theSignOffWaitsForTheRequestInFlight",
+        "kind": "edge",
+        "says": "the sign-off goes out only after the purchase in flight has its answer, so the purchase completes"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#nothingNewIsSentWhileTheLinkDrains",
+        "kind": "edge",
+        "says": "the link is out of the pool before the drain starts, so nothing new reaches it while it drains"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#aRequestThatNeverReturnsDoesNotHoldUpTheStop",
+        "kind": "edge",
+        "says": "a request that never gets an answer stops the drain only for the allowed number of pauses; the link is signed off anyway and the request is reported"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#anIdleLinkSignsOffWithoutPausing",
+        "kind": "edge",
+        "says": "with nothing in flight the stop does not pause at all"
+      },
+      {
+        "id": "com.example.practice.LinkStopTest#theDrainEndsAsSoonAsTheLastAnswerArrives",
+        "kind": "edge",
+        "says": "the drain ends as soon as nothing is pending, rather than waiting a fixed time"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-15/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c15.md",
+      "section": "15.4 Drain a Link Before You Sign It Off"
+    },
+    "concepts": [
+      "A planned stop disables the link, waits with a bound until no request is pending, then signs off and forgets the session; without the drain, approvals in flight are lost and reversed."
+    ]
+  }
+}

@@ -1,26 +1,17 @@
-A switch sends the same kinds of message all day: purchases, balance inquiries. Each kind
-always carries the same MTI, processing code, POS condition code and terminal id; only the
-card, the amount and the trace number change. The page keeps one template per kind and builds
-every message from it, then hands the message to a packager for the wire.
+Your server goes live with a second acquirer, and its terminals' first day goes badly:
 
-Write `MessageTemplates`, the same idea built on `ISOMsg`:
+- authorizations time out at the terminal, although your log shows each one approved;
+- completion advices and reversal repeats arrive again and again;
+- the acquirer's auditors found track data from your answers in the terminals' logs;
+- and your own transaction log records responses where the requests should be.
 
-- `new MessageTemplates(ISOPackager packager)` keeps the packager it is given.
-- `define(String name, ISOMsg template)` remembers a template under a name.
-- `newMessage(String name)` returns a new message that starts as a copy of that template:
-  its MTI and every field the template has. The caller then sets the fields that vary.
-- `pack(ISOMsg message)` returns the bytes the packager makes of the message, and
-  `unpack(byte[] bytes)` returns a new message read back from such bytes.
+The terminals' client runs a QMUX with its key set to `41, 11, 37`. The acquirer's specification
+lists the data elements it wants back in every response; they are `RETURNED` in
+`src/main/java/com/example/practice/Responder.java`.
 
-Nobody sets the bitmap by hand: it has to describe exactly the fields the message carries at
-the moment it is packed. Calling the packager straight on a message that has never had its
-bitmap worked out fails in jPOS 2.1.7, so find how a message gets packed with its bitmap
-right.
+Finish the two methods marked `TODO` in that file: `turnAround`, which starts the answer to any
+request the terminals send, and `addApproval`. `answer` already puts them together. About six
+lines in total.
 
-Why it matters: a template is shared by every message of its kind, so a message that leaks a
-change back into it would quietly put one customer's card number into the next request.
-
-- Changing a message you were given never changes the template, nor any message made from it
-  afterwards.
-- Asking for a name that was never defined is refused with an `IllegalArgumentException`.
-  An empty message would get as far as the wire before anyone noticed.
+The tests send each request through a real QMUX and the 1987 ASCII packager, both ways, and look
+at what the terminal's client receives and at the request your code was handed.

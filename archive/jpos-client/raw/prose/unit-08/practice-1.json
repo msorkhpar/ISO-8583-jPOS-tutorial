@@ -8,8 +8,8 @@
   "unit": 8,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Log one event per call, through the logger's source",
+  "ingested": "2026-11-05",
+  "title": "Record every echo the host sends",
   "blocks": [
     {
       "type": "heading",
@@ -18,19 +18,19 @@
     },
     {
       "type": "para",
-      "text": "The page's `ClientLogger` builds a `LogEvent` and hands it to `logger.log(ev)`. In jPOS 2.1.7 `Logger.log` is static: it delivers an event to the logger of the event's **source**, and an event with no source never reaches the listeners of the logger you meant. So the client's log stays empty, and nothing tells you."
+      "text": "Some hosts check a quiet link by sending echoes of their own: an 0800 that your client must answer with an 0810. `EchoResponder` in `src/main/java/com/example/practice/EchoResponder.java` does that job as a request listener on the client's QMUX. Its class comment shows the `<request-listener>` element that deploys it."
     },
     {
       "type": "para",
-      "text": "Write `ClientLogger`, built from a jPOS `Logger` and a realm, with `log(String tag, String... messages)`. One call delivers exactly one event to that logger's listeners. The event carries the tag, the realm and the messages, in the order given."
+      "text": "Last week the host's operations team reported that your client had stopped answering their echoes for an hour. Your log had nothing on it, so nobody could say whether the echoes arrived, whether replies went out, or what failed. Operations now want one entry per echo in the node's log, under the listener's realm, that shows what came in and what went back, or why nothing did."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "A blank or `null` message is left out.",
-        "A call with nothing left to say logs no event at all: an empty event in a transaction log is noise somebody has to read past."
-      ]
+      "type": "para",
+      "text": "Finish the two methods marked `TODO`: `setLogger` and `answer`. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests give the listener its logger the way Q2 does, then hand it echoes from a link that records the replies and, in one test, fails to send."
     },
     {
       "type": "heading",
@@ -45,7 +45,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** A client's own logger: one event per call, delivered to the logger it was built with. */\npublic final class ClientLogger {\n\n    private final LogSource source;\n\n    public ClientLogger(Logger logger, String realm) {\n        this.source = new SimpleLogSource(logger, realm);\n    }\n\n    /** Log one event tagged `tag`, carrying the messages that say something. */\n    public void log(String tag, String... messages) {\n        List<String> kept = new ArrayList<>();\n        for (String message : messages) {\n            if (message != null && !message.isBlank()) {\n                kept.add(message);\n            }\n        }\n        if (kept.isEmpty()) {\n            return;\n        }\n        LogEvent event = new LogEvent(source, tag);\n        kept.forEach(event::addMessage);\n        Logger.log(event);\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        LogEvent ev = log.createInfo();\n        ev.addMessage(echo);\n        try {\n            ISOMsg reply = reply(echo);\n            source.send(reply);\n            ev.addMessage(reply);\n        } catch (IOException | ISOException e) {\n            ev.setTag(\"warn\");\n            ev.addMessage(e);\n        } finally {\n            Logger.log(ev);\n        }\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        log = new Log(logger, realm);\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n"
         }
       ]
     },
@@ -57,7 +57,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.util.Logger;\n\n/** A client's own logger: one event per call, delivered to the logger it was built with. */\npublic final class ClientLogger {\n\n    public ClientLogger(Logger logger, String realm) {\n    }\n\n    /** Log one event tagged `tag`, carrying the messages that say something. */\n    public void log(String tag, String... messages) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        // TODO: Send reply(echo) back through `source`, and record what happened. Operations\n        //       read one entry per echo in the node's log: what came in, and what went back or\n        //       why nothing did. Sending can fail when the link drops; that must not escape\n        //       process(), and it must not go unrecorded either.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        // TODO: Q2 calls this with the logger and realm of the <request-listener> element.\n        throw new IllegalStateException(\"TODO: setLogger\");\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,10 +65,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 2,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -76,11 +76,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "4a18a73f9253816a99add60e733110a08c882bf82fa658bb6665f2f26ddd4f60",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.util.Logger;\n\n/** A client's own logger: one event per call, delivered to the logger it was built with. */\npublic final class ClientLogger {\n\n    public ClientLogger(Logger logger, String realm) {\n    }\n\n    /** Log one event tagged `tag`, carrying the messages that say something. */\n    public void log(String tag, String... messages) {\n        throw new UnsupportedOperationException(\"write log\");\n    }\n}\n",
+  "content_sha256": "8e8197119e2be4ca3760dde147a2379e45948bb4fbeca5257d034db5e0c873c4",
+  "starting_code": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        // TODO: Send reply(echo) back through `source`, and record what happened. Operations\n        //       read one entry per echo in the node's log: what came in, and what went back or\n        //       why nothing did. Sending can fail when the link drops; that must not escape\n        //       process(), and it must not go unrecorded either.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        // TODO: Q2 calls this with the logger and realm of the <request-listener> element.\n        throw new IllegalStateException(\"TODO: setLogger\");\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/ClientLogger.java",
-    "test_path": "practice/jpos-client/prose/unit-08/practice-1/src/test/java/com/example/practice/ClientLoggerTest.java",
+    "main_path": "practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/EchoResponder.java",
+    "test_path": "practice/jpos-client/prose/unit-08/practice-1/src/test/java/com/example/practice/EchoResponderTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -101,19 +101,24 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ClientLoggerTest#oneCallDeliversOneEventWithEveryMessageInOrder",
+        "id": "com.example.practice.EchoResponderTest#anEchoIsAnsweredAndRecorded",
         "kind": "main",
-        "says": "one call delivers one event, tagged and in its realm, with every message in order"
+        "says": "an echo from the host is answered with an 0810 and recorded in the log"
       },
       {
-        "id": "com.example.practice.ClientLoggerTest#blankMessagesAreLeftOut",
+        "id": "com.example.practice.EchoResponderTest#theEntryReachesTheLoggerQ2GaveTheListener",
         "kind": "edge",
-        "says": "a blank or missing message is left out of the event"
+        "says": "the entry reaches the logger and realm Q2 gave the listener, because the event's source is the listener's Log"
       },
       {
-        "id": "com.example.practice.ClientLoggerTest#aCallWithNothingToSayLogsNothing",
+        "id": "com.example.practice.EchoResponderTest#eachEchoIsOneEntryWithWhatCameInAndWhatWentBack",
         "kind": "edge",
-        "says": "a call with nothing but blank messages logs no event at all"
+        "says": "each echo is one entry holding both the echo and the reply"
+      },
+      {
+        "id": "com.example.practice.EchoResponderTest#aReplyThatCannotGoOutIsStillRecorded",
+        "kind": "edge",
+        "says": "an echo whose reply fails to go out still gets its entry, with the reason, because the entry is written whatever happened"
       }
     ],
     "report": {
@@ -122,10 +127,11 @@
     },
     "origin": {
       "path": "src/c8.md",
-      "section": "8.1 jPOS Logging Framework"
+      "section": "8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing"
     },
     "concepts": [
-      "A jPOS Logger hands each LogEvent, with its tag and its messages, to the LogListeners attached to it, and the event reaches them only through its source."
+      "A log event holds one piece of work, is created when the work starts and is written once in finally, so it keeps request, answer, duration and outcome together even when the work fails.",
+      "Logger.log delivers an event to its source's logger: an event without a source goes to Q2, and an event from a Log or channel that has no logger goes nowhere."
     ]
   }
 }

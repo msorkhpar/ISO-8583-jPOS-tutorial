@@ -1,0 +1,123 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Write the check that puts two purchases in flight",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A cardholder paid 19.95 at one shop, and her receipt says 640.00, the amount of another cardholder's purchase at another shop a moment earlier. `CardStatus` asks the card service about each purchase and builds the answer. The version in production passed every check the team had."
+    },
+    {
+      "type": "para",
+      "text": "The team's checks are in `src/main/java/com/example/practice/InFlightChecks.java`. The tests run them against a real TransactionManager with two sessions, whose chain is `CardStatus` and `SendResponse`; the `Chain` interface says what a check can do, including holding the card service. `onePurchase` is written. Finish `twoCardholdersAtOnce`, so that a correct `CardStatus` passes, and a `CardStatus` that mixes anything of one purchase into the other's answer fails. The tests try several wrong versions. About twelve lines."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for CardStatus, the participant that asks the card service about each\n * purchase and answers it. The tests run them against a real TransactionManager with two sessions,\n * whose chain is CardStatus and SendResponse. A check throws AssertionError when CardStatus gets\n * something wrong.\n */\npublic class InFlightChecks {\n\n    /** One chain, as a check sees it. Every card is active. */\n    public interface Chain {\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n\n        /** Sends a request as a terminal would, and returns at once. */\n        Pending start(ISOMsg request) throws Exception;\n\n        /** The next card-service lookup, whichever transaction makes it, waits until releaseLookup. */\n        void holdNextLookup();\n\n        /** Returns once a lookup is being held. */\n        void awaitHeldLookup() throws Exception;\n\n        /** Lets the held lookup answer. */\n        void releaseLookup();\n    }\n\n    /** A request that has been sent. */\n    public interface Pending {\n        /** Its answer once the transaction has ended, or null. */\n        ISOMsg answer() throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        onePurchase(chains.get());\n        twoCardholdersAtOnce(chains.get());\n    }\n\n    /** One purchase is approved, and its answer is about that purchase. */\n    static void onePurchase(Chain chain) throws Exception {\n        ISOMsg request = purchase(\"4000000000000069\", \"29110060\", \"000000002750\");\n        ISOMsg answer = chain.send(request);\n        expect(\"00\", answer == null ? null : answer.getString(39), \"one purchase: field 39\");\n        for (int field : new int[] { 2, 4, 11, 41 })\n            expect(request.getString(field), answer.getString(field), \"one purchase: field \" + field);\n    }\n\n    /** Two cardholders at two terminals, whose purchases are in the server at the same time. */\n    static void twoCardholdersAtOnce(Chain chain) throws Exception {\n        ISOMsg first = purchase(\"4000000000000044\", \"29110061\", \"000000001995\");\n        ISOMsg second = purchase(\"4000000000000051\", \"29110062\", \"000000064000\");\n        chain.holdNextLookup();\n        Pending pending = chain.start(first);\n        chain.awaitHeldLookup();                        // the first purchase is inside CardStatus\n        ISOMsg secondAnswer = chain.send(second);\n        chain.releaseLookup();\n        ISOMsg firstAnswer = pending.answer();\n        for (int field : new int[] { 2, 4, 11, 41 }) {\n            expect(first.getString(field), firstAnswer.getString(field), \"first purchase: field \" + field);\n            expect(second.getString(field), secondAnswer.getString(field), \"second purchase: field \" + field);\n        }\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String terminal, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, terminal);\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for CardStatus, the participant that asks the card service about each\n * purchase and answers it. The tests run them against a real TransactionManager with two sessions,\n * whose chain is CardStatus and SendResponse. A check throws AssertionError when CardStatus gets\n * something wrong.\n */\npublic class InFlightChecks {\n\n    /** One chain, as a check sees it. Every card is active. */\n    public interface Chain {\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n\n        /** Sends a request as a terminal would, and returns at once. */\n        Pending start(ISOMsg request) throws Exception;\n\n        /** The next card-service lookup, whichever transaction makes it, waits until releaseLookup. */\n        void holdNextLookup();\n\n        /** Returns once a lookup is being held. */\n        void awaitHeldLookup() throws Exception;\n\n        /** Lets the held lookup answer. */\n        void releaseLookup();\n    }\n\n    /** A request that has been sent. */\n    public interface Pending {\n        /** Its answer once the transaction has ended, or null. */\n        ISOMsg answer() throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        onePurchase(chains.get());\n        twoCardholdersAtOnce(chains.get());\n    }\n\n    /** One purchase is approved, and its answer is about that purchase. */\n    static void onePurchase(Chain chain) throws Exception {\n        ISOMsg request = purchase(\"4000000000000069\", \"29110060\", \"000000002750\");\n        ISOMsg answer = chain.send(request);\n        expect(\"00\", answer == null ? null : answer.getString(39), \"one purchase: field 39\");\n        for (int field : new int[] { 2, 4, 11, 41 })\n            expect(request.getString(field), answer.getString(field), \"one purchase: field \" + field);\n    }\n\n    /** Two cardholders at two terminals, whose purchases are in the server at the same time. */\n    static void twoCardholdersAtOnce(Chain chain) throws Exception {\n        // TODO: Two cardholders pay at two terminals, and both purchases are in the server at the\n        //       same moment. The check must fail for a CardStatus that mixes anything of one purchase\n        //       into the other's answer, and pass for one that keeps them apart.\n        throw new IllegalStateException(\"TODO: twoCardholdersAtOnce\");\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String terminal, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, terminal);\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "08b702371c7a23a489a343986c5f70ab0d0c415b9367ba17d81a4c02e1660365",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for CardStatus, the participant that asks the card service about each\n * purchase and answers it. The tests run them against a real TransactionManager with two sessions,\n * whose chain is CardStatus and SendResponse. A check throws AssertionError when CardStatus gets\n * something wrong.\n */\npublic class InFlightChecks {\n\n    /** One chain, as a check sees it. Every card is active. */\n    public interface Chain {\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n\n        /** Sends a request as a terminal would, and returns at once. */\n        Pending start(ISOMsg request) throws Exception;\n\n        /** The next card-service lookup, whichever transaction makes it, waits until releaseLookup. */\n        void holdNextLookup();\n\n        /** Returns once a lookup is being held. */\n        void awaitHeldLookup() throws Exception;\n\n        /** Lets the held lookup answer. */\n        void releaseLookup();\n    }\n\n    /** A request that has been sent. */\n    public interface Pending {\n        /** Its answer once the transaction has ended, or null. */\n        ISOMsg answer() throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        onePurchase(chains.get());\n        twoCardholdersAtOnce(chains.get());\n    }\n\n    /** One purchase is approved, and its answer is about that purchase. */\n    static void onePurchase(Chain chain) throws Exception {\n        ISOMsg request = purchase(\"4000000000000069\", \"29110060\", \"000000002750\");\n        ISOMsg answer = chain.send(request);\n        expect(\"00\", answer == null ? null : answer.getString(39), \"one purchase: field 39\");\n        for (int field : new int[] { 2, 4, 11, 41 })\n            expect(request.getString(field), answer.getString(field), \"one purchase: field \" + field);\n    }\n\n    /** Two cardholders at two terminals, whose purchases are in the server at the same time. */\n    static void twoCardholdersAtOnce(Chain chain) throws Exception {\n        // TODO: Two cardholders pay at two terminals, and both purchases are in the server at the\n        //       same moment. The check must fail for a CardStatus that mixes anything of one purchase\n        //       into the other's answer, and pass for one that keeps them apart.\n        throw new IllegalStateException(\"TODO: twoCardholdersAtOnce\");\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String terminal, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, terminal);\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-11/practice-2/src/main/java/com/example/practice/InFlightChecks.java",
+    "test_path": "practice/jpos-server/prose/unit-11/practice-2/src/test/java/com/example/practice/InFlightChecksTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-11/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-11/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.InFlightChecksTest#aCorrectCardStatusPassesEveryCheck",
+        "kind": "main",
+        "says": "the checks pass for a CardStatus that keeps everything about a transaction in local variables and the Context"
+      },
+      {
+        "id": "com.example.practice.InFlightChecksTest#aRequestKeptInAFieldIsCaught",
+        "kind": "edge",
+        "says": "the checks fail for a CardStatus that keeps the request in a field, which only shows when a second transaction passes while the first waits for the card service"
+      },
+      {
+        "id": "com.example.practice.InFlightChecksTest#anAmountKeptInAFieldIsCaught",
+        "kind": "edge",
+        "says": "the checks fail for a CardStatus that keeps only the amount in a field, whose answers still carry the right STAN and terminal"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-11/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s11.md",
+      "section": "11.5 Only Two Transactions in Flight Show What Sessions Share"
+    },
+    "concepts": [
+      "State shared between sessions shows only when two transactions are in the participant at once, which a test forces by holding one inside a stand-in it controls; requests sent one after another never overlap."
+    ]
+  }
+}

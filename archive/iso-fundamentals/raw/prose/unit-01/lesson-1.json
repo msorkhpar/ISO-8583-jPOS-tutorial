@@ -8,7 +8,7 @@
   "unit": 1,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Introduction to ISO-8583",
   "blocks": [
     {
@@ -17,155 +17,332 @@
       "text": "1. Introduction to ISO-8583"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "1.1. What is ISO-8583?"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.1.1. Definition and purpose"
+      "type": "para",
+      "text": "A team's authorization client has run for years against one processor. A second acquirer signs on, and its specification also says \"ISO 8583\", so the plan gives the new link a day. The acquirer's host rejects the first message because it can't read it."
     },
     {
       "type": "para",
-      "text": "ISO-8583 is an international standard for financial transaction card-originated messages. It is a message format used for systems that exchange electronic transactions made by cardholders using payment cards."
-    },
-    {
-      "type": "para",
-      "text": "The primary purpose of ISO-8583 is to define a common interface for the exchange of electronic transactions between financial systems, particularly in the context of credit card, debit card, and other payment card transactions."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.1.2. Role in electronic financial transactions"
-    },
-    {
-      "type": "para",
-      "text": "ISO-8583 plays a crucial role in electronic financial transactions by:"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Providing a standardized format for communication between various entities in the payment ecosystem (e.g., merchants, payment processors, card issuers, and financial networks).",
-        "Enabling the transmission of complex transaction data in a structured and efficient manner.",
-        "Facilitating real-time authorization, clearing, and settlement of financial transactions.",
-        "Supporting a wide range of transaction types, including purchases, cash withdrawals, refunds, and balance inquiries."
-      ]
+      "text": "ISO 8583 is the international standard for the messages behind card payments: purchases, ATM withdrawals, refunds, balance inquiries, and the messages that cancel or confirm them. What it promises, and what it leaves to each link, comes down to five rules, one per section heading, the last two about jPOS. The examples run on jPOS 2.1.7, an open-source Java library for ISO 8583 (section 1.4)."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "1.2. History and versions"
+      "text": "1.1. A Message Is an MTI, a Bitmap and the Fields the Bitmap Announces"
     },
     {
       "type": "para",
-      "text": "ISO-8583 has evolved over time to meet the changing needs of the financial industry. Here are the main versions:"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.2.1. ISO-8583:1987"
-    },
-    {
-      "type": "para",
-      "text": "This was the first version of the standard, introduced in 1987. It laid the foundation for standardized financial messaging and was widely adopted by the industry."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.2.2. ISO-8583:1993"
-    },
-    {
-      "type": "para",
-      "text": "The 1993 version brought improvements and clarifications to the original standard. It introduced new data elements and refined existing ones to better support evolving transaction types and security requirements."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.2.3. ISO-8583:2003"
-    },
-    {
-      "type": "para",
-      "text": "This is the most recent version of the standard. It further expanded the capabilities of ISO-8583 by:"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Adding support for new transaction types and technologies (e.g., chip cards).",
-        "Enhancing security features to address emerging threats.",
-        "Improving flexibility to accommodate regional variations and future innovations."
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "1.3. Importance in financial transactions"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.3.1. Global standardization"
-    },
-    {
-      "type": "para",
-      "text": "ISO-8583 is crucial for global standardization in financial transactions because it:"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Provides a common language for financial institutions worldwide.",
-        "Reduces complexity and costs associated with supporting multiple proprietary formats.",
-        "Facilitates faster adoption of new payment technologies across different regions.",
-        "Enables consistent processing and reporting of transactions on a global scale."
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "1.3.2. Interoperability between financial institutions"
-    },
-    {
-      "type": "para",
-      "text": "The standard ensures interoperability between financial institutions by:"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Allowing seamless communication between different banks, payment processors, and card networks.",
-        "Enabling cross-border transactions and international card usage.",
-        "Supporting the integration of new players into the existing financial ecosystem.",
-        "Facilitating the development of value-added services and innovative payment solutions."
-      ]
-    },
-    {
-      "type": "para",
-      "text": "To demonstrate the practical application of ISO-8583, let's create a simple Java class that represents an ISO-8583 message using jPOS. This example will show how to create and manipulate a basic ISO-8583 message."
+      "text": "A message has three parts: the Message Type Indicator (MTI), four digits that say what the message is; a bitmap that says which data elements, or fields, are present; and the fields themselves, such as the card number, the amount and the terminal. This program builds an authorization request, packs it into the bytes that would go on the wire, and reads them back:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\npublic class ISO8583Example {\n\n    public static void main(String[] args) {\n        try {\n            // Create a GenericPackager with ISO-8583 field definitions\n            GenericPackager packager = new GenericPackager(\"iso87ascii.xml\");\n\n            // Create a new ISO message\n            ISOMsg isoMsg = new ISOMsg();\n            isoMsg.setPackager(packager);\n\n            // Set MTI (Message Type Indicator)\n            isoMsg.setMTI(\"0200\");\n\n            // Set various fields\n            isoMsg.set(2, \"4111111111111111\"); // Primary Account Number\n            isoMsg.set(3, \"000000\"); // Processing Code\n            isoMsg.set(4, \"000000010000\"); // Transaction Amount\n            isoMsg.set(7, \"0701131415\"); // Transmission Date and Time\n            isoMsg.set(11, \"000001\"); // System Trace Audit Number\n            isoMsg.set(41, \"12345678\"); // Card Acceptor Terminal ID\n            isoMsg.set(49, \"840\"); // Currency Code (USD)\n\n            // Print the ISO message\n            System.out.println(\"ISO-8583 Message:\");\n            System.out.println(isoMsg.toString());\n\n            // Print individual fields\n            System.out.println(\"\\nIndividual Fields:\");\n            System.out.println(\"MTI: \" + isoMsg.getMTI());\n            System.out.println(\"Primary Account Number: \" + isoMsg.getString(2));\n            System.out.println(\"Transaction Amount: \" + isoMsg.getString(4));\n\n        } catch (ISOException e) {\n            e.printStackTrace();\n        }\n    }\n}"
+      "text": "package com.example.jpos.intro;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\nimport java.nio.charset.StandardCharsets;\n\npublic class FirstMessage {\n\n    public static void main(String[] args) throws ISOException {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n\n        ISOMsg request = new ISOMsg();\n        request.setPackager(packager);\n        request.setMTI(\"0100\");                 // 1987 authorization request\n        request.set(2, \"4111111111111111\");     // primary account number (a test PAN)\n        request.set(3, \"000000\");               // processing code: purchase\n        request.set(4, \"000000010000\");         // amount: 100.00, in minor units\n        request.set(7, \"0701131415\");           // transmission date and time, MMDDhhmmss\n        request.set(11, \"000001\");              // system trace audit number (STAN)\n        request.set(41, \"29110001\");            // card acceptor terminal ID\n        request.set(49, \"840\");                 // currency: US dollar\n\n        byte[] wire = request.pack();\n        String pan = request.getString(2);\n        String text = new String(wire, StandardCharsets.US_ASCII);\n        System.out.println(wire.length + \" bytes: \" + text.replace(pan, ISOUtil.protect(pan)));\n\n        ISOMsg received = new ISOMsg();\n        received.setPackager(packager);\n        received.unpack(wire);\n        System.out.println(\"MTI \" + received.getMTI()\n                + \"  PAN \" + ISOUtil.protect(received.getString(2))\n                + \"  amount \" + received.getString(4)\n                + \"  STAN \" + received.getString(11));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "83 bytes: 0100722000000080800016411111______1111000000000000010000070113141500000129110001840\nMTI 0100  PAN 411111______1111  amount 000000010000  STAN 000001"
+    },
+    {
+      "type": "para",
+      "text": "`GenericPackager` reads `iso87ascii.xml`, a description of each field's wire format that ships inside the jPOS jar; the `jar:` prefix loads it from the classpath. Split up, the 83 bytes are:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0100              MTI\n7220000000808000  bitmap: fields 2, 3, 4, 7, 11, 41, 49\n16                length of field 2\n411111______1111  field 2, PAN\n000000            field 3, processing code\n000000010000      field 4, amount\n0701131415        field 7, transmission date and time\n000001            field 11, STAN\n29110001          field 41, terminal ID\n840               field 49, currency"
+    },
+    {
+      "type": "para",
+      "text": "The 1987 edition defines 128 fields, and this request uses seven. The bitmap has one bit per field, written here as 16 hexadecimal characters for fields 1 to 64 (bit 1 set means a second bitmap follows, for fields 65 to 128), and only the fields whose bit is set follow, in field-number order. Some fields have a fixed length: field 4 is always 12 digits, in the currency's minor unit with no decimal point, so 100.00 is `000000010000`. Others vary and carry their own length, like the `16` in front of the card number."
+    },
+    {
+      "type": "para",
+      "text": "So no field has a fixed position. Add field 22 (how the card was read) and field 41 moves:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "without field 22: field 41 starts at offset 72, bitmap 7220000000808000\nwith field 22:    field 41 starts at offset 75, bitmap 7220040000808000"
+    },
+    {
+      "type": "para",
+      "text": "A reader that takes field 41 from offset 72 works until the first message with a field 22, then reads the wrong terminal. To find any field, it has to read the bitmap and walk every field before it."
+    },
+    {
+      "type": "para",
+      "text": "The program prints the card number only through `ISOUtil.protect`, which keeps the first six and the last four digits. Never print or log a clear PAN, track data, CVV or PIN block, even in a test program: a log that holds card numbers falls under the card industry's security rules, and so does every copy of it. Unit c8 covers how jPOS masks them in its logs."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.2. The Standard Fixes What a Field Means, and Each Link Fixes Its Bytes"
+    },
+    {
+      "type": "para",
+      "text": "The same 0100, packed by the two 1987 packagers that ship with jPOS, and each result read by the other packager:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "iso87ascii.xml   83 bytes: 0100722000000080800016411111______1111000000000000010000070113141500000129110001840\n  read by the other: org.jpos.iso.ISOException: Field length 3134 too long. Max: 104\niso87binary.xml  47 bytes: 0100722000000080800016411111______111100000000000001000007011314150000013239313130303031383430\n  read by the other: org.jpos.iso.ISOException: Field length 29 too long. Max: 19"
+    },
+    {
+      "type": "para",
+      "text": "The ASCII message is text. The binary one, printed in hexadecimal, puts two digits in each byte (binary-coded decimal, BCD) and the bitmap in 8 raw bytes, so it needs 47 bytes. Fields 41 and 49 stay text, which is why its hex ends in `3239313130303031383430`. The fields and their meanings are the same, yet neither packager can read the other's message, and the errors blame a field length rather than the encoding."
+    },
+    {
+      "type": "para",
+      "text": "ISO 8583 defines what each field means and its format in the abstract: field 4 is twelve digits. It doesn't say how a digit is written. Each network publishes a specification, its *dialect*, that fixes the encoding (ASCII, BCD, binary or EBCDIC), which fields it requires, what goes in the private fields, and how a few fields differ from the standard. The transport is outside the message altogether: the TCP connection, the length header in front of each message, any network header, TLS. jPOS keeps the two apart too: a packager for the message, a channel for the transport. Unit c3 shows channels in jPOS."
+    },
+    {
+      "type": "para",
+      "text": "The team in the opening packed ASCII for a host that expected binary, and fixing that leads to the next difference: the length header, the required fields, the private fields. Plan a link from the network's specification, not from the standard's name. What the standard does fix is meaning, so a developer who knows ISO 8583 reads a new network's specification as a list of differences."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.3. The First MTI Digit Names the Edition, and Editions Disagree on Fields"
+    },
+    {
+      "type": "para",
+      "text": "The standard has been revised several times, and the first digit of the MTI says which edition a message follows:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "MTI version digit",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`0`",
+          "ISO 8583:1987"
+        ],
+        [
+          "`1`",
+          "ISO 8583:1993"
+        ],
+        [
+          "`2`",
+          "ISO 8583:2003"
+        ],
+        [
+          "`3`–`7`",
+          "reserved by ISO"
+        ],
+        [
+          "`8`",
+          "national use"
+        ],
+        [
+          "`9`",
+          "private use"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "This course uses 1987 messages (`0100`, `0200`, `0400`, `0800`) unless a section says otherwise."
+    },
+    {
+      "type": "para",
+      "text": "A client written for a 1987 link treats `00` in field 39 as an approval, and moves to a network on the 1993 edition. Fields 24, 25 and 39 as jPOS's packagers for the two editions describe them, and a 1993 approval checked the 1987 way:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "field 24  1987: NETWORK INTERNATIONAL IDENTIFIEER (3) 1993: Function code (3)\nfield 25  1987: POINT OF SERVICE CONDITION CODE (2)  1993: Message reason code (4)\nfield 39  1987: RESPONSE CODE (2)                    1993: Action code (3)\n1993 response: MTI 1210, field 39 = 000\n\"00\".equals(field 39): false\n1987 packager: error packing field 39"
+    },
+    {
+      "type": "para",
+      "text": "In 1993 field 39 became a three-digit action code, and `000` is an approval. Field 24 became a function code that says what a message asks for, and field 25 a four-digit reason code. The client reports every approval as a decline. The issuer has approved and holds the funds. The cashier says the card was refused, and the client sends no reversal, because a decline needs none. A cardholder who pays again with another card now carries two holds. A test that uses the 1987 packager never packs a `000`, since that packager refuses it: test with the network's own field definitions."
+    },
+    {
+      "type": "para",
+      "text": "The 2003 edition (digit `2`) introduced *composite* fields, which hold several independent sections called datasets, beside the *primitive* fields (one value) and the *constructed* ones (fixed sub-fields) of earlier editions. The current edition, ISO 8583:2023, builds more fields as composites; unit 17 covers it. Take the version digit of a 2023 message from your network's specification."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3.** jPOS 2.1.7 has no packager for datasets: its TLV packagers help, but your code maps the datasets. jpos.org says jPOS 3.0.2 adds packagers that read datasets as sub-fields; unit s13 lists what changes in jPOS 3."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.4. jPOS Is AGPL: Network Users of Your Modified Version Are Offered Its Source"
+    },
+    {
+      "type": "para",
+      "text": "jPOS gives you the message model (`ISOMsg`), packagers that turn a message into bytes and back, and channels that frame messages on a TCP connection."
+    },
+    {
+      "type": "para",
+      "text": "A processor patches one of jPOS's channel classes to fit its acquirer's header, and runs the result as a service that merchants' systems connect to. It never ships the software to anyone. Does it owe anyone the patch?"
+    },
+    {
+      "type": "para",
+      "text": "jPOS is licensed under the GNU Affero General Public License, version 3 (AGPL v3); the jar carries the full text as `JPOS_LICENSE`. The plain GPL's obligations start when you distribute copies, which this processor never does. The AGPL adds section 13: if you modify the program and users interact with your version over a network, you must offer those users its source. The trigger is the modification, not whether the service is paid: unmodified jPOS carries no such offer. The merchants' systems may be such users. If you can't meet those terms, the jPOS project offers a commercial licence. Settle it with your legal team before you ship."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.5. This Course Runs jPOS 2.1.7, and jpos.org Describes jPOS 3"
+    },
+    {
+      "type": "para",
+      "text": "The course and its practices use jPOS 2.1.7 on Java 17 with Maven (`org.jpos:jpos:2.1.7`). The 2.1.x series is jPOS's maintenance (\"tail\") line, which gets only critical fixes; its latest release is 2.1.9. jPOS 3.x is the current line, and it needs Java 23 or later. The documentation on jpos.org describes 3.x. A call from a jpos.org example, compiled against 2.1.7:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "jpos3/FromTheDocs.java:6: error: cannot find symbol\n        msg.with(3, \"000000\").with(11, \"000001\");   // a jPOS 3 call, as jpos.org's blog shows it\n           ^\n  symbol:   method with(int,String)\n  location: variable msg of type ISOMsg\n1 error"
+    },
+    {
+      "type": "para",
+      "text": "When something from jpos.org doesn't compile or doesn't behave as described, check whether it is 3.x. Unit s13 lists the differences."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.6. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A message is an MTI, a bitmap and the fields the bitmap announces.** A field's position depends on every field before it, so a reader walks the bitmap instead of using offsets.",
+        "**The standard fixes meanings, and each link fixes the bytes.** The dialect sets the encoding and the fields, the transport sets the framing. Two \"ISO 8583\" systems are not compatible until one maps to the other's specification.",
+        "**The first MTI digit names the edition, and fields change between editions.** A 1993 approval is `000` in field 39, and a 1987 check reads it as a decline.",
+        "**jPOS is AGPL v3.** A modified version that users reach over a network must offer them its source, or you need a commercial licence.",
+        "**The course runs jPOS 2.1.7.** jpos.org describes 3.x, and its examples may not compile here."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.7. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Packagers in the jPOS 2.1.7 jar** (load with `jar:packager/<file>`):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "File",
+        "Edition",
+        "Encoding"
+      ],
+      "rows": [
+        [
+          "`iso87ascii.xml`",
+          "1987",
+          "ASCII digits, hex-ASCII bitmap"
+        ],
+        [
+          "`iso87binary.xml`",
+          "1987",
+          "BCD numeric fields, ASCII text fields, binary bitmap"
+        ],
+        [
+          "`iso93ascii.xml`",
+          "1993",
+          "ASCII digits, hex-ASCII bitmap"
+        ],
+        [
+          "`iso93binary.xml`",
+          "1993",
+          "BCD numeric fields, ASCII text fields, binary bitmap"
+        ],
+        [
+          "`cmf.xml`",
+          "jPOS Common Message Format",
+          "BCD digits, binary bitmap; see unit 17"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Fields that changed meaning from 1987 to 1993** (as the packagers above name them):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "1987",
+        "1993"
+      ],
+      "rows": [
+        [
+          "24",
+          "network international identifier, 3 digits",
+          "function code, 3 digits"
+        ],
+        [
+          "25",
+          "point of service condition code, 2 digits",
+          "message reason code, 4 digits"
+        ],
+        [
+          "39",
+          "response code, 2 characters (`00` approved)",
+          "action code, 3 digits (`000` approved)"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.8. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Open `iso87binary.xml` from the jPOS jar and find three fields whose encoding differs from `iso87ascii.xml` in a way other than digits versus BCD. What would a host that used each one make of a message from the other?",
+        "A gateway relays between a 1993 acquirer and a 1987 issuer. Besides field 39, which fields must it translate, and which 1993 fields have no 1987 equivalent?",
+        "Your tests pack every message with `iso87ascii.xml`, and production uses the network's binary packager. List the bugs those tests cannot find.",
+        "An internal switch, built on a modified jPOS, is reached only by your company's own systems. Who are the \"users interacting with it over a network\" in the AGPL's sense, and what would change if a partner bank connected to it?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.9. Design Note: Why a Bitmap?"
+    },
+    {
+      "type": "para",
+      "text": "A message could name each field it carries, with a tag and a length in front of each value, as chip data and the 2023 datasets do. ISO 8583 instead puts one bit per possible field at the front, and each field's format lives in a table both sides hold. For a message with a dozen fields out of 128, that costs 16 characters of bitmap, or 8 bytes in binary (twice that when a field above 64 is present), and nothing per field except the length of the variable ones."
+    },
+    {
+      "type": "para",
+      "text": "The price is that a message can't be read without the table. A reader can't skip a field it doesn't know, because only the table says how long it is, and one wrong entry misreads every field after it. That is what the two packagers in 1.2 did to each other's messages, and why each network's dialect has to be written down field by field."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 11,
-    "paras": 10,
-    "code": 1,
-    "tables": 0,
-    "lists": 4,
+    "headings": 10,
+    "paras": 26,
+    "code": 7,
+    "tables": 3,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 1,
     "disclosures": 0
   },
-  "content_sha256": "d6c62f02380ccbb247d29c2a744d8fdc62c5ac3cfa589f784c94bb3fc7c3ada5"
+  "content_sha256": "81bac758e3d6d0dbde7227e9c4edd84caeb721b5d261f33f21724b6052ccba80"
 }

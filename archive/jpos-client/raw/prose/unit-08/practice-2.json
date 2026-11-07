@@ -8,8 +8,8 @@
   "unit": 8,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Log a transaction without its card number",
+  "ingested": "2026-11-05",
+  "title": "Hand over a rejected message without handing over the card",
   "blocks": [
     {
       "type": "heading",
@@ -18,24 +18,19 @@
     },
     {
       "type": "para",
-      "text": "The page's `TransactionLogger` writes the MTI, the card number and the amount of every transaction into the log. A full card number (PAN) in a log file is exactly what the card schemes' security rules forbid: logs are copied, shipped and kept far longer than a transaction."
+      "text": "The acquirer's host has started rejecting some purchases with response code 30, and its support desk wants to see what your client sent. `DeclineReport` in `src/main/java/com/example/practice/DeclineReport.java` is what the client hands over for each rejection: an entry in the node's log, which your own team compares with the host's trace, and a hex dump that goes by e-mail to the support desk, which works for another company."
     },
     {
       "type": "para",
-      "text": "Write `TransactionLogger`, built from a jPOS `Logger`, with `logTransaction(ISOMsg msg)`. It delivers one event tagged `Transaction` to that logger, carrying, in this order:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "`MTI: <the message type>`;",
-        "`PAN: <the card number, masked>`, keeping its first six and last four digits and replacing every digit between with `*`. So `4111111111111111` is logged as `411111******1111`;",
-        "`Amount: <field 4>`."
-      ]
+      "text": "The node's log is shipped to a platform that many people can search. Neither the log entry nor the dump may carry card data. The support desk is hunting a format error, so the dump must still be the message as their host received it. And the client keeps the request after reporting it, because it may need it for a reversal."
     },
     {
       "type": "para",
-      "text": "A message that carries no card number (field 2) logs no `PAN:` line at all, rather than a line saying nothing."
+      "text": "Finish the two methods marked `TODO`: `logRejection` and `shareableImage`. About a dozen lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests give the report the node's logger, with `ProtectedLogListener` in front of a writer, and the `iso87ascii` packager. The messages carry a track 1, a track 2 and a PIN block as well as the card number."
     },
     {
       "type": "heading",
@@ -50,7 +45,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** A transaction log that never holds a full card number. */\npublic final class TransactionLogger {\n\n    private final LogSource source;\n\n    public TransactionLogger(Logger logger) {\n        this.source = new SimpleLogSource(logger, \"client\");\n    }\n\n    /** Log one `Transaction` event for `msg`. */\n    public void logTransaction(ISOMsg msg) throws ISOException {\n        LogEvent event = new LogEvent(source, \"Transaction\");\n        event.addMessage(\"MTI: \" + msg.getMTI());\n        if (msg.hasField(2)) {\n            event.addMessage(\"PAN: \" + masked(msg.getString(2)));\n        }\n        event.addMessage(\"Amount: \" + msg.getString(4));\n        Logger.log(event);\n    }\n\n    private static String masked(String pan) {\n        return pan.substring(0, 6) + \"*\".repeat(pan.length() - 10) + pan.substring(pan.length() - 4);\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        LogEvent ev = log.createWarn();\n        ev.addMessage(request);\n        ev.addMessage(response);\n        Logger.log(ev);\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        ISOMsg copy = (ISOMsg) request.clone();\n        for (int f : new int[] { 2, 35, 45 })\n            if (copy.hasField(f))\n                copy.set(f, ISOUtil.protect(copy.getString(f)));\n        for (int f : new int[] { 52, 55 })\n            if (copy.hasField(f))\n                copy.set(f, new byte[copy.getBytes(f).length]);\n        copy.setPackager(packager);\n        return copy.pack();\n    }\n}\n"
         }
       ]
     },
@@ -62,7 +57,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A transaction log that never holds a full card number. */\npublic final class TransactionLogger {\n\n    public TransactionLogger(Logger logger) {\n    }\n\n    /** Log one `Transaction` event for `msg`. */\n    public void logTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write logTransaction\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        // TODO: One entry for the rejected exchange, with both messages field by field, so the\n        //       team can compare them with the host's trace. The log is shipped to a platform\n        //       that many people can search.\n        throw new IllegalStateException(\"TODO: logRejection\");\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        // TODO: The support desk works for another company and gets this by e-mail, so no card\n        //       data in it. They are looking for a format error, so it must still be the message\n        //       as their host received it. The request is the one the client keeps for its own\n        //       records (a reversal, say), and must come out of this as it went in.\n        throw new IllegalStateException(\"TODO: shareableImage\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,10 +65,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -81,11 +76,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "a6a2893a7f2e895de56e5ae840a8e2c4311fc1714e006c731b704cf7ad352fd7",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** A transaction log that never holds a full card number. */\npublic final class TransactionLogger {\n\n    public TransactionLogger(Logger logger) {\n    }\n\n    /** Log one `Transaction` event for `msg`. */\n    public void logTransaction(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write logTransaction\");\n    }\n}\n",
+  "content_sha256": "e98ec82172b8b17dc73bd7017a8b6aa149a8e54b30cfb39ccc9ee2f9dc87bd4d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        // TODO: One entry for the rejected exchange, with both messages field by field, so the\n        //       team can compare them with the host's trace. The log is shipped to a platform\n        //       that many people can search.\n        throw new IllegalStateException(\"TODO: logRejection\");\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        // TODO: The support desk works for another company and gets this by e-mail, so no card\n        //       data in it. They are looking for a format error, so it must still be the message\n        //       as their host received it. The request is the one the client keeps for its own\n        //       records (a reversal, say), and must come out of this as it went in.\n        throw new IllegalStateException(\"TODO: shareableImage\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-08/practice-2/src/main/java/com/example/practice/TransactionLogger.java",
-    "test_path": "practice/jpos-client/prose/unit-08/practice-2/src/test/java/com/example/practice/TransactionLoggerTest.java",
+    "main_path": "practice/jpos-client/prose/unit-08/practice-2/src/main/java/com/example/practice/DeclineReport.java",
+    "test_path": "practice/jpos-client/prose/unit-08/practice-2/src/test/java/com/example/practice/DeclineReportTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -106,19 +101,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.TransactionLoggerTest#logsTheMtiAndTheAmountInOneTransactionEvent",
+        "id": "com.example.practice.DeclineReportTest#theLogShowsBothMessagesFieldByField",
         "kind": "main",
-        "says": "a transaction is logged as one event carrying its MTI and its amount"
+        "says": "the log entry shows the request and the rejection field by field"
       },
       {
-        "id": "com.example.practice.TransactionLoggerTest#thePanIsMaskedToItsFirstSixAndLastFourDigits",
-        "kind": "edge",
-        "says": "the card number is masked to its first six and last four digits"
+        "id": "com.example.practice.DeclineReportTest#theDeskGetsTheRejectedMessage",
+        "kind": "main",
+        "says": "the dump for the support desk is an image of the rejected request that the packager can read back"
       },
       {
-        "id": "com.example.practice.TransactionLoggerTest#aMessageWithoutAPanLogsNoPanLine",
+        "id": "com.example.practice.DeclineReportTest#noCardDataReachesTheLog",
         "kind": "edge",
-        "says": "a message with no card number logs no card-number line"
+        "says": "the messages go into the entry as ISOMsg objects, so the filter masks them; a wrapper that dumps them itself passes card data through"
+      },
+      {
+        "id": "com.example.practice.DeclineReportTest#theDumpHoldsNoCardNumber",
+        "kind": "edge",
+        "says": "the bytes are text the filter never sees, so the card number is masked in what gets packed"
+      },
+      {
+        "id": "com.example.practice.DeclineReportTest#theDumpHoldsNoPinBlock",
+        "kind": "edge",
+        "says": "the binary secrets are blanked too, not only the card number and track data"
+      },
+      {
+        "id": "com.example.practice.DeclineReportTest#theRequestComesOutAsItWentIn",
+        "kind": "edge",
+        "says": "masking is done on a copy, so the client's own message keeps its real card data"
+      },
+      {
+        "id": "com.example.practice.DeclineReportTest#theDumpIsLaidOutLikeTheMessageTheHostReceived",
+        "kind": "edge",
+        "says": "card fields are masked rather than removed, so the dump keeps the host's lengths and bitmap"
       }
     ],
     "report": {
@@ -127,10 +142,11 @@
     },
     "origin": {
       "path": "src/c8.md",
-      "section": "8.2 Implementing Logging in jPOS Client"
+      "section": "8.4 Bytes and Packager Traces Are Text Too"
     },
     "concepts": [
-      "A client logs each transaction as one event carrying its message type and amount, and never a full card number."
+      "Hex dumps and packager traces are text no filter touches; a dump to share is made from a masked copy, which keeps the lengths and bitmap the host saw.",
+      "ProtectedLogListener masks a copy of each ISOMsg that is itself a message of the event; strings and wrappers that dump messages themselves pass through in clear."
     ]
   }
 }

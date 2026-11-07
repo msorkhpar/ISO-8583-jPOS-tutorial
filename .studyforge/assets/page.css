@@ -160,6 +160,8 @@ button, select, summary, a { touch-action: manipulation; }
      is 452px, nearly two, which reads as too wide. */
   --page-max: 110rem;
   --gutter: 1.25rem;
+  /* The top bar's height: the page starts below it and the rail sticks under it. */
+  --topbar: 3.25rem;
   --player-height: 3.5rem;
 
   /* Radii by job, and nothing else is rounded. */
@@ -212,6 +214,7 @@ button, select, summary, a { touch-action: manipulation; }
 
   --panel: #f8fafc;
   --shadow: 0 -1px 0 #dbe3ec;
+  --scrim: rgba(15, 23, 42, .45);
   --focus: #0369a1;
 }
 
@@ -254,6 +257,7 @@ button, select, summary, a { touch-action: manipulation; }
 
     --panel: #1e293b;
     --shadow: 0 -1px 0 #27354a;
+    --scrim: rgba(2, 6, 23, .7);
     --focus: #38bdf8;
   }
 }
@@ -293,6 +297,7 @@ button, select, summary, a { touch-action: manipulation; }
   --hl-code: rgba(255, 201, 51, .12);
   --panel: #1e293b;
   --shadow: 0 -1px 0 #27354a;
+  --scrim: rgba(2, 6, 23, .7);
   --focus: #38bdf8;
 }
 
@@ -817,7 +822,7 @@ span[data-kind="read-state"] {
    The reading column is what is left of the viewport (`1fr`), and the prose
    inside it keeps `--measure` (`reading.css`).
 
-   ⛔ The rail spans ten rows because `page.html` declares ten top-level
+   ⛔ The rail spans eleven rows because `page.html` declares eleven top-level
    positions inside `<body>`: a negative line would count from the end of the
    EXPLICIT grid, which has columns only. The unit mirror reads this number
    back against the skeleton. Sticky and not fixed, with `max-height: 100vh` and
@@ -895,7 +900,7 @@ span[data-kind="read-state"] {
 
   body > nav[aria-label="Containers"] {
     grid-column: 1;
-    grid-row: 1 / span 10;
+    grid-row: 1 / span 11;
     align-self: start;
     position: sticky;
     top: 0;
@@ -911,7 +916,7 @@ span[data-kind="read-state"] {
   body:has(nav[aria-label="Containers"]) > nav[aria-label="Outline"],
   body:has(nav[aria-label="Containers"]) > section[aria-label="About this site"] {
     grid-column: 3;
-    grid-row: 1 / span 10;
+    grid-row: 1 / span 11;
     align-self: start;
     position: sticky;
     top: 0;
@@ -1344,9 +1349,8 @@ body:has(nav[aria-label="Up next"]) nav[aria-label="Between units"] a[rel="next"
   background: none;
 }
 
-/* What the page tells the reader, and the two controls it offers: the index's
-   plain explanation, the practices note, the read control and the theme
-   control.
+/* What the page tells the reader, and the control it offers: the index's
+   plain explanation, the practices note and the read control.
 
    ⭐ ONE OF THE FOUR CHROME PARTS (`chrome.css` says how they divide).
 
@@ -1474,58 +1478,286 @@ section[aria-label="About this site"] ol { margin: 0; padding-left: 1.2rem; }
 section[aria-label="About this site"] li,
 section[aria-label="About this site"] p { margin: 0 0 .35rem; max-width: none; }
 
-/* --- the theme control --------------------------------------------------- */
+/* The theme control is one icon button in the top bar, styled in `topbar.css`. */
 
-/* ⛔ REGISTER RULING: studyforge ships both a dark and a light theme. The
-   palette carries both; this is the control that
-   lets a reader say which one they want, on every page kind.
+/* The top bar: always on screen, carrying the search, the reading-mode switch and the theme.
 
-   ⭐ INSIDE THE MASTHEAD, NOT A REGION OF ITS OWN. `page.html` declares ten
-   top-level positions inside `<body>` and the rail's grid row span is that
-   number, so an eleventh child of `<body>` would move the rail rather than add
-   a control. ⛔ Reached by its role and its label, like every other region in
-   these four parts — no class, no colour.
+   ⛔ NOT ONE COLOUR AND NOT ONE CLASS. Every value is a `palette.css` token and every
+   part is reached by its role, its label or a published `data-*` hook.
 
-   ⭐ A segmented control on its own line, right of the trail: it is the page's
-   only setting, so it reads as one rather than as three buttons. The chosen
-   segment is told apart by GROUND and by an accent underline, never by the
-   accent as small text — the accent on its own wash is a mark's ratio, not a
-   body ratio, and this text is smaller than body text. */
+   ⭐ INSIDE THE MASTHEAD, FIXED TO THE WINDOW. `page.html` declares the top-level positions
+   of `<body>` that the rail's grid row span counts, so the bar is a child of `<header>` and
+   leaves the flow with `position: fixed`: it adds no row and no grid cell. `body` takes the
+   bar's height as top padding so nothing starts underneath it, `html` takes it as scroll
+   padding so a heading opened by its address is not hidden behind it, and the rail and the
+   outline stick just below it.
 
-body > header > div[role="group"][aria-label="Theme"] {
+   ⛔ Its layer is 2: above the page and the skip link, below the practice workspace (3 and 4),
+   which is a full-window mode with a bar of its own. The search dialog (`search.css`) is above
+   everything. */
+
+html { scroll-padding-top: calc(var(--topbar) + .75rem); }
+
+body { padding-top: var(--topbar); }
+
+body > header > div[role="toolbar"][data-section="topbar"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
   display: flex;
-  width: max-content;
-  margin: 0 0 .75rem auto;
-  gap: 1px;
-  padding: 2px;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-control);
+  align-items: center;
+  gap: .75rem;
+  height: var(--topbar);
+  padding: 0 var(--gutter);
   background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-ui);
 }
 
-body > header > div[role="group"][aria-label="Theme"] button {
-  font-family: var(--font-ui);
-  font-size: .78rem;
-  line-height: 1.7;
-  padding: .05rem .55rem;
-  border: 0;
-  border-radius: var(--radius-tight);
-  background: none;
+/* The search sits at the left edge of the bar; the mode switch and the theme icon at the right. */
+body > header > div[role="toolbar"] > button[data-section="search-open"] {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: min(20rem, 40vw);
+  margin-right: auto;
+  padding: .35rem .6rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg);
   color: var(--muted);
+  font: inherit;
+  font-size: .88rem;
   cursor: pointer;
 }
 
-body > header > div[role="group"][aria-label="Theme"] button:hover {
+body > header > div[role="toolbar"] > button[data-section="search-open"][hidden] { display: none; }
+
+body > header > div[role="toolbar"] > button[data-section="search-open"]:hover {
   color: var(--fg);
   background: var(--surface-2);
 }
 
-body > header > div[role="group"][aria-label="Theme"] button[aria-pressed="true"] {
-  color: var(--fg);
-  background: var(--accent-soft);
-  box-shadow: inset 0 -2px 0 var(--accent);
-  font-weight: 700;
+body > header > div[role="toolbar"] > button[data-section="search-open"] span { flex: 1 1 auto; text-align: left; }
+
+body > header > div[role="toolbar"] kbd {
+  flex: 0 0 auto;
+  padding: 0 .35rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-tight);
+  background: var(--surface);
+  color: var(--fg-soft);
+  font-family: var(--font-ui);
+  font-size: .72rem;
+  line-height: 1.5;
 }
+
+/* --- the theme icon ------------------------------------------------------- */
+
+/* ⭐ One button that shows the theme the page is in: the sun on a light page, the moon on a dark
+   one, and pressing it chooses the other. ⛔ Chosen by CSS alone from the same `data-theme`
+   attribute and system scheme `palette.css` answers to, so the icon is right on the first paint. */
+body > header > div[role="toolbar"] > button[data-section="theme"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+body > header > div[role="toolbar"] > button[data-section="theme"][hidden] { display: none; }
+
+body > header > div[role="toolbar"] > button[data-section="theme"]:hover { background: var(--surface-2); }
+
+button[data-section="theme"] svg[data-icon="moon"] { display: none; }
+
+:root[data-theme="dark"] button[data-section="theme"] svg[data-icon="sun"] { display: none; }
+:root[data-theme="dark"] button[data-section="theme"] svg[data-icon="moon"] { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) button[data-section="theme"] svg[data-icon="sun"] { display: none; }
+  :root:not([data-theme="light"]) button[data-section="theme"] svg[data-icon="moon"] { display: block; }
+}
+
+/* The page outside the reading mode: a note under the bar in the masthead, in the flow. */
+body > header aside[data-section="mode-outside"] { max-width: var(--measure); }
+
+/* --- the rail and the outline start under the bar ------------------------- */
+
+@media (min-width: 72rem) {
+  body > nav[aria-label="Containers"],
+  body:has(nav[aria-label="Containers"]) > nav[aria-label="Outline"],
+  body:has(nav[aria-label="Containers"]) > section[aria-label="About this site"] {
+    top: var(--topbar);
+    max-height: calc(100vh - var(--topbar));
+  }
+}
+
+/* The search dialog: a box over the page, the results grouped by page beneath it.
+
+   ⛔ NOT ONE COLOUR AND NOT ONE CLASS. Palette tokens only, so both themes read it; every part
+   is reached by its `data-*` hook, and the matched words are `<mark>` elements the part writes.
+
+   ⭐ ABOVE EVERYTHING (layer 40): the top bar is 2 and the practice workspace 3 and 4. The
+   dialog sits in the masthead and leaves the flow with `position: fixed`, so it adds no row to
+   the page grid. ⛔ The results list is the one thing in it that scrolls, and only when its
+   rows do not fit; the page behind it is left to scroll as it always does. */
+
+body > header > div[role="dialog"][data-section="search"] {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10vh var(--gutter) 0;
+  background: var(--scrim);
+  font-family: var(--font-ui);
+}
+
+body > header > div[role="dialog"][data-section="search"][hidden] { display: none; }
+
+body > header > div[role="dialog"][data-section="search"] > * {
+  box-sizing: border-box;
+  width: min(42rem, 100%);
+  margin: 0;
+  background: var(--panel);
+  color: var(--fg);
+  border-left: 1px solid var(--rule-strong);
+  border-right: 1px solid var(--rule-strong);
+}
+
+[data-search-box] {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .7rem .9rem;
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule);
+  border-radius: var(--radius-sign) var(--radius-sign) 0 0;
+  color: var(--muted);
+}
+
+[data-search-box] input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: .3rem 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.05rem;
+}
+
+[data-search-box] input:focus { outline: none; }
+
+[data-search-box]:focus-within { box-shadow: inset 0 -2px 0 var(--accent); }
+
+button[data-search-close] {
+  padding: .1rem .45rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-tight);
+  background: var(--surface);
+  color: var(--fg-soft);
+  font: inherit;
+  font-size: .75rem;
+  cursor: pointer;
+}
+
+[data-search-results] {
+  max-height: min(60vh, 34rem);
+  overflow-y: auto;
+  padding: 0 .5rem;
+}
+
+[data-search-results]:empty { display: none; }
+
+[data-search-results] [role="group"] { padding: .55rem 0 .25rem; }
+
+[data-search-results] [role="group"] + [role="group"] { border-top: 1px solid var(--rule); }
+
+[data-search-results] [data-search-page] {
+  margin: 0 .5rem .25rem;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+[data-search-results] [data-search-page] small {
+  display: block;
+  font-weight: 400;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+[data-search-results] a[role="option"] {
+  display: block;
+  margin: 0 0 2px;
+  padding: .4rem .5rem;
+  border-radius: var(--radius-control);
+  color: var(--fg-soft);
+  text-decoration: none;
+  font-size: .86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+[data-search-results] a[role="option"] strong {
+  display: block;
+  color: var(--fg);
+  font-size: .9rem;
+}
+
+[data-search-results] a[role="option"]:hover { background: var(--surface-2); }
+
+/* ⛔ The chosen row is told apart by the wash AND a bar at its edge, never by colour alone. */
+[data-search-results] a[role="option"][aria-selected="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--fg);
+}
+
+[data-search-results] mark {
+  padding: 0 .1rem;
+  border-radius: var(--radius-tight);
+  background: var(--hl-bg);
+  color: var(--hl-fg);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--hl-bar);
+}
+
+[data-search-status] {
+  padding: .5rem .9rem;
+  font-size: .85rem;
+  color: var(--fg-soft);
+}
+
+[data-search-status]:empty { display: none; }
+
+[data-search-hints] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  padding: .45rem .9rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-strong);
+  border-radius: 0 0 var(--radius-sign) var(--radius-sign);
+  font-size: .75rem;
+  color: var(--muted);
+}
+
+body > header p[data-search-hints],
+body > header p[data-search-status] { max-width: none; font-size: .8rem; }
 
 /* The practice panel: where the reader's work sits, and what happened when they
    ran it.
@@ -1747,6 +1979,59 @@ section[data-practice] li[data-practice-case][data-practice-verdict="passed"] sp
 
 section[data-practice] li[data-practice-case][data-practice-verdict="failed"] span {
   color: var(--accent);
+}
+
+/* ⭐ The link that opens the editor in a tab of its own is a line of its own above the frame, so
+   it is seen whether or not the tablist above it is shown. */
+section[data-practice] a[data-practice-popout] {
+  display: block;
+  margin: 0 0 .5rem;
+  font-size: .9rem;
+}
+
+/* What a run reported about each case: its failure message and the text the reader's code wrote (`practice-detail.js`).
+   ⛔ No new token and no new colour: the message and the text sit in the same box the program's own output does,
+   and a folded section is a `details` element, so a keyboard and a screen reader open it as they open any other. */
+section[data-practice] [data-practice-part="case-detail"] {
+  margin: .3rem 0 .5rem 5rem;
+}
+
+section[data-practice] [data-practice-part="case-message"],
+section[data-practice] [data-practice-part$="-lines"] {
+  margin: .25rem 0 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: .45rem .65rem;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-size: .8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-tight);
+}
+
+section[data-practice] [data-practice-part="case-detail"] details,
+section[data-practice] [data-practice-part="run-detail"] details {
+  margin: .25rem 0 0;
+}
+
+section[data-practice] [data-practice-part="case-detail"] summary,
+section[data-practice] [data-practice-part="run-detail"] summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg-soft);
+}
+
+section[data-practice] [data-practice-part="run-detail"] { margin: .5rem 0 0; }
+
+section[data-practice] [data-practice-part="run-note"] {
+  margin: .3rem 0 0;
+  font-size: .85rem;
+  color: var(--muted);
 }
 
 /* The quiz: the questions, the answers a reader may choose, and what each one says.
@@ -1987,11 +2272,27 @@ section[data-practices] li[data-practice-state="passed"] p[data-practices-part="
   color: var(--done);
 }
 
+/* ⭐ A practice written in several languages is ONE card: the sentence naming its editions, each
+   marked once it is passed, and a status that says how many are. ⛔ A mark is a word first
+   (*passed*), never colour alone. */
+section[data-practices] p[data-practices-part="editions"] {
+  margin: .35rem 0 0;
+  max-width: none;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+section[data-practices] [data-edition-mark] { color: var(--done); font-weight: 700; }
+
+section[data-practices] li[data-practice-state="partial"] p[data-practices-part="state"] {
+  color: var(--fg-soft);
+}
+
 /* --- the workspace -------------------------------------------------------- */
 
 /* ⛔ The page under the workspace does not scroll while it is up: the reader
    scrolls the statement and the panel, each inside itself. */
-html[data-workspace-open] { overflow: hidden; }
+html[data-workspace-open]:not([data-workspace-quiz]) { overflow: hidden; }
 
 /* ⭐ The shell is the ground and the bar. ⛔ Above BOTH of the page's other
    raised layers — the skip link at 2 and the narration transport at 1 — or the
@@ -2078,6 +2379,17 @@ section:is([data-practice], [data-practice-quiz])[data-workspace-open] {
   flex-direction: column;
 }
 
+/* ⛔ **A language-tagged practice stays a flex column when it opens.** The reading modes' generated
+   rules show a tagged section the reader is linked to with `display: block`
+   (a section carrying `data-lang` and `data-linked` under a reading mode), which outweighs the rule above and
+   turned the open panel into a block: the editor kept its natural height, about eight lines, with
+   the rest of the pane empty, and no divider could change it. Repeating the attribute raises this
+   rule over those without naming a mode or a language. A quiz is excluded: it is a page in flow. */
+html[data-workspace-open]:not([data-workspace-quiz])
+  section:is([data-practice], [data-practice-quiz])[data-workspace-open][data-workspace-open][data-workspace-open] {
+  display: flex;
+}
+
 /* ⭐ The editor slot takes the room: the note, the controls, the status and the
    output keep the size they had, and what a reader needs more of is the CODE.
    ⚠️ `min-height` holds a usable editor when the output grows. */
@@ -2090,39 +2402,112 @@ section[data-practice][data-workspace-open] div[data-practice-part="editor"] {
 section[data-practice][data-workspace-open] div[data-practice-frame] {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 section[data-practice][data-workspace-open] div[data-practice-part="editor"] iframe {
+  flex: 1 1 auto;
   height: 100%;
   min-height: 16rem;
 }
 
-/* ⭐ **A QUIZ OPENS IN ONE COLUMN.** It has no editor to set beside its intro,
-   so a split would leave the left pane holding a heading and one line. The
-   intro sits at the top, at its own height (`--workspace-intro`, measured by
-   `practice-workspace.js`), and the questions, the check and its explanations
-   fill the rest below it, one reading measure wide. ⚠️ These selectors
-   outweigh the phone's stacked halves below, so a quiz keeps its one column
-   at every width. */
+/* ⭐ **The editor is the surface the reader types in, so its frame fills its box.** The box
+   was drawn for the sentence that says the editor is not running: a dashed border, padding and
+   a gap below, which together held the frame about a tenth of the pane away from the edges of the
+   box that was already most of it. ⚠️ Once the workspace is open and a frame is showing, the box
+   is only a column for the tabs and the frame: no border, no padding, no margin, and the frame
+   takes everything the tabs leave, down to the 16rem a usable editor needs: in a short window
+   it runs past the pane's foot and the pane scrolls, as it did before. */
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+}
+
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(16rem, 1fr);
+  align-items: center;
+  column-gap: .75rem;
+}
+
+/* ⭐ **One row above the frame, not two**: the tabs on the left and the link that opens the
+   editor in a tab of its own on the right, so the link stays visible without a line to itself.
+   ⚠️ The link keeps its column when the tablist is hidden, so it never sits over the frame. */
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] div[data-practice-part="tabs"] {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0 0 .25rem;
+}
+
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] a[data-practice-popout] {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0 0 .25rem;
+  white-space: nowrap;
+}
+
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] > p {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+html[data-workspace-open] section[data-practice][data-workspace-open]
+  div[data-practice-part="editor"] div[data-practice-frame] {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: stretch;
+}
+
+/* ⭐ The two notes above the editor take a line each at a small size and little room, so the
+   frame under them keeps the height. */
+html[data-workspace-open] section[data-practice][data-workspace-open] p[data-practice-part="grader"],
+html[data-workspace-open] section[data-practice][data-workspace-open] p[data-practice-part="file"] {
+  margin: 0 0 .25rem;
+  font-size: .85rem;
+  line-height: 1.35;
+}
+
+/* ⭐ **A QUIZ OPENS AS A PAGE THAT SCROLLS AS ONE.** It has no editor to set beside its intro, and a
+   fixed box of its own with its own scrollbar, drawn in a narrow column in the middle of a wide
+   screen, is a page inside a page. So a quiz's intro and questions are LEFT IN THE PAGE'S FLOW, at
+   the page's own reading width: `practice-workspace.js` marks everything else on the page
+   `data-workspace-away` while the quiz is up, the bar stays fixed over the top, and the one
+   scrollbar is the window's, at the edge of the screen. ⛔ Nothing is moved: the sections are
+   simply no longer fixed. ⚠️ These selectors outweigh the editor layout above and the phone's
+   stacked halves below, so a quiz keeps its one column at every width. */
 html[data-workspace-quiz] section[data-kind][data-workspace-open],
 html[data-workspace-quiz] section[data-practice-quiz][data-workspace-open] {
-  left: max(0px, calc((100% - 52rem) / 2));
-  right: max(0px, calc((100% - 52rem) / 2));
+  position: static;
+  display: block;
+  box-sizing: border-box;
   width: auto;
-  border-right: 0;
-}
-
-html[data-workspace-quiz] section[data-kind][data-workspace-open] {
-  bottom: auto;
-  max-height: 40%;
-  padding-bottom: .5rem;
-}
-
-html[data-workspace-quiz] section[data-practice-quiz][data-workspace-open] {
-  top: calc(3.25rem + var(--workspace-intro, 0px));
-  margin: 0;
+  max-width: 52rem;
+  max-height: none;
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
+  overflow: visible;
+  border: 0;
   background: var(--bg);
 }
+
+html[data-workspace-quiz] section[data-kind][data-workspace-open] { padding-bottom: .5rem; }
+
+html[data-workspace-quiz] div[data-workspace] {
+  bottom: auto;
+  height: 3.25rem;
+}
+
+html[data-workspace-quiz] body { padding-top: 3.25rem; }
+html[data-workspace-quiz] [data-workspace-away] { display: none; }
 
 /* ⭐ At phone width the workspace STACKS: the statement over the editor, each
    scrolled inside itself. */
@@ -2147,10 +2532,27 @@ html[data-workspace-quiz] section[data-practice-quiz][data-workspace-open] {
 }
 
 
+/* ⭐ The language switch at the top of an edition's panel: the practice's editions, the open one
+   told apart by ink and weight as well as by its ground. `hidden` is honoured over `display`. */
+section[data-practice] p[data-practice-part="editions"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0 0 .6rem;
+}
+
+section[data-practice] p[data-practice-part="editions"][hidden] { display: none; }
+
+section[data-practice] button[data-edition-switch][aria-pressed="true"] {
+  color: var(--practice);
+  background: var(--practice-soft);
+  border-color: var(--practice);
+}
+
 /* The practice workspace's panes: the description beside the editor resized by
    a divider and closed, and the report under the editor resized and collapsed.
 
-   ⭐ **Register ruling (2026-09-26).** In a code practice's workspace the reader
+   ⭐ In a code practice's workspace the reader
    drags the divider between the description and the editor to widen or narrow
    the description, and closes it so the editor takes the whole width; drags the
    divider above the report to give the code more height, and collapses the
@@ -2325,6 +2727,14 @@ section[data-practice][data-workspace-open] div[data-practice-part="report-body"
 }
 
 section[data-practice][data-workspace-open] pre[data-practice-part="output"] { max-height: none; }
+
+/* ⭐ **Until a Run or Submit reports, the report is only its strip**: its body (the status, the
+   cases and the output) and the divider above it show once the panel is marked reported
+   (`practice-panes.js`), so the editor fills the pane on open. */
+section[data-practice][data-workspace-open]:not([data-practice-reported])
+  :is(div[data-practice-part="report-body"], div[data-practice-part="report-divider"]) {
+  display: none;
+}
 
 /* ⭐ The editor gives way to a taller report down to a floor, and takes back
    every pixel the report gives up: the point of both dividers is the code.
@@ -2548,7 +2958,15 @@ figure.code .token.feature,
 figure.code .token.scenario,
 figure.code .token.important,
 figure.code .token.table-head,
-figure.code .token.table-body { color: inherit; }
+figure.code .token.table-body,
+figure.code .token.code-block,
+figure.code .token.bold,
+figure.code .token.content,
+figure.code .token.title { color: inherit; }
+
+/* ⚠️ Markdown's `bold` and `content` wrap the words a reader should see as
+   prose, `code-block` wraps a fenced block whose own grammar colours it, and
+   `title` wraps a heading line: all four are containers of that kind. */
 
 /* ⛔ A prolog, a doctype and a CDATA marker are STRUCTURAL NOISE, and they
    are filed here rather than under comment on purpose: Prism's own themes
@@ -2562,7 +2980,9 @@ figure.code .token.regex-delimiter,
 figure.code .token.regex-flags,
 figure.code .token.prolog,
 figure.code .token.doctype,
-figure.code .token.cdata { color: var(--tok-punct); }
+figure.code .token.cdata,
+figure.code .token.shebang,
+figure.code .token.list { color: var(--tok-punct); }
 
 /* ⭐ The names a document DECLARES read as types: an element name, an
    attribute name, a JSON property, a properties key, a Gherkin placeholder
@@ -2578,6 +2998,8 @@ figure.code .token.doctype-tag,
 figure.code .token.name,
 figure.code .token.property,
 figure.code .token.key,
+figure.code .token.code-language,
+figure.code .token.constant,
 figure.code .token.variable { color: var(--tok-type); }
 
 figure.code .token.function,
@@ -2597,7 +3019,9 @@ figure.code .token.regex,
 figure.code .token.regex-source,
 figure.code .token.attr-value,
 figure.code .token.value,
-figure.code .token.entity { color: var(--tok-string); }
+figure.code .token.entity,
+figure.code .token.url,
+figure.code .token.code { color: var(--tok-string); }
 
 /* ⭐ A Gherkin step keyword -- Given, When, Then -- is Prism's `atrule`, and
    it is a keyword in every sense the reader cares about. */

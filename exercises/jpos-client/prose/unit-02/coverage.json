@@ -1,80 +1,153 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c2.md",
   "kind": "code",
+  "quiz": "message-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c2.md": "sha256:6030a04841573ec305cb3c186ecbd820c8f1390267222eef46529f34860a31a5"
+    "src/c2.md": "sha256:55611f8e6febc36e8f559f823537a4710c3278f3246b64c51ab13d9db20367b7"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "common-fields-once",
-        "says": "A factory stamps the fields every request shares (transmission date-time, trace number, terminal) so each message type adds only its own fields.",
+        "id": "field-7-gmt",
+        "says": "Field 7 is the transmission time in GMT, whatever the zone of the server or of the clock.",
         "basis": [
-          "example:src/c2.md:2",
-          "example:src/c2.md:3",
-          "section:2.2 Message Factory"
+          "section:2.4 Field 7 Is GMT, Whatever the Server's Time Zone"
         ],
-        "exercise": "request-types",
+        "exercise": "atm-requests",
         "reason": null
       },
       {
-        "id": "test-the-builder",
-        "says": "Message-building code is tested by checking the MTI and each field the request type must carry.",
+        "id": "mask-on-print",
+        "says": "Masking is applied to what is printed or logged; the message keeps the real PAN, and dump prints it in clear.",
         "basis": [
-          "example:src/c2.md:5",
-          "section:2.4 Testing Message Creation"
+          "section:2.6 Mask What You Print, Never What You Send"
         ],
-        "exercise": null,
-        "reason": "the practice's own graded tests do exactly this for the reader; writing tests is not what is graded"
-      },
-      {
-        "id": "types-by-mti",
-        "says": "Authorization, financial and reversal requests differ by MTI, and a reversal carries the original request's identifying data in field 90.",
-        "basis": [
-          "example:src/c2.md:4",
-          "section:2.3 Handling Different Message Types"
-        ],
-        "exercise": "request-types",
+        "exercise": "message-quiz",
         "reason": null
       },
       {
-        "id": "unique-trace-number",
-        "says": "Every request needs its own system trace audit number, not a fixed value, so a response and a reversal can be matched to it.",
+        "id": "pack-before-queue",
+        "says": "A message that does not pack fails on the channel thread: the caller sees only a timeout and the 2.1.7 adaptor drops the link, so pack with the link's packager before queueing and report such a message as not sent.",
         "basis": [
-          "example:src/c2.md:2",
-          "section:2.2 Message Factory"
+          "section:2.2 A Message That Doesn't Pack Fails on the Channel Thread"
         ],
-        "exercise": "request-types",
+        "exercise": "pack-before-send",
+        "reason": null
+      },
+      {
+        "id": "shared-fields-one-place",
+        "says": "The fields every message on a link carries are set in one method of a factory with an injected clock and counter, so every message type gets them alike.",
+        "basis": [
+          "section:2.3 The Fields Every Request Shares Are Set in One Place"
+        ],
+        "exercise": "atm-requests",
+        "reason": null
+      },
+      {
+        "id": "stan-one-sequence",
+        "says": "The STAN is one counting sequence per link, shared by every message type, from 000001 to 999999 and around again; random and time-of-day STANs collide.",
+        "basis": [
+          "section:2.5 The STAN Is One Sequence per Link"
+        ],
+        "exercise": "atm-requests",
+        "reason": null
+      },
+      {
+        "id": "strings-not-bytes",
+        "says": "An ISOMsg keeps the strings it was given; the packager pads short values and refuses long ones only when it packs, so a short STAN in memory differs from the one the host echoes.",
+        "basis": [
+          "section:2.1 An ISOMsg Holds Strings, and the Packager Decides the Bytes"
+        ],
+        "exercise": "message-quiz",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "request-types",
+        "name": "pack-before-send",
         "aspects": [
-          "common-fields-once",
-          "types-by-mti",
-          "unique-trace-number"
+          "pack-before-queue"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "atm-requests",
+        "aspects": [
+          "field-7-gmt",
+          "shared-fields-one-place",
+          "stan-one-sequence"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "message-quiz",
+        "aspects": [
+          "mask-on-print",
+          "strings-not-bytes"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-02/practice-1"
+    "exercises/jpos-client/prose/unit-02/practice-1",
+    "exercises/jpos-client/prose/unit-02/practice-2",
+    "exercises/jpos-client/prose/unit-02/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-02/practice-1",
       "origin": {
         "path": "src/c2.md",
-        "section": "2.3 Handling Different Message Types"
+        "section": "2.2 A Message That Doesn't Pack Fails on the Channel Thread"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-2",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.5 The STAN Is One Sequence per Link"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-3:q-sydney-morning",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.4 Field 7 Is GMT, Whatever the Server's Time Zone"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-3:q-saved-row",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.1 An ISOMsg Holds Strings, and the Packager Decides the Bytes"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-3:q-hhmmss-counter",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.5 The STAN Is One Sequence per Link"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-3:q-log-cleanup",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.6 Mask What You Print, Never What You Send"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-02/practice-3:q-two-purchases",
+      "origin": {
+        "path": "src/c2.md",
+        "section": "2.2 A Message That Doesn't Pack Fails on the Channel Thread"
       }
     }
   ],

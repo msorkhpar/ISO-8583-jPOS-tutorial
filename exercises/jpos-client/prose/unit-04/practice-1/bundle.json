@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 4,
   "ordinal": 1,
-  "title": "Send a request over a MUX, waiting or not",
+  "title": "Answer the API caller truthfully when the host is silent or out of reach",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/AuthorizationSender.java",
-  "test_file": "src/test/java/com/example/practice/AuthorizationSenderTest.java",
+  "main_file": "src/main/java/com/example/practice/PaymentEndpoint.java",
+  "test_file": "src/test/java/com/example/practice/PaymentEndpointTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.AuthorizationSenderTest#aWaitedAnswerIsReadFromFieldThirtyNine",
+      "id": "com.example.practice.PaymentEndpointTest#anApprovedPurchaseIs200",
       "kind": "main",
-      "says": "a blocking request uses the sender's timeout, and a response with 00 in field 39 is approved while any other code is declined"
+      "says": "a purchase the host approves is forwarded once and answered with 200"
     },
     {
-      "id": "com.example.practice.AuthorizationSenderTest#anAsynchronousAnswerCompletesTheFuture",
-      "kind": "main",
-      "says": "an asynchronous request returns an unfinished future at once, and the response completes it"
-    },
-    {
-      "id": "com.example.practice.AuthorizationSenderTest#noAnswerInTimeIsNoAnswerNotAnError",
+      "id": "com.example.practice.PaymentEndpointTest#aRefusalIsNotAnApproval",
       "kind": "edge",
-      "says": "a blocking request that gets no response in time comes back as no answer, not an exception"
+      "says": "an answer whose field 39 is not 00 is a decline, so getting an answer at all does not mean approved"
     },
     {
-      "id": "com.example.practice.AuthorizationSenderTest#anExpiredRequestCompletesAsNoAnswer",
+      "id": "com.example.practice.PaymentEndpointTest#silenceIsAnUnknownOutcome",
       "kind": "edge",
-      "says": "an asynchronous request that expires completes its future as no answer instead of leaving it waiting forever"
+      "says": "no answer in time comes back as null, which is an unknown outcome to record, not an error"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#silenceIsNotAReasonToAskAgain",
+      "kind": "edge",
+      "says": "a purchase with no answer is never sent a second time, because the host may already have approved it"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#aDownLinkIs503AndNothingGoesOut",
+      "kind": "edge",
+      "says": "with the link down the purchase is not handed to the MUX at all, since request() would queue it and send it later"
     }
   ],
   "report": {
@@ -59,6 +64,6 @@
   },
   "origin": {
     "path": "src/c4.md",
-    "section": "4.2 MUX (org.jpos.iso.MUX)"
+    "section": "4.4 A Request on a Down Link Waits in the Queue"
   }
 }

@@ -1,0 +1,158 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Find an element of a 2023 message by its path",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The fraud team investigates disputed e-commerce purchases from the network's 2023 link. They have the messages, and they want to ask for one value at a time with the paths of 17.5, such as `104.0x03.0xDF10` or `55.0x9F27`, instead of reading hex dumps by hand. The messages come from other systems, and some of the disputed ones are damaged. A wrong value is worse than no value: the team acts on what the tool prints."
+    },
+    {
+      "type": "para",
+      "text": "`DatasetFinder.find` in `src/main/java/com/example/practice/DatasetFinder.java` already parses the path and looks tags up. It returns the bytes as upper-case hex, `null` when the message doesn't have them, and refuses with an `IllegalArgumentException`. Finish the three methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`hasEnvelope`: which fields hold datasets;",
+        "`isTlvDataset`: which datasets hold tags;",
+        "`content`: one dataset's content."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The comment on each says what it is for. About fifteen lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Finds one element of an ISO 8583:2023 message by its path, such as 34.0x01.0xDF10. */\npublic final class DatasetFinder {\n\n    private DatasetFinder() {\n    }\n\n    /** The bytes the path names, as upper-case hex, or null when the message doesn't have them. */\n    public static String find(ISOMsg message, String path) {\n        String[] parts = path.split(\"\\\\.\", -1);\n        if (parts.length < 2 || parts.length > 3)\n            throw new IllegalArgumentException(\"not a dataset path: \" + path);\n        int field = Integer.parseInt(parts[0]);\n        int first = hex(parts[1]);\n        Integer second = parts.length == 3 ? hex(parts[2]) : null;\n\n        if (!hasEnvelope(field)) {\n            if (second != null)\n                throw new IllegalArgumentException(\"field \" + field + \" has one level below it: \" + path);\n            byte[] tlv = message.getBytes(field);\n            return tlv == null ? null : tag(tlv, first);\n        }\n        if (second != null && !isTlvDataset(first))\n            throw new IllegalArgumentException(\"dataset \" + parts[1] + \" needs its definition: \" + path);\n        byte[] bytes = message.getBytes(field);\n        byte[] content = bytes == null ? null : content(bytes, first);\n        if (content == null)\n            return null;\n        return second == null ? ISOUtil.hexString(content) : tag(content, second);\n    }\n\n    /** Whether the field's bytes are a row of datasets, as opposed to plain BER-TLV. */\n    static boolean hasEnvelope(int field) {\n        return field != 55;\n    }\n\n    /** Whether a dataset with this identifier holds BER-TLV elements. */\n    static boolean isTlvDataset(int id) {\n        return id >= 0x01 && id <= 0x70;\n    }\n\n    /** The content of the first dataset with this identifier, or null when the field has none. */\n    static byte[] content(byte[] field, int id) {\n        int pos = 0;\n        while (pos < field.length) {\n            if (pos + 3 > field.length)\n                throw new IllegalArgumentException(\"dataset header cut short at \" + pos);\n            int ds = field[pos] & 0xFF;\n            if (ds == 0x00 || ds == 0xFF)\n                throw new IllegalArgumentException(\"invalid dataset identifier at \" + pos);\n            int len = ((field[pos + 1] & 0xFF) << 8) | (field[pos + 2] & 0xFF);\n            pos += 3;\n            if (pos + len > field.length)\n                throw new IllegalArgumentException(\"dataset runs past the end of the field\");\n            if (ds == id)\n                return java.util.Arrays.copyOfRange(field, pos, pos + len);\n            pos += len;\n        }\n        return null;\n    }\n\n    private static int hex(String s) {\n        if (!s.startsWith(\"0x\") || s.length() < 3)\n            throw new IllegalArgumentException(\"expected 0x and hex digits: \" + s);\n        return Integer.parseInt(s.substring(2), 16);\n    }\n\n    private static String tag(byte[] tlvBytes, int tag) {\n        TLVList tlv = new TLVList();\n        tlv.unpack(tlvBytes);\n        return tlv.hasTag(tag) ? tlv.getString(tag) : null;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Finds one element of an ISO 8583:2023 message by its path, such as 34.0x01.0xDF10. */\npublic final class DatasetFinder {\n\n    private DatasetFinder() {\n    }\n\n    /** The bytes the path names, as upper-case hex, or null when the message doesn't have them. */\n    public static String find(ISOMsg message, String path) {\n        String[] parts = path.split(\"\\\\.\", -1);\n        if (parts.length < 2 || parts.length > 3)\n            throw new IllegalArgumentException(\"not a dataset path: \" + path);\n        int field = Integer.parseInt(parts[0]);\n        int first = hex(parts[1]);\n        Integer second = parts.length == 3 ? hex(parts[2]) : null;\n\n        if (!hasEnvelope(field)) {\n            if (second != null)\n                throw new IllegalArgumentException(\"field \" + field + \" has one level below it: \" + path);\n            byte[] tlv = message.getBytes(field);\n            return tlv == null ? null : tag(tlv, first);\n        }\n        if (second != null && !isTlvDataset(first))\n            throw new IllegalArgumentException(\"dataset \" + parts[1] + \" needs its definition: \" + path);\n        byte[] bytes = message.getBytes(field);\n        byte[] content = bytes == null ? null : content(bytes, first);\n        if (content == null)\n            return null;\n        return second == null ? ISOUtil.hexString(content) : tag(content, second);\n    }\n\n    /** Whether the field's bytes are a row of datasets, as opposed to plain BER-TLV. */\n    static boolean hasEnvelope(int field) {\n        // TODO: Decide which fields find() should walk as datasets. Every field this tool is used\n        //       on is a composite field of the 2023 edition.\n        throw new IllegalStateException(\"TODO: hasEnvelope\");\n    }\n\n    /** Whether a dataset with this identifier holds BER-TLV elements. */\n    static boolean isTlvDataset(int id) {\n        // TODO: find() may look up a tag only in a dataset whose content is BER-TLV.\n        throw new IllegalStateException(\"TODO: isTlvDataset\");\n    }\n\n    /** The content of the first dataset with this identifier, or null when the field has none. */\n    static byte[] content(byte[] field, int id) {\n        // TODO: Return the content of the dataset with this identifier, or null when the field has\n        //       none. A field from another system can be damaged: refuse what can't be a correct\n        //       field with an IllegalArgumentException rather than return a guess.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    private static int hex(String s) {\n        if (!s.startsWith(\"0x\") || s.length() < 3)\n            throw new IllegalArgumentException(\"expected 0x and hex digits: \" + s);\n        return Integer.parseInt(s.substring(2), 16);\n    }\n\n    private static String tag(byte[] tlvBytes, int tag) {\n        TLVList tlv = new TLVList();\n        tlv.unpack(tlvBytes);\n        return tlv.hasTag(tag) ? tlv.getString(tag) : null;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "a1c996a97e47e6fb867bb9857eddf2b6cffcb5ac5a68711fe2f795d6daba5081",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Finds one element of an ISO 8583:2023 message by its path, such as 34.0x01.0xDF10. */\npublic final class DatasetFinder {\n\n    private DatasetFinder() {\n    }\n\n    /** The bytes the path names, as upper-case hex, or null when the message doesn't have them. */\n    public static String find(ISOMsg message, String path) {\n        String[] parts = path.split(\"\\\\.\", -1);\n        if (parts.length < 2 || parts.length > 3)\n            throw new IllegalArgumentException(\"not a dataset path: \" + path);\n        int field = Integer.parseInt(parts[0]);\n        int first = hex(parts[1]);\n        Integer second = parts.length == 3 ? hex(parts[2]) : null;\n\n        if (!hasEnvelope(field)) {\n            if (second != null)\n                throw new IllegalArgumentException(\"field \" + field + \" has one level below it: \" + path);\n            byte[] tlv = message.getBytes(field);\n            return tlv == null ? null : tag(tlv, first);\n        }\n        if (second != null && !isTlvDataset(first))\n            throw new IllegalArgumentException(\"dataset \" + parts[1] + \" needs its definition: \" + path);\n        byte[] bytes = message.getBytes(field);\n        byte[] content = bytes == null ? null : content(bytes, first);\n        if (content == null)\n            return null;\n        return second == null ? ISOUtil.hexString(content) : tag(content, second);\n    }\n\n    /** Whether the field's bytes are a row of datasets, as opposed to plain BER-TLV. */\n    static boolean hasEnvelope(int field) {\n        // TODO: Decide which fields find() should walk as datasets. Every field this tool is used\n        //       on is a composite field of the 2023 edition.\n        throw new IllegalStateException(\"TODO: hasEnvelope\");\n    }\n\n    /** Whether a dataset with this identifier holds BER-TLV elements. */\n    static boolean isTlvDataset(int id) {\n        // TODO: find() may look up a tag only in a dataset whose content is BER-TLV.\n        throw new IllegalStateException(\"TODO: isTlvDataset\");\n    }\n\n    /** The content of the first dataset with this identifier, or null when the field has none. */\n    static byte[] content(byte[] field, int id) {\n        // TODO: Return the content of the dataset with this identifier, or null when the field has\n        //       none. A field from another system can be damaged: refuse what can't be a correct\n        //       field with an IllegalArgumentException rather than return a guess.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    private static int hex(String s) {\n        if (!s.startsWith(\"0x\") || s.length() < 3)\n            throw new IllegalArgumentException(\"expected 0x and hex digits: \" + s);\n        return Integer.parseInt(s.substring(2), 16);\n    }\n\n    private static String tag(byte[] tlvBytes, int tag) {\n        TLVList tlv = new TLVList();\n        tlv.unpack(tlvBytes);\n        return tlv.hasTag(tag) ? tlv.getString(tag) : null;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-17/practice-1/src/main/java/com/example/practice/DatasetFinder.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-17/practice-1/src/test/java/com/example/practice/DatasetFinderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-17/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-17/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DatasetFinderTest#findsDatasetsAndTheirElements",
+        "kind": "main",
+        "says": "a path finds a dataset's content or a tag inside a TLV dataset, and an absent field, dataset or tag gives null"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#refusesPathsItCannotResolve",
+        "kind": "main",
+        "says": "malformed paths are refused, and so is a tag path into a bitmap dataset"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#chipDataHasNoDatasetLevel",
+        "kind": "edge",
+        "says": "in DE 55 the part after the field is a tag, because chip data carries no dataset envelope"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#tagsInsideDataset0x70",
+        "kind": "edge",
+        "says": "dataset 0x70 is the last TLV dataset, and 0x71 the first bitmap one"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#identifierBytesInsideAnotherDatasetAreNotDatasets",
+        "kind": "edge",
+        "says": "a dataset is found by walking the envelopes from the start, never by searching for its identifier byte"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#refusesADatasetLongerThanWhatIsLeft",
+        "kind": "edge",
+        "says": "a dataset whose length runs past the end of the field is refused, never cut to what is left"
+      },
+      {
+        "id": "com.example.practice.DatasetFinderTest#refusesBytesThatAreNotIdentifiers",
+        "kind": "edge",
+        "says": "00 and FF met while walking are refused, because they are not dataset identifiers"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-17/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/17.md",
+      "section": "17.5. A Path Names One Element at One Level"
+    },
+    "concepts": [
+      "DE 55 is composite but carries raw BER-TLV with no envelope, so a reader must know which fields have one.",
+      "A path names one element at one level: after DE 55 comes a tag, after another field a dataset, then a tag only inside a TLV dataset; absent is not an error.",
+      "A reader walks the envelopes from the start, steps over unknown datasets by their length, and refuses overruns and the bytes 00 and FF."
+    ]
+  }
+}

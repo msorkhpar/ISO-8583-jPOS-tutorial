@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "ordinal": 2,
+  "title": "Check yourself: What changes in jPOS 3",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-pcode-key",
+        "stem": "A QMUX on jPOS 2.1.7 has <key>41, 11</key> and, copied from the current jPOS documentation, <key mti=\"01\" pcode=\"300000\">41, 37</key>. A gateway sends 0100 pre-authorizations with field 3 = 000000, fields 11 and 41, and no field 37. Which fields make up their key?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Fields 41 and 11, since the message's field 3 doesn't match the override",
+            "correct": false,
+            "says": "2.1.7 reads only the mti attribute; pcode is ignored, so the override applies to every 01xx (13.2)."
+          },
+          {
+            "id": "b",
+            "text": "Fields 41, 11 and 37, since an override adds its fields to the default key",
+            "correct": false,
+            "says": "An override replaces the key for its MTI class; it doesn't add to the default (13.2)."
+          },
+          {
+            "id": "c",
+            "text": "Field 41 alone, since the override applies and a field the message lacks is left out",
+            "correct": true,
+            "says": "The pcode is ignored, the override's 41, 37 applies, and the absent 37 is skipped, so pre-authorizations from one terminal collide (13.2)."
+          },
+          {
+            "id": "d",
+            "text": "Fields 41 and 37, since the override applies and a field the message lacks is padded with zeros",
+            "correct": false,
+            "says": "A missing key field is skipped, not padded; and pcode is ignored, so the override applies to every 01xx (13.2)."
+          }
+        ],
+        "origin": {
+          "path": "src/s13.md",
+          "section": "13.2 A jPOS 3 Descriptor Deploys on 2.1.7, and What 2.1.7 Doesn't Read Does Nothing"
+        }
+      },
+      {
+        "id": "q-reverse-commit",
+        "stem": "A descriptor declares, in this order: OpenJournal (starts a database transaction and puts TX in the Context), RecordSale, Authorize, CloseJournal (commits and removes TX), SendResponse (holds the answer while TX is set). It is moved unchanged to a TransactionManager that calls commit in reverse declaration order. Authorize approves a sale. What does the terminal receive?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The approval, since every participant prepared and the order of commit calls doesn't change what is sent",
+            "correct": false,
+            "says": "The order decides whether SendResponse finds TX set; reversed, it runs before CloseJournal and sends nothing (13.3)."
+          },
+          {
+            "id": "b",
+            "text": "The approval, since SendResponse waits until CloseJournal has finished before it sends",
+            "correct": false,
+            "says": "SendResponse doesn't wait: with TX set it sends nothing and returns (13.3, unit s9)."
+          },
+          {
+            "id": "c",
+            "text": "Nothing, since SendResponse runs its commit before CloseJournal runs its own",
+            "correct": true,
+            "says": "Reversed, SendResponse commits before CloseJournal, finds TX and sends nothing; the sale is then committed and the terminal reverses it (13.3)."
+          },
+          {
+            "id": "d",
+            "text": "Nothing, since a reverse-order commit turns the approved sale into an abort",
+            "correct": false,
+            "says": "The order of commit calls doesn't turn a commit into an abort; the sale is committed, unanswered (13.3)."
+          }
+        ],
+        "origin": {
+          "path": "src/s13.md",
+          "section": "13.3 The Same Descriptor Can Behave Differently on the Two Lines"
+        }
+      },
+      {
+        "id": "q-dead-link",
+        "stem": "On jPOS 2.1.7, a participant calls mux.request(m, 5000) on a QMUX whose channel has lost its connection, so isConnected() is false. What does the call do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It throws an ISOException at once, so the participant can answer without waiting",
+            "correct": false,
+            "says": "That is what the jPOS 3 documentation describes; in 2.1.7 send throws, request doesn't (13.3)."
+          },
+          {
+            "id": "b",
+            "text": "It throws an ISOException after 5 seconds, since the message expires unsent",
+            "correct": false,
+            "says": "An unanswered request returns null when its timeout ends; it doesn't throw (13.3)."
+          },
+          {
+            "id": "c",
+            "text": "It returns null after 5 seconds, since the message waits in the queue until its timeout",
+            "correct": true,
+            "says": "QMUX 2.1.7 queues the request and returns null after the timeout (13.3)."
+          },
+          {
+            "id": "d",
+            "text": "It returns null at once, since nothing can be written to a channel that is down",
+            "correct": false,
+            "says": "request doesn't check the link; it waits the whole timeout (13.3)."
+          }
+        ],
+        "origin": {
+          "path": "src/s13.md",
+          "section": "13.3 The Same Descriptor Can Behave Differently on the Two Lines"
+        }
+      },
+      {
+        "id": "q-thread-local",
+        "stem": "On jPOS 2.1.7, a helper reads TransactionManager.getContext(). A participant pauses after an asynchronous mux.request and calls the helper from its ISOResponseListener when the issuer's answer arrives. What does the helper get there?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The paused transaction's Context, since the listener was registered by that transaction",
+            "correct": false,
+            "says": "The accessor reads a thread-local, which the listener's thread doesn't have (13.4)."
+          },
+          {
+            "id": "b",
+            "text": "The Context of the session's last transaction, since a thread-local keeps its last value",
+            "correct": false,
+            "says": "The callback doesn't run on a session's thread, and the TransactionManager clears the value after each call (13.4)."
+          },
+          {
+            "id": "c",
+            "text": "null, since the callback runs on a thread on which nothing was stored for it",
+            "correct": true,
+            "says": "The value is set only around the TransactionManager's own calls; the answer arrives on another thread (13.4)."
+          },
+          {
+            "id": "d",
+            "text": "null, since a paused transaction's Context is withheld until the transaction resumes",
+            "correct": false,
+            "says": "Nothing is withheld; the Context is reachable through handBack. The accessor fails because of the thread (13.4)."
+          }
+        ],
+        "origin": {
+          "path": "src/s13.md",
+          "section": "13.4 Code That Finds Its Transaction Through a Thread-Local Breaks on Both Lines"
+        }
+      }
+    ]
+  }
+}

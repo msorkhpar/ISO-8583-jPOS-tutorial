@@ -1,0 +1,222 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what the host actually receives",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-sydney-morning",
+        "stem": "A client runs on a server in Sydney, which is 11 hours ahead of GMT in January. It sets field 7 with ISODate.getDateTime(new Date()). A purchase leaves at 09:00 Sydney time on 20 January. What does the host find in field 7?",
+        "options": [
+          {
+            "id": "a",
+            "text": "0119220000, since getDateTime formats the instant in GMT unless told otherwise",
+            "correct": false,
+            "says": "the one-argument getDateTime formats in the JVM's default zone, here Sydney"
+          },
+          {
+            "id": "b",
+            "text": "0120090000, since getDateTime formats the instant in the JVM's default zone",
+            "correct": true,
+            "says": "without a zone argument the helper uses the default zone, so the host reads Sydney time as GMT, 11 hours off"
+          },
+          {
+            "id": "c",
+            "text": "0119220000, since the packager converts field 7 to GMT when it packs the message",
+            "correct": false,
+            "says": "the packager only pads and checks length; it never interprets the value"
+          },
+          {
+            "id": "d",
+            "text": "0120090000, since the packager sends field 7 in the terminal's own local time",
+            "correct": false,
+            "says": "the packager sends the string it was given; the local time comes from the helper, not the packager"
+          }
+        ],
+        "origin": {
+          "path": "src/c2.md",
+          "section": "2.4 Field 7 Is GMT, Whatever the Server's Time Zone"
+        }
+      },
+      {
+        "id": "q-saved-row",
+        "stem": "When a client sends a purchase it saves a row keyed by the request's field 11, and when the response comes it looks the row up by the response's field 11. One purchase was built with m.set(11, \"4096\") and sent with the iso87ascii packager. The host approves it, sending field 11 back in its response. What does the lookup return?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The saved row, since QMUX pads the request's field 11 when it matches the response",
+            "correct": false,
+            "says": "QMUX pads a copy of the value for its key; the request's field 11 and the saved row still say 4096"
+          },
+          {
+            "id": "b",
+            "text": "Nothing, since the host gives each response a trace number of its own choosing",
+            "correct": false,
+            "says": "the host echoes the request's field 11; it does not number its responses itself"
+          },
+          {
+            "id": "c",
+            "text": "The saved row, since the packager pads the value inside the ISOMsg as well",
+            "correct": false,
+            "says": "the packager pads only the bytes it writes; getString(11) on the request still returns 4096"
+          },
+          {
+            "id": "d",
+            "text": "Nothing, since the host sends back the six digits that the packager wrote",
+            "correct": true,
+            "says": "the wire carried 004096, so the response says 004096 while the row is keyed by 4096"
+          }
+        ],
+        "origin": {
+          "path": "src/c2.md",
+          "section": "2.1 An ISOMsg Holds Strings, and the Packager Decides the Bytes"
+        }
+      },
+      {
+        "id": "q-hhmmss-counter",
+        "stem": "To avoid keeping a counter, a developer sets field 11 to the time of day as HHmmss. Field 41 is the same on every request, and at busy times the link carries four requests per second, each answered within two seconds. What do you expect to see at busy times?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Requests started in the same second share a STAN, so QMUX refuses all but one of them",
+            "correct": true,
+            "says": "with field 41 constant the key is the STAN, and only one request per key can wait"
+          },
+          {
+            "id": "b",
+            "text": "Requests started in the same second share a STAN, but QMUX tells them apart by amount",
+            "correct": false,
+            "says": "the default key is fields 41 and 11; the amount is not part of it"
+          },
+          {
+            "id": "c",
+            "text": "Every request has a STAN of its own, since field 7 is part of the key QMUX builds",
+            "correct": false,
+            "says": "field 7 is not a key field; requests in one second get the same HHmmss"
+          },
+          {
+            "id": "d",
+            "text": "Every request has a STAN of its own, since the packager puts the date before field 11",
+            "correct": false,
+            "says": "the packager writes field 11 as six digits and adds nothing to it"
+          }
+        ],
+        "origin": {
+          "path": "src/c2.md",
+          "section": "2.5 The STAN Is One Sequence per Link"
+        }
+      },
+      {
+        "id": "q-log-cleanup",
+        "stem": "To keep card numbers out of the logs, a developer adds m.set(2, ISOUtil.protect(m.getString(2))) before mux.request, and logs each request with m.dump. What becomes of the purchases?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The log is masked and they are approved, since the channel puts the clear number back before sending",
+            "correct": false,
+            "says": "the channel sends field 2 as it is; nothing in jPOS keeps the clear number"
+          },
+          {
+            "id": "b",
+            "text": "The log shows clear numbers and they are approved, since dump prints field 2 as first set",
+            "correct": false,
+            "says": "set replaced field 2; dump prints the current, masked value"
+          },
+          {
+            "id": "c",
+            "text": "The log is masked and they are declined, since the host receives the masked number in field 2",
+            "correct": true,
+            "says": "protect's result replaced the PAN in the message, so the host gets a card number that does not exist"
+          },
+          {
+            "id": "d",
+            "text": "The log shows clear numbers and they are declined, since protect leaves field 2 alone",
+            "correct": false,
+            "says": "protect returns a copy, but set then stores that copy in field 2"
+          }
+        ],
+        "origin": {
+          "path": "src/c2.md",
+          "section": "2.6 Mask What You Print, Never What You Send"
+        }
+      },
+      {
+        "id": "q-two-purchases",
+        "stem": "A client uses a ChannelAdaptor with its default settings. A purchase is waiting for its answer when another purchase, with nine characters in field 41, is handed to the same MUX. The host would answer both within a second. What do the two callers of request see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The second gets an ISOException at once and the first gets its answer, since the MUX packs before queueing",
+            "correct": false,
+            "says": "the MUX only queues the message; the channel packs it on its own thread"
+          },
+          {
+            "id": "b",
+            "text": "Both get null when their timeouts run out, since the adaptor closes the link when the pack fails",
+            "correct": true,
+            "says": "in 2.1.7 the sender disconnects on an ISOException, so the first answer is lost and the second message was never sent"
+          },
+          {
+            "id": "c",
+            "text": "The second gets an ISOException at once and the first gets null, since the failed pack stops the reader",
+            "correct": false,
+            "says": "the pack error is only logged by the adaptor; the caller of request just waits"
+          },
+          {
+            "id": "d",
+            "text": "Both get null when their timeouts run out, since the host rejects the message and drops the link",
+            "correct": false,
+            "says": "the bad message never reaches the host; the client's own adaptor closes the link"
+          }
+        ],
+        "origin": {
+          "path": "src/c2.md",
+          "section": "2.2 A Message That Doesn't Pack Fails on the Channel Thread"
+        }
+      }
+    ],
+    "concepts": [
+      "Masking is applied to what is printed or logged; the message keeps the real PAN, and dump prints it in clear.",
+      "An ISOMsg keeps the strings it was given; the packager pads short values and refuses long ones only when it packs, so a short STAN in memory differs from the one the host echoes."
+    ]
+  }
+}

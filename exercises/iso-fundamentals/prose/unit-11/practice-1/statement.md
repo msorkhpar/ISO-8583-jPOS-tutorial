@@ -1,17 +1,17 @@
-A jPOS `Logger` hands each `LogEvent` to its listeners one after another. A transaction log
-is one such listener: it keeps the ISO messages of the events that are transactions and lets
-everything else go by. Get it wrong and you either lose transactions from the log or, worse,
-silently starve every listener added after yours.
+The acquirer's merchant portal now serves merchants outside the euro and dollar countries, and the
+complaints have started. A restaurant in Santiago refunded a dinner and the cardholder got a
+hundred times too much back. A shop in Manama says its refunds come out wrong, and a Seoul merchant
+says the portal shows every purchase with two decimals the won doesn't have.
 
-Write `TransactionRecorder`, a `org.jpos.util.LogListener`:
+Merchants type the amount to refund as they would write it on a receipt (`42.10`, `25000`), and
+the portal shows the amount of each past purchase. Finish the two methods marked `TODO` in
+`src/main/java/com/example/practice/RefundAmounts.java`:
 
-- `log(LogEvent event)` records every `ISOMsg` in the payload (`event.getPayLoad()`, a list)
-  of an event whose tag is `"TX"`; events with any other tag are not recorded;
-- `recorded()` returns the recorded messages in the order they arrived.
+- `field4`: field 4 of the refund, for the amount the merchant typed in the purchase's currency.
+  An amount the currency can't carry exactly is refused with an `IllegalArgumentException`;
+- `shown`: the amount of a past purchase as the merchant would write it, such as `42.10`.
 
-Edge cases:
+When you're done, the issuer reads the amount the merchant typed, in every currency. About five
+lines in total.
 
-- The logger passes to the next listener whatever your `log` returns, and stops when it
-  returns `null`. Every event, recorded or not, must reach the listeners after yours.
-- A `TX` event's payload can carry more than the message, such as a text note. Record only
-  the `ISOMsg` items, and do not fail on the rest.
+The tests use other currencies and amounts than the lesson.

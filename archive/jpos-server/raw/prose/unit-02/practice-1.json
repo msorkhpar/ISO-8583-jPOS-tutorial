@@ -8,8 +8,8 @@
   "unit": 2,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Build messages from named templates and pack them",
+  "ingested": "2026-11-05",
+  "title": "Answer every request the terminals send",
   "blocks": [
     {
       "type": "heading",
@@ -18,37 +18,29 @@
     },
     {
       "type": "para",
-      "text": "A switch sends the same kinds of message all day: purchases, balance inquiries. Each kind always carries the same MTI, processing code, POS condition code and terminal id; only the card, the amount and the trace number change. The page keeps one template per kind and builds every message from it, then hands the message to a packager for the wire."
-    },
-    {
-      "type": "para",
-      "text": "Write `MessageTemplates`, the same idea built on `ISOMsg`:"
+      "text": "Your server goes live with a second acquirer, and its terminals' first day goes badly:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`new MessageTemplates(ISOPackager packager)` keeps the packager it is given.",
-        "`define(String name, ISOMsg template)` remembers a template under a name.",
-        "`newMessage(String name)` returns a new message that starts as a copy of that template: its MTI and every field the template has. The caller then sets the fields that vary.",
-        "`pack(ISOMsg message)` returns the bytes the packager makes of the message, and `unpack(byte[] bytes)` returns a new message read back from such bytes."
+        "authorizations time out at the terminal, although your log shows each one approved;",
+        "completion advices and reversal repeats arrive again and again;",
+        "the acquirer's auditors found track data from your answers in the terminals' logs;",
+        "and your own transaction log records responses where the requests should be."
       ]
     },
     {
       "type": "para",
-      "text": "Nobody sets the bitmap by hand: it has to describe exactly the fields the message carries at the moment it is packed. Calling the packager straight on a message that has never had its bitmap worked out fails in jPOS 2.1.7, so find how a message gets packed with its bitmap right."
+      "text": "The terminals' client runs a QMUX with its key set to `41, 11, 37`. The acquirer's specification lists the data elements it wants back in every response; they are `RETURNED` in `src/main/java/com/example/practice/Responder.java`."
     },
     {
       "type": "para",
-      "text": "Why it matters: a template is shared by every message of its kind, so a message that leaks a change back into it would quietly put one customer's card number into the next request."
+      "text": "Finish the two methods marked `TODO` in that file: `turnAround`, which starts the answer to any request the terminals send, and `addApproval`. `answer` already puts them together. About six lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Changing a message you were given never changes the template, nor any message made from it afterwards.",
-        "Asking for a name that was never defined is refused with an `IllegalArgumentException`. An empty message would get as far as the wire before anyone noticed."
-      ]
+      "type": "para",
+      "text": "The tests send each request through a real QMUX and the 1987 ASCII packager, both ways, and look at what the terminal's client receives and at the request your code was handed."
     },
     {
       "type": "heading",
@@ -63,7 +55,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    private final ISOPackager packager;\n    private final Map<String, ISOMsg> templates = new HashMap<>();\n\n    public MessageTemplates(ISOPackager packager) {\n        this.packager = packager;\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        templates.put(name, (ISOMsg) template.clone());\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        ISOMsg template = templates.get(name);\n        if (template == null) {\n            throw new IllegalArgumentException(\"no template named \" + name);\n        }\n        return (ISOMsg) template.clone();\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        message.setPackager(packager);\n        return message.pack();\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setPackager(packager);\n        message.unpack(bytes);\n        return message;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The server's answers to the acquirer's terminals. A participant calls {@link #answer} once it\n * has decided, and the channel sends what it returns.\n */\npublic class Responder {\n    /** Data elements returned in responses, from the acquirer's specification. */\n    static final int[] RETURNED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70, 90 };\n\n    /** The response to {@code request}: an approval when responseCode is \"00\". */\n    public ISOMsg answer(ISOMsg request, String responseCode, String approvalCode) throws ISOException {\n        ISOMsg response = turnAround(request);\n        response.set(39, responseCode);\n        addApproval(response, responseCode, approvalCode);\n        return response;\n    }\n\n    /** A new message that the terminal's client will take as the answer to this request. */\n    ISOMsg turnAround(ISOMsg request) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone(RETURNED);\n        response.setMTI(request.getMTI());\n        response.setResponseMTI();\n        return response;\n    }\n\n    /** What an answer with this response code carries besides field 39. */\n    void addApproval(ISOMsg response, String responseCode, String approvalCode) throws ISOException {\n        if (\"00\".equals(responseCode))\n            response.set(38, approvalCode);\n    }\n}\n"
         }
       ]
     },
@@ -75,7 +67,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    public MessageTemplates(ISOPackager packager) {\n        throw new UnsupportedOperationException(\"write MessageTemplates\");\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        throw new UnsupportedOperationException(\"write define\");\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        throw new UnsupportedOperationException(\"write newMessage\");\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write pack\");\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        throw new UnsupportedOperationException(\"write unpack\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The server's answers to the acquirer's terminals. A participant calls {@link #answer} once it\n * has decided, and the channel sends what it returns.\n */\npublic class Responder {\n    /** Data elements returned in responses, from the acquirer's specification. */\n    static final int[] RETURNED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70, 90 };\n\n    /** The response to {@code request}: an approval when responseCode is \"00\". */\n    public ISOMsg answer(ISOMsg request, String responseCode, String approvalCode) throws ISOException {\n        ISOMsg response = turnAround(request);\n        response.set(39, responseCode);\n        addApproval(response, responseCode, approvalCode);\n        return response;\n    }\n\n    /** A new message that the terminal's client will take as the answer to this request. */\n    ISOMsg turnAround(ISOMsg request) throws ISOException {\n        // TODO: Today's terminals send authorizations (0100), purchases (0200), completion advices\n        //       (0220), reversals and their repeats (0420, 0421) and echoes (0800). Each must get\n        //       back a message its client recognises as the answer, carrying what the acquirer\n        //       asks for (RETURNED). The participant that called you, the transaction log and the\n        //       terminal's own logs all see what you do here. (about 4 lines)\n        throw new IllegalStateException(\"TODO: turnAround\");\n    }\n\n    /** What an answer with this response code carries besides field 39. */\n    void addApproval(ISOMsg response, String responseCode, String approvalCode) throws ISOException {\n        // TODO: The approval code is the issuer's proof that it approved. (about 2 lines)\n        throw new IllegalStateException(\"TODO: addApproval\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -86,7 +78,7 @@
     "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -94,11 +86,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "1e1a641d80d0be516de409499c0c67065dc8c9de2a0a2fd47fe655097bb77589",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Named message templates, and the packager that puts their messages on the wire. */\npublic final class MessageTemplates {\n\n    public MessageTemplates(ISOPackager packager) {\n        throw new UnsupportedOperationException(\"write MessageTemplates\");\n    }\n\n    /** Remembers a template under a name. */\n    public void define(String name, ISOMsg template) {\n        throw new UnsupportedOperationException(\"write define\");\n    }\n\n    /** A new message that starts as a copy of the named template. */\n    public ISOMsg newMessage(String name) {\n        throw new UnsupportedOperationException(\"write newMessage\");\n    }\n\n    /** The bytes the packager makes of the message. */\n    public byte[] pack(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write pack\");\n    }\n\n    /** A new message read back from packed bytes. */\n    public ISOMsg unpack(byte[] bytes) throws ISOException {\n        throw new UnsupportedOperationException(\"write unpack\");\n    }\n}\n",
+  "content_sha256": "5de5a3bc5e7d4abab635b3cd38c8751f8a4dc6b17968f690619af23a07fecca6",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The server's answers to the acquirer's terminals. A participant calls {@link #answer} once it\n * has decided, and the channel sends what it returns.\n */\npublic class Responder {\n    /** Data elements returned in responses, from the acquirer's specification. */\n    static final int[] RETURNED = { 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70, 90 };\n\n    /** The response to {@code request}: an approval when responseCode is \"00\". */\n    public ISOMsg answer(ISOMsg request, String responseCode, String approvalCode) throws ISOException {\n        ISOMsg response = turnAround(request);\n        response.set(39, responseCode);\n        addApproval(response, responseCode, approvalCode);\n        return response;\n    }\n\n    /** A new message that the terminal's client will take as the answer to this request. */\n    ISOMsg turnAround(ISOMsg request) throws ISOException {\n        // TODO: Today's terminals send authorizations (0100), purchases (0200), completion advices\n        //       (0220), reversals and their repeats (0420, 0421) and echoes (0800). Each must get\n        //       back a message its client recognises as the answer, carrying what the acquirer\n        //       asks for (RETURNED). The participant that called you, the transaction log and the\n        //       terminal's own logs all see what you do here. (about 4 lines)\n        throw new IllegalStateException(\"TODO: turnAround\");\n    }\n\n    /** What an answer with this response code carries besides field 39. */\n    void addApproval(ISOMsg response, String responseCode, String approvalCode) throws ISOException {\n        // TODO: The approval code is the issuer's proof that it approved. (about 2 lines)\n        throw new IllegalStateException(\"TODO: addApproval\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-02/practice-1/src/main/java/com/example/practice/MessageTemplates.java",
-    "test_path": "practice/jpos-server/prose/unit-02/practice-1/src/test/java/com/example/practice/MessageTemplatesTest.java",
+    "main_path": "practice/jpos-server/prose/unit-02/practice-1/src/main/java/com/example/practice/Responder.java",
+    "test_path": "practice/jpos-server/prose/unit-02/practice-1/src/test/java/com/example/practice/ResponderTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -119,19 +111,44 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.MessageTemplatesTest#buildsEachMessageFromItsTemplateAndSurvivesAPackRoundTrip",
+        "id": "com.example.practice.ResponderTest#anApprovedPurchaseReachesTheTerminal",
         "kind": "main",
-        "says": "a message made from a template carries the template's MTI and fields plus its own, and packing then unpacking it gives the same fields back"
+        "says": "an approved purchase reaches the terminal's client as its answer, with the approval code"
       },
       {
-        "id": "com.example.practice.MessageTemplatesTest#eachMessageStartsFromAnUntouchedTemplate",
-        "kind": "edge",
-        "says": "changing one message never changes the template or the next message made from it"
+        "id": "com.example.practice.ResponderTest#aDeclinedPurchaseReachesTheTerminal",
+        "kind": "main",
+        "says": "a declined purchase reaches the terminal's client as its answer, with the response code"
       },
       {
-        "id": "com.example.practice.MessageTemplatesTest#anUnknownTemplateIsRefused",
+        "id": "com.example.practice.ResponderTest#aCompletionAdviceIsAcknowledged",
         "kind": "edge",
-        "says": "asking for a template that was never defined is refused, not answered with an empty message"
+        "says": "a completion advice gets an answer its client recognises, so it is not sent again"
+      },
+      {
+        "id": "com.example.practice.ResponderTest#aRepeatedReversalIsAcknowledged",
+        "kind": "edge",
+        "says": "the repeat of a reversal gets an answer its client recognises, so it is not repeated again"
+      },
+      {
+        "id": "com.example.practice.ResponderTest#anAuthorizationWithTheAcquirersReferenceIsAnswered",
+        "kind": "edge",
+        "says": "a client that also matches on the retrieval reference number recognises the answer"
+      },
+      {
+        "id": "com.example.practice.ResponderTest#cardDataStaysWithTheServer",
+        "kind": "edge",
+        "says": "expiry, track data, PIN block and chip data never go back to the terminal"
+      },
+      {
+        "id": "com.example.practice.ResponderTest#theRequestIsLeftAsItArrived",
+        "kind": "edge",
+        "says": "the request the server was handed is still the request after it has been answered"
+      },
+      {
+        "id": "com.example.practice.ResponderTest#aDeclineCarriesNoApprovalCode",
+        "kind": "edge",
+        "says": "a declined request carries no approval code"
       }
     ],
     "report": {
@@ -140,11 +157,12 @@
     },
     "origin": {
       "path": "src/s2.md",
-      "section": "2.4 Putting It All Together"
+      "section": "2.5 A Response Copies What Identifies the Request, and Leaves the Request Alone"
     },
     "concepts": [
-      "Messages of one kind are built from a named template that fixes the MTI and the constant fields, so each new message only adds what varies per transaction.",
-      "A packager turns a message into the bytes that go on the wire and back, and unpacking what it packed gives the same fields again."
+      "The client finds an answer by its key fields, so a response must carry each of them unchanged; a response built from scratch or renumbered by the server matches nothing.",
+      "setResponseMTI turns any request into its response MTI, while a hand-written MTI leaves other kinds of request, such as advices, unanswered.",
+      "A response is a new message holding only the listed fields, so card secrets stay behind and the request in the Context stays a request; the approval code goes only with an approval."
     ]
   }
 }

@@ -1,0 +1,225 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: data elements",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-error-names-a-later-field",
+        "stem": "An acquirer's host reads DE 43 as a fixed field of 40 characters. A new kiosk gateway now sends DE 43 as a variable field, and leaves DE 60 as it always was. The host's log now says it cannot unpack DE 60. Where is the fault?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In DE 60, since the host found too few length digits in front of that field's value",
+            "correct": false,
+            "says": "the host looked for DE 60's length in the wrong place because DE 43 had shifted everything; DE 60 is unchanged"
+          },
+          {
+            "id": "b",
+            "text": "In DE 43, since the host took the gateway's length digits as name and so misread the later fields",
+            "correct": true,
+            "says": "nothing marks where a field ends but the receiver's table, so one field in the wrong format shifts every later field and the error names a later one"
+          },
+          {
+            "id": "c",
+            "text": "In DE 60, since the gateway wrote too few length digits in front of that field's value",
+            "correct": false,
+            "says": "the gateway did not change DE 60; the host read its length digits from the wrong place because DE 43 had shifted everything"
+          },
+          {
+            "id": "d",
+            "text": "In DE 43, since the host stopped at the end of the gateway's short name and so misread the later fields",
+            "correct": false,
+            "says": "the host does not stop at the end of the name: it takes all 40 characters, which here include the gateway's length digits and part of the next field"
+          }
+        ],
+        "origin": {
+          "path": "src/3.md",
+          "section": "3.1. A Field's Format Is All the Receiver Has to Find Where It Ends"
+        }
+      },
+      {
+        "id": "q-dot-in-an-amount",
+        "stem": "A developer, unsure how amounts are written, calls set(4, \"12.50\") for a sale of 12.50 and packs the message with iso87ascii.xml. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The message is not packed, since DE 4 is numeric and the value holds a character that is not a digit",
+            "correct": false,
+            "says": "jPOS checks the length of a value, not its characters, so the dot is accepted"
+          },
+          {
+            "id": "b",
+            "text": "The message is not packed, since a value for DE 4 must be given with all twelve digits",
+            "correct": false,
+            "says": "a short value is padded with zeros on the left; only a value that is too long is refused"
+          },
+          {
+            "id": "c",
+            "text": "The message goes out with 000000012.50 in DE 4, since the value is padded to twelve characters as it is",
+            "correct": true,
+            "says": "jPOS pads a short value and checks nothing but its length, so the dot travels to the host"
+          },
+          {
+            "id": "d",
+            "text": "The message goes out with 000000001250 in DE 4, since the dot is dropped as the value is padded",
+            "correct": false,
+            "says": "the packager does not interpret the value; it pads what it was given, dot included"
+          }
+        ],
+        "origin": {
+          "path": "src/3.md",
+          "section": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
+        }
+      },
+      {
+        "id": "q-bcd-prefix",
+        "stem": "A link packs DE 2 in BCD with a one-byte length prefix. A card has a 15-digit PAN. What does the sender put on the wire for DE 2?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The prefix counts digits, and the 15 digits behind it fill 8 bytes",
+            "correct": true,
+            "says": "a BCD prefix counts digits, two digits share a byte, and the spare half-byte is filled"
+          },
+          {
+            "id": "b",
+            "text": "The prefix counts bytes, and the 15 digits behind it fill 8 bytes",
+            "correct": false,
+            "says": "a BCD prefix counts digits, not bytes; a peer that reads it as bytes misreads the field and everything after it"
+          },
+          {
+            "id": "c",
+            "text": "The prefix counts digits, and the 15 digits behind it fill 15 bytes",
+            "correct": false,
+            "says": "one byte per digit is ASCII or EBCDIC; BCD packs two digits into each byte"
+          },
+          {
+            "id": "d",
+            "text": "The prefix counts bytes, and the 15 digits behind it fill 15 bytes",
+            "correct": false,
+            "says": "BCD packs two digits into each byte, and its prefix counts digits, not bytes"
+          }
+        ],
+        "origin": {
+          "path": "src/3.md",
+          "section": "3.3. The Packager Decides the Bytes, So Both Peers Need the Same One"
+        }
+      },
+      {
+        "id": "q-track-separator",
+        "stem": "A terminal application builds Track 2 as 4111111111111111D2812101 and the link packs DE 35 with a BCD field packager. What does the issuer get when it unpacks DE 35?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The track as the terminal built it, since BCD has a half-byte value for the letter D",
+            "correct": false,
+            "says": "jPOS's BCD packager maps the character = to the half-byte D; a D character is packed as a digit"
+          },
+          {
+            "id": "b",
+            "text": "The track with = in place of D, since the packager turns one separator form into the other",
+            "correct": false,
+            "says": "only = is turned into the half-byte D and back; a D set in the message is not recognised as the separator"
+          },
+          {
+            "id": "c",
+            "text": "A run of digits with a 4 in place of the separator, since the letter D is packed as a digit",
+            "correct": true,
+            "says": "the BCD packager packs D as 4, so the separator is gone and the PAN can no longer be found"
+          },
+          {
+            "id": "d",
+            "text": "A run of digits one shorter than the track, since the packager drops each character that is not a digit",
+            "correct": false,
+            "says": "nothing is dropped: the D becomes the digit 4, so the track keeps its length and loses its separator"
+          }
+        ],
+        "origin": {
+          "path": "src/3.md",
+          "section": "3.4. A Field's Type Decides How You Read Its Value"
+        }
+      },
+      {
+        "id": "q-one-list-of-required-fields",
+        "stem": "A team adds one check for every message it receives: reject anything without DE 2, DE 4 and DE 11. The network sends its first 0800 echo test of the day. What does the check do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It rejects the echo, since a network message carries no card number and no amount",
+            "correct": true,
+            "says": "which fields are present depends on the MTI; an 0800 echo carries DE 7, DE 11 and DE 70"
+          },
+          {
+            "id": "b",
+            "text": "It rejects the echo, since a network message carries its trace number in DE 70 instead",
+            "correct": false,
+            "says": "an 0800 echo carries its STAN in DE 11; it fails the check because it has no DE 2 and no DE 4"
+          },
+          {
+            "id": "c",
+            "text": "It lets the echo through, since a network message carries a card number and amount of zero",
+            "correct": false,
+            "says": "an 0800 echo carries no DE 2 and no DE 4 at all, only DE 7, DE 11 and DE 70"
+          },
+          {
+            "id": "d",
+            "text": "It lets the echo through, since getString returns zeros for a field that was not sent",
+            "correct": false,
+            "says": "getString returns null for an absent field, and hasField is false"
+          }
+        ],
+        "origin": {
+          "path": "src/3.md",
+          "section": "3.5. Which Fields Must Be Present Depends on the MTI and the Network"
+        }
+      }
+    ],
+    "concepts": [
+      "One field written in another format shifts every field after it, so the receiver's error names a later field that is correct.",
+      "Which fields must be present is set per MTI by the network's specification; there is no list that holds for every message.",
+      "jPOS checks a value's length and nothing else, so a dot or a letter in a numeric field goes to the host.",
+      "ASCII, BCD and EBCDIC packagers write the same field differently, and a BCD length prefix counts digits, not bytes.",
+      "Track 2 is set with = in the ISOMsg; a BCD packager packs a D character as the digit 4 and the separator is lost."
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "ordinal": 3,
+  "title": "Check yourself: Mastercard-specific implementation",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-visa-packager-reuse",
+        "stem": "A team reuses its Visa link's packager, unchanged, for a new link whose specification writes every digit, length and text character as one EBCDIC byte and the bitmap as 8 binary bytes. The Visa packager already writes its text fields in EBCDIC. What does the new host make of the team's first message?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It can't read the MTI, since the MTI's four digits arrive packed into two bytes",
+            "correct": true,
+            "says": "6.1: a BCD packager writes the MTI as 01 00, and an EBCDIC host takes the first four bytes, 01 00 70 20, for the MTI"
+          },
+          {
+            "id": "b",
+            "text": "It can't read the MTI, since the MTI's four digits arrive as ASCII characters",
+            "correct": false,
+            "says": "6.1: unit 5's Visa packager writes digits in BCD, two to a byte, not as ASCII characters; the MTI is 01 00"
+          },
+          {
+            "id": "c",
+            "text": "It reads the MTI but not the amount, since the amount's twelve digits arrive packed into six bytes",
+            "correct": false,
+            "says": "6.1: the MTI is numeric too, so the BCD packager writes it as two bytes"
+          },
+          {
+            "id": "d",
+            "text": "It reads the MTI but not the terminal, since the terminal's eight characters arrive as ASCII bytes",
+            "correct": false,
+            "says": "6.1: the Visa packager already writes text in EBCDIC; its BCD numbers, the MTI first, are what the host can't read"
+          }
+        ],
+        "origin": {
+          "path": "src/6.md",
+          "section": "6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap"
+        }
+      },
+      {
+        "id": "q-round-trip-test",
+        "stem": "A packager file for an EBCDIC link declares field 42 with the wrong class, one that writes ASCII. The team's test packs an 0100 with field 42 set, unpacks the bytes with the same file, and compares every field. What does the test report?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It fails on field 42, since the unpacked value differs from the value the test set",
+            "correct": false,
+            "says": "6.2: one class packs and unpacks the field, so the value comes back unchanged"
+          },
+          {
+            "id": "b",
+            "text": "It fails on field 42, since the packed bytes differ from the bytes the link expects",
+            "correct": false,
+            "says": "6.2: a round trip never compares with the link's bytes; only a sample comparison does"
+          },
+          {
+            "id": "c",
+            "text": "It passes, since the unpacked value equals the value the test set",
+            "correct": true,
+            "says": "6.2: the same wrong class packs and unpacks, so a round trip passes; only sample bytes catch it"
+          },
+          {
+            "id": "d",
+            "text": "It passes, since the packed bytes equal the bytes the link expects",
+            "correct": false,
+            "says": "6.2: field 42 goes out in ASCII where the link expects EBCDIC; the test passes for another reason"
+          }
+        ],
+        "origin": {
+          "path": "src/6.md",
+          "section": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
+        }
+      },
+      {
+        "id": "q-length-mismatch",
+        "stem": "A client puts four ASCII digits in front of each message. The host it connects to expects a binary length in front of each message, as PostChannel writes it. The client sends a 58-byte 0100. What does the host do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It reads a length of 12336 and waits for more bytes, since it takes the first two digits as the length",
+            "correct": true,
+            "says": "6.3: 30 30 is 12336 as a binary length, so the host waits for bytes that never come until its timeout"
+          },
+          {
+            "id": "b",
+            "text": "It reads a length of 58 and waits for more bytes, since it takes all four digits as the length",
+            "correct": false,
+            "says": "6.3: a binary-length host reads two bytes, 30 30, as 12336; it never reads the four digits as 58"
+          },
+          {
+            "id": "c",
+            "text": "It reads a length of 12336 and refuses the frame, since it takes the first two digits as the length",
+            "correct": false,
+            "says": "6.3: the host can't know how many bytes are still coming, so it waits until its read timeout"
+          },
+          {
+            "id": "d",
+            "text": "It reads a length of 58 and refuses the frame, since it takes all four digits as the length",
+            "correct": false,
+            "says": "6.3: a binary-length host reads two bytes, 30 30, as 12336, and it waits instead of refusing"
+          }
+        ],
+        "origin": {
+          "path": "src/6.md",
+          "section": "6.3. A Frame Is a Two-Byte Binary Length, Then the Message"
+        }
+      },
+      {
+        "id": "q-new-subelement",
+        "stem": "Your packager declares field 48 with MasterCardEBCDICSubFieldPackager and the three subelement tags your application uses. A network release starts sending a new tag, 27, in field 48 of every authorization response. What happens on release day?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Responses fail to unpack at field 48, since the packager refuses any undefined tag",
+            "correct": true,
+            "says": "6.4: the subfield packager refuses an undeclared tag, and the whole message with it"
+          },
+          {
+            "id": "b",
+            "text": "Responses fail to unpack at field 48, since the packager looks for each tag at a fixed offset",
+            "correct": false,
+            "says": "6.4: the packager finds each tag where it is; fixed offsets are the hand-written reader's mistake, and that reader misreads without failing"
+          },
+          {
+            "id": "c",
+            "text": "Responses unpack with the extra subelement dropped, since the packager steps over any undefined tag",
+            "correct": false,
+            "says": "6.4: stepping over unknown tags is what a reader must do, but jPOS's subfield packager refuses them unless every tag is declared"
+          },
+          {
+            "id": "d",
+            "text": "Responses unpack with the other subelements misread, since the packager looks for each tag at a fixed offset",
+            "correct": false,
+            "says": "6.4: the packager finds each tag where it is; the fixed-offset reader is the other way to fail"
+          }
+        ],
+        "origin": {
+          "path": "src/6.md",
+          "section": "6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message"
+        }
+      }
+    ]
+  }
+}

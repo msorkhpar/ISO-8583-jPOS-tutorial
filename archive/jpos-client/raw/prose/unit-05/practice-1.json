@@ -8,8 +8,8 @@
   "unit": 5,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Build Visa and Mastercard requests from one set of rules",
+  "ingested": "2026-11-05",
+  "title": "Build each merchant's purchases from its boarding data",
   "blocks": [
     {
       "type": "heading",
@@ -18,39 +18,23 @@
     },
     {
       "type": "para",
-      "text": "The page writes a Visa service and a Mastercard service, eight methods that are almost the same code. Read them side by side and the differences are small: the processing code in field 3 says which transaction it is, and each network adds a little data of its own. When those rules live in one place, a new transaction type or a changed acquirer ID is one edit, not eight."
+      "text": "Your gateway builds purchases for many merchants. Each merchant arrives with the properties file the acquirer's boarding team filled in: terminal, merchant ID, category code, currency, name, city, country, and one `acquirer.<network>` line per card network the merchant may accept. Since the gateway started taking Mastercard and Discover cards, the acquirer has reported two kinds of bad purchases: some reach it with no acquiring institution ID, or with the wrong network's, and some show merchants in cities that don't exist."
     },
     {
       "type": "para",
-      "text": "Write `CardRequests` with four methods, each taking the card network's name first: `purchase(network, pan, amount, terminalId)`, `cashAdvance(network, pan, amount, terminalId)`, `refund(network, pan, amount, terminalId, originalRrn)` and `balanceInquiry(network, pan, terminalId)`. Each returns a new `ISOMsg` with:"
+      "text": "`Boarding.purchase` in `src/main/java/com/example/practice/Boarding.java` already builds the request. Finish the two methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "MTI `0100`, the card number in field 2, the terminal ID in field 41 and currency `840` in field 49;",
-        "the processing code in field 3: `000000` for a purchase, `010000` for a cash advance, `200000` for a refund and `300000` for a balance inquiry;",
-        "the amount in field 4, except on a balance inquiry, which has no amount;",
-        "on a refund, the original transaction's retrieval reference number in field 37;",
-        "the acquiring institution in field 32: `123456` for Visa, `654321` for Mastercard;",
-        "for Mastercard only, point-of-service data in field 61: `0000000000000001` for a purchase, `...02` for a cash advance, `...03` for a refund and `...04` for a balance inquiry (all sixteen digits long). A Visa request has no field 61."
+        "`acquirerId(network)`: the merchant's ID for that network. When the merchant has none, the purchase must not be built: throw `IllegalArgumentException`.",
+        "`nameAndLocation()`: field 43 for any merchant the boarding team may send you, short or long."
       ]
     },
     {
       "type": "para",
-      "text": "Leave out the page's transmission time (field 7) and trace number (field 11); the sender fills those in when the request goes out."
-    },
-    {
-      "type": "para",
-      "text": "Mind these:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The network name is `visa` or `mastercard`, in any case (`VISA`, `MasterCard`).",
-        "Any other network (say `amex`) is refused with an `IllegalArgumentException`. Sending it as a Visa request would put the wrong acquirer on a real transaction."
-      ]
+      "text": "The tests pack each purchase with the course packager and read field 43 back as a host does. About ten lines in total."
     },
     {
       "type": "heading",
@@ -65,7 +49,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    private enum Network {\n        VISA(\"123456\", false), MASTERCARD(\"654321\", true);\n\n        final String acquirer;\n        final boolean posData;\n\n        Network(String acquirer, boolean posData) {\n            this.acquirer = acquirer;\n            this.posData = posData;\n        }\n\n        static Network named(String name) {\n            for (Network n : values()) {\n                if (n.name().equalsIgnoreCase(name)) {\n                    return n;\n                }\n            }\n            throw new IllegalArgumentException(\"Unsupported card network: \" + name);\n        }\n    }\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        return request(network, \"000000\", 1, pan, amount, terminalId, null);\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        return request(network, \"010000\", 2, pan, amount, terminalId, null);\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        return request(network, \"200000\", 3, pan, amount, terminalId, originalRrn);\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        return request(network, \"300000\", 4, pan, null, terminalId, null);\n    }\n\n    private static ISOMsg request(String name, String processingCode, int pos, String pan,\n            String amount, String terminalId, String originalRrn) throws ISOException {\n        Network network = Network.named(name);\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, pan);\n        msg.set(3, processingCode);\n        if (amount != null) {\n            msg.set(4, amount);\n        }\n        msg.set(32, network.acquirer);\n        if (originalRrn != null) {\n            msg.set(37, originalRrn);\n        }\n        msg.set(41, terminalId);\n        msg.set(49, \"840\");\n        if (network.posData) {\n            msg.set(61, String.format(\"%016d\", pos));\n        }\n        return msg;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.Locale;\nimport java.util.Properties;\n\n/**\n * One merchant as the acquirer boarded it, read from that merchant's properties file, and the\n * purchases the gateway builds for it. Fields 7 and 11 are stamped later, by the sender.\n */\npublic class Boarding {\n    private final Properties boarding;\n\n    public Boarding(Properties boarding) {\n        this.boarding = new Properties();\n        this.boarding.putAll(boarding);\n    }\n\n    /** A purchase on the given card network (\"visa\", \"Mastercard\", ...) for this merchant. */\n    public ISOMsg purchase(String network, String pan, long amountMinor) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(18, boarding.getProperty(\"mcc\"));\n        m.set(32, acquirerId(network));\n        m.set(41, boarding.getProperty(\"terminal\"));\n        m.set(42, boarding.getProperty(\"merchant\"));\n        m.set(43, nameAndLocation());\n        m.set(49, boarding.getProperty(\"currency\"));\n        return m;\n    }\n\n    /** The acquiring institution ID this merchant was given for the network. */\n    String acquirerId(String network) {\n        String key = \"acquirer.\" + network.trim().toLowerCase(Locale.ROOT);\n        String id = boarding.getProperty(key);\n        if (id == null)\n            throw new IllegalArgumentException(\"merchant is not boarded for \" + network);\n        return id;\n    }\n\n    /**\n     * Field 43 for this merchant, from the name, city and country properties. The acquirer's\n     * specification: name in positions 1-25, city in 26-38, country in 39-40.\n     */\n    String nameAndLocation() {\n        return fit(boarding.getProperty(\"name\"), 25)\n             + fit(boarding.getProperty(\"city\"), 13)\n             + fit(boarding.getProperty(\"country\"), 2);\n    }\n\n    private static String fit(String s, int width) {\n        return ISOUtil.strpad(s.length() > width ? s.substring(0, width) : s, width);\n    }\n}\n"
         }
       ]
     },
@@ -77,7 +61,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write purchase\");\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write cashAdvance\");\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write balanceInquiry\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.Locale;\nimport java.util.Properties;\n\n/**\n * One merchant as the acquirer boarded it, read from that merchant's properties file, and the\n * purchases the gateway builds for it. Fields 7 and 11 are stamped later, by the sender.\n */\npublic class Boarding {\n    private final Properties boarding;\n\n    public Boarding(Properties boarding) {\n        this.boarding = new Properties();\n        this.boarding.putAll(boarding);\n    }\n\n    /** A purchase on the given card network (\"visa\", \"Mastercard\", ...) for this merchant. */\n    public ISOMsg purchase(String network, String pan, long amountMinor) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(18, boarding.getProperty(\"mcc\"));\n        m.set(32, acquirerId(network));\n        m.set(41, boarding.getProperty(\"terminal\"));\n        m.set(42, boarding.getProperty(\"merchant\"));\n        m.set(43, nameAndLocation());\n        m.set(49, boarding.getProperty(\"currency\"));\n        return m;\n    }\n\n    /** The acquiring institution ID this merchant was given for the network. */\n    String acquirerId(String network) {\n        // TODO: The properties hold one key per network the merchant is boarded for, written in\n        //       lower case: acquirer.visa=..., acquirer.mastercard=... Callers name the network\n        //       as the card-brand table spells it. Return the merchant's ID for that network.\n        throw new IllegalStateException(\"TODO: acquirerId\");\n    }\n\n    /**\n     * Field 43 for this merchant, from the name, city and country properties. The acquirer's\n     * specification: name in positions 1-25, city in 26-38, country in 39-40.\n     */\n    String nameAndLocation() {\n        // TODO: Hosts read this field by position. Build it from the name, city and country\n        //       properties so that any merchant's values land where the host looks for them.\n        throw new IllegalStateException(\"TODO: nameAndLocation\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -85,10 +69,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
+    "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -96,11 +80,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "6ddb4c3fbea2026a51b6f3aa39062340ebf0dd1292b29485cbd1034d874bf8ab",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Authorization requests for Visa and Mastercard, built from one set of rules. */\npublic final class CardRequests {\n\n    public ISOMsg purchase(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write purchase\");\n    }\n\n    public ISOMsg cashAdvance(String network, String pan, String amount, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write cashAdvance\");\n    }\n\n    public ISOMsg refund(String network, String pan, String amount, String terminalId,\n            String originalRrn) throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    public ISOMsg balanceInquiry(String network, String pan, String terminalId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write balanceInquiry\");\n    }\n}\n",
+  "content_sha256": "80379778147a50cf9a8efceae59de5a36398ddbc731e9aed128d6af3e209ef62",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.Locale;\nimport java.util.Properties;\n\n/**\n * One merchant as the acquirer boarded it, read from that merchant's properties file, and the\n * purchases the gateway builds for it. Fields 7 and 11 are stamped later, by the sender.\n */\npublic class Boarding {\n    private final Properties boarding;\n\n    public Boarding(Properties boarding) {\n        this.boarding = new Properties();\n        this.boarding.putAll(boarding);\n    }\n\n    /** A purchase on the given card network (\"visa\", \"Mastercard\", ...) for this merchant. */\n    public ISOMsg purchase(String network, String pan, long amountMinor) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(18, boarding.getProperty(\"mcc\"));\n        m.set(32, acquirerId(network));\n        m.set(41, boarding.getProperty(\"terminal\"));\n        m.set(42, boarding.getProperty(\"merchant\"));\n        m.set(43, nameAndLocation());\n        m.set(49, boarding.getProperty(\"currency\"));\n        return m;\n    }\n\n    /** The acquiring institution ID this merchant was given for the network. */\n    String acquirerId(String network) {\n        // TODO: The properties hold one key per network the merchant is boarded for, written in\n        //       lower case: acquirer.visa=..., acquirer.mastercard=... Callers name the network\n        //       as the card-brand table spells it. Return the merchant's ID for that network.\n        throw new IllegalStateException(\"TODO: acquirerId\");\n    }\n\n    /**\n     * Field 43 for this merchant, from the name, city and country properties. The acquirer's\n     * specification: name in positions 1-25, city in 26-38, country in 39-40.\n     */\n    String nameAndLocation() {\n        // TODO: Hosts read this field by position. Build it from the name, city and country\n        //       properties so that any merchant's values land where the host looks for them.\n        throw new IllegalStateException(\"TODO: nameAndLocation\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-05/practice-1/src/main/java/com/example/practice/CardRequests.java",
-    "test_path": "practice/jpos-client/prose/unit-05/practice-1/src/test/java/com/example/practice/CardRequestsTest.java",
+    "main_path": "practice/jpos-client/prose/unit-05/practice-1/src/main/java/com/example/practice/Boarding.java",
+    "test_path": "practice/jpos-client/prose/unit-05/practice-1/src/test/java/com/example/practice/BoardingTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -121,24 +105,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.CardRequestsTest#eachTransactionTypeIsNamedByItsProcessingCode",
+        "id": "com.example.practice.BoardingTest#aVisaPurchaseCarriesTheMerchantsBoarding",
         "kind": "main",
-        "says": "a purchase, a cash advance, a refund and a balance inquiry are each a 0100 request told apart by field 3, the refund carrying the original RRN and the balance inquiry no amount"
+        "says": "a Visa purchase carries the merchant's Visa acquirer ID, terminal, merchant ID and amount, and the host reads its name, city and country back"
       },
       {
-        "id": "com.example.practice.CardRequestsTest#eachNetworkAddsItsOwnData",
+        "id": "com.example.practice.BoardingTest#aMastercardPurchaseCarriesItsOwnAcquirerId",
         "kind": "main",
-        "says": "a Visa request carries Visa's acquirer and no field 61; a Mastercard request carries Mastercard's acquirer and its point-of-service data"
+        "says": "each network's purchase carries the acquirer ID boarded for that network, whatever case the network name is written in"
       },
       {
-        "id": "com.example.practice.CardRequestsTest#theNetworkNameIgnoresCase",
+        "id": "com.example.practice.BoardingTest#aNetworkTheMerchantIsNotBoardedForIsRefused",
         "kind": "edge",
-        "says": "the network is recognised whatever the case of its name"
+        "says": "a purchase on a network the merchant has no acquirer ID for is refused instead of being built without field 32"
       },
       {
-        "id": "com.example.practice.CardRequestsTest#anUnsupportedNetworkIsRefused",
+        "id": "com.example.practice.BoardingTest#anUnknownNetworkIsNotSentAsAnother",
         "kind": "edge",
-        "says": "a network other than Visa or Mastercard is refused, not sent as one of them"
+        "says": "a network nobody boarded is refused rather than given another network's acquirer ID"
+      },
+      {
+        "id": "com.example.practice.BoardingTest#aShortNameLeavesTheCityWhereTheHostLooks",
+        "kind": "edge",
+        "says": "a short merchant name is padded so the city and country stay in their positions"
+      },
+      {
+        "id": "com.example.practice.BoardingTest#aLongNameStillFitsTheField",
+        "kind": "edge",
+        "says": "a merchant name longer than its positions is cut, so field 43 still packs and the city stays in place"
+      },
+      {
+        "id": "com.example.practice.BoardingTest#aLongCityStillLeavesTheCountryInPlace",
+        "kind": "edge",
+        "says": "a city longer than its positions is cut as well, so the country stays at the end of the field"
       }
     ],
     "report": {
@@ -147,12 +146,12 @@
     },
     "origin": {
       "path": "src/c5.md",
-      "section": "5. Visa and Mastercard Specific Requests"
+      "section": "5.2.2 Field 43 Has Positions, Not Separators"
     },
     "concepts": [
-      "What differs between the Visa and the Mastercard requests is data, such as the acquiring institution in field 32 and the point-of-service data Mastercard adds in field 61, not the shape of the request.",
-      "One authorization MTI carries every transaction type, and the processing code in field 3 is what tells a purchase, a cash advance, a refund and a balance inquiry apart, with a refund pointing at its original by retrieval reference number and a balance inquiry carrying no amount.",
-      "The processing service picks the network's request builder from the card network's name and refuses a network it does not support instead of guessing."
+      "Field 43 is read by position, so each part is cut and padded to the width the specification gives it.",
+      "Per-network values such as the acquirer ID come from configuration, and a missing one must stop the request, because ISOMsg.set with null silently removes the field.",
+      "The fields ISO 8583 defines read the same on every network, so one builder makes them with the network as a parameter; per-network copies drift."
     ]
   }
 }

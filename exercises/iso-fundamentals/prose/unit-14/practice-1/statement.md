@@ -1,17 +1,15 @@
-A chip card authorization reaches your host with the card's EMV data in field 55, the ICC
-system related data. The field is binary: one tag-length-value item after another, with no
-separators. Before your risk rules can look at the Application Interchange Profile (tag `82`)
-or the Terminal Verification Results (tag `95`), something has to split the field into its
-items, and a mistake there silently feeds the rules the wrong bytes.
+The gateway's token vault went live last week, and the incident list is already long:
 
-Write `ChipData.tags(ISOMsg message)`. It returns a map from each tag to its value, both as
-upper-case hexadecimal, in the order the items appear in field 55. Each item is:
+- the checkout's card-number check refuses nine tokens in ten;
+- a token reached a card issuer's authorization system, as if it were a card;
+- a customer who shops at a café and at a garage has the same token at both;
+- on Tuesday a customer paid with his saved card, and another customer's card was charged;
+- the assessor found card numbers in clear among the things the vault keeps.
 
-- the tag: one byte, unless the low five bits of that byte are all set (`0x1F`), in which case
-  the tag is two bytes, so `9F 26` is the single tag `9F26`;
-- the length: one byte, the number of value bytes that follow;
-- the value: exactly that many bytes.
+`tokenize` and `detokenize` in `src/main/java/com/example/practice/TokenVault.java` already
+work. Finish the three methods marked `TODO`: `key`, `issue` and `newToken`. The comment on each
+says what it is for. Tokens are 16 digits, like the cards they replace. Draw each digit with
+`random.nextInt(10)`, one at a time and in order, because the tests script those digits. About
+twelve lines in total.
 
-A message without field 55 is not an error: it simply has no chip data, and you return an
-empty map. A field whose last item claims more bytes than are left is damaged; refuse it with
-an `ISOException` rather than return a value cut short.
+`detokenize` still hands a card number to anyone who asks. The next practice deals with that.

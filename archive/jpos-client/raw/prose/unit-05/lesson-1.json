@@ -8,7 +8,7 @@
   "unit": 5,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Visa and Mastercard Specific Requests",
   "blocks": [
     {
@@ -18,92 +18,559 @@
     },
     {
       "type": "para",
-      "text": "When implementing a jPOS client for processing Visa and Mastercard transactions, it's crucial to create custom services that handle the specific requirements of each card network. These services will encapsulate the logic for creating and sending ISO-8583 messages tailored to Visa and Mastercard specifications."
+      "text": "Your client has sent Visa purchases through your acquirer for a year, and product wants Mastercard in the next release. Which parts of your request code change, which come from configuration, and which can't you write until someone hands you a document you don't have yet?"
     },
     {
       "type": "para",
-      "text": "Let's create two services: one for Visa and one for Mastercard. Each service will handle common transaction types such as purchases, cash advances, refunds, and balance inquiries."
+      "text": "That document is the network's interface specification: licensed to member institutions and processors, revised with each network release, and defining the network-specific fields byte by byte. Distrust any tutorial, this one included, that prints a \"Visa field 62 layout\" from memory. This unit uses what is public and stable: the ISO 8583 structure both networks build on."
+    },
+    {
+      "type": "para",
+      "text": "Most clients never talk to Visa or Mastercard directly. A merchant system or a gateway talks to its acquirer's host, and its specification is the acquirer's interface document, which usually hides most of the differences. The unit comes down to five rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "5.1 Visa Transaction Service"
+      "text": "5.1 One Builder Makes What Every Network Shares"
     },
     {
       "type": "para",
-      "text": "First, let's create an interface for our Visa transaction service:"
+      "text": "A Visa and a Mastercard purchase for 10.50 USD at one terminal, built by the same code. The PAN is masked only in print. Which fields differ?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "field VISA                                       MASTERCARD\nMTI   0100                                       same\n2     411111______1111                           555555______4444\n3     000000                                     same\n4     000000001050                               same\n18    5999                                       same\n32    400001                                     500001\n41    29110001                                   same\n42    000000001234567                            same\n43    [EXAMPLE CORNER CAFE      SPRINGFIELD  US] same\n49    840                                        same\npacked: 134 and 134 bytes"
+    },
+    {
+      "type": "para",
+      "text": "(Packed with the course packager, `GenericPackager` and `jar:packager/iso87ascii.xml`.)"
+    },
+    {
+      "type": "para",
+      "text": "Two: the card number and field 32, the acquiring institution ID, which the acquirer assigned to this merchant once for Visa and once for Mastercard. Every other field is defined by ISO 8583:1987 and means the same on both networks. The networks differ elsewhere: in the private-use fields they define for themselves (5.4), in the values they accept in a few shared fields such as 22 and 55 (5.3), and sometimes in a layout detail such as the positions inside field 43 (5.2.2)."
+    },
+    {
+      "type": "para",
+      "text": "So one builder takes the network as a parameter, and the merchant's data comes from a `MerchantProfile` (5.2):"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic interface VisaTransactionService {\n    ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException;\n    ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException;\n}"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's implement this interface:"
+      "text": "package com.example.jpos.client.requests;\n\nimport java.util.Locale;\n\npublic enum Network {\n    VISA, MASTERCARD;\n\n    /** \"visa\", \"VISA\", \"MasterCard\"... Anything else is refused, never guessed. */\n    public static Network of(String name) {\n        if (name != null) {\n            switch (name.trim().toLowerCase(Locale.ROOT)) {\n                case \"visa\": return VISA;\n                case \"mastercard\": return MASTERCARD;\n                default: break;\n            }\n        }\n        throw new IllegalArgumentException(\"unsupported network: \" + name);\n    }\n}"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service.impl;\n\nimport com.example.jpos.service.VisaTransactionService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\n@Service\npublic class VisaTransactionServiceImpl implements VisaTransactionService {\n\n    private static final String VISA_MTI_REQUEST = \"0100\";\n    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    @Override\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"000000\"); // Processing code for purchase\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"010000\"); // Processing code for cash advance\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"200000\"); // Processing code for refund\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(37, originalRrn); // Retrieval Reference Number of the original transaction\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(VISA_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"300000\"); // Processing code for balance inquiry\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"123456\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        return msg;\n    }\n\n    private String generateStan() {\n        // Generate a unique 6-digit STAN (System Trace Audit Number)\n        return String.format(\"%06d\", (int) (Math.random() * 999999));\n    }\n}"
+      "text": "package com.example.jpos.client.requests;\n\n/** Field 3: two digits for the transaction, then from-account and to-account (00 = default). */\npublic enum TxnType {\n    PURCHASE(\"000000\"),\n    CASH_ADVANCE(\"010000\"),\n    REFUND(\"200000\");\n\n    public final String processingCode;\n\n    TxnType(String processingCode) {\n        this.processingCode = processingCode;\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** The part of a card request that every network reads the same way. */\npublic final class CardRequests {\n    private final MerchantProfile merchant;\n\n    public CardRequests(MerchantProfile merchant) {\n        this.merchant = merchant;\n    }\n\n    public ISOMsg request(String mti, TxnType type, Network network, String pan, long amountMinor)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(2, pan);\n        m.set(3, type.processingCode);\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(18, merchant.mcc());\n        m.set(32, merchant.acquirerId(network));\n        m.set(41, merchant.terminalId());\n        m.set(42, merchant.merchantId());\n        m.set(43, merchant.nameAndLocation());\n        m.set(49, merchant.currency());\n        return m;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Fields 7 and 11 are left out on purpose: they belong to the moment of sending and come from the link's sequence, whatever the network (units c2 and c4)."
+    },
+    {
+      "type": "para",
+      "text": "The alternative, a `VisaRequests` class and a `MastercardRequests` class copied from it, drifts. Fix a merchant name too long for field 43 in the Visa class, because Visa purchases are the ones failing, and Mastercard purchases at that merchant keep failing. The bug report reads \"Mastercard declines at one store\", and everyone looks at Mastercard."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "5.2 Mastercard Transaction Service"
+      "text": "5.2 The Network Shows Up as Configuration, and a Missing Value Stops the Request"
     },
     {
       "type": "para",
-      "text": "Now, let's create a similar service for Mastercard transactions:"
+      "text": "The acquirer, not your code, decides the per-network values and the merchant's own data when it boards the merchant: the terminal and merchant IDs, the category code, an acquirer ID per network. They belong in configuration, read into one object:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic interface MastercardTransactionService {\n    ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException;\n    ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException;\n    ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException;\n}"
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.Map;\n\n/** What the acquirer assigned when it boarded the merchant. Loaded from configuration. */\npublic final class MerchantProfile {\n    private final String terminalId, merchantId, mcc, currency, name, city, country;\n    private final Map<Network, String> acquirerIds;\n\n    public MerchantProfile(String terminalId, String merchantId, String mcc, String currency,\n                           String name, String city, String country,\n                           Map<Network, String> acquirerIds) {\n        this.terminalId = terminalId;\n        this.merchantId = merchantId;\n        this.mcc = mcc;\n        this.currency = currency;\n        this.name = name;\n        this.city = city;\n        this.country = country;\n        this.acquirerIds = Map.copyOf(acquirerIds);\n    }\n\n    public String terminalId() { return terminalId; }\n    public String merchantId() { return merchantId; }\n    public String mcc() { return mcc; }\n    public String currency() { return currency; }\n\n    /** Field 32 for this network. A network nobody configured is refused, never sent without it. */\n    public String acquirerId(Network n) {\n        String id = acquirerIds.get(n);\n        if (id == null)\n            throw new IllegalArgumentException(\"no acquirer ID configured for \" + n);\n        return id;\n    }\n\n    /** Field 43: name in positions 1-25, city in 26-38, country in 39-40. */\n    public String nameAndLocation() {\n        return fit(name, 25) + fit(city, 13) + fit(country, 2);\n    }\n\n    private static String fit(String s, int width) {\n        return ISOUtil.strpad(s.length() > width ? s.substring(0, width) : s, width);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2.1 Spot the Problem: The Mastercard Launch"
     },
     {
       "type": "para",
-      "text": "And its implementation:"
+      "text": "Before the profile existed, the builder looked up field 32 in a map filled from a properties file:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service.impl;\n\nimport com.example.jpos.service.MastercardTransactionService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\n\nimport java.time.LocalDateTime;\nimport java.time.format.DateTimeFormatter;\n\n@Service\npublic class MastercardTransactionServiceImpl implements MastercardTransactionService {\n\n    private static final String MASTERCARD_MTI_REQUEST = \"0100\";\n    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    @Override\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"000000\"); // Processing code for purchase\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000001\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"010000\"); // Processing code for cash advance\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000002\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalRrn) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"200000\"); // Processing code for refund\n        msg.set(4, amount);\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"5999\"); // Merchant category code (example)\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(37, originalRrn); // Retrieval Reference Number of the original transaction\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000003\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    @Override\n    public ISOMsg createBalanceInquiryRequest(String pan, String merchantId) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(MASTERCARD_MTI_REQUEST);\n        msg.set(2, pan);\n        msg.set(3, \"300000\"); // Processing code for balance inquiry\n        msg.set(7, LocalDateTime.now().format(DATE_TIME_FORMATTER));\n        msg.set(11, generateStan());\n        msg.set(18, \"6011\"); // Merchant category code for ATM\n        msg.set(32, \"654321\"); // Acquiring Institution ID Code\n        msg.set(41, merchantId);\n        msg.set(49, \"840\"); // Currency code (USD)\n        msg.set(61, \"0000000000000004\"); // Point-of-Service Data (example)\n        return msg;\n    }\n\n    private String generateStan() {\n        // Generate a unique 6-digit STAN (System Trace Audit Number)\n        return String.format(\"%06d\", (int) (Math.random() * 999999));\n    }\n}"
+      "text": "Map<Network, String> acquirerIds = new EnumMap<>(Network.class);\nacquirerIds.put(Network.VISA, \"400001\");          // nobody added Mastercard yet\n\nISOMsg m = new ISOMsg(\"0100\");\nm.set(2, \"5555555555554444\");\nm.set(4, \"000000001050\");\nm.set(32, acquirerIds.get(Network.MASTERCARD));   // the naive line\nm.set(41, \"29110001\");"
+    },
+    {
+      "type": "para",
+      "text": "Mastercard goes live, and the release is deployed without the new property. What happens to the first Mastercard purchase?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "field 32 present: false\npacked: 58 bytes, no exception"
+    },
+    {
+      "type": "para",
+      "text": "`ISOMsg.set(n, null)` doesn't complain: it removes field n. The purchase packs, leaves and reaches the host without an acquirer ID, and nothing in your logs looks wrong. Every Mastercard purchase from this merchant fails at the host, and your support desk hears about it from the merchant."
+    },
+    {
+      "type": "para",
+      "text": "The profile refuses instead, before anything is sent, and so does `Network.of` for a network it doesn't know. The tempting \"if it isn't Mastercard, it's Visa\" would send an American Express card as a Visa purchase with Visa's acquirer ID:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "CardRequests: no acquirer ID configured for MASTERCARD\nNetwork.of: unsupported network: amex"
+    },
+    {
+      "type": "para",
+      "text": "The exception comes at the first purchase, in your own code, and names what is missing. To get it before the first cardholder does, build a test request at startup for every network you accept."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2.2 Field 43 Has Positions, Not Separators"
+    },
+    {
+      "type": "para",
+      "text": "Field 43 holds three values with nothing between them. The receiver finds them by position: the name in characters 1 to 25, the city in 26 to 38, the country in 39 and 40. Here is field 43 for two Springfield merchants, `CORNER CAFE` and the 30-character `EXAMPLE CORNER CAFE AND BAKERY`, filled three ways and read back by position as a host would:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "joined   sent 24 chars -> name [CORNER CAFESPRINGFIELDUS] city [] country []\nfitted   sent 40 chars -> name [CORNER CAFE] city [SPRINGFIELD] country [US]\npadded   sent 45 chars -> Field length 45 too long. Max: 40\nfitted   sent 40 chars -> name [EXAMPLE CORNER CAFE AND B] city [SPRINGFIELD] country [US]"
+    },
+    {
+      "type": "para",
+      "text": "**Joined** concatenates the three strings. The packager pads the field to 40 characters at the end, so it packs, and the host reads one long name with no city and no country. A host that checks the merchant's country refuses the purchase. One that doesn't prints the wrong name on the cardholder's statement."
+    },
+    {
+      "type": "para",
+      "text": "**Padded** pads each part to its width but doesn't cut the long name, so the field is 45 characters and doesn't pack. The `IF_CHAR` javadoc says it truncates, but in 2.1.7 the length check runs first. Inside a ChannelAdaptor that failure happens on the channel's thread, far from your code (unit c2)."
+    },
+    {
+      "type": "para",
+      "text": "**Fitted** cuts each part to its width and then pads it, as `MerchantProfile.nameAndLocation` does. A long name loses its end, and the city stays where the host looks for it."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** The 25/13/2 split is common, not universal. Some specifications divide the 40 characters differently, for example with a state or region code. Take the positions from yours and keep them in `nameAndLocation`."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "5.3 Using the Transaction Services"
+      "text": "5.3 How the Card Was Read Decides the Card Fields"
     },
     {
       "type": "para",
-      "text": "To use these services in your application, you can inject them into your controllers or other services. Here's an example of how you might use them in a transaction processing service:"
+      "text": "Field 22, the POS entry mode, says how the terminal got the card's data. Its first two digits name the method, and the third says whether the terminal can take a PIN. A keyed card has no track, so the request carries the expiry date in field 14. A stripe read carries track 2 in field 35. A chip read carries the chip's track 2 equivalent there and, in field 55, the cryptogram and the data objects the card signed for this transaction."
+    },
+    {
+      "type": "para",
+      "text": "A chip read fails, and the cashier swipes the same card. What should field 22 say now, and which fields go?"
+    },
+    {
+      "type": "para",
+      "text": "The request is now a stripe read: track 2, no field 55, and an entry mode that says so. Integrations often get this wrong by taking the entry mode from the terminal's configuration (\"a chip terminal\", code 05 plus the PIN digit: `051`) and the card fields from what actually happened. The swiped fallback then leaves claiming a chip read and carrying no chip data. What the issuer does with that depends on the network's rules. A decline for a good card is likely."
+    },
+    {
+      "type": "para",
+      "text": "So set field 22 and the card fields from one value, and refuse a read that lacks its data:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionProcessingService {\n\n    @Autowired\n    private VisaTransactionService visaService;\n\n    @Autowired\n    private MastercardTransactionService mastercardService;\n\n    @Autowired\n    private MUX mux;\n\n    public ISOMsg processPurchase(String pan, String amount, String merchantId, String cardNetwork) throws ISOException {\n        ISOMsg request;\n        if (\"visa\".equalsIgnoreCase(cardNetwork)) {\n            request = visaService.createPurchaseRequest(pan, amount, merchantId);\n        } else if (\"mastercard\".equalsIgnoreCase(cardNetwork)) {\n            request = mastercardService.createPurchaseRequest(pan, amount, merchantId);\n        } else {\n            throw new IllegalArgumentException(\"Unsupported card network: \" + cardNetwork);\n        }\n\n        return mux.request(request, 30000); // 30 seconds timeout\n    }\n\n    // Similar methods for cash advance, refund, and balance inquiry\n}"
+      "text": "package com.example.jpos.client.requests;\n\n/** How the terminal got the card's data. The codes are the PAN-entry part of field 22. */\npublic enum CardRead {\n    KEYED(\"01\"),\n    STRIPE(\"90\"),\n    CHIP(\"05\"),\n    CONTACTLESS_CHIP(\"07\");\n\n    public final String panEntry;\n\n    CardRead(String panEntry) {\n        this.panEntry = panEntry;\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Sets field 22 and the card fields from one value, so the two can't disagree. */\npublic final class CardData {\n    private CardData() { }\n\n    /**\n     * @param pinCapability third digit of field 22: '1' the terminal can take a PIN, '2' it can't\n     * @param expiryYYMM    for a keyed card\n     * @param track2        for a stripe or chip read (from the chip, tag 57)\n     * @param icc           field 55, the TLV the chip kernel produced, for a chip read\n     */\n    public static void apply(ISOMsg m, CardRead read, char pinCapability,\n                             String expiryYYMM, String track2, byte[] icc) throws ISOException {\n        m.set(22, read.panEntry + pinCapability);\n        switch (read) {\n            case KEYED:\n                m.set(14, required(expiryYYMM, read, \"expiry date\"));\n                break;\n            case STRIPE:\n                m.set(35, required(track2, read, \"track 2\"));\n                break;\n            case CHIP:\n            case CONTACTLESS_CHIP:\n                m.set(35, required(track2, read, \"track 2\"));\n                m.set(55, required(icc, read, \"chip data\"));\n                break;\n        }\n    }\n\n    private static <T> T required(T value, CardRead read, String what) {\n        if (value == null)\n            throw new IllegalArgumentException(read + \" read without \" + what);\n        return value;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This implementation provides a clean separation of concerns, making it easy to handle the specific requirements of each card network while providing a unified interface for transaction processing."
+      "text": "The same purchase read four ways, then a chip read without chip data, then the chip data the first chip read used:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "KEYED            22=011  card fields: 14\nSTRIPE           22=901  card fields: 35\nCHIP             22=051  card fields: 35 55\nCONTACTLESS_CHIP 22=071  card fields: 35 55\nCHIP read without chip data\nfield 55: 29 bytes: 9F26081A2B3C4D5E6F70819F270180950500000080009F37049A8B7C6D"
+    },
+    {
+      "type": "para",
+      "text": "Here the chip kernel produced four data objects, packed as BER-TLV with `org.jpos.tlv.TLVList`. Your code copies those bytes and never computes them. Whether they travel as raw bytes or as hex text depends on how the packager defines field 55 (unit c6 shows both). Track 2 and the chip's track 2 equivalent are sensitive card data: send them, and keep them out of logs and storage (unit c8)."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** Both networks commonly use the entry-mode codes above. Your specification lists the codes you may send, adds others (for a swipe after a failed chip read, for example), may give field 22 another length (jPOS's `Base1Packager` declares four digits, not three), and says what field 25, the POS condition code, must carry beside it. Keep all of it in `CardRead`, copied from the document."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.4 Private Fields Come From the Network's Specification, Behind One Hook"
+    },
+    {
+      "type": "para",
+      "text": "Fields 48, 60 to 63 and 120 to 127 are reserved for private or national use. ISO 8583 gives each a number and a maximum length and nothing else, so each network decides what goes inside. jPOS doesn't know the content either: its `Base1Packager`, written for Visa, declares fields 48, 62 and 63 as plain binary of up to 99, 59 and 255 bytes. The layouts are in the licensed specifications and nowhere else."
+    },
+    {
+      "type": "para",
+      "text": "Keep that knowledge behind one interface, implemented once per network:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** The fields one network's specification adds to a request. One implementation per network. */\npublic interface NetworkFields {\n    void apply(ISOMsg request, TxnType type) throws ISOException;\n\n    /** For a host, such as most acquirers, that hides the networks' differences. */\n    NetworkFields NONE = (request, type) -> { };\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Map;\n\n/** The common core, then the network's own fields. */\npublic final class NetworkRequests {\n    private final CardRequests common;\n    private final Map<Network, NetworkFields> rules;\n\n    public NetworkRequests(CardRequests common, Map<Network, NetworkFields> rules) {\n        this.common = common;\n        this.rules = Map.copyOf(rules);\n    }\n\n    public ISOMsg request(String mti, TxnType type, Network network, String pan, long amountMinor)\n            throws ISOException {\n        NetworkFields own = rules.get(network);\n        if (own == null)\n            throw new IllegalArgumentException(\"no field rules configured for \" + network);\n        ISOMsg m = common.request(mti, type, network, pan, amountMinor);\n        own.apply(m, type);\n        return m;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "A network with no rules configured is refused, for the reason of 5.2.1:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "MASTERCARD: no field rules configured for MASTERCARD"
+    },
+    {
+      "type": "para",
+      "text": "Against an acquirer that hides the networks, both entries are `NONE`. Connecting to a network directly adds one class and changes nothing else. That class reads its constants from configuration (the services you are certified for, for instance) and writes subelements as nested fields such as `48.1`, which pack only if the packager defines the field's subelements (units c6 and c13)."
+    },
+    {
+      "type": "para",
+      "text": "A private field filled from a blog post, from memory or from the other network's layout is either rejected, and certification takes another round, or accepted and misread, and you may find out only when a transaction is disputed."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.5 Each Network Is a Destination of Its Own"
+    },
+    {
+      "type": "para",
+      "text": "When Visa and Mastercard traffic go to different hosts, each host gets its own ChannelAdaptor and QMUX: `visa-channel` with `visa-mux`, `mc-channel` with `mc-mux`. A QMUX doesn't route: it writes every request to its one out queue, which leads to one link, so choosing the network's host means choosing its MUX. Each QMUX names its own adaptor's ready key in `<ready>`, as in unit c4, because without it `isConnected()` stays true while the link is down:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.requests;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.Map;\n\n/** Sends each request through the MUX of its own network, and through no other. */\npublic final class NetworkRouter {\n    private final Map<Network, String> muxNames;     // e.g. VISA -> \"visa-mux\"\n\n    public NetworkRouter(Map<Network, String> muxNames) {\n        this.muxNames = Map.copyOf(muxNames);\n    }\n\n    /** The response, or null when none came in time. Throws, having sent nothing, when the link is down. */\n    public ISOMsg send(Network network, ISOMsg request, long timeout) throws ISOException {\n        String name = muxNames.get(network);\n        if (name == null)\n            throw new IllegalArgumentException(\"no MUX configured for \" + network);\n        MUX mux;\n        try {\n            mux = QMUX.getMUX(name);                  // looked up when used (unit c4)\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ISOException(\"MUX \" + name + \" is not deployed\");\n        }\n        if (!mux.isConnected())\n            throw new ISOException(network + \" host unavailable\");\n        return mux.request(request, timeout);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Two QMUXes in one JVM, each in front of a scripted host like unit c12's, with a purchase on each network:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "both links up:\n  Visa host received 0100 2=411111______1111 32=400001\n  VISA: 0110 39=00\n  Mastercard host received 0100 2=555555______4444 32=500001\n  MASTERCARD: 0110 39=00"
+    },
+    {
+      "type": "para",
+      "text": "Now the Mastercard link drops while the Visa link stays up. It is tempting to send a waiting Mastercard purchase through whatever link is up, since every link reaches \"the bank\" somehow:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "for (String name : muxNames.values()) {            // the tempting version\n    MUX mux = QMUX.getMUX(name);\n    if (mux.isConnected())\n        return mux.request(m, timeout);\n}"
+    },
+    {
+      "type": "para",
+      "text": "That sender, then `NetworkRouter`, with the same purchase:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "Mastercard link down, any connected link:\n  Visa host received 0100 2=555555______4444 32=500001\n  MASTERCARD: 0110 39=00\nMastercard link down, NetworkRouter:\n  MASTERCARD: ISOException: MASTERCARD host unavailable"
+    },
+    {
+      "type": "para",
+      "text": "Our scripted host approves anything. A real Visa host receives a Mastercard card with Mastercard's acquirer ID and can at best decline it. The router reports at once that the Mastercard host is unavailable, and since it sent nothing, there is nothing to reverse."
+    },
+    {
+      "type": "para",
+      "text": "A `MUXPool` (unit c4) is different: its members are links to the same host, and any of them can carry any request. A pool per network, `visa-pool` in place of `visa-mux`, is fine. A pool across networks repeats the mistake above in configuration."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.5.1 The Link Speaks the Network's Framing"
+    },
+    {
+      "type": "para",
+      "text": "A direct link to a network also has its own framing (unit c3). For Visa, jPOS 2.1.7 ships `org.jpos.iso.channel.VAPChannel` with the BASE I header (`org.jpos.iso.header.BASE1Header`) and `org.jpos.iso.packager.Base1Packager`. Here is one binary 0800 sent through a `VAPChannel` and a `NACChannel` to a loopback socket:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "VAPChannel  54 bytes\n  length   00320000\n  header   16010200322222221111110000000000000000000000\n  message  08008220000000000000040000000000000011061015000004010301\nNACChannel  30 bytes\n  length   001C\n  message  08008220000000000000040000000000000011061015000004010301"
+    },
+    {
+      "type": "para",
+      "text": "The message is the same 28 bytes. `NACChannel` puts a 2-byte length in front of it. `VAPChannel` puts a 2-byte length that counts the header too (`0032` where `NACChannel` wrote `001C`), two zero bytes and a 22-byte BASE I header that carries the destination station ID `222222` and the source `111111`; fundamentals unit 5 takes the header apart byte by byte. A host that expects only the length, as a `NACChannel` does, reads the zero bytes and the header as the start of the message and can't unpack it. The station IDs are assigned to you and go in the descriptor:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name=\"visa-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.VAPChannel\"\n           packager=\"org.jpos.iso.packager.Base1Packager\" logger=\"Q2\" realm=\"visa-channel\">\n    <property name=\"host\" value=\"vap.example.com\"/>\n    <property name=\"port\" value=\"8000\"/>\n    <property name=\"srcid\" value=\"111111\"/>\n    <property name=\"dstid\" value=\"222222\"/>\n  </channel>\n  <in>visa-send</in>\n  <out>visa-receive</out>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "para",
+      "text": "jPOS has no channel named after Mastercard. Pick the channel whose frame matches the specification's, as in unit c3, and build the packager from its field table (unit c13)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.6 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**One builder makes the fields every network shares**, with the network as a parameter. Copies per network drift, and a fix reaches only one of them.",
+        "**The network shows up as configuration**: an acquirer ID per network and the merchant's boarding data. `ISOMsg.set(n, null)` silently removes the field, so refuse a missing value. Field 43 is cut and padded into fixed positions.",
+        "**How the card was read decides the card fields.** Field 22 and fields 14, 35 and 55 come from one value, so a swiped fallback never claims a chip read.",
+        "**Private fields come from the network's specification**, behind one hook per network, never from memory.",
+        "**Each network is its own destination**: its own MUX, never another network's link, and a channel that speaks its framing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.7 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Common and network-specific fields (ISO 8583:1987):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Name",
+        "Common or network-specific"
+      ],
+      "rows": [
+        [
+          "MTI",
+          "message type",
+          "common: `0100` authorization, `0200` financial, `0400`/`0420` reversal"
+        ],
+        [
+          "2",
+          "primary account number",
+          "common"
+        ],
+        [
+          "3",
+          "processing code",
+          "common structure; the networks list the codes they accept"
+        ],
+        [
+          "4",
+          "amount, transaction",
+          "common: 12 digits in the currency's minor unit"
+        ],
+        [
+          "7",
+          "transmission date and time",
+          "common: `MMddhhmmss`, GMT"
+        ],
+        [
+          "11",
+          "STAN",
+          "common: one sequence per link"
+        ],
+        [
+          "12, 13",
+          "local time, local date",
+          "common"
+        ],
+        [
+          "14",
+          "expiration date",
+          "common: `YYMM`, keyed cards"
+        ],
+        [
+          "18",
+          "merchant category code",
+          "common (ISO 18245)"
+        ],
+        [
+          "22",
+          "POS entry mode",
+          "structure common, accepted values network-specific"
+        ],
+        [
+          "25",
+          "POS condition code",
+          "ISO values, extended differently by each network"
+        ],
+        [
+          "32",
+          "acquiring institution ID",
+          "common format; the value is assigned per network"
+        ],
+        [
+          "35",
+          "track 2 data",
+          "common; stripe and chip reads"
+        ],
+        [
+          "37",
+          "retrieval reference number",
+          "common"
+        ],
+        [
+          "41, 42, 43",
+          "terminal ID, merchant ID, merchant name and location",
+          "common"
+        ],
+        [
+          "48",
+          "additional data, private use",
+          "**network-specific**"
+        ],
+        [
+          "49",
+          "currency code",
+          "common: ISO 4217 numeric"
+        ],
+        [
+          "52",
+          "PIN block",
+          "common (unit c7)"
+        ],
+        [
+          "55",
+          "ICC data",
+          "structure common (BER-TLV); required tags network-specific"
+        ],
+        [
+          "60 to 63, 120 to 127",
+          "reserved for national and private use",
+          "**network-specific**"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Field 3 transaction codes used in this unit:** `00` goods and services, `01` cash, `20` refund. Positions 3-4 and 5-6 are the from- and to-account types, `00` when unspecified. Your specification lists the codes it accepts, including the one for a balance inquiry."
+    },
+    {
+      "type": "para",
+      "text": "**Field 43 (40 characters) in this unit:** name 1-25, city 26-38, country code 39-40, each padded with spaces. Check the positions in your specification."
+    },
+    {
+      "type": "para",
+      "text": "**Field 22 (n3 in `iso87ascii.xml`) in this unit**, values both networks commonly use: PAN entry `01` keyed, `90` stripe, `05` chip, `07` contactless chip; PIN capability `1` can accept a PIN, `2` cannot."
+    },
+    {
+      "type": "para",
+      "text": "**Network channels in jPOS 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Class",
+        "Frame",
+        "Configuration"
+      ],
+      "rows": [
+        [
+          "`VAPChannel`",
+          "2-byte length, 2 zero bytes, 22-byte BASE I header",
+          "`srcid`, `dstid` (default `000000`); answers zero-length polls"
+        ],
+        [
+          "`NACChannel`",
+          "2-byte length, optional TPDU",
+          "`new NACChannel(host, port, packager, null)` for no TPDU"
+        ],
+        [
+          "`ASCIIChannel`",
+          "4 ASCII digits",
+          "the course's channel"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.8 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your acquirer starts accepting a third network next quarter. List every place in this unit's code that changes and every value someone must add to configuration. Which would a startup check catch?",
+        "A merchant's name contains `É` and `Ø`. Field 43 is 40 characters in your packager, but does the host count characters or bytes? Find out from your specification, and decide where in `MerchantProfile` the answer belongs.",
+        "The Mastercard link is down for 20 minutes at lunchtime, and product asks for \"a fallback, any fallback\". What could you offer that doesn't send Mastercard cards to the Visa host, and what does each cost?",
+        "Your terminals report the read method, but an older model always reports `CHIP`, even after a failed chip read. Where would you detect that, and what would you send?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.9 Design Note: Why ISO 8583 Leaves Fields to the Networks"
+    },
+    {
+      "type": "para",
+      "text": "ISO 8583 could have defined every field. Instead it defines the ones every institution needs (card, amount, terminal, time, trace number) and leaves others, field 48 and the range 60 to 63 among them, to private and national use, with a number, a data type and a maximum length."
+    },
+    {
+      "type": "para",
+      "text": "Every network has products and rules of its own, and adds more with each release. A standard that named all of that data would need a revision for each, agreed by every member, and would always lag behind. Private fields let each network change at its own pace inside a frame everybody can parse: any system can unpack a Visa message and find the amount, even if field 62 is opaque bytes to it."
+    },
+    {
+      "type": "para",
+      "text": "Anyone who connects to more than one network pays for that freedom: the same fact about a purchase can live in different fields, with different codes, on each, in documents you need a licence to read. Keeping the common part in one builder and each network's part behind one hook puts the line in the code where the standard put it."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 4,
-    "paras": 8,
-    "code": 5,
-    "tables": 0,
-    "lists": 0,
+    "headings": 13,
+    "paras": 47,
+    "code": 21,
+    "tables": 2,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "472881c6d9f6a699870e678507a2405973154cce76c3a2b40970978bc7bb1d31"
+  "content_sha256": "5561dfc7790d495dce865758ce1b800709e374de4a6b81f54d6d992864bc1125"
 }

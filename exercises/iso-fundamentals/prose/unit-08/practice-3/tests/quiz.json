@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "ordinal": 3,
+  "title": "Check yourself: what each protection covers",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-retry-file",
+        "stem": "Your acquirer writes every purchase that got no answer to a retry file, with all its fields, until the reversal is acknowledged. A reviewer objects to fields 35 and 52 in that file. A colleague answers that field 52 is encrypted under the PIN key, so nobody can use it. Who is right?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The colleague, since only a security module holding the PIN key can turn field 52 into a PIN",
+            "correct": false,
+            "says": "8.1: the block need not be turned into a PIN to be misused; copied with the track into a new purchase it can pass the PIN check"
+          },
+          {
+            "id": "b",
+            "text": "The colleague, since a PIN block stops being valid once its own purchase has been answered",
+            "correct": false,
+            "says": "8.1: the block stays usable for as long as the key it is encrypted under stays in use"
+          },
+          {
+            "id": "c",
+            "text": "The reviewer, since the block and the track together can pass a PIN check in a copied purchase",
+            "correct": true,
+            "says": "8.1: track data and PIN blocks are never kept; together they let a copied purchase pass the issuer's PIN check without the PIN being known"
+          },
+          {
+            "id": "d",
+            "text": "The reviewer, since field 52 must be masked to its first six and last four digits when stored",
+            "correct": false,
+            "says": "8.1: masking is for showing a card number; a PIN block is not kept at all, masked or not"
+          }
+        ],
+        "origin": {
+          "path": "src/8.md",
+          "section": "8.1. Track Data, PIN Blocks and Security Codes Are Never Kept, and a Card Number Only Unreadable"
+        }
+      },
+      {
+        "id": "q-two-hsms",
+        "stem": "After a ZMK ceremony with a partner bank, your HSM shows the new key under its LMK as 7F02A9..., and the partner reads out 3A9C14... from theirs. Both sides report check value 51C7A2. What do you conclude?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Both hold the same key, since each check value comes from the clear key itself",
+            "correct": true,
+            "says": "8.4: the check value is a block of zeros encrypted under the clear key, so equal check values mean the same key, while the bytes under two LMKs always differ"
+          },
+          {
+            "id": "b",
+            "text": "Both hold the same key, since an HSM refuses a component with a mistyped digit",
+            "correct": false,
+            "says": "8.4: a mistyped component is accepted; only comparing check values reveals it"
+          },
+          {
+            "id": "c",
+            "text": "The keys differ, since one key loaded into two HSMs shows the same bytes in both",
+            "correct": false,
+            "says": "8.4: each HSM keeps the key encrypted under its own LMK, so the bytes always differ"
+          },
+          {
+            "id": "d",
+            "text": "The keys differ, since each check value comes from the bytes under that HSM's LMK",
+            "correct": false,
+            "says": "8.4: the check value is a block of zeros encrypted under the clear key, so it is the same in every HSM"
+          }
+        ],
+        "origin": {
+          "path": "src/8.md",
+          "section": "8.4. Every Key Is Encrypted Under the Key Above It, and Known by Its Check Value"
+        }
+      },
+      {
+        "id": "q-dukpt-blocks",
+        "stem": "A tester watches a DUKPT PIN pad that builds format 0 blocks. One cardholder pays three times on the same card with the same PIN, and field 52 differs every time. The tester files it as a defect. What do you answer?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is a defect, since the host reads every block from that pad with the one key it stores for it",
+            "correct": false,
+            "says": "8.5: the host stores no key per pad; its HSM derives each purchase's key from the BDK and the KSN"
+          },
+          {
+            "id": "b",
+            "text": "It is a defect, since format 0 gives equal blocks for an equal PIN on an equal card",
+            "correct": false,
+            "says": "8.3 and 8.5: the clear format 0 block is the same, but DUKPT encrypts it under a different key each time"
+          },
+          {
+            "id": "c",
+            "text": "It is expected, since the pad fills each block with random digits before it encrypts it",
+            "correct": false,
+            "says": "8.3: random fill is format 3; this pad builds format 0, whose fill is always F"
+          },
+          {
+            "id": "d",
+            "text": "It is expected, since each purchase's KSN gives a key of its own for the same clear block",
+            "correct": true,
+            "says": "8.5: the counter in the KSN changes with every PIN, and the key derived from it encrypts the same clear block differently"
+          }
+        ],
+        "origin": {
+          "path": "src/8.md",
+          "section": "8.5. DUKPT Gives Every Purchase Its Own Key, Derived From a Serial Number Sent Beside the PIN"
+        }
+      },
+      {
+        "id": "q-load-balancer",
+        "stem": "Your link to a network runs TLS, which ends at a load balancer in front of your host; from there the messages cross your data centre. To cut HSM load, a colleague proposes to stop checking the MAC on incoming messages. What do you lose?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing, since TLS refuses any message whose bytes were changed after it was sent",
+            "correct": false,
+            "says": "8.7: TLS covers the connection only; after the load balancer the message travels and is handled in clear"
+          },
+          {
+            "id": "b",
+            "text": "Nothing, since the network would decline a message whose amount someone had changed",
+            "correct": false,
+            "says": "8.6: without a MAC a rewritten field is indistinguishable from the real one, and the message is approved as received"
+          },
+          {
+            "id": "c",
+            "text": "The check that the message is the one its sender MACed, since TLS ends before your application",
+            "correct": true,
+            "says": "8.7: the MAC is checked by the receiving application, so it covers the load balancer and everything after it"
+          },
+          {
+            "id": "d",
+            "text": "The protection of the card number on the way, since the MAC keeps it unreadable past the load balancer",
+            "correct": false,
+            "says": "8.6: a MAC hides nothing; the card number is as readable as before"
+          }
+        ],
+        "origin": {
+          "path": "src/8.md",
+          "section": "8.7. TLS Protects One Connection, and the PIN Block and the MAC Protect the Message"
+        }
+      }
+    ]
+  }
+}

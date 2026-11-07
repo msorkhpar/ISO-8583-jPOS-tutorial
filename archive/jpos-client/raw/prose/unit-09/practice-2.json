@@ -8,8 +8,8 @@
   "unit": 9,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Raise the right exception for a missing or declining reply",
+  "ingested": "2026-11-05",
+  "title": "Tell the caller what the host's answer asks for",
   "blocks": [
     {
       "type": "heading",
@@ -18,33 +18,25 @@
     },
     {
       "type": "para",
-      "text": "`mux.request(request, timeout)` gives back the host's reply, or `null` when no reply came in time. A reply is not an approval either: the host says yes or no in field 39, the response code, and only `00` means approved. A client that hands every reply back as if it were a success lets a declined purchase through; a client that trips over `null` turns a slow host into a crash. Raising a specific exception for each outcome lets one error handler answer each one properly."
+      "text": "This picks up where the previous practice ended. The file already contains its solution."
     },
     {
       "type": "para",
-      "text": "Write `TransactionService`, built from a jPOS `MUX` and a timeout in milliseconds, with `ISOMsg send(ISOMsg request)`:"
+      "text": "The client now reads the host's answers with the network's own code list, which its constructor receives as a map from field 39 codes to a `Category`. The network's operations team sent a list of complaints:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "it asks the MUX for a reply, using that timeout;",
-        "an approved reply (`00`) is returned as it is;",
-        "any other response code raises `TransactionDeclinedException`, a nested unchecked exception carrying that response code;",
-        "an `ISOException` from the MUX reaches the caller unchanged."
+        "Some cardholders were told \"declined\" and were charged anyway.",
+        "On the night the issuer was down for maintenance, some cardholders were told their card was declined, and others were charged twice.",
+        "After Tuesday's release the host rejected every purchase from one terminal model for six hours. Each cardholder was told \"declined\", and nobody on the team found out.",
+        "During a host upgrade, some answers came back with no field 39, and some with a code that isn't on the network's list. The client reported them all as declines. The host's records show that some were approvals."
       ]
     },
     {
       "type": "para",
-      "text": "Edge cases:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "No reply at all raises `java.util.concurrent.TimeoutException`: nobody declined anything.",
-        "A reply with no response code is not an approval. Decline it, with a `null` code."
-      ]
+      "text": "Finish `outcomeOf` in `src/main/java/com/example/practice/PaymentClient.java`. The `Outcome` enum has a value for every kind of ending. Anything the developers must look at goes onto the `alerts` queue of the space (`sp.out`), and `unknown(...)` hands a message to the reversal process. About ten lines."
     },
     {
       "type": "heading",
@@ -59,7 +51,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        private final String responseCode;\n\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            this.responseCode = responseCode;\n        }\n\n        public String getResponseCode() {\n            return responseCode;\n        }\n    }\n\n    private final MUX mux;\n    private final long timeoutMillis;\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n        this.mux = mux;\n        this.timeoutMillis = timeoutMillis;\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        ISOMsg response = mux.request(request, timeoutMillis);\n        if (response == null) {\n            throw new TimeoutException(\"Transaction timed out\");\n        }\n        String responseCode = response.getString(39);\n        if (!\"00\".equals(responseCode)) {\n            throw new TransactionDeclinedException(\"Transaction declined\", responseCode);\n        }\n        return response;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.util.Map;\n\n/**\n * Sends one message to the host and says how it ended. A message whose outcome is unknown goes\n * onto {@code saf.host}, where the reversal process picks it up. Answers that the developers must\n * look at go onto {@code alerts}.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, TRY_LATER, REJECTED, REFUSED, UNAVAILABLE, UNKNOWN }\n\n    /** How the network's specification sorts its field 39 codes. */\n    public enum Category { APPROVAL, DECLINE, UNAVAILABLE, FORMAT_ERROR }\n\n    static final String SAF = \"saf.host\";\n    static final String ALERTS = \"alerts\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ISOPackager packager;          // the packager the link's channel uses\n    private final long timeout;\n    private final Map<String, Category> codes;   // from the network's specification\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, ISOPackager packager, long timeout,\n                         Map<String, Category> codes) {\n        this.mux = mux;\n        this.sp = sp;\n        this.packager = packager;\n        this.timeout = timeout;\n        this.codes = Map.copyOf(codes);\n    }\n\n    public Outcome pay(ISOMsg m) throws ISOException {\n        if (refusal(m) != null)\n            return Outcome.REFUSED;\n        if (!mux.isConnected())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = mux.request(m, timeout);\n        if (response == null)\n            return unknown(m);\n        return outcomeOf(m, response);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg request, ISOMsg response) throws ISOException {\n        String rc = response.getString(39);\n        Category c = rc == null ? null : codes.get(rc);\n        if (c == null)\n            return unknown(request);\n        switch (c) {\n            case APPROVAL:    return Outcome.APPROVED;\n            case DECLINE:     return Outcome.DECLINED;\n            case UNAVAILABLE: return Outcome.TRY_LATER;\n            default:\n                sp.out(ALERTS, response);\n                return Outcome.REJECTED;\n        }\n    }\n\n    /** Why this message must not go to the link, or null when it may. */\n    String refusal(ISOMsg m) {\n        if (m.hasField(4) && !m.getString(4).chars().allMatch(Character::isDigit))\n            return \"field 4 is not a number\";\n        try {\n            ISOMsg copy = (ISOMsg) m.clone();\n            copy.setPackager(packager);\n            copy.pack();\n            return null;\n        } catch (ISOException e) {\n            return e.getMessage();\n        }\n    }\n\n    /** Given: nobody knows what the host did, so the reversal process takes over. */\n    Outcome unknown(ISOMsg m) {\n        sp.out(SAF, m);\n        return Outcome.UNKNOWN;\n    }\n}\n"
         }
       ]
     },
@@ -71,7 +63,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.util.Map;\n\n/**\n * Sends one message to the host and says how it ended. A message whose outcome is unknown goes\n * onto {@code saf.host}, where the reversal process picks it up. Answers that the developers must\n * look at go onto {@code alerts}.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, TRY_LATER, REJECTED, REFUSED, UNAVAILABLE, UNKNOWN }\n\n    /** How the network's specification sorts its field 39 codes. */\n    public enum Category { APPROVAL, DECLINE, UNAVAILABLE, FORMAT_ERROR }\n\n    static final String SAF = \"saf.host\";\n    static final String ALERTS = \"alerts\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ISOPackager packager;          // the packager the link's channel uses\n    private final long timeout;\n    private final Map<String, Category> codes;   // from the network's specification\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, ISOPackager packager, long timeout,\n                         Map<String, Category> codes) {\n        this.mux = mux;\n        this.sp = sp;\n        this.packager = packager;\n        this.timeout = timeout;\n        this.codes = Map.copyOf(codes);\n    }\n\n    public Outcome pay(ISOMsg m) throws ISOException {\n        if (refusal(m) != null)\n            return Outcome.REFUSED;\n        if (!mux.isConnected())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = mux.request(m, timeout);\n        if (response == null)\n            return unknown(m);\n        return outcomeOf(m, response);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg request, ISOMsg response) throws ISOException {\n        // TODO: The host answered, and field 39 says what it decided, in the network's terms.\n        //       Return the Outcome that tells the caller what happens next. (about ten lines)\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n\n    /** Why this message must not go to the link, or null when it may. */\n    String refusal(ISOMsg m) {\n        if (m.hasField(4) && !m.getString(4).chars().allMatch(Character::isDigit))\n            return \"field 4 is not a number\";\n        try {\n            ISOMsg copy = (ISOMsg) m.clone();\n            copy.setPackager(packager);\n            copy.pack();\n            return null;\n        } catch (ISOException e) {\n            return e.getMessage();\n        }\n    }\n\n    /** Given: nobody knows what the host did, so the reversal process takes over. */\n    Outcome unknown(ISOMsg m) {\n        sp.out(SAF, m);\n        return Outcome.UNKNOWN;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -82,7 +74,7 @@
     "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -90,11 +82,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "4a3bf0df4959db49001145b48031fbc1ff858691ce1e75b476581847a2f53182",
-  "starting_code": "package com.example.practice;\n\nimport java.util.concurrent.TimeoutException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/** Sends a request and turns the host's reply, or its silence, into an outcome. */\npublic final class TransactionService {\n\n    /** The host answered, and declined with a response code. */\n    public static final class TransactionDeclinedException extends RuntimeException {\n        public TransactionDeclinedException(String message, String responseCode) {\n            super(message);\n            throw new UnsupportedOperationException(\"write TransactionDeclinedException\");\n        }\n\n        public String getResponseCode() {\n            throw new UnsupportedOperationException(\"write getResponseCode\");\n        }\n    }\n\n    public TransactionService(MUX mux, long timeoutMillis) {\n    }\n\n    /** The approved reply to `request`. */\n    public ISOMsg send(ISOMsg request) throws ISOException, TimeoutException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n",
+  "content_sha256": "8545a4914287928f41dccacb17e044b0bc25d0ec8f5889f70a5ae360c55549fb",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.util.Map;\n\n/**\n * Sends one message to the host and says how it ended. A message whose outcome is unknown goes\n * onto {@code saf.host}, where the reversal process picks it up. Answers that the developers must\n * look at go onto {@code alerts}.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, TRY_LATER, REJECTED, REFUSED, UNAVAILABLE, UNKNOWN }\n\n    /** How the network's specification sorts its field 39 codes. */\n    public enum Category { APPROVAL, DECLINE, UNAVAILABLE, FORMAT_ERROR }\n\n    static final String SAF = \"saf.host\";\n    static final String ALERTS = \"alerts\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ISOPackager packager;          // the packager the link's channel uses\n    private final long timeout;\n    private final Map<String, Category> codes;   // from the network's specification\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, ISOPackager packager, long timeout,\n                         Map<String, Category> codes) {\n        this.mux = mux;\n        this.sp = sp;\n        this.packager = packager;\n        this.timeout = timeout;\n        this.codes = Map.copyOf(codes);\n    }\n\n    public Outcome pay(ISOMsg m) throws ISOException {\n        if (refusal(m) != null)\n            return Outcome.REFUSED;\n        if (!mux.isConnected())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = mux.request(m, timeout);\n        if (response == null)\n            return unknown(m);\n        return outcomeOf(m, response);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg request, ISOMsg response) throws ISOException {\n        // TODO: The host answered, and field 39 says what it decided, in the network's terms.\n        //       Return the Outcome that tells the caller what happens next. (about ten lines)\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n\n    /** Why this message must not go to the link, or null when it may. */\n    String refusal(ISOMsg m) {\n        if (m.hasField(4) && !m.getString(4).chars().allMatch(Character::isDigit))\n            return \"field 4 is not a number\";\n        try {\n            ISOMsg copy = (ISOMsg) m.clone();\n            copy.setPackager(packager);\n            copy.pack();\n            return null;\n        } catch (ISOException e) {\n            return e.getMessage();\n        }\n    }\n\n    /** Given: nobody knows what the host did, so the reversal process takes over. */\n    Outcome unknown(ISOMsg m) {\n        sp.out(SAF, m);\n        return Outcome.UNKNOWN;\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-09/practice-2/src/main/java/com/example/practice/TransactionService.java",
-    "test_path": "practice/jpos-client/prose/unit-09/practice-2/src/test/java/com/example/practice/TransactionServiceTest.java",
+    "main_path": "practice/jpos-client/prose/unit-09/practice-2/src/main/java/com/example/practice/PaymentClient.java",
+    "test_path": "practice/jpos-client/prose/unit-09/practice-2/src/test/java/com/example/practice/PaymentClientTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -115,24 +107,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.TransactionServiceTest#anApprovedReplyIsReturned",
+        "id": "com.example.practice.PaymentClientTest#anApprovalAndADeclineAreReportedAsSuch",
         "kind": "main",
-        "says": "a reply with response code 00 is returned to the caller"
+        "says": "an answer the network lists as an approval or a decline is reported as such, with nothing left to reverse"
       },
       {
-        "id": "com.example.practice.TransactionServiceTest#aDeclineRaisesAnExceptionCarryingItsCode",
-        "kind": "main",
-        "says": "a reply with any other response code raises a decline that carries that code"
-      },
-      {
-        "id": "com.example.practice.TransactionServiceTest#noReplyIsATimeoutNotADecline",
+        "id": "com.example.practice.PaymentClientTest#anApprovalIsNotOnlyZeroZero",
         "kind": "edge",
-        "says": "no reply within the timeout raises a TimeoutException, not a decline or a NullPointerException"
+        "says": "every code the network lists as an approval moved the money, not only 00"
       },
       {
-        "id": "com.example.practice.TransactionServiceTest#aReplyWithoutAResponseCodeIsNotAnApproval",
+        "id": "com.example.practice.PaymentClientTest#anUnavailableIssuerIsNotADecline",
         "kind": "edge",
-        "says": "a reply that carries no response code is declined, never returned as approved"
+        "says": "an unavailable issuer or switch means the cardholder may try later, not that the card was declined"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#tryLaterDoesNotSendTheSameMessageAgain",
+        "kind": "edge",
+        "says": "trying later is a new transaction, so the same message is not sent again"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#aFormatErrorReachesTheDevelopers",
+        "kind": "edge",
+        "says": "a format error says the request is wrong, so it raises an alert instead of passing as a decline"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#anAnswerWithoutACodeIsLeftForReversal",
+        "kind": "edge",
+        "says": "an answer without field 39 decides nothing, so it is treated like no answer and reversed"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#aCodeNotOnTheListIsLeftForReversal",
+        "kind": "edge",
+        "says": "a code the network's list doesn't contain decides nothing either, and is reversed rather than called a decline"
       }
     ],
     "report": {
@@ -141,10 +148,11 @@
     },
     "origin": {
       "path": "src/c9.md",
-      "section": "9.6 Integration with jPOS Client"
+      "section": "9.3 Field 39 Says Who Acts Next"
     },
     "concepts": [
-      "The client raises a timeout when no reply comes and a decline when the response code is not 00, instead of returning every reply as a success."
+      "Field 39 is read from the network's list: approvals other than 00, try later as a new transaction, format errors as the developers' problem.",
+      "An answer with no field 39 or with a code not on the list decides nothing, and is treated like no answer and reversed."
     ]
   }
 }

@@ -1,0 +1,155 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Fail a release only on real differences in a replayed response",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Before each release the team replays a day of recorded requests through the new build, against a host simulator like the ones in unit c16, and compares every response the new build gets with the response recorded for the same request. Some fields differ on every run by design: the transmission time, the STAN, the retrieval reference number. The release fails when anything else differs."
+    },
+    {
+      "type": "para",
+      "text": "The check has started failing releases that changed nothing, and nobody reads its report any more. Finish the three methods marked `TODO` in `src/main/java/com/example/practice/ReplayCheck.java`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`fields`: which fields to compare;",
+        "`same`: whether two values of a field are equal;",
+        "`nested`: a field that carries sub-fields."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`differences` returns the paths on which the two responses differ (`\"39\"`, `\"48.2\"`), in field order, leaving out the paths it was told change every run. When you're done, a replay that matches its recording returns an empty list, and a replay that doesn't names exactly the paths that changed. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests compare responses built in code and responses unpacked from the bytes the simulator sent, with chip data and with sub-fields."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeSet;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The release check: compares a recorded response with the response the new build got for the\n * same request, and lists the paths on which they differ.\n */\npublic class ReplayCheck {\n    private final Set<String> changesEveryRun;\n\n    /** @param changesEveryRun paths such as \"7\", \"11\" or \"127.2\" that differ on every run by design */\n    public ReplayCheck(Set<String> changesEveryRun) {\n        this.changesEveryRun = changesEveryRun;\n    }\n\n    /** The paths (\"39\", \"48.2\") on which the two responses differ, in field order. */\n    public List<String> differences(ISOMsg recorded, ISOMsg replayed) throws ISOException {\n        List<String> out = new ArrayList<>();\n        compare(\"\", recorded, replayed, out);\n        return out;\n    }\n\n    private void compare(String prefix, ISOMsg a, ISOMsg b, List<String> out) throws ISOException {\n        for (int f : fields(a, b)) {\n            String path = prefix + f;\n            if (changesEveryRun.contains(path))\n                continue;\n            Object va = a.hasField(f) ? a.getComponent(f).getValue() : null;\n            Object vb = b.hasField(f) ? b.getComponent(f).getValue() : null;\n            if (va instanceof ISOMsg || vb instanceof ISOMsg)\n                nested(path, va, vb, out);\n            else if (!same(va, vb))\n                out.add(path);\n        }\n    }\n\n    /** The field numbers to compare, in the order the differences are reported. */\n    @SuppressWarnings(\"unchecked\")\n    Iterable<Integer> fields(ISOMsg a, ISOMsg b) {\n        Set<Integer> all = new TreeSet<>(((Map<Integer, ?>) a.getChildren()).keySet());\n        all.addAll(((Map<Integer, ?>) b.getChildren()).keySet());\n        all.remove(-1);\n        return all;\n    }\n\n    /** Whether two values of the same field count as equal. Either may be null (field absent). */\n    boolean same(Object a, Object b) {\n        if (a instanceof byte[] && b instanceof byte[])\n            return Arrays.equals((byte[]) a, (byte[]) b);\n        return a != null && a.equals(b);\n    }\n\n    /** A field that has sub-fields on at least one side; the other side may be absent. */\n    void nested(String path, Object a, Object b, List<String> out) throws ISOException {\n        compare(path + \".\", a instanceof ISOMsg ? (ISOMsg) a : new ISOMsg(),\n                            b instanceof ISOMsg ? (ISOMsg) b : new ISOMsg(), out);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The release check: compares a recorded response with the response the new build got for the\n * same request, and lists the paths on which they differ.\n */\npublic class ReplayCheck {\n    private final Set<String> changesEveryRun;\n\n    /** @param changesEveryRun paths such as \"7\", \"11\" or \"127.2\" that differ on every run by design */\n    public ReplayCheck(Set<String> changesEveryRun) {\n        this.changesEveryRun = changesEveryRun;\n    }\n\n    /** The paths (\"39\", \"48.2\") on which the two responses differ, in field order. */\n    public List<String> differences(ISOMsg recorded, ISOMsg replayed) throws ISOException {\n        List<String> out = new ArrayList<>();\n        compare(\"\", recorded, replayed, out);\n        return out;\n    }\n\n    private void compare(String prefix, ISOMsg a, ISOMsg b, List<String> out) throws ISOException {\n        for (int f : fields(a, b)) {\n            String path = prefix + f;\n            if (changesEveryRun.contains(path))\n                continue;\n            Object va = a.hasField(f) ? a.getComponent(f).getValue() : null;\n            Object vb = b.hasField(f) ? b.getComponent(f).getValue() : null;\n            if (va instanceof ISOMsg || vb instanceof ISOMsg)\n                nested(path, va, vb, out);\n            else if (!same(va, vb))\n                out.add(path);\n        }\n    }\n\n    /** The field numbers to compare, in the order the differences are reported. */\n    Iterable<Integer> fields(ISOMsg a, ISOMsg b) {\n        // TODO: The fields either response carries, in ascending order. A release must only fail\n        //       on a real difference between the two responses. (about 4 lines)\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** Whether two values of the same field count as equal. Either may be null (field absent). */\n    boolean same(Object a, Object b) {\n        // TODO: True when the two values are the same. A value is a String, a byte[], or null\n        //       when the response doesn't carry the field. (about 3 lines)\n        throw new IllegalStateException(\"TODO: same\");\n    }\n\n    /** A field that has sub-fields on at least one side; the other side may be absent. */\n    void nested(String path, Object a, Object b, List<String> out) throws ISOException {\n        // TODO: Field `path` holds sub-fields in at least one response. Report each sub-field that\n        //       differs by its own path (\"48.2\"), as for any other field. (about 2 lines)\n        throw new IllegalStateException(\"TODO: nested\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6186867b4fe53c3a3ba4339e9960847f5bb84b1113922704fc599e49f995f30a",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The release check: compares a recorded response with the response the new build got for the\n * same request, and lists the paths on which they differ.\n */\npublic class ReplayCheck {\n    private final Set<String> changesEveryRun;\n\n    /** @param changesEveryRun paths such as \"7\", \"11\" or \"127.2\" that differ on every run by design */\n    public ReplayCheck(Set<String> changesEveryRun) {\n        this.changesEveryRun = changesEveryRun;\n    }\n\n    /** The paths (\"39\", \"48.2\") on which the two responses differ, in field order. */\n    public List<String> differences(ISOMsg recorded, ISOMsg replayed) throws ISOException {\n        List<String> out = new ArrayList<>();\n        compare(\"\", recorded, replayed, out);\n        return out;\n    }\n\n    private void compare(String prefix, ISOMsg a, ISOMsg b, List<String> out) throws ISOException {\n        for (int f : fields(a, b)) {\n            String path = prefix + f;\n            if (changesEveryRun.contains(path))\n                continue;\n            Object va = a.hasField(f) ? a.getComponent(f).getValue() : null;\n            Object vb = b.hasField(f) ? b.getComponent(f).getValue() : null;\n            if (va instanceof ISOMsg || vb instanceof ISOMsg)\n                nested(path, va, vb, out);\n            else if (!same(va, vb))\n                out.add(path);\n        }\n    }\n\n    /** The field numbers to compare, in the order the differences are reported. */\n    Iterable<Integer> fields(ISOMsg a, ISOMsg b) {\n        // TODO: The fields either response carries, in ascending order. A release must only fail\n        //       on a real difference between the two responses. (about 4 lines)\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** Whether two values of the same field count as equal. Either may be null (field absent). */\n    boolean same(Object a, Object b) {\n        // TODO: True when the two values are the same. A value is a String, a byte[], or null\n        //       when the response doesn't carry the field. (about 3 lines)\n        throw new IllegalStateException(\"TODO: same\");\n    }\n\n    /** A field that has sub-fields on at least one side; the other side may be absent. */\n    void nested(String path, Object a, Object b, List<String> out) throws ISOException {\n        // TODO: Field `path` holds sub-fields in at least one response. Report each sub-field that\n        //       differs by its own path (\"48.2\"), as for any other field. (about 2 lines)\n        throw new IllegalStateException(\"TODO: nested\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-17/practice-2/src/main/java/com/example/practice/ReplayCheck.java",
+    "test_path": "practice/jpos-client/prose/unit-17/practice-2/src/test/java/com/example/practice/ReplayCheckTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-17/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ReplayCheckTest#aReplayThatMatchesTheRecordingPasses",
+        "kind": "main",
+        "says": "a replayed response that differs only in the fields that change every run has no differences, built or unpacked"
+      },
+      {
+        "id": "com.example.practice.ReplayCheckTest#aChangedResponseFailsOnTheFieldsThatChanged",
+        "kind": "main",
+        "says": "a changed, a missing and an added field are each reported once by number"
+      },
+      {
+        "id": "com.example.practice.ReplayCheckTest#binaryValuesAreComparedByWhatTheyHold",
+        "kind": "edge",
+        "says": "binary values are equal when their bytes are equal, even in two different arrays"
+      },
+      {
+        "id": "com.example.practice.ReplayCheckTest#subFieldsAreComparedOneByOne",
+        "kind": "edge",
+        "says": "sub-fields are compared one by one and reported by their dotted path, a sub-field that changes every run is left out, and a nested field missing on one side is reported sub-field by sub-field"
+      },
+      {
+        "id": "com.example.practice.ReplayCheckTest#aFieldMissingFromOneUnpackedResponseIsReportedOnce",
+        "kind": "edge",
+        "says": "the bitmap an unpacked response keeps is not a difference, so a missing field is reported once"
+      },
+      {
+        "id": "com.example.practice.ReplayCheckTest#differencesComeInFieldOrder",
+        "kind": "edge",
+        "says": "differences come in ascending field order, including fields only the replayed response carries"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-17/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c17.md",
+      "section": "17.3 Two Messages Are Compared Field by Field, and Binary Fields by Content"
+    },
+    "concepts": [
+      "Two messages are compared field by field in field order, without the bitmap, binary values by content and nested fields sub-field by sub-field."
+    ]
+  }
+}

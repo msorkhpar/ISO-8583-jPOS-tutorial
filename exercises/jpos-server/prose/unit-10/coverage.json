@@ -1,78 +1,143 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s10.md",
   "kind": "code",
+  "quiz": "errors-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s10.md": "sha256:ce8d1f177ef023ad129959308ec74f997e5e57dc58d5cdf615c4370dfbe21260"
+    "src/s10.md": "sha256:8acac3b256db870103e46a2f6d0a4f38204b6ae0c0fff53b340fbad463311dc9"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "log-errors-with-detail",
-        "says": "Every handled error is also logged with its detail and stack trace, to a console and a rolling file, so it can be investigated later.",
+        "id": "answering-participant-placement",
+        "says": "prepareForAbort reaches only abort participants after the one that aborted, so an answering participant placed earlier answers nothing.",
         "basis": [
-          "example:src/s10.md:5",
-          "example:src/s10.md:6"
+          "section:10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds",
+          "example:src/s10.md:15"
+        ],
+        "exercise": "errors-quiz",
+        "reason": null
+      },
+      {
+        "id": "approval-on-abort",
+        "says": "SendResponse sends whatever RESPONSE holds on the abort path, so an approval built before a later failure must be replaced, a refusal kept, and the answering participant must run after every participant that can fail.",
+        "basis": [
+          "section:10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds",
+          "example:src/s10.md:10",
+          "example:src/s10.md:12",
+          "example:src/s10.md:13"
+        ],
+        "exercise": "answer-failures",
+        "reason": null
+      },
+      {
+        "id": "code-says-who-failed",
+        "says": "Participants report causes in the Result and one abort participant maps them to field 39; a thrown exception or an unlisted cause is 96, never a decline.",
+        "basis": [
+          "section:10.1 A Response Code Says Who Failed, and One Participant Chooses It",
+          "example:src/s10.md:2",
+          "example:src/s10.md:7"
+        ],
+        "exercise": "answer-failures",
+        "reason": null
+      },
+      {
+        "id": "reason-in-the-log",
+        "says": "The TransactionManager's event says who aborted, not why; the answering participant logs the cause with the STAN and terminal, and the response carries only the code.",
+        "basis": [
+          "section:10.2 The Reason Goes to the Log, and the Response Carries Only the Code"
         ],
         "exercise": null,
-        "reason": "it needs SLF4J and Logback, which the graded build does not carry; logging is practised on unit 8"
+        "reason": "what reaches the log is observed by reading the log, which a graded run cannot assert without fixing the logger's format; the quiz and the lesson's run cover it"
       },
       {
-        "id": "participant-aborts-not-throws",
-        "says": "A participant that detects a failure records it in the Context and answers ABORTED, instead of letting an exception escape from prepare.",
+        "id": "reversal-once",
+        "says": "A reversal finds its original through field 90, undoes it at most once however often it is repeated, and is answered 00 even when there is nothing to undo.",
         "basis": [
-          "example:src/s10.md:3"
+          "section:10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once",
+          "example:src/s10.md:19",
+          "example:src/s10.md:20"
         ],
-        "exercise": "errors-become-response-codes",
-        "reason": null
-      },
-      {
-        "id": "typed-errors-to-codes",
-        "says": "Each kind of failure has its own exception type, and one handler turns each type into an ISO-8583 error response with its own code in field 39 and its message in field 63.",
-        "basis": [
-          "example:src/s10.md:1",
-          "example:src/s10.md:2",
-          "section:10.1 Types of Errors"
-        ],
-        "exercise": "errors-become-response-codes",
-        "reason": null
-      },
-      {
-        "id": "unexpected-error-generic",
-        "says": "An error nobody anticipated gets a catch-all code and a generic message, so the handler never fails silently and never leaks an internal detail to the other side.",
-        "basis": [
-          "example:src/s10.md:2"
-        ],
-        "exercise": "errors-become-response-codes",
+        "exercise": "reversals",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "errors-become-response-codes",
+        "name": "answer-failures",
         "aspects": [
-          "participant-aborts-not-throws",
-          "typed-errors-to-codes",
-          "unexpected-error-generic"
+          "approval-on-abort",
+          "code-says-who-failed"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "reversals",
+        "aspects": [
+          "reversal-once"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "errors-quiz",
+        "aspects": [
+          "answering-participant-placement"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-10/practice-1"
+    "exercises/jpos-server/prose/unit-10/practice-1",
+    "exercises/jpos-server/prose/unit-10/practice-2",
+    "exercises/jpos-server/prose/unit-10/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-10/practice-1",
       "origin": {
         "path": "src/s10.md",
-        "section": "10.2 Implementing Error Handling"
+        "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-10/practice-2",
+      "origin": {
+        "path": "src/s10.md",
+        "section": "10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-10/practice-3:q-hsm-timeout",
+      "origin": {
+        "path": "src/s10.md",
+        "section": "10.1 A Response Code Says Who Failed, and One Participant Chooses It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-10/practice-3:q-fraud-after-approval",
+      "origin": {
+        "path": "src/s10.md",
+        "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-10/practice-3:q-placement",
+      "origin": {
+        "path": "src/s10.md",
+        "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-10/practice-3:q-repeat-reversal",
+      "origin": {
+        "path": "src/s10.md",
+        "section": "10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once"
       }
     }
   ],

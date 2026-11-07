@@ -8,7 +8,7 @@
   "unit": 3,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Data Elements",
   "blocks": [
     {
@@ -18,481 +18,621 @@
     },
     {
       "type": "para",
-      "text": "Data elements are the building blocks of ISO-8583 messages. They contain specific pieces of information required for processing financial transactions."
+      "text": "A merchant's purchases start failing on the day its payment gateway is upgraded. The acquirer's host logs that it cannot unpack DE 48, and the upgrade didn't touch DE 48. The fault is in another field."
+    },
+    {
+      "type": "para",
+      "text": "Data elements (DEs, \"fields\") carry what a transaction needs: the card, the amount, the terminal, the time, the result. In a message they follow the bitmap (unit 2) with nothing between them, no tags and no separators. We follow ISO 8583:1987 as jPOS's `iso87ascii.xml` and `iso87binary.xml` packagers define it; where your network's specification differs, it wins. Six rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "3.1. Mandatory vs. Optional fields"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.1.1. Identifying mandatory fields"
+      "text": "3.1. A Field's Format Is All the Receiver Has to Find Where It Ends"
     },
     {
       "type": "para",
-      "text": "Mandatory fields are essential for processing a transaction and must be included in every message. These fields are typically defined by the message type and the specific requirements of the card network (Visa or Mastercard)."
-    },
-    {
-      "type": "para",
-      "text": "Example of common mandatory fields:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Message Type Indicator (MTI)",
-        "Primary Account Number (PAN)",
-        "Processing Code",
-        "Transaction Amount"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.1.2. Handling optional fields"
-    },
-    {
-      "type": "para",
-      "text": "Optional fields provide additional information that may be required for specific transaction types or to support certain features. These fields can be omitted if not needed."
-    },
-    {
-      "type": "para",
-      "text": "Example of handling optional fields in Java using jPOS:"
+      "text": "Every field has a format. `n6` is six digits, always six. `ans8` is eight letters, digits or special characters. `n..19` is up to 19 digits behind a two-digit length prefix (an **LLVAR**), and `ans...999` up to 999 characters behind a three-digit prefix (an **LLLVAR**). A purchase packed with `iso87ascii.xml`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class OptionalFieldHandler {\n    public void handleOptionalField(ISOMsg msg, int fieldNumber) {\n        try {\n            if (msg.hasField(fieldNumber)) {\n                String value = msg.getString(fieldNumber);\n                // Process the optional field\n                System.out.println(\"Optional field \" + fieldNumber + \" present: \" + value);\n            } else {\n                System.out.println(\"Optional field \" + fieldNumber + \" not present\");\n            }\n        } catch (ISOException e) {\n            e.printStackTrace();\n        }\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3.2. Fixed-length vs. Variable-length fields"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.2.1. Length indicators for variable fields"
-    },
-    {
-      "type": "para",
-      "text": "Variable-length fields are preceded by a length indicator, which specifies the number of characters in the field. The length indicator itself can be of fixed length (e.g., 2 or 3 digits)."
-    },
-    {
-      "type": "para",
-      "text": "Example of a variable-length field structure:"
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\npublic class Wire {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        m.set(2, \"5555555555554444\");   // n..19\n        m.set(4, \"000000002500\");       // n12\n        m.set(11, \"000731\");            // n6\n        m.set(41, \"29110001\");          // ans8\n        System.out.println(new String(m.pack()));\n    }\n}"
     },
     {
       "type": "code",
-      "lang": "",
-      "text": "[Length Indicator][Field Value]"
+      "lang": "text",
+      "text": "0200502000000080000016555555555555444400000000250000073129110001"
     },
     {
       "type": "para",
-      "text": "For instance, if field 43 (Card Acceptor Name/Location) contains \"ACME Store 123 Main St\", it might be represented as:"
+      "text": "Split up:"
     },
     {
       "type": "code",
-      "lang": "",
-      "text": "019ACME Store 123 Main St"
+      "lang": "text",
+      "text": "0200  5020000000800000  16 5555555555554444  000000002500  000731  29110001\nMTI   bitmap            DE 2: length, PAN    DE 4          DE 11   DE 41"
     },
     {
       "type": "para",
-      "text": "Here, \"019\" is the length indicator, showing that the field value is 19 characters long."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.2.2. Padding for fixed-length fields"
+      "text": "The receiver reads `16` and takes 16 digits for DE 2, then twelve for DE 4 and six for DE 11, because its packager's table says so. Nothing in the bytes marks where a field ends, so the sender's table must say the same."
     },
     {
       "type": "para",
-      "text": "Fixed-length fields always occupy the same number of characters. If the actual data is shorter than the specified length, it is padded with a filler character (often spaces or zeros)."
-    },
-    {
-      "type": "para",
-      "text": "Example of padding a fixed-length field in Java:"
+      "text": "DE 43, the merchant's name and location, is where the two tables most often disagree. In the 1987 edition it is fixed `ans 40`. The 1993 edition made it `ans..99`, an LLVAR. Suppose the upgraded gateway writes DE 43 the 1993 way and the host reads it the 1987 way:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "public class FixedLengthFieldPadder {\n    public String padField(String value, int length, char paddingChar) {\n        if (value == null) {\n            value = \"\";\n        }\n        if (value.length() > length) {\n            return value.substring(0, length);\n        }\n        StringBuilder sb = new StringBuilder(length);\n        sb.append(value);\n        while (sb.length() < length) {\n            sb.append(paddingChar);\n        }\n        return sb.toString();\n    }\n}"
+      "text": "import org.jpos.iso.IFA_LLCHAR;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** A sender that writes DE 43 the 1993 way (LLVAR), a receiver that reads it the 1987 way (fixed 40). */\npublic class Edition {\n    public static void main(String[] args) throws ISOException {\n        GenericPackager sender = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        sender.setFieldPackager(43, new IFA_LLCHAR(99, \"CARD ACCEPTOR NAME/LOCATION\"));\n        GenericPackager receiver = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.setPackager(sender);\n        m.set(4, \"000000002500\");\n        m.set(11, \"000731\");\n        m.set(41, \"29110001\");\n        m.set(43, \"CORNER BAKERY LONDON GB\");\n        m.set(48, \"MERCHANT REF 77\");\n        m.set(49, \"826\");\n        byte[] wire = m.pack();\n        System.out.println(\"sent from DE 41 on: \" + new String(wire).substring(38));  // after MTI, bitmap, DE 4, DE 11\n\n        ISOMsg r = new ISOMsg();\n        r.setPackager(receiver);\n        try {\n            r.unpack(wire);\n            for (int f : new int[] { 4, 11, 41, 43, 48, 49 })\n                System.out.println(\"DE \" + f + \" = [\" + r.getString(f) + \"]\");\n        } catch (ISOException e) {\n            System.out.println(\"receiver: \" + e.getMessage());\n            System.out.println(\"DE 43 as the receiver read it: [\" + r.getString(43) + \"]\");\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "sent from DE 41 on: 2911000123CORNER BAKERY LONDON GB015MERCHANT REF 77826\nreceiver: org.jpos.iso.IFA_LLLCHAR: Problem unpacking field 48 (org.jpos.iso.ISOException: Invalid character found. Expected digit.) unpacking field=48, consumed=86\nDE 43 as the receiver read it: [23CORNER BAKERY LONDON GB015MERCHANT REF]"
+    },
+    {
+      "type": "para",
+      "text": "The host took 40 characters for DE 43: the length prefix `23`, the name, and most of DE 48. Then it looked for DE 48's three-digit length and found ` 77`. The error names DE 48, which the gateway wrote correctly. A team that trusts the error message spends the day on DE 48, while every purchase that carries a DE 43 is rejected."
+    },
+    {
+      "type": "para",
+      "text": "So when a receiver can't unpack field *n*, check the fields before *n* first, starting with those whose format changed between editions (the Reference marks DE 12, 22, 25, 39 and 43)."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "3.3. Key data elements for Visa and Mastercard transactions"
+      "text": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
     },
     {
       "type": "para",
-      "text": "Let's go through some of the most important data elements used in Visa and Mastercard transactions:"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.1. Primary Account Number (PAN)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 2",
-        "Description: The card number",
-        "Format: n..19 (variable length numeric, up to 19 digits)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.2. Processing Code"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 3",
-        "Description: Indicates the type of transaction (e.g., purchase, cash advance)",
-        "Format: n6 (fixed length, 6 digits)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.3. Transaction Amount"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 4",
-        "Description: The amount of the transaction",
-        "Format: n12 (fixed length, 12 digits)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.4. Transmission Date and Time"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 7",
-        "Description: Date and time the message was sent",
-        "Format: n10 (MMDDhhmmss)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.5. Systems Trace Audit Number (STAN)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 11",
-        "Description: Unique transaction identifier assigned by the sender",
-        "Format: n6"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.6. Time, Local Transaction"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 12",
-        "Description: Time of the transaction at the point of service",
-        "Format: n6 (hhmmss)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.7. Date, Local Transaction"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 13",
-        "Description: Date of the transaction at the point of service",
-        "Format: n4 (MMDD)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.8. Date, Expiration"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 14",
-        "Description: Expiration date of the card",
-        "Format: n4 (YYMM)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.9. Merchant Type"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 18",
-        "Description: Classifies the type of business",
-        "Format: n4"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.10. Acquiring Institution ID Code"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 32",
-        "Description: Identifies the acquirer",
-        "Format: n..11"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.11. Track 2 Data"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 35",
-        "Description: Data from the magnetic stripe",
-        "Format: z..37"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.12. Retrieval Reference Number"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 37",
-        "Description: Unique transaction identifier assigned by the acquirer",
-        "Format: an12"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.13. Authorization ID Response"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 38",
-        "Description: Approval code from the issuer",
-        "Format: an6"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.14. Response Code"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 39",
-        "Description: Indicates the result of the transaction request",
-        "Format: an2"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.15. Card Acceptor Terminal ID"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 41",
-        "Description: Identifies the specific terminal",
-        "Format: ans8"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.16. Card Acceptor ID Code"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 42",
-        "Description: Identifies the merchant",
-        "Format: ans15"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.17. Card Acceptor Name/Location"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 43",
-        "Description: Name and location of the merchant",
-        "Format: ans..40"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.3.18. Additional Data - Private"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Field number: 48",
-        "Description: Used for additional data specific to the card network or acquirer",
-        "Format: ans..999"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3.4. Data types and formats"
-    },
-    {
-      "type": "para",
-      "text": "ISO-8583 uses several data types to represent field values:"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.1. Numeric (n)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Contains only digits (0-9)",
-        "Example: Transaction Amount (n12)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.2. Alphabetic (a)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Contains only letters (A-Z, a-z)",
-        "Rarely used alone in ISO-8583"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.3. Special (s)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Contains special characters (e.g., punctuation)",
-        "Often combined with other types"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.4. Alphanumeric (an)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Contains letters and digits",
-        "Example: Retrieval Reference Number (an12)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.5. Binary (b)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Contains binary data",
-        "Example: Bitmap (b64)"
-      ]
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "3.4.6. Track 2 (z)"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Special format for magnetic stripe data",
-        "Example: Track 2 Data (z..37)"
-      ]
-    },
-    {
-      "type": "para",
-      "text": "Here's a Java example demonstrating how to handle different data types in jPOS:"
+      "text": "A fixed field always fills its width. When jPOS packs, it pads numeric fields with zeros on the left and text fields with spaces on the right. A developer sets the amount to `\"50\"`, meaning fifty, and the terminal ID to `\"T1\"`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class DataTypeHandler {\n    public void handleDataTypes(ISOMsg msg) throws ISOException {\n        // Numeric\n        String amount = msg.getString(4);\n        long amountValue = Long.parseLong(amount);\n\n        // Alphanumeric\n        String rrn = msg.getString(37);\n\n        // Binary\n        byte[] binaryData = msg.getBytes(53);\n\n        // Track 2\n        String track2 = msg.getString(35);\n        String pan = track2.split(\"=\")[0];\n        String expirationDate = track2.split(\"=\")[1].substring(0, 4);\n\n        // Special handling for date/time fields\n        String transmissionDateTime = msg.getString(7);\n        String formattedDateTime = ISOUtil.formatDate(transmissionDateTime, \"MMddHHmmss\");\n\n        System.out.println(\"Amount: \" + amountValue);\n        System.out.println(\"RRN: \" + rrn);\n        System.out.println(\"Binary Data Length: \" + binaryData.length);\n        System.out.println(\"PAN from Track 2: \" + pan);\n        System.out.println(\"Expiration Date from Track 2: \" + expirationDate);\n        System.out.println(\"Formatted Transmission Date/Time: \" + formattedDateTime);\n    }\n}"
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\npublic class Padding {\n    public static void main(String[] args) throws ISOException {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.setPackager(packager);\n        m.set(4, \"50\");                       // meant as fifty\n        m.set(11, \"42\");\n        m.set(41, \"T1\");\n        show(m, packager);\n\n        m.set(4, \"123.45\");                   // a decimal point in a numeric field\n        show(m, packager);\n\n        m.set(42, \"0000000012345678\");        // 16 characters for ans15\n        try {\n            m.pack();\n        } catch (ISOException e) {\n            System.out.println(\"refused: \" + e.getMessage());\n        }\n    }\n\n    static void show(ISOMsg m, GenericPackager packager) throws ISOException {\n        ISOMsg back = new ISOMsg();           // what the receiver unpacks\n        back.setPackager(packager);\n        back.unpack(m.pack());\n        System.out.println(\"4=[\" + back.getString(4) + \"] 11=[\" + back.getString(11)\n                + \"] 41=[\" + back.getString(41) + \"]\");\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "4=[000000000050] 11=[000042] 41=[T1      ]\n4=[000000123.45] 11=[000042] 41=[T1      ]\nrefused: error packing field 42"
+    },
+    {
+      "type": "para",
+      "text": "DE 4 is in minor units with no decimal point, so `000000000050` is 0.50. The merchant's fifty-euro sale goes out as a request for fifty cents, and nothing fails on the way. Set amounts as whole minor units (`5000` for 50.00) and let the packager pad them."
+    },
+    {
+      "type": "para",
+      "text": "Padding on the other side would change the value: zeros on the right would make 50 into"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Spaces on the right are harmless in text, but they are still there after unpacking. The receiver's DE 41 is `T1` and six spaces, and `\"T1\".equals(msg.getString(41))` is false."
+      ],
+      "start": 500000000000
+    },
+    {
+      "type": "para",
+      "text": "A value that is too long is refused, never cut: the nested exception says `Field length 16 too long. Max: 15`. jPOS refuses it only when it packs, which behind a QMUX happens on the channel adaptor's thread, far from the code that set the field. Check lengths where you build the message."
+    },
+    {
+      "type": "para",
+      "text": "Length is all jPOS checks. `123.45` went into an ASCII numeric field, dot and all, and letters would have gone in too. The host may reject the dot or misread it, and neither is the sale you meant. Validate characters before you set a field."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.3. The Packager Decides the Bytes, So Both Peers Need the Same One"
+    },
+    {
+      "type": "para",
+      "text": "`n..19` says \"digits, with a two-digit length\". It doesn't say how a digit or a length becomes bytes. That is the packager's choice, and three are common. The same PAN through each of them:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.IFA_LLNUM;\nimport org.jpos.iso.IFB_LLLNUM;\nimport org.jpos.iso.IFB_LLNUM;\nimport org.jpos.iso.IFE_LLNUM;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOField;\nimport org.jpos.iso.ISOFieldPackager;\nimport org.jpos.iso.ISOUtil;\n\npublic class Prefixes {\n    public static void main(String[] args) throws ISOException {\n        show(new IFA_LLNUM(19, \"PAN\"), \"4111111111111111\");          // ASCII digits\n        show(new IFB_LLNUM(19, \"PAN\", true), \"4111111111111111\");    // BCD\n        show(new IFE_LLNUM(19, \"PAN\"), \"4111111111111111\");          // EBCDIC digits\n        show(new IFB_LLNUM(19, \"PAN\", true), \"4111111111111111111\"); // BCD, 19 digits\n        show(new IFB_LLLNUM(999, \"LLL\", true), \"12345\");             // BCD, three-digit prefix\n    }\n\n    static void show(ISOFieldPackager p, String value) throws ISOException {\n        byte[] b = p.pack(new ISOField(2, value));\n        System.out.printf(\"%-10s %2d bytes  %s%n\", p.getClass().getSimpleName(), b.length, ISOUtil.hexString(b));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "IFA_LLNUM  18 bytes  313634313131313131313131313131313131\nIFB_LLNUM   9 bytes  164111111111111111\nIFE_LLNUM  18 bytes  F1F6F4F1F1F1F1F1F1F1F1F1F1F1F1F1F1F1\nIFB_LLNUM  11 bytes  1904111111111111111111\nIFB_LLLNUM  5 bytes  0005012345"
+    },
+    {
+      "type": "para",
+      "text": "ASCII and EBCDIC write one byte per digit, prefix included. BCD packs two digits into a byte, so its LL prefix is one byte and its LLL prefix two. The BCD prefix counts **digits**, not bytes: `16` announces 16 digits in 8 bytes, and `19` announces 19 digits in 10, the spare half-byte filled with `0`. Whether the filler goes on the left or the right is another packager setting."
+    },
+    {
+      "type": "para",
+      "text": "A peer that reads a BCD prefix as a byte count takes 19 bytes for that PAN instead of 10, and every field after it is wrong, as in 3.1. Agree on the packager, not only on the formats, and compare it byte for byte with the specification's sample messages. Unit c13 shows how jPOS packagers are built."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.4. A Field's Type Decides How You Read Its Value"
+    },
+    {
+      "type": "para",
+      "text": "The letters in a format name the characters allowed (the Reference lists them)."
+    },
+    {
+      "type": "para",
+      "text": "**Numeric** values are strings of digits. Parse an amount into a `long` of minor units, never a `double`. DE 7, the transmission date and time, has no year, so `ISODate.parseISODate` picks the year that puts the date closest to now."
+    },
+    {
+      "type": "para",
+      "text": "**Track data** (`z`) is digits plus a separator between the PAN and the expiry date. On the stripe the separator is the half-byte `D`; written as text it is `=`. A terminal application builds Track 2 with `D`, and the link packs DE 35 in BCD. What does the issuer receive?"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.IFA_LLNUM;\nimport org.jpos.iso.IFB_LLNUM;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOField;\nimport org.jpos.iso.ISOFieldPackager;\nimport org.jpos.iso.ISOUtil;\n\n/** Track 2 with '=' and with 'D', through a BCD and an ASCII field packager, packed and read back. */\npublic class Track2 {\n    public static void main(String[] args) throws ISOException {\n        for (String t2 : new String[] { \"5555555555554444=3012101\", \"5555555555554444D3012101\" }) {\n            round(new IFB_LLNUM(37, \"TRACK 2\", true), t2);\n            round(new IFA_LLNUM(37, \"TRACK 2\"), t2);\n        }\n    }\n\n    static void round(ISOFieldPackager p, String value) throws ISOException {\n        byte[] b = p.pack(new ISOField(35, value));\n        ISOField back = new ISOField(35);\n        p.unpack(back, b, 0);\n        System.out.printf(\"%-9s set %s  wire %s  read %s%n\", p.getClass().getSimpleName(), value,\n                ISOUtil.hexString(b), back.getValue());\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "IFB_LLNUM set 5555555555554444=3012101  wire 245555555555554444D3012101  read 5555555555554444=3012101\nIFA_LLNUM set 5555555555554444=3012101  wire 3234353535353535353535353535343434343D33303132313031  read 5555555555554444=3012101\nIFB_LLNUM set 5555555555554444D3012101  wire 24555555555555444443012101  read 555555555555444443012101\nIFA_LLNUM set 5555555555554444D3012101  wire 3234353535353535353535353535343434344433303132313031  read 5555555555554444D3012101"
+    },
+    {
+      "type": "para",
+      "text": "The BCD packager turns `=` into the half-byte `D` and back. A `D` character it packs as the digit `4`, so the separator is gone: the issuer receives 24 digits and no way to tell where the PAN ends. Always set `=` in the `ISOMsg`. An ASCII packager sends whichever character you set, and peers send either, so accept both when parsing."
+    },
+    {
+      "type": "para",
+      "text": "**Binary** fields (`b`) give their length in bits: `b64` is 8 bytes, as for DE 52, the PIN block. jPOS keeps them as `byte[]`; `getBytes` returns the bytes and `getString` returns them as hexadecimal text. An ASCII packager writes such a field as hex characters (`IFA_BINARY`) or as raw bytes behind a length (`IFA_LLLBINARY`). Check which one your specification means."
+    },
+    {
+      "type": "para",
+      "text": "Never print a PAN, a track or a PIN block. `ISOUtil.protect` masks a PAN for display, and units c8 and s8 set up a logger that masks for you."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.5. Which Fields Must Be Present Depends on the MTI and the Network"
+    },
+    {
+      "type": "para",
+      "text": "Only the MTI and the primary bitmap are in every message. Everything else depends on the message:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "an `0800` echo test carries no PAN and no amount, only DE 7, DE 11 and DE 70;",
+        "an `0100` card-present authorization may carry Track 2 (DE 35) instead of DE 2, because the PAN is inside the track;",
+        "an `0110` must echo the fields the network lists (typically DE 3, 4, 7, 11, 37 and 41) and add DE 39."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A network's specification has a table with one row per field and one column per MTI. Each cell is **M** (mandatory), **C** (conditional: required when something else holds, such as DE 2 when there is no Track 2) or **O** (optional). A validator built from one list of \"required fields\" for every message refuses the network's own echo tests, or lets a response without DE 39 through. Build the checks per MTI from that table."
+    },
+    {
+      "type": "para",
+      "text": "In jPOS an absent field costs no exception: `hasField(n)` says whether it is there, and `getString(n)` returns `null` when it isn't."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.6. DE 55 Is a List of Tag-Length-Value Objects, Read as Bytes"
+    },
+    {
+      "type": "para",
+      "text": "When a chip card is used, the terminal sends the card's cryptogram and the data around it in DE 55, as a list of **BER-TLV** objects with nothing between them. Each object is:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "a **tag** of one or more bytes. When the low five bits of the first byte are all ones (`0x1F`), the tag continues in the next byte, and it keeps going while the byte just read has its top bit set. `95` is a one-byte tag, `9F26` and `5F2A` are two-byte tags, `DF8101` has three;",
+        "a **length**: one byte for 0 to 127, otherwise `81` followed by one length byte or `82` followed by two;",
+        "the **value**: exactly that many bytes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The stock `iso87ascii.xml` still calls DE 55 \"reserved ISO\" and packs it as text, with `IFA_LLLCHAR`. Network specifications define it as binary (`iso87binary.xml` uses `IFB_LLLBINARY`). Through the stock packager the bytes arrive unchanged, but the field comes back as a different type:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.tlv.TLVList;\nimport org.jpos.tlv.TLVMsg;\n\npublic class Tlv {\n    public static void main(String[] args) throws ISOException {\n        byte[] icc = ISOUtil.hex2byte(\n                \"9F2608A1B2C3D4E5F6A7B8\"   // 9F26, 8 bytes: application cryptogram\n              + \"9F360200A1\"               // 9F36, 2 bytes: transaction counter\n              + \"95050000008000\");         // 95, 5 bytes: terminal verification results\n\n        ISOMsg sent = new ISOMsg(\"0100\");\n        sent.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        sent.set(55, icc);\n        ISOMsg got = new ISOMsg();\n        got.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        got.unpack(sent.pack());\n        System.out.println(\"before packing: getString(55) = \" + sent.getString(55));\n        System.out.println(\"after unpacking: getString(55) has \" + got.getString(55).length()\n                + \" characters, getBytes(55) \" + got.getBytes(55).length + \" bytes\");\n\n        TLVList tlv = new TLVList();\n        tlv.unpack(got.getBytes(55));\n        for (TLVMsg t : tlv.getTags())\n            System.out.println(Integer.toHexString(t.getTag()).toUpperCase()\n                    + \" len=\" + t.getValue().length + \" value=\" + ISOUtil.hexString(t.getValue()));\n        System.out.println(\"ATC: \" + tlv.getString(0x9F36));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "before packing: getString(55) = 9F2608A1B2C3D4E5F6A7B89F360200A195050000008000\nafter unpacking: getString(55) has 23 characters, getBytes(55) 23 bytes\n9F26 len=8 value=A1B2C3D4E5F6A7B8\n9F36 len=2 value=00A1\n95 len=5 value=0000008000\nATC: 00A1"
+    },
+    {
+      "type": "para",
+      "text": "On the message you built, DE 55 is a `byte[]` and `getString` gives 46 hex characters. On the message you received, it is text, and `getString` gives the 23 raw bytes as characters. Code that parses hex from `getString(55)` passes every unit test built on `set(55, bytes)` and fails on the first real message. `getBytes(55)` returns the same 23 bytes in both cases. `TLVList` (in `org.jpos.tlv`) splits them, and refuses a list whose last object claims more bytes than are left."
+    },
+    {
+      "type": "para",
+      "text": "The cryptogram is not a secret like a PIN, but DE 55 can also hold track-equivalent data (tag `57`), so keep the whole field out of logs. Unit 18 goes through the EMV tags."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**ISO 8583:2023.** The 2023 edition builds several fields (among them DE 34, 43 and 104) from **datasets**: a 1-byte dataset identifier, a 2-byte big-endian length and the content, repeated, with BER-TLV or bitmapped elements inside. DE 55 stays plain BER-TLV. jPOS 2.1.7 reads such a field only as opaque binary; jPOS 3 reads datasets natively (unit s13). Unit 17 covers them."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.7. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A field's format is all the receiver has to find where it ends.** One field written in the wrong format shifts every field after it, and the error names a later, correct field. DE 43 is fixed 40 in 1987 and LLVAR in 1993.",
+        "**A short value is padded, a long one is refused, and nothing else is checked.** `\"50\"` in DE 4 is 0.50, unpacked text keeps its trailing spaces, and characters are yours to validate.",
+        "**The packager decides the bytes.** ASCII, BCD and EBCDIC write the same field differently, and a BCD prefix counts digits. Peers must share the packager, not only the formats.",
+        "**A field's type decides how you read it.** Amounts as minor units in a `long`, `=` in Track 2, binary fields with `getBytes`.",
+        "**Mandatory fields depend on the MTI and the network.** Check each message against its column of the specification's table.",
+        "**DE 55 is BER-TLV, read as bytes.** Tags and lengths can be longer than one byte, and what `getString(55)` returns depends on where the message came from."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.8. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Key data elements, 1987 edition.** \"jPOS class\" is the field packager `iso87ascii.xml` assigns (unit c13 explains the names). Networks rename and reuse some fields, such as DE 48 and DE 55."
+    },
+    {
+      "type": "table",
+      "headers": [
+        "DE",
+        "name",
+        "format (1987)",
+        "jPOS class (iso87ascii)",
+        "notes"
+      ],
+      "rows": [
+        [
+          "2",
+          "Primary account number (PAN)",
+          "n..19",
+          "`IFA_LLNUM` 19",
+          "sensitive: mask in logs"
+        ],
+        [
+          "3",
+          "Processing code",
+          "n6",
+          "`IFA_NUMERIC` 6",
+          "digits 1–2 transaction type (00 purchase, 01 cash, 20 refund, 31 balance inquiry), 3–4 from-account, 5–6 to-account"
+        ],
+        [
+          "4",
+          "Amount, transaction",
+          "n12",
+          "`IFA_NUMERIC` 12",
+          "minor units, no decimal point: `000000012345` = 123.45"
+        ],
+        [
+          "7",
+          "Transmission date and time",
+          "n10 MMDDhhmmss",
+          "`IFA_NUMERIC` 10",
+          "in UTC"
+        ],
+        [
+          "11",
+          "Systems trace audit number (STAN)",
+          "n6",
+          "`IFA_NUMERIC` 6",
+          "one increasing sequence per link, 000001–999999"
+        ],
+        [
+          "12",
+          "Time, local transaction",
+          "n6 hhmmss",
+          "`IFA_NUMERIC` 6",
+          "1993: n12 YYMMDDhhmmss"
+        ],
+        [
+          "13",
+          "Date, local transaction",
+          "n4 MMDD",
+          "`IFA_NUMERIC` 4",
+          ""
+        ],
+        [
+          "14",
+          "Date, expiration",
+          "n4 YYMM",
+          "`IFA_NUMERIC` 4",
+          "sensitive with the PAN"
+        ],
+        [
+          "18",
+          "Merchant type (MCC)",
+          "n4",
+          "`IFA_NUMERIC` 4",
+          "e.g. 5411 grocery"
+        ],
+        [
+          "22",
+          "POS entry mode",
+          "n3",
+          "`IFA_NUMERIC` 3",
+          "1993: an12 POS data code"
+        ],
+        [
+          "25",
+          "POS condition code",
+          "n2",
+          "`IFA_NUMERIC` 2",
+          "1993: n4 message reason code"
+        ],
+        [
+          "32",
+          "Acquiring institution ID code",
+          "n..11",
+          "`IFA_LLNUM` 11",
+          ""
+        ],
+        [
+          "35",
+          "Track 2 data",
+          "z..37",
+          "`IFA_LLNUM` 37",
+          "sensitive: never log or store"
+        ],
+        [
+          "37",
+          "Retrieval reference number (RRN)",
+          "an12",
+          "`IF_CHAR` 12",
+          ""
+        ],
+        [
+          "38",
+          "Authorization ID response",
+          "an6",
+          "`IF_CHAR` 6",
+          "the approval code"
+        ],
+        [
+          "39",
+          "Response code",
+          "an2",
+          "`IF_CHAR` 2",
+          "`00` approved; 1993: n3 action code"
+        ],
+        [
+          "41",
+          "Card acceptor terminal ID",
+          "ans8",
+          "`IF_CHAR` 8",
+          "e.g. `29110001`"
+        ],
+        [
+          "42",
+          "Card acceptor ID code",
+          "ans15",
+          "`IF_CHAR` 15",
+          "e.g. `000000001234567`"
+        ],
+        [
+          "43",
+          "Card acceptor name/location",
+          "ans40",
+          "`IF_CHAR` 40",
+          "fixed in 1987; 1993: ans..99 LLVAR"
+        ],
+        [
+          "48",
+          "Additional data, private",
+          "ans...999",
+          "`IFA_LLLCHAR` 999",
+          "sub-fields need a sub-field packager (unit c13)"
+        ],
+        [
+          "49",
+          "Currency code, transaction",
+          "n3",
+          "`IF_CHAR` 3",
+          "ISO 4217 numeric, `840` = USD"
+        ],
+        [
+          "52",
+          "PIN data",
+          "b64",
+          "`IFA_BINARY` 8",
+          "8 bytes, sent as 16 hex characters in ASCII packagers; never log"
+        ],
+        [
+          "55",
+          "Reserved ISO (EMV data in practice)",
+          "ans...999",
+          "`IFA_LLLCHAR` 999",
+          "binary BER-TLV in network specifications"
+        ],
+        [
+          "64, 128",
+          "Message authentication code",
+          "b64",
+          "`IFA_BINARY` 8",
+          ""
+        ],
+        [
+          "70",
+          "Network management information code",
+          "n3",
+          "`IFA_NUMERIC` 3",
+          "001 sign-on, 002 sign-off, 301 echo"
+        ],
+        [
+          "90",
+          "Original data elements",
+          "n42",
+          "`IFA_NUMERIC` 42",
+          "used by reversals (unit 4)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Type codes:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "code",
+        "allowed",
+        "example"
+      ],
+      "rows": [
+        [
+          "`n`",
+          "digits 0–9",
+          "DE 4 (n12)"
+        ],
+        [
+          "`a`",
+          "letters",
+          "rarely alone"
+        ],
+        [
+          "`s`",
+          "special characters: space and punctuation",
+          "combined, as in `ans`"
+        ],
+        [
+          "`an`",
+          "letters and digits",
+          "DE 37 (an12), DE 39 (an2)"
+        ],
+        [
+          "`ans`",
+          "letters, digits and special characters",
+          "DE 41, 42, 43"
+        ],
+        [
+          "`b`",
+          "binary, length in bits",
+          "DE 52 (b64 = 8 bytes)"
+        ],
+        [
+          "`z`",
+          "track data: digits and the separator",
+          "DE 35"
+        ],
+        [
+          "`x+n`",
+          "`C` (credit) or `D` (debit), then digits",
+          "DE 28 to DE 31 (fees), `D00000100`; `IFA_AMOUNT` / `IFB_AMOUNT`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Length prefixes in jPOS:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "encoding",
+        "LLVAR / LLLVAR numeric",
+        "prefix size",
+        "prefix counts"
+      ],
+      "rows": [
+        [
+          "ASCII digits",
+          "`IFA_LLNUM` / `IFA_LLLNUM`",
+          "2 / 3 bytes",
+          "characters"
+        ],
+        [
+          "BCD",
+          "`IFB_LLNUM` / `IFB_LLLNUM`",
+          "1 / 2 bytes",
+          "digits"
+        ],
+        [
+          "EBCDIC digits",
+          "`IFE_LLNUM` / `IFE_LLLNUM`",
+          "2 / 3 bytes",
+          "characters"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Padding by hand:** `ISOUtil.zeropad(\"42\", 6)` gives `000042`, `ISOUtil.strpad(\"T1\", 8)` gives `T1` and six spaces, `ISOUtil.zeropad(12345L, 12)` gives `000000012345`, and `ISOUtil.zeropad(\"1234567\", 6)` throws `ISOException: invalid len 7/6`."
+    },
+    {
+      "type": "para",
+      "text": "**Dates:** `ISODate.getDateTime(date, TimeZone.getTimeZone(\"UTC\"))` produces DE 7 (MMddHHmmss), `ISODate.parseISODate(s, tz)` reads it, and `ISODate.formatDate(date, pattern)` covers other patterns. There is no `ISOUtil.formatDate`."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.9. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your acquirer sends a specification with 60 fields. How would you find, before the first test message, every field whose format differs from `iso87ascii.xml`, and what would you do with each?",
+        "A terminal sends amounts in a currency with three minor digits. Where in your system does the number of minor digits come from, and what goes wrong if only the terminal knows it?",
+        "Your receiver trims trailing spaces from every text field after unpacking. Name a field where that loses information, and decide whether to trim at all.",
+        "Two peers agree on `n..19` for DE 2, but one uses BCD with the filler on the left and the other on the right. Which PANs come through intact, and what test would catch the others?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.10. Design Note: Why Fields Have No Tags"
+    },
+    {
+      "type": "para",
+      "text": "ISO 8583 puts fields back to back and lets a bitmap say which are present. A bitmap of 8 bytes announces 64 fields (16 characters in ASCII), and a fixed field spends nothing on a length or a tag: the purchase in 3.1 is 64 bytes. The price is that the receiver needs a table to read the message, and one wrong entry in it spoils everything after that field, as 3.1 shows."
+    },
+    {
+      "type": "para",
+      "text": "A tagged format, such as the BER-TLV inside DE 55, labels every value with its tag and length. A reader can skip what it doesn't know, fields can come in any order, and a new one breaks nothing. The price is two or more bytes per value, and a reader that handles tags and lengths of variable size. For open-ended data such as chip data, specifications put TLV inside one field, and the 2023 edition does the same for more fields."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 33,
-    "paras": 14,
-    "code": 5,
-    "tables": 0,
-    "lists": 25,
+    "headings": 11,
+    "paras": 36,
+    "code": 13,
+    "tables": 3,
+    "lists": 5,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "8c126dc1c35104a51ebc5e290a40a49e15ed4ed3bcf4977f30596f68ab09844e"
+  "content_sha256": "383c5371d261dd2fde3a17177fd50ff61d53f7435b8fc7b22c3fa71a20f4589b"
 }

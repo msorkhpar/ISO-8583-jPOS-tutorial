@@ -8,7 +8,7 @@
   "unit": 4,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Message Type Indicators (MTIs)",
   "blocks": [
     {
@@ -18,213 +18,441 @@
     },
     {
       "type": "para",
-      "text": "Message Type Indicators (MTIs) are four-digit codes that define the purpose and overall function of an ISO-8583 message. They are crucial in determining how a message should be processed."
+      "text": "A host's log for terminal `29110001`, one evening:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Time",
+        "MTI",
+        "STAN",
+        "Amount"
+      ],
+      "rows": [
+        [
+          "22:14:05",
+          "`0200`",
+          "`000731`",
+          "100.00"
+        ],
+        [
+          "22:14:35",
+          "`0420`",
+          "`000732`",
+          ""
+        ],
+        [
+          "22:15:05",
+          "`0421`",
+          "`000732`",
+          ""
+        ],
+        [
+          "22:15:06",
+          "`0430`",
+          "`000732`",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The purchase got no answer. Did the cardholder pay? Each message's first four digits, its Message Type Indicator (MTI), say what it is, what answers it, and what approving it commits. Reading the log takes four rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "4.1. Authorization messages"
+      "text": "4.1. The Third Digit Pairs Every Message With Its Answer"
     },
     {
       "type": "para",
-      "text": "Authorization messages are used to request and respond to transaction authorizations."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "4.1.1. 0100: Authorization Request"
-    },
-    {
-      "type": "para",
-      "text": "This message is sent from the acquirer to the issuer to request authorization for a transaction."
-    },
-    {
-      "type": "para",
-      "text": "Example of creating an authorization request using jPOS:"
+      "text": "The third digit, the function, says where a message sits in an exchange: `0` a request, `1` its response, `2` an advice (a report of something already done, 4.3), `3` the advice's response. jPOS derives the answer's MTI with `setResponseMTI`. What answers an `0420`, and what answers its repeat, the `0421`?"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class AuthorizationRequestCreator {\n    public ISOMsg createAuthorizationRequest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"4111111111111111\"); // PAN\n        msg.set(3, \"000000\"); // Processing Code (Purchase)\n        msg.set(4, \"000000012345\"); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, \"123456\"); // STAN\n        msg.set(22, \"051\"); // POS Entry Mode\n        msg.set(25, \"00\"); // POS Condition Code\n        msg.set(41, \"12345678\"); // Card Acceptor Terminal ID\n        msg.set(42, \"MERCHANT123456\"); // Card Acceptor ID Code\n        msg.set(49, \"840\"); // Currency Code (USD)\n        return msg;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "4.1.2. 0110: Authorization Response"
-    },
-    {
-      "type": "para",
-      "text": "This message is the issuer's response to an authorization request."
-    },
-    {
-      "type": "para",
-      "text": "Example of handling an authorization response:"
+      "text": "package com.example.iso.mti;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic class Pairs {\n    public static void main(String[] args) throws ISOException {\n        for (String mti : new String[] { \"0100\", \"0200\", \"0120\", \"0220\", \"0400\", \"0420\", \"0421\", \"0800\", \"1804\" }) {\n            ISOMsg m = new ISOMsg(mti);\n            m.setResponseMTI();\n            System.out.println(mti + \" -> \" + m.getMTI());\n        }\n        try {\n            new ISOMsg(\"0110\").setResponseMTI();\n        } catch (ISOException e) {\n            System.out.println(\"0110 -> \" + e.getMessage());\n        }\n    }\n}"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class AuthorizationResponseHandler {\n    public void handleAuthorizationResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Authorization approved\");\n            String authCode = response.getString(38);\n            System.out.println(\"Authorization code: \" + authCode);\n        } else {\n            System.out.println(\"Authorization declined\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+      "lang": "text",
+      "text": "0100 -> 0110\n0200 -> 0210\n0120 -> 0130\n0220 -> 0230\n0400 -> 0410\n0420 -> 0430\n0421 -> 0430\n0800 -> 0810\n1804 -> 1814\n0110 -> not a request - can't set response MTI"
+    },
+    {
+      "type": "para",
+      "text": "The answer keeps the first two digits and adds one to the third. An advice gets an advice response: `0420` → `0430`, never `0410`. The fourth digit loses its repeat mark, because the answer is to the message, not to one attempt at sending it: `0421` → `0430` too. A response has no answer, and jPOS refuses to make one."
+    },
+    {
+      "type": "para",
+      "text": "The MTI pairs kinds of message, not transactions. Ten terminals on one link get ten `0210`s, so a response belongs to your request only when it also carries the request's STAN (field 11) and terminal ID (field 41). Take the next `0210` on the link as yours, and one cardholder's approval is reported on another's purchase. Unit c12 shows this in jPOS."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Later editions.** The pairs hold in 1993 and 2003: `1804` is answered by `1814`. The Reference maps this unit's MTIs to their later counterparts."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "4.2. Financial messages"
+      "text": "4.2. The Second Digit Says What an Approval Commits"
     },
     {
       "type": "para",
-      "text": "Financial messages are used for actual monetary transactions."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "4.2.1. 0200: Financial Request"
-    },
-    {
-      "type": "para",
-      "text": "This message is used to request a financial transaction, such as a purchase or cash withdrawal."
-    },
-    {
-      "type": "para",
-      "text": "Example of creating a financial request:"
+      "text": "The second digit is the class: `1` authorization, `2` financial, `4` reversal, `8` network management. An `0100` and an `0200` built from the same fields and packed with `iso87ascii.xml` (the PAN masked for printing):"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class FinancialRequestCreator {\n    public ISOMsg createFinancialRequest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        msg.set(2, \"4111111111111111\"); // PAN\n        msg.set(3, \"000000\"); // Processing Code (Purchase)\n        msg.set(4, \"000000012345\"); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, \"123456\"); // STAN\n        msg.set(22, \"051\"); // POS Entry Mode\n        msg.set(25, \"00\"); // POS Condition Code\n        msg.set(41, \"12345678\"); // Card Acceptor Terminal ID\n        msg.set(42, \"MERCHANT123456\"); // Card Acceptor ID Code\n        msg.set(49, \"840\"); // Currency Code (USD)\n        return msg;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "4.2.2. 0210: Financial Response"
+      "lang": "text",
+      "text": "0100722000000080800016411111______1111000000000000010000110622140500073129110001840\n0200722000000080800016411111______1111000000000000010000110622140500073129110001840\nlength 83 and 83, different at offset 1"
     },
     {
       "type": "para",
-      "text": "This message is the response to a financial request, indicating whether the transaction was successful."
+      "text": "Only the second byte differs, the class digit, and it decides what an approval does:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "an approved `0100` places a **hold** on the amount. The money moves later, when the acquirer clears the transaction (unit 7). Credit card purchases mostly work this way;",
+        "an approved `0200` **posts** the debit at once. ATM withdrawals and PIN debit purchases work this way;",
+        "an `0800` touches no account. Field 70 says what it does, such as `301`, echo test."
+      ]
     },
     {
       "type": "para",
-      "text": "Example of handling a financial response:"
+      "text": "A fuel pump asks for 100.00 before the customer fills up, and the customer takes 35.00. As an `0100`, the 100.00 is a hold, a completion advice (`0220`) carries 35.00, and the rest is released. Sent as an `0200` on a link that accepts it, 100.00 is debited at once. Until a second message gives 65.00 back, the cardholder has paid for fuel they never took."
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class FinancialResponseHandler {\n    public void handleFinancialResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Transaction approved\");\n            String authCode = response.getString(38);\n            System.out.println(\"Authorization code: \" + authCode);\n        } else {\n            System.out.println(\"Transaction declined\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+      "type": "para",
+      "text": "An echo with no answer needs no clean-up, because it committed nothing; the next one is a new message."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "4.3. Reversal messages"
+      "text": "4.3. An Advice Reports What Already Happened, So It Is Repeated Until It Is Acknowledged"
     },
     {
       "type": "para",
-      "text": "Reversal messages are used to undo or correct previous transactions."
+      "text": "An advice tells the receiver about something already decided: a network's stand-in approval (`0120`), a completion or an offline purchase (`0220`), a reversal (`0420`). The receiver can't decline it; it acknowledges it. Until the acknowledgement arrives, the sender sends the advice again as a repeat. `setRetransmissionMTI` changes the fourth digit from `0` to `1` and nothing else, STAN included, so the receiver can tell that it has seen this message before. With a new STAN, the repeat of an `0220` would look like a second completion and could be posted twice."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**jPOS 2.1.7 assumes the acquirer.** `setRetransmissionMTI` writes `1` into the fourth digit whatever was there, so an issuer's `0422` becomes `0421` instead of `0423`. On the issuer side, set the repeat MTI yourself."
+        }
+      ]
     },
     {
       "type": "heading",
       "level": 4,
-      "text": "4.3.1. 0400: Reversal Request"
+      "text": "4.3.1. Spot the Problem: The Dispatcher That Ignored a Repeat"
     },
     {
       "type": "para",
-      "text": "This message is sent to request the reversal of a previous transaction."
-    },
-    {
-      "type": "para",
-      "text": "Example of creating a reversal request:"
+      "text": "An issuer's host dispatches each incoming message on its MTI:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ReversalRequestCreator {\n    public ISOMsg createReversalRequest(ISOMsg originalMsg) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0400\");\n        msg.set(2, originalMsg.getString(2)); // PAN\n        msg.set(3, originalMsg.getString(3)); // Processing Code\n        msg.set(4, originalMsg.getString(4)); // Amount\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, originalMsg.getString(11)); // STAN\n        msg.set(37, originalMsg.getString(37)); // Retrieval Reference Number\n        msg.set(41, originalMsg.getString(41)); // Card Acceptor Terminal ID\n        msg.set(42, originalMsg.getString(42)); // Card Acceptor ID Code\n        return msg;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "4.3.2. 0410: Reversal Response"
+      "text": "switch (in.getMTI()) {\n    case \"0100\":\n    case \"0200\": return respond(in, \"00\");\n    case \"0420\": return respond(in, \"00\");   // (1) undo the purchase, acknowledge\n    default:     return null;                 // (2) not one of ours\n}"
     },
     {
       "type": "para",
-      "text": "This message is the response to a reversal request."
+      "text": "`respond` clones the message, calls `setResponseMTI` and sets field 39. One night the `0430` for a reversal is lost on its way back to the acquirer. What happens next?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "first dispatcher:\n  0420 11=000732 -> 0430 39=00 (lost on the way back)\n  0421 11=000732 -> nothing\n  0421 11=000732 -> nothing\n  0421 11=000732 -> nothing"
     },
     {
       "type": "para",
-      "text": "Example of handling a reversal response:"
+      "text": "The repeat matches no case and falls into (2). The acquirer repeats until its limit, then parks the reversal for someone to look at (unit 20), though the issuer applied it long ago. If the issuer was down for the `0420` itself, every attempt it sees is an `0421`, the reversal is never applied, and the cardholder pays for a purchase the terminal reported as failed."
+    },
+    {
+      "type": "para",
+      "text": "Dispatch on the class and function, digits 2 and 3, and let `setResponseMTI` build the answer. The same reversal, then an `0600` and a late `0810`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ReversalResponseHandler {\n    public void handleReversalResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Reversal approved\");\n        } else {\n            System.out.println(\"Reversal failed\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+      "text": "switch (in.getMTI().substring(1, 3)) {\n    case \"10\":\n    case \"20\": return respond(in, \"00\");\n    case \"12\":\n    case \"22\":\n    case \"42\": return respond(in, \"00\");      // an advice or its repeat: acknowledge\n    default:   return in.isRequest() ? respond(in, \"12\") : null;\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "fixed dispatcher:\n  0420 11=000732 -> 0430 39=00 (lost on the way back)\n  0421 11=000732 -> 0430 39=00\n0600 -> 0610 39=12\n0810 -> null"
+    },
+    {
+      "type": "para",
+      "text": "An unsupported request gets error `12`, invalid transaction (unit 9), so its sender isn't left waiting. `isRequest` is true for any even third digit, so an unknown advice gets that answer too. A response nobody waits for, such as a late `0810`, gets no answer; log it. The issuer still has to notice that it already applied `000732` before it undoes the purchase a second time; unit 20 builds that."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "4.4. Network management messages"
+      "text": "4.4. A Request Without an Answer Is Reversed, Never Sent Again"
     },
     {
       "type": "para",
-      "text": "Network management messages are used for administrative purposes between systems."
+      "text": "The `0200` in the opening got no answer in 30 seconds. Either it never reached the issuer, or the issuer declined it, or the issuer approved it and the answer was lost. The acquirer can't tell which. Send the `0200` again, and in the third case it is a second purchase: an issuer that doesn't look for duplicates approves it, and the cardholder pays twice."
+    },
+    {
+      "type": "para",
+      "text": "A **reversal** says \"if you approved this, undo it\". It changes nothing in the first two cases and gives the money back in the third. It goes as an `0400` request or, more often, an `0420` advice, and either way it is a new message that points back at the original:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.iso.mti;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\npublic class ReversalBuilder {\n    /** What identifies the card, the amount, the acquirer and the merchant. Never 35, 52 or 55. */\n    private static final int[] COPIED = { 2, 3, 4, 32, 33, 37, 41, 42, 49 };\n\n    /** A new 0420 that reverses {@code original}, sent with its own STAN and time. */\n    public static ISOMsg reversalOf(ISOMsg original, String stan, String now) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(COPIED);\n        rev.setMTI(\"0420\");\n        rev.set(7, now);\n        rev.set(11, stan);\n        rev.set(90, original.getMTI()\n                + ISOUtil.zeropad(original.getString(11), 6)\n                + ISOUtil.zeropad(original.getString(7), 10)\n                + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n                + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : \"\", 11));\n        return rev;\n    }\n\n    public static void main(String[] args) throws ISOException {\n        ISOMsg purchase = new ISOMsg(\"0200\");\n        purchase.set(2, \"4111111111111111\");\n        purchase.set(3, \"000000\");\n        purchase.set(4, \"000000010000\");\n        purchase.set(7, \"1106221405\");\n        purchase.set(11, \"000731\");\n        purchase.set(32, \"123456\");\n        purchase.set(35, \"4111111111111111=28121010000000000000\");\n        purchase.set(41, \"29110001\");\n\n        ISOMsg rev = reversalOf(purchase, \"000732\", \"1106221435\");\n        System.out.println(rev.getMTI() + \"  11=\" + rev.getString(11) + \"  7=\" + rev.getString(7)\n                + \"  4=\" + rev.getString(4) + \"  35 copied: \" + rev.hasField(35));\n        System.out.println(\"90=\" + rev.getString(90) + \" (\" + rev.getString(90).length() + \" digits)\");\n        System.out.println(\"original still \" + purchase.getMTI() + \" 11=\" + purchase.getString(11));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0420  11=000732  7=1106221435  4=000000010000  35 copied: false\n90=020000073111062214050000012345600000000000 (42 digits)\noriginal still 0200 11=000731"
+    },
+    {
+      "type": "para",
+      "text": "**It has its own STAN and time**, because it is a new message on the link. The issuer finds the original through field 90, not field 11."
+    },
+    {
+      "type": "para",
+      "text": "**Field 90, original data elements, names the original** in 42 digits:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0200  000731  1106221405  00000123456  00000000000\nMTI   STAN    field 7     field 32     field 33"
+    },
+    {
+      "type": "para",
+      "text": "**It copies only what identifies the transaction.** Track 2 (field 35), the PIN block (52) and chip data (55) stay out of a message that may wait in a queue for hours."
+    },
+    {
+      "type": "para",
+      "text": "The `0420` at 22:14:35 reversed purchase `000731`. Its `0430` was lost, the `0421` repeated it with the same STAN, and the `0430` at 22:15:06 closed it. Whatever the issuer did with the purchase, the cardholder hasn't paid for it."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** Most networks want an `0420` after a timeout; some want an `0400`, the original's STAN in field 11, a reason code, or more of the original's fields. Unit 7 places reversals in the transaction flow, and unit c12 builds and queues them in jPOS."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "4.4.1. 0800: Network Management Request"
+      "level": 3,
+      "text": "4.5. Summary"
     },
     {
-      "type": "para",
-      "text": "This message is used for various network management functions, such as echo tests or sign-on requests."
-    },
-    {
-      "type": "para",
-      "text": "Example of creating a network management request (echo test):"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class NetworkManagementRequestCreator {\n    public ISOMsg createEchoTest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0800\");\n        msg.set(7, ISOUtil.formatDate(new Date(), \"MMddHHmmss\")); // Transmission Date & Time\n        msg.set(11, ISOUtil.zeropad(String.valueOf(System.currentTimeMillis() % 1000000), 6)); // STAN\n        msg.set(70, \"301\"); // Network Management Information Code (Echo Test)\n        return msg;\n    }\n}"
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The third digit pairs every message with its answer**: request `0` with response `1`, advice `2` with advice response `3`, and a repeat is answered like the original. A response is yours only if it also carries your STAN and terminal ID.",
+        "**The second digit says what an approval commits**: an `0100` holds, an `0200` posts, an `0800` touches no account. The wrong class takes the wrong amount from the cardholder.",
+        "**An advice is acknowledged, never declined, and repeated until it is.** A receiver that dispatches on the whole MTI ignores the repeats and leaves the sender repeating.",
+        "**A request without an answer is reversed, never resent.** The reversal is a new message with its own STAN that names the original in field 90."
+      ]
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "4.4.2. 0810: Network Management Response"
+      "level": 3,
+      "text": "4.6. Reference"
     },
     {
       "type": "para",
-      "text": "This message is the response to a network management request."
+      "text": "**The 1987 MTIs of this unit:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Request or advice",
+        "Answer",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`0100`",
+          "`0110`",
+          "authorization: approval places a hold"
+        ],
+        [
+          "`0120`",
+          "`0130`",
+          "authorization advice, e.g. a stand-in decision"
+        ],
+        [
+          "`0200`",
+          "`0210`",
+          "financial request: approval posts the debit"
+        ],
+        [
+          "`0220`",
+          "`0230`",
+          "financial advice, e.g. a completion or an offline purchase"
+        ],
+        [
+          "`0400`",
+          "`0410`",
+          "reversal request"
+        ],
+        [
+          "`0420`",
+          "`0430`",
+          "reversal advice"
+        ],
+        [
+          "`0421`",
+          "`0430`",
+          "repeat of an `0420`"
+        ],
+        [
+          "`0800`",
+          "`0810`",
+          "network management; field 70: `001` sign-on, `002` sign-off, `301` echo"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "Example of handling a network management response:"
+      "text": "**The same messages in later editions:**"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class NetworkManagementResponseHandler {\n    public void handleNetworkManagementResponse(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            System.out.println(\"Network management request successful\");\n            String networkManagementCode = response.getString(70);\n            System.out.println(\"Network Management Code: \" + networkManagementCode);\n        } else {\n            System.out.println(\"Network management request failed\");\n            System.out.println(\"Response code: \" + responseCode);\n        }\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Purpose",
+        "1987",
+        "1993",
+        "2003"
+      ],
+      "rows": [
+        [
+          "authorization",
+          "`0100` / `0110`",
+          "`1100` / `1110`",
+          "`2100` / `2110`"
+        ],
+        [
+          "financial request",
+          "`0200` / `0210`",
+          "`1200` / `1210`",
+          "`2200` / `2210`"
+        ],
+        [
+          "financial advice",
+          "`0220` / `0230`",
+          "`1220` / `1230`",
+          "`2220` / `2230`"
+        ],
+        [
+          "reversal advice",
+          "`0420` / `0430`",
+          "`1420` / `1430`",
+          "`2420` / `2430`"
+        ],
+        [
+          "network management",
+          "`0800` / `0810`",
+          "`1804` / `1814`, function code in field 24",
+          "`2800` / `2810` (jPOS CMF)"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "To tie all of these concepts together, here's an example of a simple ISO-8583 message processor that can handle different MTIs:"
+      "text": "**Field 90, original data elements (1987, n 42):**"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ISO8583MessageProcessor {\n    public void processMessage(ISOMsg msg) throws ISOException {\n        String mti = msg.getMTI();\n        switch (mti) {\n            case \"0100\":\n                processAuthorizationRequest(msg);\n                break;\n            case \"0110\":\n                processAuthorizationResponse(msg);\n                break;\n            case \"0200\":\n                processFinancialRequest(msg);\n                break;\n            case \"0210\":\n                processFinancialResponse(msg);\n                break;\n            case \"0400\":\n                processReversalRequest(msg);\n                break;\n            case \"0410\":\n                processReversalResponse(msg);\n                break;\n            case \"0800\":\n                processNetworkManagementRequest(msg);\n                break;\n            case \"0810\":\n                processNetworkManagementResponse(msg);\n                break;\n            default:\n                System.out.println(\"Unsupported MTI: \" + mti);\n        }\n    }\n\n    private void processAuthorizationRequest(ISOMsg msg) throws ISOException {\n        // Process authorization request\n    }\n\n    private void processAuthorizationResponse(ISOMsg msg) throws ISOException {\n        // Process authorization response\n    }\n\n    private void processFinancialRequest(ISOMsg msg) throws ISOException {\n        // Process financial request\n    }\n\n    private void processFinancialResponse(ISOMsg msg) throws ISOException {\n        // Process financial response\n    }\n\n    private void processReversalRequest(ISOMsg msg) throws ISOException {\n        // Process reversal request\n    }\n\n    private void processReversalResponse(ISOMsg msg) throws ISOException {\n        // Process reversal response\n    }\n\n    private void processNetworkManagementRequest(ISOMsg msg) throws ISOException {\n        // Process network management request\n    }\n\n    private void processNetworkManagementResponse(ISOMsg msg) throws ISOException {\n        // Process network management response\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Positions",
+        "Content"
+      ],
+      "rows": [
+        [
+          "1-4",
+          "original MTI"
+        ],
+        [
+          "5-10",
+          "original STAN (field 11)"
+        ],
+        [
+          "11-20",
+          "original transmission date and time (field 7, MMDDhhmmss)"
+        ],
+        [
+          "21-31",
+          "original acquiring institution ID (field 32), zero-filled on the left"
+        ],
+        [
+          "32-42",
+          "original forwarding institution ID (field 33), zero-filled on the left"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.7. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "A hotel takes an `0100` for three nights and the guest stays two. Which messages follow, and what does the cardholder see on their account in between?",
+        "Your issuer receives an `0420` for a purchase it never saw, and the purchase arrives a second later. What should each message do, and what must the host remember to get it right?",
+        "A network sends you `0620` administrative advices, which your dispatcher has no case for. Should it acknowledge them, answer with an error, or log them, and what does each choice cost the sender?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.8. Design Note: Why Four Digits in Front?"
+    },
+    {
+      "type": "para",
+      "text": "The MTI puts a message's purpose before its bitmap, so a receiver knows what it holds before it parses a single field. A switch can route on four digits, and it can answer a message it doesn't support with the matching response MTI without knowing its fields."
+    },
+    {
+      "type": "para",
+      "text": "Four digits can't name every message: the 1987 edition puts what a network message does in field 70 and leaves the rest to each network. The 1993 edition added field 24, the function code, so the MTI names a family of messages and a field names the exact one; a 1993 echo test is `1804` with field 24 = `831`. A receiver now reads two places to know what it holds."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 13,
-    "paras": 22,
-    "code": 9,
-    "tables": 0,
-    "lists": 0,
+    "headings": 10,
+    "paras": 26,
+    "code": 10,
+    "tables": 4,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 3,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "119fec812ae12b52363c9fe65d5f067dbf13a817996502fab7f19331ff43fc08"
+  "content_sha256": "c6afd36399d72d3b94288224a0d67533592479b7fe8a60f3a82270b16ac9e995"
 }

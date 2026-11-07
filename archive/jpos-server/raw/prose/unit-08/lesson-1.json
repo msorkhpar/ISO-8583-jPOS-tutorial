@@ -8,7 +8,7 @@
   "unit": 8,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Logging and Debugging",
   "blocks": [
     {
@@ -18,185 +18,387 @@
     },
     {
       "type": "para",
-      "text": "Logging and debugging are essential components of any robust jPOS server implementation. jPOS provides powerful logging capabilities through its built-in logging framework. Let's dive into the details and see how to implement effective logging and debugging in a jPOS server."
+      "text": "A merchant calls about a 900.00 purchase from terminal `29110001`, refused with `61` (exceeds amount limit) at 20:11. Their limit is 5000.00, they say, so why? You open the server's log. The TransactionManager wrote one event for the purchase, and it names the participant that refused it. It doesn't say which amount that participant read, which limit it applied, or whether someone typed the limit wrong."
+    },
+    {
+      "type": "para",
+      "text": "The server's logger is the one of unit c1, with `ProtectedLogListener` first. Unit c8 explains how events reach it and what the filter can mask, and unit s1 turned off the TransactionManager's Context dump (`debug-context`) because the filter can't mask it. On top of that, a server has to write enough to explain a refusal, a slow purchase or a hung transaction: five rules, one per section heading."
+    },
+    {
+      "type": "para",
+      "text": "Every output comes from jPOS 2.1.7: a real Q2 and TransactionManager in one JVM, fed by unit s4's `DirectTerminal`, with the logger above and the dump off."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "8.1 jPOS Logging Framework"
+      "text": "8.1 The Transaction Event Says Who Voted, Never Why"
     },
     {
       "type": "para",
-      "text": "jPOS uses its own logging framework, which is flexible and can be integrated with other logging systems like Log4j or SLF4J. The main classes involved in jPOS logging are:"
+      "text": "The participant that refused the purchase does what units s4 and s6 do with their reasons: it notes them in the Context."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Refuses purchases over a limit, and notes its reasons in the Context. */\npublic class NotedCheckAmount implements TransactionParticipant, Configurable {\n    private long limit;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        limit = cfg.getLong(\"max-amount\", 50000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        String field4 = request.getString(4);\n        String rc;\n        if (field4 == null || !field4.matches(\"\\\\d{1,12}\")) {\n            ctx.log(\"amount unreadable: '\" + field4 + \"'\");\n            rc = \"30\";\n        } else if (Long.parseLong(field4) > limit) {\n            ctx.log(\"amount \" + Long.parseLong(field4) + \" over limit \" + limit);\n            rc = \"61\";\n        } else {\n            return PREPARED | NO_JOIN | READONLY;\n        }\n        try {\n            ctx.put(RESPONSE.toString(), Responses.reply(request, rc));\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`Responses.reply` is unit s4's helper. The chain is this participant, then `Approve`, which puts a `00` response in the Context, then `SendResponse`, and the descriptor sets `max-amount` to `50000`. We sent 120.00 and 900.00. Before you read the log, where do you expect \"over limit\" to appear?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"org.jpos.transaction.TransactionManager\" at=\"2026-11-06T20:11:12.909249171\" lifespan=\"2ms\">\n  <abort>\n    txnmgr-0:idle:2\n            prepare: c.e.j.s.p.NotedCheckAmount ABORTED\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.NotedCheckAmount\n              abort: o.j.t.p.SendResponse\n     in-transit=0/0, head=3, tail=3, paused=0, outstanding=0, active-sessions=1/1, tps=0, peak=0, avg=0.00, elapsed=2ms\n    <profiler>\n      prepare: c.e.j.s.p.NotedCheckAmount [1.6/1.6]\n      prepareForAbort: o.j.t.p.SendResponse [0.1/1.8]\n        abort: c.e.j.s.p.NotedCheckAmount [0.0/1.8]\n        abort: o.j.t.p.SendResponse [0.3/2.1]\n      end [0.5/2.7]\n    </profiler>\n  </abort>\n</log>"
+    },
+    {
+      "type": "para",
+      "text": "It appears nowhere. The event lists the participants that ran (`c.e.j.s.p.` is `com.example.jpos.server.participant`) and their votes. `ctx.log` writes into a `LogEvent` kept in the Context, which is printed only in the Context dump. The status line comes back in 8.5."
+    },
+    {
+      "type": "para",
+      "text": "The descriptor had `max-amount` at `50000` minor units, 500.00; the merchant's contract says 5000.00. To learn that, you repeat the purchase on a test system with the dump turned on, ticket by ticket. The one reason the TransactionManager does write is an exception that escapes `prepare`, as a `<warn>` (unit s6). Unless an earlier participant put a response in the Context, the terminal then gets no answer."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.2 A Participant Writes Its Own Event, and Only If Its Element Names a Logger"
+    },
+    {
+      "type": "para",
+      "text": "The participant has to write the reason itself, in an event of its own:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Refuses purchases over a limit, and writes why in an event of its own. */\npublic class CheckAmount extends Log implements TransactionParticipant, Configurable {\n    private long limit;                                 // set from configuration; nothing per transaction (unit s1)\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        limit = cfg.getLong(\"max-amount\", 50000);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        LogEvent ev = createInfo();                     // (1) one event for this transaction\n        ev.addMessage(\"txn \" + id);                     // (2) the id the TransactionManager prints\n        ev.addMessage(request);                         // (3) the message itself, for the filter to mask\n        try {\n            String rc = decide(request.getString(4), ev);\n            if (rc == null)\n                return PREPARED | NO_JOIN | READONLY;\n            ctx.put(RESPONSE.toString(), Responses.reply(request, rc));\n            return ABORTED;\n        } catch (ISOException e) {\n            ev.addMessage(e);\n            return ABORTED;\n        } finally {\n            Logger.log(ev);                             // (4) written whatever happened\n        }\n    }\n\n    /** Null to approve, otherwise the response code. The reason goes into the event. */\n    private String decide(String field4, LogEvent ev) {\n        if (field4 == null || !field4.matches(\"\\\\d{1,12}\")) {\n            ev.addMessage(\"amount unreadable: '\" + field4 + \"'\");\n            return \"30\";\n        }\n        long amount = Long.parseLong(field4);\n        if (amount > limit) {\n            ev.addMessage(\"amount \" + amount + \" over limit \" + limit);\n            return \"61\";\n        }\n        ev.addMessage(\"amount \" + amount + \" within limit \" + limit);\n        return null;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Extending `org.jpos.util.Log` makes it a `LogSource`. The TransactionManager builds each participant through Q2's factory, and the factory calls `setLogger` with the logger and realm of the `<participant>` element, but only when the element has a `logger` attribute:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"com.example.jpos.server.participant.CheckAmount\" logger=\"Q2\" realm=\"check-amount\">\n  <property name=\"max-amount\" value=\"50000\"/>\n</participant>"
+    },
+    {
+      "type": "para",
+      "text": "We sent the same two purchases with this element, then with `logger` and `realm` removed, then with only `realm` removed. The first time the log holds a `check-amount` event for each purchase (8.3 shows one), and the TransactionManager names the participant with its realm:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.CheckAmount:check-amount ABORTED"
+    },
+    {
+      "type": "para",
+      "text": "Without `logger`, the participant ran and refused the second purchase with `61`, and the log has the TransactionManager's events and nothing from `CheckAmount`. Unit c8 showed why: an event created by a `Log` that has no logger goes nowhere, and nothing reports it. A participant can pass every test, where the test calls `setLogger` itself, and write nothing in production because of one missing attribute. Without `realm`, the events come out under the element's name, `participant`. Every participant that leaves `realm` out shares that name, so a realm filter (unit c8) can't tell them apart. Give every participant that logs both attributes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.3 One Event per Transaction, Carrying Its Id and the Message Itself"
+    },
+    {
+      "type": "para",
+      "text": "The support desk knows the terminal and the STAN, `000302`. Here is the participant's event for it, followed by the TransactionManager's:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"check-amount\" at=\"2026-11-06T20:11:15.393926915\">\n  <info>\n    txn 2\n    <isomsg>\n      <field id=\"0\" value=\"0200\"/>\n      <field id=\"2\" value=\"411111______1111\"/>\n      <field id=\"3\" value=\"000000\"/>\n      <field id=\"4\" value=\"000000090000\"/>\n      <field id=\"11\" value=\"000302\"/>\n      <field id=\"41\" value=\"29110001\"/>\n    </isomsg>\n    amount 90000 over limit 50000\n  </info>\n</log>\n<log realm=\"org.jpos.transaction.TransactionManager\" at=\"2026-11-06T20:11:15.396949010\" lifespan=\"3ms\">\n  <abort>\n    txnmgr-0:idle:2\n            prepare: c.e.j.s.p.CheckAmount:check-amount ABORTED\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.CheckAmount:check-amount\n              abort: o.j.t.p.SendResponse\n     in-transit=0/0, head=3, tail=3, paused=0, outstanding=0, active-sessions=1/1, tps=0, peak=0, avg=0.00, elapsed=3ms\n  </abort>\n</log>"
+    },
+    {
+      "type": "para",
+      "text": "The last line of the first event answers the ticket: the limit in the descriptor is 500.00. The numbered lines in `CheckAmount` make that possible:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`org.jpos.util.Logger`",
-        "`org.jpos.util.LogEvent`",
-        "`org.jpos.util.LogListener`"
+        "**(1) One event per transaction.** Everything the participant learned about this purchase is in one block. With two or more sessions, events written one per step interleave with other transactions' steps, as unit c8 showed for a client. Create the event inside `prepare`: one participant instance serves every session (unit s1), so an event kept in a field collects other transactions' messages.",
+        "**(2) The transaction id.** `txn 2` matches the `:2` on the TransactionManager's first line. The TransactionManager's event carries no message, so the id is what joins the two: search for the STAN, read the id beside it, and find the votes and timings of the same transaction.",
+        "**(3) The message as an object.** The filter masked field 2 because the `ISOMsg` itself is in the event. It replaces each `ISOMsg` with a masked copy and leaves every other entry, an exception included, as it is. A string such as `\"card \" + request.getString(2)`, or the Context, would reach the writer in clear (units c8 and s1).",
+        "**(4) Written in `finally`.** A refusal, an approval and an exception each leave one event. A participant that logs only its refusals leaves no trace of the approvals that should have been refused."
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.4 The TransactionManager Times Participants; a Profiler of Your Own Times the Steps"
+    },
+    {
+      "type": "para",
+      "text": "A terminal reports that purchases take three-quarters of a second. The chain starts with `NotedCardLookup`, and the TransactionManager's `<profiler>` gives each participant's time and the running total, in milliseconds:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    <profiler>\n      prepare: c.e.j.s.p.NotedCardLookup [729.3/729.3]\n      prepare: c.e.j.s.p.Approve [1.8/731.2]\n      prepare: o.j.t.p.SendResponse [0.0/731.3]\n       commit: o.j.t.p.SendResponse [3.3/734.6]\n      end [1.9/736.5]\n    </profiler>"
+    },
+    {
+      "type": "para",
+      "text": "The time is in `NotedCardLookup`, which makes three lookups: the card, the blocked-card list and the card's limits. Its author marked each with `ctx.checkPoint(\"card found\")` and so on, and none of them appear here. Like `ctx.log`, `ctx.checkPoint` writes into the Context, so its output shows only in the dump. With the dump turned on, on a test system:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "      PROFILER: \n       <profiler>\n         card found [0.0/0.0]\n         blocked list [600.8/600.8]\n         limits loaded [80.3/681.1]\n         end [24.1/705.3]\n       </profiler>"
+    },
+    {
+      "type": "para",
+      "text": "Even there, the first step shows 0.0 ms. The Context creates its profiler at the first `checkPoint`, so the first step ran before the profiler existed."
+    },
+    {
+      "type": "para",
+      "text": "A participant whose steps you want timed in production starts an `org.jpos.util.Profiler` of its own and adds it to its event:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\nimport org.jpos.util.Profiler;\n\nimport java.io.Serializable;\n\n/** Three lookups for the card, timed by a profiler in the participant's own event. */\npublic class CardLookup extends Log implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Serializable context) {\n        LogEvent ev = createInfo();\n        ev.addMessage(\"txn \" + id);\n        Profiler prof = new Profiler();                 // a new one per transaction\n        try {\n            ISOUtil.sleep(40);                          // stands in for: find the card\n            prof.checkPoint(\"card found\");\n            ISOUtil.sleep(600);                         // stands in for: the blocked-card list\n            prof.checkPoint(\"blocked list\");\n            ISOUtil.sleep(80);                          // stands in for: the card's limits\n            prof.checkPoint(\"limits loaded\");\n            return PREPARED | NO_JOIN | READONLY;\n        } finally {\n            ev.addMessage(prof);\n            Logger.log(ev);\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"card-lookup\" at=\"2026-11-06T20:11:27.632678136\" lifespan=\"722ms\">\n  <info>\n    txn 1\n    <profiler>\n      card found [40.2/40.2]\n      blocked list [600.7/641.0]\n      limits loaded [80.3/721.3]\n      end [0.8/722.2]\n    </profiler>\n  </info>\n</log>"
+    },
+    {
+      "type": "para",
+      "text": "The blocked-card list takes 600 of the 722 ms, so that is the query to fix. This profiler is created before the first step, so it times that step too, which the Context's profiler can't."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager writes its event when a transaction ends. We ran two sessions. The participant `demo.IssuerCall` stands in for a call to an issuer with no timeout: for terminal `29110077` it waits on a latch that nobody releases. That terminal sent a purchase, then `29110001` sent five more. The five were answered `00`, and `29110077` got no answer. There is no event for transaction 1, no error and no warning. The events of the five carry the TransactionManager's status line:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "     in-transit=1/2, head=3, tail=1, paused=0, outstanding=0, active-sessions=2/2, tps=0, peak=0, avg=0.00, elapsed=4ms\n     in-transit=1/3, head=4, tail=1, paused=0, outstanding=0, active-sessions=2/2, tps=0, peak=0, avg=0.00, elapsed=1ms\n     in-transit=1/4, head=5, tail=1, paused=0, outstanding=0, active-sessions=2/2, tps=0, peak=0, avg=0.00, elapsed=0ms\n     in-transit=1/5, head=6, tail=1, paused=0, outstanding=0, active-sessions=2/2, tps=0, peak=0, avg=0.00, elapsed=1ms\n     in-transit=1/6, head=7, tail=1, paused=0, outstanding=0, active-sessions=2/2, tps=0, peak=0, avg=0.00, elapsed=1ms"
+    },
+    {
+      "type": "para",
+      "text": "`head` is the id the next transaction gets, and `tail` the oldest one that hasn't finished. `head` moves with every purchase while `tail` stays at 1. The first number of `in-transit` says one transaction is running, and the second counts how far `tail` is behind `head`. Transaction 1 is stuck."
+    },
+    {
+      "type": "para",
+      "text": "To find where, read the threads. A session renames its thread while a participant runs, and `SystemMonitor` (unit c8) lists every thread in the event it writes every `sleepTime`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "        Thread[#40,txnmgr-0:idle,5,main]\n        Thread[#41,txnmgr:1 prepare demo.IssuerCall 2026-11-06T20:11:30.586384096,5,main]"
+    },
+    {
+      "type": "para",
+      "text": "The name gives the transaction, the phase, the participant and the time it started. A `jstack` of the process shows the same names, with the line each thread is waiting on."
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager has no timeout for a participant, so the session is held for as long as the call hangs, possibly until a restart. That was half of this server's sessions. A second hung call takes the other one, and every request then waits in the queue until the listener's `timeout` drops it (unit s1), and terminals reverse purchases that never ran. Put a timeout on every call a participant makes (unit s4), and watch `tail`."
+    },
+    {
+      "type": "para",
+      "text": "When a server stops answering, read in this order:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "`<warn>` events from `Q2.system` and the TransactionManager: a component that didn't start, or a participant that threw (units s1 and s6).",
+        "The status line: `tail`, and `outstanding` (unit s4).",
+        "The thread list: a session that has been in one participant for too long.",
+        "The QServer's `session-start` and `session-end` events (realm `iso-server.server.session/<address>`): connections opening and closing in a loop are clients giving up on you."
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8.6 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The transaction event says who voted, never why.** `ctx.log` and `ctx.checkPoint` go into the Context and appear only in its dump, which is off wherever real cards flow.",
+        "**A participant writes its own event**, as a `Log` whose `<participant>` element has `logger` and `realm`. Without `logger` its events vanish silently; without `realm` every participant shares the realm `participant`.",
+        "**One event per transaction**, created in `prepare`, with `txn <id>` to join it to the TransactionManager's event, the `ISOMsg` itself for the filter to mask, and `Logger.log` in `finally`.",
+        "**The TransactionManager's profiler times participants.** To time the steps inside one, put a `Profiler` of your own into its event.",
+        "**A transaction that never ends writes nothing.** `tail` stops while `head` moves, and the session's thread name gives the transaction and the participant. A hung call holds a session until it returns."
       ]
     },
     {
       "type": "heading",
-      "level": 3,
-      "text": "8.1.1 Setting up the Logger"
+      "level": 2,
+      "text": "8.7 Reference"
     },
     {
       "type": "para",
-      "text": "First, let's set up a basic logger in our jPOS server:"
+      "text": "**The TransactionManager's event (2.1.7, `debug` true):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Part",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "tag",
+          "`commit` or `abort` (rarely `undefined`), written when the transaction ends"
+        ],
+        [
+          "first line",
+          "the session's thread name, then `:` and the transaction id"
+        ],
+        [
+          "`prepare:`",
+          "participant (class, then `:realm` if it has one) and its vote"
+        ],
+        [
+          "`prepareForAbort:`",
+          "an `AbortParticipant` asked after the abort"
+        ],
+        [
+          "`commit:`, `abort:`",
+          "the joined participants called with the outcome"
+        ],
+        [
+          "status line",
+          "`in-transit` running/(head - tail), `head` next id, `tail` oldest unfinished id, `paused`, `outstanding` queued Contexts, `active-sessions`, then throughput (`tps`, `peak`, `avg`) and `elapsed`"
+        ],
+        [
+          "`<profiler>`",
+          "each step's time and the running total, in ms (`profiler`, default `debug`)"
+        ],
+        [
+          "`<context>`",
+          "the Context, unmasked, only with `debug-context` (unit s1)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What a participant can log, and where it appears:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Call",
+        "Appears",
+        "With `debug-context` false"
+      ],
+      "rows": [
+        [
+          "`ctx.log(obj)`",
+          "inside the Context dump",
+          "nowhere"
+        ],
+        [
+          "`ctx.checkPoint(text)`",
+          "the Context's `PROFILER` entry, timed from the first call",
+          "nowhere"
+        ],
+        [
+          "an exception thrown from `prepare`",
+          "a `<warn>` `PREPARE: <id>` from the TransactionManager",
+          "yes; the vote counts as `ABORTED`"
+        ],
+        [
+          "its own `LogEvent` (`extends Log`)",
+          "an event in its own realm",
+          "yes, if the element has `logger`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The `<participant>` element:** `class`; `logger`, the logger name, without which a `LogSource` gets no logger; `realm`, default `participant`; nested `<property>` elements for `setConfiguration`."
+    },
+    {
+      "type": "para",
+      "text": "**Session thread names:** `<txnmgr name>-<session>:idle` between transactions; `<txnmgr name>:<id> <phase> <participant class> <start time>` while a participant runs."
+    },
+    {
+      "type": "para",
+      "text": "**Unit s4's reply helper**, used by `CheckAmount`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class JposServer {\n    private Logger logger;\n\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n    }\n\n    // Other server methods...\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic final class Responses {\n    private Responses() { }\n\n    /** A reply to {@code request} carrying response code {@code rc} in field 39. */\n    public static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        r.unset(14, 35, 45, 52, 55, 64);   // expiry, tracks, PIN block, chip data, the request's MAC\n        return r;\n    }\n}"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "8.1.2 Creating Log Events"
-    },
-    {
-      "type": "para",
-      "text": "Now that we have a logger, we can create and log events:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.util.LogEvent;\n\npublic class JposServer {\n    // ... previous code ...\n\n    public void processTransaction(ISOMsg msg) {\n        LogEvent ev = new LogEvent(this, \"transaction.process\");\n        try {\n            ev.addMessage(\"Processing transaction: \" + msg.getMTI());\n            // Process the transaction\n            // ...\n            ev.addMessage(\"Transaction processed successfully\");\n        } catch (Exception e) {\n            ev.addMessage(e);\n        } finally {\n            logger.log(ev);\n        }\n    }\n}"
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3:** logging gains a structured audit log (JSON lines, typed events); see unit s13."
+        }
+      ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "8.2 Implementing Custom LogListener"
+      "text": "8.8 Challenges"
     },
     {
-      "type": "para",
-      "text": "While the `SimpleLogListener` is useful for basic logging, you might want to create a custom `LogListener` for more advanced logging needs:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\npublic class CustomLogListener implements LogListener {\n    @Override\n    public LogEvent log(LogEvent ev) {\n        StringBuilder sb = new StringBuilder();\n        sb.append(new Date()).append(\" - \");\n        sb.append(ev.getSource()).append(\" - \");\n        sb.append(ev.getTag()).append(\": \");\n        \n        for (Object msg : ev.getPayLoad()) {\n            sb.append(msg.toString()).append(\"\\n\");\n        }\n        \n        System.out.println(sb.toString());\n        return ev;\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's use this custom log listener in our server:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public class JposServer {\n    private Logger logger;\n\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new CustomLogListener());\n    }\n\n    // Other server methods...\n}"
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your chain has six participants, and each writes one event per transaction. At 200 transactions a second, how many events is that a day, and which would you keep if the log platform charges by volume?",
+        "Design an alert from the status line alone: which values, over what period, mean a stuck transaction rather than a busy server? How does a paused transaction (unit s4) change it?",
+        "Operations ask for the reason of every refusal in a nightly report. Is the log the right source, or should the participant write somewhere else too? What does each choice cost when the participant itself fails?",
+        "`CardLookup`'s profiler shows 600 ms in one query on most transactions and 5 ms on a few. What would you add to the event to find out what the fast ones have in common, without logging card data?"
+      ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "8.3 Integration with Spring Framework"
+      "text": "8.9 Design Note: Why the TransactionManager Logs Votes and Not Reasons"
     },
     {
       "type": "para",
-      "text": "If you're using Spring Framework with jPOS, you can configure logging through Spring configuration:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<bean id=\"logger\" class=\"org.jpos.util.Logger\" init-method=\"addListener\">\n    <constructor-arg>\n        <bean class=\"org.jpos.util.SimpleLogListener\">\n            <constructor-arg value=\"System.out\"/>\n        </bean>\n    </constructor-arg>\n</bean>"
+      "text": "The TransactionManager doesn't ask participants for a reason. The return value is the whole contract, the same for a limit check, a database write and a call to a host. What a reason looks like, and what may be printed safely, is known only inside the participant."
     },
     {
       "type": "para",
-      "text": "Then, you can inject this logger into your Spring-managed beans:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class TransactionService {\n    @Autowired\n    private Logger logger;\n\n    public void processTransaction(ISOMsg msg) {\n        LogEvent ev = new LogEvent(this, \"transaction.process\");\n        // ... logging logic ...\n        logger.log(ev);\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "8.4 Debugging Techniques"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "8.4.1 Using LogEvent for Debugging"
-    },
-    {
-      "type": "para",
-      "text": "You can use `LogEvent` to add debug information:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public void debugTransaction(ISOMsg msg) {\n    LogEvent ev = new LogEvent(this, \"transaction.debug\");\n    ev.addMessage(\"Transaction details:\");\n    ev.addMessage(\"MTI: \" + msg.getMTI());\n    ev.addMessage(\"PAN: \" + msg.getString(2));\n    ev.addMessage(\"Amount: \" + msg.getString(4));\n    logger.log(ev);\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "8.4.2 Implementing a Debug Mode"
-    },
-    {
-      "type": "para",
-      "text": "You can implement a debug mode in your server:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public class JposServer {\n    private boolean debugMode = false;\n\n    public void setDebugMode(boolean debug) {\n        this.debugMode = debug;\n        if (debug) {\n            logger.addListener(new VerboseLogListener());\n        } else {\n            logger.removeListener(\"org.jpos.util.VerboseLogListener\");\n        }\n    }\n\n    public void processTransaction(ISOMsg msg) {\n        if (debugMode) {\n            debugTransaction(msg);\n        }\n        // Normal processing...\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "8.5 Log Rotation and Management"
-    },
-    {
-      "type": "para",
-      "text": "For production environments, it's crucial to manage log files effectively. jPOS provides a `RotateLogListener` for this purpose:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.util.RotateLogListener;\n\npublic class JposServer {\n    public JposServer() {\n        logger = new Logger();\n        logger.addListener(new RotateLogListener(\"logs/server.log\"));\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This will create log files like `server.log`, `server.log.1`, `server.log.2`, etc., rotating them based on size or time."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "8.6 Unit Testing with Logging"
-    },
-    {
-      "type": "para",
-      "text": "When unit testing your jPOS server components, you can use a special log listener to capture log events for assertions:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.junit.jupiter.api.Test;\nimport org.jpos.util.Logger;\nimport org.jpos.util.LogEvent;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class JposServerTest {\n\n    private static class TestLogListener implements LogListener {\n        private List<LogEvent> events = new ArrayList<>();\n\n        @Override\n        public LogEvent log(LogEvent ev) {\n            events.add(ev);\n            return ev;\n        }\n\n        public List<LogEvent> getEvents() {\n            return events;\n        }\n    }\n\n    @Test\n    public void testTransactionLogging() {\n        JposServer server = new JposServer();\n        TestLogListener testListener = new TestLogListener();\n        server.getLogger().addListener(testListener);\n\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0200\");\n        server.processTransaction(msg);\n\n        assertThat(testListener.getEvents())\n            .hasSize(1)\n            .allSatisfy(event -> {\n                assertThat(event.getTag()).isEqualTo(\"transaction.process\");\n                assertThat(event.getPayLoad().toString()).contains(\"Processing transaction: 0200\");\n            });\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This concludes the coverage of section 8 on Logging and Debugging in jPOS Server implementation. Effective logging and debugging are crucial for maintaining and troubleshooting jPOS applications, especially in production environments where quick issue resolution is essential."
+      "text": "`ctx.log` looks like a way around that, but it puts the reasons inside the Context, and the Context is the one object a server can't log safely in production. So the participant writes its own event, at the cost of a few lines in each participant and one attribute in each element."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 11,
-    "paras": 14,
-    "code": 10,
-    "tables": 0,
-    "lists": 1,
+    "headings": 10,
+    "paras": 31,
+    "code": 13,
+    "tables": 2,
+    "lists": 4,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "ec5cd5abcb538ed11b042afd1349798f2ea3746ee27e9ffb56ae061b8f08d7ed"
+  "content_sha256": "4bf4b9c73544f9dfe4be42c05a5e4aa17843f814e31ebad9152066839e5a805c"
 }

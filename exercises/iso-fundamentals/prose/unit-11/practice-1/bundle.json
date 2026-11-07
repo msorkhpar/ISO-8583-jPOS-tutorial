@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 11,
   "ordinal": 1,
-  "title": "Record the transactions a jPOS logger carries",
+  "title": "Send refunds in the currency's own units",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/TransactionRecorder.java",
-  "test_file": "src/test/java/com/example/practice/TransactionRecorderTest.java",
+  "main_file": "src/main/java/com/example/practice/RefundAmounts.java",
+  "test_file": "src/test/java/com/example/practice/RefundAmountsTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.TransactionRecorderTest#recordsTheMessagesOfTransactionEventsOnly",
+      "id": "com.example.practice.RefundAmountsTest#aPoundRefundIsBuiltAndShown",
       "kind": "main",
-      "says": "the messages of events tagged TX are recorded, in order, and events with other tags are not"
+      "says": "a refund typed in pounds is sent as pence, and a past purchase in pounds is shown with its pence"
     },
     {
-      "id": "com.example.practice.TransactionRecorderTest#handsEveryEventOnToTheNextListener",
+      "id": "com.example.practice.RefundAmountsTest#aPesoRefundIsSentAsTyped",
       "kind": "edge",
-      "says": "every event, recorded or not, reaches the listener added after the recorder"
+      "says": "a currency with no minor unit is sent without scaling, so the issuer reads the amount the merchant typed"
     },
     {
-      "id": "com.example.practice.TransactionRecorderTest#skipsPayloadThatIsNotAMessage",
+      "id": "com.example.practice.RefundAmountsTest#aDinarRefundCarriesItsThreeDecimals",
       "kind": "edge",
-      "says": "a TX event that also carries a note records only its message, without failing"
+      "says": "a three-decimal currency is scaled by its own decimals, also when the merchant types fewer"
+    },
+    {
+      "id": "com.example.practice.RefundAmountsTest#anAmountFinerThanItsCurrencyIsRefused",
+      "kind": "edge",
+      "says": "an amount finer than the currency's smallest unit is refused instead of rounded"
+    },
+    {
+      "id": "com.example.practice.RefundAmountsTest#noPennyIsLostOnTheWay",
+      "kind": "edge",
+      "says": "the conversion is exact: no amount loses a minor unit on its way into field 4"
+    },
+    {
+      "id": "com.example.practice.RefundAmountsTest#pastPurchasesAreShownInTheirOwnCurrency",
+      "kind": "edge",
+      "says": "field 4 is shown with the decimals of the purchase's own currency"
     }
   ],
   "report": {
@@ -54,6 +69,6 @@
   },
   "origin": {
     "path": "src/11.md",
-    "section": "11.2.1. Transaction Logging"
+    "section": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
   }
 }

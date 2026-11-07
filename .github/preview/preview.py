@@ -2,11 +2,12 @@ r"""A course's read-only preview: its learner tree as static pages for GitHub Pa
 
 **What it does.** From the learner tree `release` wrote, writes into an empty directory a
 tree of static pages a plain web server can serve: the index, every page reachable
-from it, the shipped stylesheet and script, and the preview's own two files. Reading,
-the quizzes (which grade inside the page), the reading marks and the index filter work
-as they do served. ⭐ Every place that needs the local server (Run and Submit, the editor,
-a code example opened in the editor, narration) is REMOVED and a note stands in its
-place, saying it is available when the course runs locally with Docker.
+from it, the shipped stylesheets and scripts, the search's index, and the preview's own two
+files. Reading, the search, the quizzes and mock exams (which grade inside the page), the
+reading marks, the language modes and the index filter work as they do served. ⭐ Every
+place that needs the local server (Run and Submit, the editor, a code example opened in the
+editor or run beside the lesson, narration) is REMOVED and a note stands in its place,
+saying it is available when the course runs locally with Docker.
 
 **How you use it.**
 
@@ -31,6 +32,9 @@ imports nothing of this project, and it needs no sibling file: what `tour` and t
 need of it (the anchor of the README's section, below) is defined HERE. ⛔ There is ONE
 source; the copy is proved identical.
 
+Size exception: this file is one file by design, since a learner repository's runner runs it
+with plain `python3` and no sibling; split, the copy would be several files and no longer one.
+
 ## ⛔ The preview is made from the built page, and the repository is never written down
 
 ⭐ Every edit is a deterministic text edit of a page the site already built; the shipped
@@ -52,10 +56,16 @@ artifact does not run Jekyll.
 
 ⭐ Pages are found by following links from `index.html`, so nothing no page shows is copied.
 ⛔ A link to a file that is not in the tree, or that leaves it, is refused by name.
+
+⭐ The search is the one exception, because `page.js` loads its files by script, not by a
+link: where a copied `page.js` has a `search-index.js` beside it, that index, the ranking
+library and every piece the index names are copied too, a page the index names that the walk
+did not reach is copied as a page when the tree holds it, and refused by name when it does not.
 """
 
 from __future__ import annotations
 
+import ast
 import posixpath
 import re
 import sys
@@ -98,6 +108,12 @@ EXAMPLE_NOTE = (
     "Opening this example in the editor beside the lesson, and running its test, are "
     f"available when the course runs locally with Docker: see <a {RUN_LINK}>Run it locally "
     "with Docker</a>. The links above open the files in the repository's source viewer."
+)
+
+#: The note that stands where the Run beside a code example's tab was.
+EXAMPLE_RUN_NOTE = (
+    "Running this example's test is available when the course runs locally with Docker: "
+    f"see <a {RUN_LINK}>Run it locally with Docker</a>."
 )
 
 #: The note that stands where the narration player was.
@@ -178,6 +194,16 @@ _EXAMPLE = re.compile(
     r"(<details data-code-example[^>]*>)(.*?)(</details>)",
     re.DOTALL,
 )
+_EXAMPLE_RUN = re.compile(
+    r'<p data-example-run="[^"]*"[^>]*>.*?</p>(\s*<pre data-example-part="output"[^>]*></pre>)?',
+    re.DOTALL,
+)
+#: ⭐ The stylesheet and script of a Run beside a code example: with the strips gone they
+#: serve nothing.
+_EXAMPLE_RUN_ASSET = re.compile(
+    r'<link\b[^>]*\bhref="(?:[^"]*/)?example-run\.css"[^>]*>\s*'
+    r'|<script\b[^>]*\bsrc="(?:[^"]*/)?example-run\.js"[^>]*></script>\s*'
+)
 _SUMMARY = re.compile(r"<summary>.*?</summary>", re.DOTALL)
 _LIST = re.compile(r'<ul class="items">.*?</ul>', re.DOTALL)
 _SOURCE_TAG = re.compile(r"<a\b[^>]*\bdata-code-path=[^>]*>")
@@ -226,6 +252,8 @@ def remove_server_parts(html: str) -> tuple[str, bool]:
     html = _AUDIO.sub("", html)
     html = _PRACTICE.sub(_practice, html)
     html = _EXAMPLE.sub(_example, html)
+    html = _EXAMPLE_RUN.sub(lambda _: _note("example", EXAMPLE_RUN_NOTE), html)
+    html = _EXAMPLE_RUN_ASSET.sub("", html)
     html = _SOURCE_TAG.sub(lambda tag: _HREF.sub("", tag.group(0)), html)
     if narrated and _HEADER_END in html:
         html = html.replace(_HEADER_END, _HEADER_END + "\n" + _note("narration", NARRATION_NOTE), 1)
@@ -258,6 +286,14 @@ VISIBLE = "course"
 INDEX = "index.html"
 
 _REFERENCE = re.compile(r'\b(?:href|src)="([^"]*)"')
+
+#: ⭐ The search's files beside `page.js`: the index, which names its pieces and the pages it
+#: ranks, the ranking library, and the builder an index of records needs (only where there is one).
+SEARCH_BUNDLE = "page.js"
+SEARCH_INDEX = "search-index.js"
+SEARCH_LIBRARY = "minisearch.js"
+SEARCH_BUILDER = "search-build.js"
+_SEARCH_LIST = re.compile(r'"(pages|parts)":(\[[^\]]*\])')
 
 
 class PreviewRefused(ValueError):
@@ -307,6 +343,53 @@ def _reference(page: str, url: str, sub: dict[str, str]) -> str:
     return urlunsplit(("", "", new, split.query, split.fragment))
 
 
+def _named(tree: Path, index: str) -> dict[str, list[str]]:
+    """The page addresses and piece names the search index at `index` lists, read as literals."""
+    text = (tree / index).read_text(encoding="utf-8")
+    return {kind: ast.literal_eval(names) for kind, names in _SEARCH_LIST.findall(text)}
+
+
+def _searched_pages(tree: Path, files: set[str], pages: dict[str, str]) -> list[str]:
+    """Pages a search index names that the walk has not reached but the tree holds."""
+    more: list[str] = []
+    for bundle in sorted(files):
+        index = posixpath.join(posixpath.dirname(bundle), SEARCH_INDEX)
+        if posixpath.basename(bundle) != SEARCH_BUNDLE or not (tree / index).is_file():
+            continue
+        for page in _named(tree, index).get("pages", []):
+            target = _target(index, page)
+            if target and target not in pages and (tree / target).is_file():
+                more.append(target)
+    return more
+
+
+def _search(tree: Path, files: set[str], pages: dict[str, str]) -> set[str]:
+    """Return the search's files beside each copied `page.js` with an index, or refuse by name."""
+    found: set[str] = set()
+    for bundle in sorted(files):
+        if posixpath.basename(bundle) != SEARCH_BUNDLE:
+            continue
+        here = posixpath.dirname(bundle)
+        index = posixpath.join(here, SEARCH_INDEX)
+        if not (tree / index).is_file():
+            continue
+        named = _named(tree, index)
+        for page in named.get("pages", []):
+            target = _target(index, page)
+            if target not in pages:
+                raise PreviewRefused(f"{index} names {page}, which no page of the preview reaches")
+        wanted = [SEARCH_LIBRARY, *named.get("parts", [])]
+        if (tree / here / SEARCH_BUILDER).is_file():
+            wanted.append(SEARCH_BUILDER)
+        for name in wanted:
+            one = _target(index, name)
+            if one is None or not (tree / one).is_file():
+                raise PreviewRefused(f"{index} needs {name}, which is not in the tree")
+            found.add(one)
+        found.add(index)
+    return found
+
+
 def preview(tree: Path, out: Path) -> Previewed:
     """Write the read-only preview of the learner tree at `tree` into `out`, or refuse by name."""
     tree, out = Path(tree), Path(out)
@@ -318,7 +401,7 @@ def preview(tree: Path, out: Path) -> Previewed:
     narrated: list[str] = []
     files: set[str] = set()
     queue = [INDEX]
-    while queue:
+    while queue or (queue := _searched_pages(tree, files, pages)):
         page = queue.pop()
         if page in pages:
             continue
@@ -339,6 +422,7 @@ def preview(tree: Path, out: Path) -> Previewed:
                 queue.append(target)
             else:
                 files.add(target)
+    files |= _search(tree, files, pages)
     sub = {one: mapped(one) for one in (*pages, *files)}
     reserved = {f"{VISIBLE}/preview.css", f"{VISIBLE}/preview.js"}
     if len(set(sub.values())) != len(sub) or reserved & set(sub.values()):

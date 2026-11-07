@@ -1,21 +1,17 @@
-Not every field is a plain string. Field 48 carries numbered subfields of its own, and field 55
-carries the chip's EMV data as raw bytes. jPOS stores each as a component of the right kind: a
-nested `ISOMsg` for subfields, an `ISOBinaryField` for bytes. Code that pushes these through
-`set(int, String)` loses their structure or mangles their bytes, and the packager then sends
-something the other side cannot read.
+The acquirer is launching a loyalty programme with a chain of fuel stations. Members earn and
+redeem points at the pump, and the data travels in field 63. The interface document's table for
+field 63 is copied into the comment at the top of `src/main/java/com/example/practice/Loyalty.java`.
+The link's packager is in the same file, waiting for field 63.
 
-Write `ComplexFields` with four static methods:
+`purchase` already builds the request. The redemption step, which runs first, is written too.
+Finish the three methods marked `TODO`:
 
-- `putSubfield(ISOMsg msg, int field, int subfield, String value)` puts `value` into subfield
-  `subfield` of `field`. The field is a nested `ISOMsg` whose own field number is `field`.
-- `getSubfield(ISOMsg msg, int field, int subfield)` returns that subfield's value.
-- `putBinary(ISOMsg msg, int field, byte[] data)` stores `data` in `field` as an
-  `ISOBinaryField`.
-- `getBinary(ISOMsg msg, int field)` returns the bytes stored in `field`.
+- `field63`: the declaration of field 63 for the link's packager;
+- `addMember`: the member's programme code and member number;
+- `pointsBalance`: the balance the host sends back.
 
-Mind these:
+When you're done, the host receives field 63 laid out as the document says, a member who redeems
+points sends both the redemption and the membership, and a response for a customer who isn't a
+member reads as no balance. About 14 lines in total, most of them XML.
 
-- A field gets its subfields one call at a time. Putting subfield 2 of field 48 must not lose
-  the subfield 1 already there.
-- `getSubfield` returns `null` when the message does not carry the field at all, or carries it
-  without that subfield.
+The tests pack each message with your packager and unpack it again, as the host does.

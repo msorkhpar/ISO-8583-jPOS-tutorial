@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 15,
   "ordinal": 2,
-  "title": "Reconcile a business day",
+  "title": "Find the shapes no approved message has",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/Reconciliation.java",
-  "test_file": "src/test/java/com/example/practice/ReconciliationTest.java",
+  "main_file": "src/main/java/com/example/practice/Shapes.java",
+  "test_file": "src/test/java/com/example/practice/ShapesTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ReconciliationTest#anOutOfBalanceDayReportsItsDifferenceAndItsMissingIds",
+      "id": "com.example.practice.ShapesTest#reportsTheFieldsWhoseShapeNoApprovedMessageHas",
       "kind": "main",
-      "says": "an out-of-balance day reports its difference and the transactions missing"
+      "says": "a field missing from the rejected message, or of another length, is reported when no approved message has it that way"
     },
     {
-      "id": "com.example.practice.ReconciliationTest#amountsThatDifferOnlyInScaleBalance",
-      "kind": "edge",
-      "says": "100.0 and 100.00 are the same amount, so the day balances"
+      "id": "com.example.practice.ShapesTest#aRejectedMessageShapedLikeTheApprovedOnesGivesNothing",
+      "kind": "main",
+      "says": "values that differ as two purchases differ (card, amount, STAN, time, terminal) are not reported"
     },
     {
-      "id": "com.example.practice.ReconciliationTest#aProcessedTransactionNobodyExpectedIsNotMissing",
+      "id": "com.example.practice.ShapesTest#aLetterInAFieldOfDigitsIsReported",
       "kind": "edge",
-      "says": "a processed transaction nobody expected is not reported as missing"
+      "says": "a letter in place of a digit is reported although the length is unchanged"
+    },
+    {
+      "id": "com.example.practice.ShapesTest#aCharacterOutsideAsciiIsReported",
+      "kind": "edge",
+      "says": "an accented letter is outside printable ASCII and is reported, although Java counts it as a letter"
+    },
+    {
+      "id": "com.example.practice.ShapesTest#aBinaryFieldIsComparedByItsLength",
+      "kind": "edge",
+      "says": "a binary field is compared by its length in bytes, not by the hex text of its value"
+    },
+    {
+      "id": "com.example.practice.ShapesTest#aShapeOneApprovedMessageHasIsNotReported",
+      "kind": "edge",
+      "says": "a shape that any one approved message has is not reported, so the comparison is with all of them"
+    },
+    {
+      "id": "com.example.practice.ShapesTest#aFieldSomeApprovedMessagesLackIsNotReportedWhenItIsMissing",
+      "kind": "edge",
+      "says": "a field absent from the rejected message is not reported when some approved message lacked it too"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/15.md",
-    "section": "15.3. Reconciliation problems"
+    "section": "15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field"
   }
 }

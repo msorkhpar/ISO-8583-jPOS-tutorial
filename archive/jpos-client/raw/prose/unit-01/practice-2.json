@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Tell the dashboard what a host link is doing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The operations dashboard shows one line per host link, and the people on call act on it: UP means leave it alone, DOWN means call the network team, NO_ANSWER means call the host's support desk, and NOT_DEPLOYED means our own deployment is broken. Last month it said UP for an hour while every payment failed, and the month before it sent the network team after a host that was simply slow."
+    },
+    {
+      "type": "para",
+      "text": "`LinkStatus.check()` in `src/main/java/com/example/practice/LinkStatus.java` runs every few seconds for as long as the application runs. Q2 deploys the link's multiplexer when it starts and replaces it whenever someone edits its file in `deploy/`. `check()` and `echo()` are written. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`find()`: the multiplexer to probe;",
+        "`probe(mux)`: what the link behind it is doing."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About 12 lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real QMUX under the link's name, the way Q2 does, with a stand-in for the channel adaptor and a host behind it. Some of them redeploy it between two checks."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * The operations dashboard's probe for one host link. The dashboard calls {@link #check()} every\n * few seconds, for as long as the application runs, while Q2 deploys and redeploys the link.\n */\npublic class LinkStatus {\n    public enum Status { NOT_DEPLOYED, DOWN, NO_ANSWER, UP }\n\n    private final String muxName;\n    private final long timeout;\n    private final AtomicLong stans = new AtomicLong();\n\n    public LinkStatus(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Status check() throws ISOException {\n        MUX mux = find();\n        if (mux == null)\n            return Status.NOT_DEPLOYED;\n        return probe(mux);\n    }\n\n    /** The multiplexer Q2 has deployed under {@code muxName} at this moment, or null if there is none. */\n    MUX find() {\n        try {\n            return QMUX.getMUX(muxName);\n        } catch (NameRegistrar.NotFoundException e) {\n            return null;\n        }\n    }\n\n    /** What the link behind {@code mux} is doing right now: DOWN, NO_ANSWER or UP. */\n    Status probe(MUX mux) throws ISOException {\n        if (!mux.isConnected())\n            return Status.DOWN;\n        ISOMsg response = mux.request(echo(), timeout);\n        if (response == null)\n            return Status.NO_ANSWER;\n        return Status.UP;\n    }\n\n    /** An 0800 echo test with the next STAN of this probe. */\n    ISOMsg echo() throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * The operations dashboard's probe for one host link. The dashboard calls {@link #check()} every\n * few seconds, for as long as the application runs, while Q2 deploys and redeploys the link.\n */\npublic class LinkStatus {\n    public enum Status { NOT_DEPLOYED, DOWN, NO_ANSWER, UP }\n\n    private final String muxName;\n    private final long timeout;\n    private final AtomicLong stans = new AtomicLong();\n\n    public LinkStatus(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Status check() throws ISOException {\n        MUX mux = find();\n        if (mux == null)\n            return Status.NOT_DEPLOYED;\n        return probe(mux);\n    }\n\n    /** The multiplexer Q2 has deployed under {@code muxName} at this moment, or null if there is none. */\n    MUX find() {\n        // TODO: Q2 deploys and redeploys the link while the dashboard keeps calling check().\n        //       Return the multiplexer that is deployed under muxName when this is called.\n        throw new IllegalStateException(\"TODO: find\");\n    }\n\n    /** What the link behind {@code mux} is doing right now: DOWN, NO_ANSWER or UP. */\n    Status probe(MUX mux) throws ISOException {\n        // TODO: UP when the host answered an echo (any answer will do), NO_ANSWER when it got the\n        //       echo and kept quiet, DOWN when the link itself is down. A check must never leave an\n        //       echo behind that goes out later. Use echo() for the message.\n        throw new IllegalStateException(\"TODO: probe\");\n    }\n\n    /** An 0800 echo test with the next STAN of this probe. */\n    ISOMsg echo() throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "4cf30c8e54b34aec8cabdee0c98c183f080219115385703644883484ea6976ed",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * The operations dashboard's probe for one host link. The dashboard calls {@link #check()} every\n * few seconds, for as long as the application runs, while Q2 deploys and redeploys the link.\n */\npublic class LinkStatus {\n    public enum Status { NOT_DEPLOYED, DOWN, NO_ANSWER, UP }\n\n    private final String muxName;\n    private final long timeout;\n    private final AtomicLong stans = new AtomicLong();\n\n    public LinkStatus(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Status check() throws ISOException {\n        MUX mux = find();\n        if (mux == null)\n            return Status.NOT_DEPLOYED;\n        return probe(mux);\n    }\n\n    /** The multiplexer Q2 has deployed under {@code muxName} at this moment, or null if there is none. */\n    MUX find() {\n        // TODO: Q2 deploys and redeploys the link while the dashboard keeps calling check().\n        //       Return the multiplexer that is deployed under muxName when this is called.\n        throw new IllegalStateException(\"TODO: find\");\n    }\n\n    /** What the link behind {@code mux} is doing right now: DOWN, NO_ANSWER or UP. */\n    Status probe(MUX mux) throws ISOException {\n        // TODO: UP when the host answered an echo (any answer will do), NO_ANSWER when it got the\n        //       echo and kept quiet, DOWN when the link itself is down. A check must never leave an\n        //       echo behind that goes out later. Use echo() for the message.\n        throw new IllegalStateException(\"TODO: probe\");\n    }\n\n    /** An 0800 echo test with the next STAN of this probe. */\n    ISOMsg echo() throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        m.set(70, \"301\");\n        return m;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-01/practice-2/src/main/java/com/example/practice/LinkStatus.java",
+    "test_path": "practice/jpos-client/prose/unit-01/practice-2/src/test/java/com/example/practice/LinkStatusTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-01/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-01/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkStatusTest#anAnsweredEchoIsUp",
+        "kind": "main",
+        "says": "a deployed, connected link whose host answers one 0800 echo is UP"
+      },
+      {
+        "id": "com.example.practice.LinkStatusTest#aLinkThatWasNeverDeployedIsNotDeployed",
+        "kind": "main",
+        "says": "a link Q2 has never deployed is NOT_DEPLOYED"
+      },
+      {
+        "id": "com.example.practice.LinkStatusTest#aSilentHostIsNoAnswer",
+        "kind": "edge",
+        "says": "when the host receives the echo and never answers, the request returns null and the link is NO_ANSWER, not UP"
+      },
+      {
+        "id": "com.example.practice.LinkStatusTest#aDeadLinkIsDownAndNothingWaitsToGoOut",
+        "kind": "edge",
+        "says": "when the link is down the probe reports DOWN at once and leaves no echo waiting to go out when the link returns"
+      },
+      {
+        "id": "com.example.practice.LinkStatusTest#aLinkDeployedAfterTheProbeStartedIsFound",
+        "kind": "edge",
+        "says": "a multiplexer deployed after the probe was created is found by the next check"
+      },
+      {
+        "id": "com.example.practice.LinkStatusTest#aRedeployedLinkIsStillUp",
+        "kind": "edge",
+        "says": "after Q2 replaces the multiplexer, the next checks use the new one and the link stays UP"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-01/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c1.md",
+      "section": "1.5.1 Spot the Problem: The Cached Multiplexer"
+    },
+    "concepts": [
+      "Code finds the multiplexer by name in the JVM that runs Q2 each time it uses it; a kept reference stops receiving answers after a redeploy.",
+      "request returns null when no answer comes in time, and on a dead link it queues the message and waits, so a client checks isConnected() first to tell a down link from a silent host.",
+      "Q2 creates, starts and stops the client's components from the files in deploy/, in file-name order, and replaces a component with a new object when its file changes."
+    ]
+  }
+}

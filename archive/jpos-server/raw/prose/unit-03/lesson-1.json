@@ -8,124 +8,597 @@
   "unit": 3,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Channel Management",
+  "ingested": "2026-11-05",
+  "title": "Server Channel Management",
   "blocks": [
     {
       "type": "heading",
       "level": 1,
-      "text": "3. Channel Management"
+      "text": "3. Server Channel Management"
     },
     {
       "type": "para",
-      "text": "Channel management in jPOS is crucial for handling ISO-8583 message communication between different systems. The two main components we'll focus on are:"
+      "text": "Monday, 09:10. Terminals restarted over the weekend can't reach the server: \"connection refused\". Terminals that never disconnected still send purchases and get answers. The server's CPU is idle and the TransactionManager's queue is empty. On Friday a new firewall went in between the stores and the data centre. Where did the server's capacity go?"
     },
     {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "ISO Server (`org.jpos.iso.ISOServer`)",
-        "NAC Channel (`org.jpos.iso.channel.NACChannel`)"
+      "type": "para",
+      "text": "Everything the server knows about a terminal comes through one connection. The QServer of unit s1 decides how long a connection lives, who reads from it, who answers on it and who may open one, in six rules, one per section heading."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.1 Every Connection Holds a Thread Until It Closes"
+    },
+    {
+      "type": "para",
+      "text": "The server's descriptor, `deploy/50_server.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<qserver name=\"iso-server\" class=\"org.jpos.q2.iso.QServer\" logger=\"Q2\">\n  <attr name=\"port\" type=\"java.lang.Integer\">8000</attr>\n  <attr name=\"maxSessions\" type=\"java.lang.Integer\">250</attr>\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\" logger=\"Q2\">\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n    <property name=\"timeout\" value=\"360000\"/>\n  </channel>\n  <request-listener class=\"org.jpos.iso.IncomingListener\" logger=\"Q2\">\n    <property name=\"queue\" value=\"txnmgr\"/>\n    <property name=\"timeout\" value=\"15000\"/>\n  </request-listener>\n</qserver>"
+    },
+    {
+      "type": "para",
+      "text": "For each accepted connection QServer clones the `<channel>` and runs a **session** on a thread from its pool. The session loops on `receive()` and hands each message to the listeners. It ends only when something throws: the client closes the connection, a frame can't be read, nothing arrives for `timeout` milliseconds, or a listener throws. `maxSessions` (default 100) sizes that pool, so it is also the most connections the server holds at once."
+    },
+    {
+      "type": "para",
+      "text": "We deployed a server with `maxSessions` 3 and `timeout` 0, which disables the read timeout. Three terminals connect, send an echo and go silent. A fourth tries to connect every two seconds:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    20 ms  terminal 29110001: 0810 11=000101 41=29110001 39=00, then silence\n    47 ms  terminal 29110002: 0810 11=000102 41=29110002 39=00, then silence\n    59 ms  terminal 29110003: 0810 11=000103 41=29110003 39=00, then silence\n    65 ms  terminal 29110004: ConnectException: Connection refused\n  2069 ms  terminal 29110004: ConnectException: Connection refused\n  4080 ms  terminal 29110004: ConnectException: Connection refused\n  6084 ms  terminal 29110004: ConnectException: Connection refused\n  8088 ms  terminal 29110004: ConnectException: Connection refused"
+    },
+    {
+      "type": "para",
+      "text": "Why \"refused\", and not a connection that waits for a free thread? When the pool has no thread left, the 2.1.7 `ISOServer` closes its listening socket, so the operating system refuses every new connection at once. The server checks the pool four times a second and opens the port again when a session ends. While it waits, it logs a warning once a minute:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"iso-server.server\" at=\"2026-11-06T13:23:29.441156027\">\n  <warn>\n    pool exhausted ServerSocket[addr=0.0.0.0/0.0.0.0,localport=42909]\n    <thread-pool name=\"iso-server-ThreadPool-0\">\n      <jobs>3</jobs>\n      <size>3</size>\n      <max>3</max>"
+    },
+    {
+      "type": "para",
+      "text": "The connections that hold the threads keep working, which is why the old terminals in the opening still transact."
+    },
+    {
+      "type": "para",
+      "text": "The three silent terminals stand in for terminals behind that firewall. A firewall that drops an idle flow tells neither side, so the server can't tell a terminal that went away from one with nothing to say. The terminal reconnects on a new connection (unit c12 tells it from the client's side), and the old session stays. Each reconnect leaves a dead session holding a thread, until one Monday morning the last thread is taken. From then on, only the terminals that never needed to reconnect can transact."
+    },
+    {
+      "type": "para",
+      "text": "The read timeout ends a dead session. The same run with `timeout` set to 3000:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    15 ms  terminal 29110001: 0810 11=000101 41=29110001 39=00, then silence\n    30 ms  terminal 29110002: 0810 11=000102 41=29110002 39=00, then silence\n    42 ms  terminal 29110003: 0810 11=000103 41=29110003 39=00, then silence\n    50 ms  terminal 29110004: ConnectException: Connection refused\n  2063 ms  terminal 29110004: ConnectException: Connection refused\n  4068 ms  terminal 29110004: 0810 11=000104 41=29110004 39=00"
+    },
+    {
+      "type": "para",
+      "text": "Each silent session logged `<io-timeout/>` and `<session-end/>` about 3 seconds after its last message, and the port opened again. A real server uses minutes. Without the property the channel's default is 300000 ms (five minutes), so the pile-up needs `timeout` set to 0 or to something very long, and both turn up in descriptors copied from project to project. Agree the value with the clients: longer than their echo interval, so that a quiet but healthy terminal is never cut off (units c11 and c12), and shorter than the firewall's idle limit."
+    },
+    {
+      "type": "para",
+      "text": "Size `maxSessions` from the number of terminals or hosts that connect, plus room for reconnects: a client that reconnects before the server notices its old connection is gone holds two sessions for a while. `maxSessions` doesn't limit throughput, because the work happens in the TransactionManager's sessions (unit s1), not in these threads."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3.** QServer runs each session on a virtual thread, and its log reports a number of permits instead of a thread pool. An idle connection costs much less there, but a dead one still counts until something ends it."
+        }
       ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "3.1 ISO Server"
+      "text": "3.2 The First Listener That Returns `true` Owns the Message"
     },
     {
       "type": "para",
-      "text": "The `ISOServer` is responsible for listening to incoming connections and handling ISO-8583 messages. It can be configured to use different types of channels and can handle multiple connections simultaneously."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "3.2 NAC Channel"
+      "text": "A session hands every message it reads to the `<request-listener>`s, in the order of the descriptor. Each one is an `ISORequestListener` with a single method, `boolean process(ISOSource source, ISOMsg m)`. `source` is the connection the message arrived on, and `source.send(response)` answers on it. Returning `true` means \"mine\" and stops the chain; `false` passes the message to the next listener. A listener that throws ends the whole session, so catch what can go wrong inside it."
     },
     {
       "type": "para",
-      "text": "The `NACChannel` is a plain TCP channel in jPOS: it frames each ISO-8583 message with a 2-byte binary length header and a TPDU. It does not encrypt anything by itself; SSL/TLS is added separately by giving the channel (or the server) an SSL socket factory such as `org.jpos.iso.SunJSSESocketFactory`."
-    },
-    {
-      "type": "para",
-      "text": "Now, let's implement a jPOS server with channel management using Spring and Java 21."
+      "text": "`IncomingListener` (unit s1) always returns `true`, so it comes last. A listener before it can answer cheap messages itself, as this one does for echoes:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\nimport org.jpos.util.ThreadPool;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOServerConfig extends QBeanSupport {\n\n    @Autowired\n    private ServerConfiguration serverConfig;\n\n    @Bean\n    public ISOServer isoServer() throws ConfigurationException, ISOException {\n        org.jpos.core.Configuration cfg = createConfiguration();\n        NACChannel channel = new NACChannel(\n            serverConfig.getHost(),\n            serverConfig.getPort(),\n            serverConfig.getPackager(),\n            null // no TPDU header\n        );\n        channel.setConfiguration(cfg);\n\n        ISOServer server = new ISOServer(\n            serverConfig.getPort(),\n            channel,\n            new ThreadPool(1, 100)\n        );\n\n        server.setConfiguration(cfg);\n        server.addISORequestListener(new TransactionRequestListener());\n\n        NameRegistrar.register(\"iso-server\", server);\n\n        return server;\n    }\n\n    private org.jpos.core.Configuration createConfiguration() throws ISOException {\n        org.jpos.core.Configuration cfg = new org.jpos.core.SimpleConfiguration();\n        cfg.put(\"timeout\", \"300000\");\n        return cfg;\n    }\n\n    @Override\n    protected void startService() {\n        try {\n            ISOServer server = isoServer();\n            new Thread(server).start();\n        } catch (Exception e) {\n            getLog().error(\"Error starting ISO server\", e);\n        }\n    }\n\n    @Override\n    protected void stopService() {\n        try {\n            ISOServer server = NameRegistrar.get(\"iso-server\");\n            server.shutdown();\n        } catch (NameRegistrar.NotFoundException e) {\n            getLog().error(\"ISO server not found for shutdown\", e);\n        }\n    }\n}"
+      "text": "package com.example.jpos.server.listener;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\n\n/** Answers 0800 echo tests itself; everything else goes to the next listener. */\npublic class EchoListener extends Log implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!\"0800\".equals(m.getMTI()) || !\"301\".equals(m.getString(70)))\n                return false;                      // not an echo: the next listener gets it\n            ISOMsg r = (ISOMsg) m.clone();         // the request stays as it arrived\n            r.setResponseMTI();\n            r.set(39, \"00\");\n            source.send(r);\n            return true;\n        } catch (Exception e) {\n            warn(\"echo reply failed\", e);          // logged under the descriptor's logger and realm\n            return true;                           // ours, even unanswered: never pass it on to be answered again\n        }\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This configuration class sets up an `ISOServer` using Spring's `@Configuration` and `@Bean` annotations. Let's break down the important parts:"
+      "text": "QServer creates it with its no-argument constructor and, because it extends `org.jpos.util.Log`, gives it the `logger` and `realm` of its element:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<request-listener class=\"com.example.jpos.server.listener.EchoListener\" logger=\"Q2\" realm=\"echo\"/>\n<request-listener class=\"org.jpos.iso.IncomingListener\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"timeout\" value=\"15000\"/>\n</request-listener>"
+    },
+    {
+      "type": "para",
+      "text": "An echo and a purchase from terminal `29110001`, against this chain and against a server whose only listener is the `EchoListener`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "listeners: echo, incoming\n  0800 000201: 0810 11=000201 41=29110001 39=00\n  0200 000202: 0210 11=000202 41=29110001 39=00\nlisteners: echo\n  0800 000201: 0810 11=000201 41=29110001 39=00\n  0200 000202: no answer after 3000 ms"
+    },
+    {
+      "type": "para",
+      "text": "In the second run the `EchoListener` returned `false` for the purchase, nobody came after it, and the session dropped the message. The log holds its `<receive>` and nothing else. Without a listener at the end that takes everything, messages vanish this way."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.2.1 Spot the Problem: The Audit Listener"
+    },
+    {
+      "type": "para",
+      "text": "Compliance wants a record of every request the server receives. Someone writes a listener and puts it first, so that nothing escapes the record:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.listener;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\n\n/** Records every request for the audit trail. */\npublic class AuditListener extends Log implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            info(\"audit \" + m.getMTI() + \" \" + m.getString(41) + \" \" + m.getString(11));  // (1)\n            return true;                                                                // (2)\n        } catch (Exception e) {\n            warn(\"audit failed\", e);\n            return false;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The chain is now audit, echo, incoming. What does the terminal get?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "listeners: audit, echo, incoming\n  0800 000201: no answer after 3000 ms\n  0200 000202: no answer after 3000 ms"
+    },
+    {
+      "type": "para",
+      "text": "Line (2) reads as \"recorded successfully\", but to the session it means \"this message is mine\". Nothing after the audit listener runs. The log shows each `<receive>` and each audit entry from line (1), and no error. The terminal times out on every echo and purchase, and the client reverses each purchase it can't confirm (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "A listener that answers a message and returns `false` passes it on, so the request is answered twice: by the listener and by the TransactionManager behind `IncomingListener`."
+    },
+    {
+      "type": "para",
+      "text": "**Return `true` exactly when this listener has taken charge of the message**, and `false` for everything else. A listener that only watches, like the audit one, returns `false`."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.3 A Listener Holds Up Its Own Connection"
+    },
+    {
+      "type": "para",
+      "text": "Only the session thread that called `process` reads that connection, so nothing more is read from it until `process` returns."
+    },
+    {
+      "type": "para",
+      "text": "This listener checks each purchase against a table of blocked cards and answers it itself. Under load the query takes two seconds:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.listener;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\n\n/** Checks the card against a blocked-card table and answers the purchase itself. */\npublic class CardCheckListener extends Log implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!\"0200\".equals(m.getMTI()) || !m.hasField(2))\n                return false;\n            boolean blocked = isBlocked(m.getString(2));    // a table lookup, 2 seconds under load\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, blocked ? \"62\" : \"00\");\n            source.send(r);\n            return true;\n        } catch (Exception e) {\n            warn(\"card check failed\", e);\n            return true;\n        }\n    }\n\n    private boolean isBlocked(String pan) {\n        ISOUtil.sleep(2000);                                 // stands in for the slow query\n        return pan.startsWith(\"5555\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Terminal A sends two purchases back to back on its connection. At the same moment terminal B sends one on its own connection:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  2023 ms  B got 0210 11=000501 41=29110002 39=00\n  2020 ms  A got 0210 11=000301 41=29110001 39=00\n  4025 ms  A got 0210 11=000302 41=29110001 39=00"
+    },
+    {
+      "type": "para",
+      "text": "B's purchase took two seconds, its own lookup. A's second purchase took four: it sat unread in the connection while the session waited for A's first lookup. A terminal that sends faster than the listener answers builds a queue in its socket, where each request waits for all the ones before it. Once the wait passes the terminal's timeout, its purchases end in reversals (unit c12). The other terminals are fine, so it looks like one faulty terminal, usually the busiest."
+    },
+    {
+      "type": "para",
+      "text": "The fix is unit s1's: the listener only hands the message off. `IncomingListener` puts it in a queue and returns at once, and the TransactionManager's sessions do the slow work. The same lookup as a participant, with four TransactionManager sessions:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  2016 ms  B got 0210 11=000501 41=29110002 39=00\n  2016 ms  A got 0210 11=000302 41=29110001 39=00\n  2019 ms  A got 0210 11=000301 41=29110001 39=00"
+    },
+    {
+      "type": "para",
+      "text": "Each purchase now takes its own two seconds. A's answers came back in a different order from its requests. A client's QMUX doesn't mind, because it matches each answer by its key (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "In the first run, A's and B's lookups ran at the same time in one `CardCheckListener` object. QServer creates each `<request-listener>` once, and every session calls that one instance, concurrently. As with participants (unit s1), a listener's fields hold configuration, and nothing about the message in hand."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.4 A Frame the Server Can't Unpack Ends the Connection"
+    },
+    {
+      "type": "para",
+      "text": "After a firmware update, a terminal sends the amount (field 4) with 10 digits instead of 12. The frame's length is right, since the terminal counts what it sends, but the packager reads every field after field 4 from the wrong place. The terminal sends that purchase and then an echo on the same connection:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "sent: 0200 11=000401 with a 10-digit amount, then 0800 11=000402\n    24 ms  read: end of stream, the server closed the connection"
+    },
+    {
+      "type": "para",
+      "text": "The server answered neither. The session logged `<session-error>` with the unpack exception (`Problem unpacking field 41`) and closed the connection, so the valid echo right behind the bad frame was never read. On the client side (unit c3) a channel that hits a bad frame throws and keeps its socket. A server session, by default, ends on any `ISOException` from `receive()`."
+    },
+    {
+      "type": "para",
+      "text": "The server-level property `ignore-iso-exceptions` changes that. It goes directly under `<qserver>`, not inside `<channel>`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<property name=\"ignore-iso-exceptions\" value=\"true\"/>"
+    },
+    {
+      "type": "para",
+      "text": "With it, the same two frames give:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "sent: 0200 11=000401 with a 10-digit amount, then 0800 11=000402\n    36 ms  read: 0810 11=000402 41=29110001 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The session logged the exception and read on. This is safe on a length-prefixed channel such as `ASCIIChannel`: the channel reads the whole frame before it unpacks anything, so the next frame still starts in the right place. The bad purchase still gets no answer and the terminal still has to reverse it, but the requests behind it survive. Without the property, every request in flight on that connection is lost with the connection, and the terminal reconnects only to send the next bad frame. On a channel with no length, such as `PADChannel`, nothing marks where the next message starts, so closing is the only way to get back in step."
+    },
+    {
+      "type": "para",
+      "text": "The same log entry also holds the card number. Before it throws, the channel logs a hex dump of the frame it could not unpack:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    --- data ---\n    0000  30 32 30 30 37 32 32 30  30 30 30 30 30 30 38 30  0200722000000080\n0010  30 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  0000164111111111\n0020  31 31 31 31 31 31 30 30  30 30 30 30 30 30 30 30  1111110000000000"
+    },
+    {
+      "type": "para",
+      "text": "That is the card number `4111111111111111` in clear, in a log whose `ProtectedLogListener` masks fields 2 and 35. It masks the fields of a message, and a frame that never became a message is only bytes to it. In 2.1.7 the channel writes this dump for every unpack failure, with or without `ignore-iso-exceptions`, and a broken terminal can write hundreds of card numbers into the log before anyone looks. Treat the server's log as card data: who can read it, where it is shipped and how long it is kept (unit s8 covers what a server logs)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.5 The Server Picks the Connection for a Message It Starts"
+    },
+    {
+      "type": "para",
+      "text": "Most traffic is a client's request and the server's answer on the same connection, through the `source` the listener was given. Some messages start at the server: a key change, a sign-off, an echo of its own (unit s2 builds them). Which connection does such a message go out on?"
+    },
+    {
+      "type": "para",
+      "text": "QServer has a built-in way: an `<in>` element names a Space queue, and QServer sends whatever appears there."
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<qserver name=\"iso-server\" class=\"org.jpos.q2.iso.QServer\" logger=\"Q2\">\n  <attr name=\"port\" type=\"java.lang.Integer\">8000</attr>\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\" logger=\"Q2\">\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  </channel>\n  <in>server-send</in>\n  <request-listener class=\"com.example.jpos.server.listener.EchoListener\" logger=\"Q2\" realm=\"echo\"/>\n</qserver>"
+    },
+    {
+      "type": "para",
+      "text": "Two terminals connect, `29110001` first, and each sends an echo. Then the server's code puts a key change addressed to `29110001` (field 41) in `server-send`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "terminal 29110001 connects: 0810 11=000601 41=29110001 39=00\nterminal 29110002 connects: 0810 11=000602 41=29110002 39=00\nserver sends 0800 70=161 for terminal 29110001\n  terminal 29110001 receives: nothing\n  terminal 29110002 receives: 0800 11=900001 41=29110001 70=161"
+    },
+    {
+      "type": "para",
+      "text": "QServer doesn't read field 41. Its `<send-request>` element picks the connection: the default, `LAST`, is the connection accepted most recently, and the others are `ALL` (every connection) and `RR` (each in turn). None of them looks at the message. That is fine with a single host connected. With terminals, the wrong device gets another terminal's key change. The terminal it was meant for keeps its old key, and the one that got it either rejects it or installs a key that isn't its own, and then its PIN blocks fail to verify."
+    },
+    {
+      "type": "para",
+      "text": "The server already knows which connection belongs to which terminal: each request arrives with its field 41 and its `source`. A listener placed first can remember, for each terminal ID, the `source` of its latest message, and return `false` so the message goes on to the rest of the chain. To send, look the terminal up, check that its connection is still open (`source.isConnected()`), and call `source.send`. The same run, with the server's code calling such a listener's `send` instead of writing to `<in>`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "terminal 29110001 connects: 0810 11=000601 41=29110001 39=00\nterminal 29110002 connects: 0810 11=000602 41=29110002 39=00\nserver sends 0800 70=161 for terminal 29110001\n  terminal 29110001 receives: 0800 11=900001 41=29110001 70=161\n  terminal 29110002 receives: nothing"
+    },
+    {
+      "type": "para",
+      "text": "A terminal that reconnects arrives on a new `source`, so keep the latest one. A terminal with no open connection can't be reached. The server keeps the message and retries when the terminal is back, or gives up and says so, but never sends it elsewhere."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.6 A TLS Server Checks Client Certificates Only With `serverauth`"
+    },
+    {
+      "type": "para",
+      "text": "TLS sits in the socket, not in the channel: QServer gets its listening socket from a `<server-socket-factory>`, and the channel frames and packs as before. Terminals prove who they are with a client certificate, and `clientauth` requires one:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<qserver name=\"iso-server-tls\" class=\"org.jpos.q2.iso.QServer\" logger=\"Q2\">\n  <attr name=\"port\" type=\"java.lang.Integer\">8443</attr>\n  <server-socket-factory class=\"org.jpos.iso.GenericSSLSocketFactory\">\n    <property name=\"keystore\" value=\"cfg/server.jks\"/>\n    <property name=\"storepassword\" value=\"${KEYSTORE_PASSWORD}\"/>\n    <property name=\"keypassword\" value=\"${KEYSTORE_PASSWORD}\"/>\n    <property name=\"clientauth\" value=\"true\"/>\n    <property name=\"serverauth\" value=\"true\"/>\n    <property name=\"addEnabledProtocol\" value=\"TLSv1.3\"/>\n    <property name=\"addEnabledProtocol\" value=\"TLSv1.2\"/>\n  </server-socket-factory>\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\" logger=\"Q2\">\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n    <property name=\"timeout\" value=\"360000\"/>\n  </channel>\n  <request-listener class=\"org.jpos.iso.IncomingListener\" logger=\"Q2\">\n    <property name=\"queue\" value=\"txnmgr\"/>\n  </request-listener>\n</qserver>"
+    },
+    {
+      "type": "para",
+      "text": "What is `serverauth` for on a server? We gave the server a keystore with its own key and the certificate of one known terminal, and let three terminals connect: the known one, a stranger with a self-signed certificate the server has never seen, and one with no certificate."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "server: clientauth=true, serverauth=false\n  known     -> 0810 11=000701 41=29110001 39=00\n  stranger  -> 0810 11=000701 41=29110001 39=00\n  nocert    -> SSLHandshakeException: (certificate_required) Received fatal alert: certificate_required\nserver: clientauth=true, serverauth=true\n  known     -> 0810 11=000701 41=29110001 39=00\n  stranger  -> SSLHandshakeException: (certificate_required) Received fatal alert: certificate_required\n  nocert    -> SocketException: Broken pipe"
+    },
+    {
+      "type": "para",
+      "text": "The terminal without a certificate was refused both times; the stranger got in whenever `serverauth` was off. `clientauth` makes a certificate mandatory, and `serverauth` decides whether it is verified. The 2.1.7 factory builds a trust manager from its keystore only when `serverauth` is true. Otherwise it installs one that accepts any certificate, the same behaviour unit c3 shows on the client side."
+    },
+    {
+      "type": "para",
+      "text": "With `serverauth` on, the stranger above didn't even send its certificate: the server announced which issuers it trusts, and the stranger's JDK found no match. A client written to present its certificate anyway gets the server's own verdict:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "serverauth=true, stranger presenting its certificate -> SSLHandshakeException: (certificate_unknown) Received fatal alert: certificate_unknown\nserverauth=false, stranger presenting its certificate -> 0810 11=000702 41=29110001 39=00"
+    },
+    {
+      "type": "para",
+      "text": "Without `serverauth`, anyone who can make a key pair can pass for a terminal. For mutual TLS set both, and put in the keystore the certificates, or better the CA, of the terminals you accept."
+    },
+    {
+      "type": "para",
+      "text": "The passwords come from the environment: Q2 replaces `${KEYSTORE_PASSWORD}` when it deploys the descriptor. Without the `storepassword` and `keypassword` properties, the factory falls back to the system properties `jpos.ssl.storepass` and `jpos.ssl.keypass`, whose default is the literal `password`."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**A socket factory ignores `bind-address`.** We added `bind-address` 127.0.0.1 to the TLS server above, and its listening socket was `0.0.0.0:44307`, every interface. The same property on a plain QServer gave `127.0.0.1:34063`. In 2.1.7 `ISOServer` applies `bind-address` and `backlog` only when it creates the socket itself. `allow` and `deny` are checked per connection after the accept, so they still work behind TLS."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Every connection holds a thread until it closes.** A connection that a firewall dropped silently ends only through the read timeout. Without one, dead sessions fill `maxSessions`, and then the server closes its port and refuses every new terminal.",
+        "**The first listener that returns `true` owns the message.** A listener that returns `true` without answering swallows everything behind it; one that answers and returns `false` gets the request answered twice. A message nobody claims is dropped, with only its `<receive>` logged.",
+        "**A listener holds up its own connection**, because its session thread is the only reader. Slow work belongs in the TransactionManager. One listener instance serves every connection, so it keeps no per-message state in fields.",
+        "**A frame the server can't unpack ends the connection** and loses the requests behind it, unless `ignore-iso-exceptions` is set. Either way, the hex dump in the log shows the card number in clear.",
+        "**The server picks the connection for a message it starts.** QServer's `<in>` queue sends to the last connection by default. Address a terminal through the `source` it last used.",
+        "**`clientauth` requires a certificate, and `serverauth` checks it.** Set both for mutual TLS. A socket factory ignores `bind-address`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**QServer descriptor in 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Element",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<attr name=\"port\">`",
+          "listening port; QServer doesn't start without it"
+        ],
+        [
+          "`<attr name=\"minSessions\">` / `maxSessions`",
+          "threads created at start (default 1) and the most connections at once (default 100)"
+        ],
+        [
+          "`<channel class packager>`",
+          "the template cloned for each connection; nested `<property>` elements configure the channel and the packager"
+        ],
+        [
+          "`<property>` under `<qserver>`",
+          "server-level settings, below"
+        ],
+        [
+          "`<request-listener class>`",
+          "an `ISORequestListener`, created once with its no-argument constructor, asked in declaration order"
+        ],
+        [
+          "`<connection-listener class>`",
+          "an `ISOServerEventListener`, told about connections accepted and closed"
+        ],
+        [
+          "`<server-socket-factory class>`",
+          "how the listening socket is made; TLS goes here"
+        ],
+        [
+          "`<space>`",
+          "the Space for `<in>` and `<out>`; default: the default Space"
+        ],
+        [
+          "`<in>`",
+          "a queue whose messages QServer sends to a connection chosen by `<send-request>`"
+        ],
+        [
+          "`<send-request>`",
+          "`LAST` (default; the connection accepted most recently), `ALL` or `RR`"
+        ],
+        [
+          "`<out>`",
+          "a queue that receives every incoming message; QServer then acts as a last listener that always returns `true`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Server-level properties:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Property",
+        "Default",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`ignore-iso-exceptions`",
+          "false",
+          "log an unpack error and keep reading, instead of ending the session"
+        ],
+        [
+          "`allow`, `deny`",
+          "none",
+          "an address, or a prefix ending in `*`; repeatable. With only `allow`, everything else is denied. A denied connection is closed after a random 1 to 5 s delay"
+        ],
+        [
+          "`bind-address`",
+          "all interfaces",
+          "listen on one address; ignored with a `<server-socket-factory>`"
+        ],
+        [
+          "`backlog`",
+          "the operating system's",
+          "connections the system queues before they are accepted; ignored with a `<server-socket-factory>`"
+        ],
+        [
+          "`keep-channels`",
+          "false",
+          "on shutdown, leave open connections open"
+        ],
+        [
+          "`pool-exhaustion-warning`",
+          "true",
+          "log `pool exhausted` once a minute while every session is busy"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Channel property** `timeout`: read timeout in ms for every connection, default 300000, `0` disables it. When it fires, the session ends."
+    },
+    {
+      "type": "para",
+      "text": "**Log entries of a QServer session** (realm `<name>.server.session/<address>:<port>` unless noted):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Entry",
+        "Means"
+      ],
+      "rows": [
+        [
+          "`<session-start/>`",
+          "a connection was accepted"
+        ],
+        [
+          "`<io-timeout/>` (realm `channel/...`)",
+          "the read timeout fired; the session ends"
+        ],
+        [
+          "`<session-error>`",
+          "an unexpected exception from `receive()` or from a listener, for example an unpack error; the session ends"
+        ],
+        [
+          "`<session-end/>`",
+          "the connection is closed and its thread is free"
+        ],
+        [
+          "`access denied, ip=...`",
+          "`allow` or `deny` refused the connection"
+        ],
+        [
+          "`pool exhausted` (realm `<name>.server`)",
+          "every session is busy; the port is closed until one ends"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**`GenericSSLSocketFactory` on a server:** `keystore` (JKS; default `~/.keystore`), `storepassword`, `keypassword`, `clientauth` (require a client certificate), `serverauth` (check certificates against the keystore; default false, which accepts any certificate), and the repeatable `addEnabledProtocol` and `addEnabledCipherSuite`. `SunJSSESocketFactory` is a deprecated subclass."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.9 Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "We create a `NACChannel` with the specified host, port, and packager.",
-        "We instantiate an `ISOServer` with the port, channel, and a `ThreadPool` whose threads serve the connections.",
-        "We give the channel a read timeout and pass the same configuration to the server; the `ThreadPool`'s maximum of 100 threads is what caps concurrent connections.",
-        "We add a `TransactionRequestListener` to handle incoming requests.",
-        "We register the server with `NameRegistrar` for easy access in other parts of the application.",
-        "The `startService` and `stopService` methods handle the lifecycle of the server."
+        "A firewall drops idle flows after 30 minutes, your terminals echo every 10 minutes, and a few hundred of them are switched off every night without closing their connections. Choose `timeout` and `maxSessions`. How many dead sessions does the server hold at 03:00, and how long does each one last?",
+        "Write the listener chain for a server that answers echoes itself, records every request for audit, and queues the rest for the TransactionManager. Which listener comes first, and what does each return? What does the audit record miss when a frame fails to unpack?",
+        "The terminal directory of 3.5 lives in one JVM. You run two servers behind a load balancer. How does a key change reach a terminal connected to the other server, and what happens to it while the terminal is reconnecting?",
+        "A terminal vendor can't put client certificates in its devices for another six months. What can `allow`, `deny` and the network do in the meantime, and what can't they?"
       ]
     },
     {
-      "type": "para",
-      "text": "Now, let's create the `ServerConfiguration` class to hold our server settings:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ServerConfiguration {\n\n    @Value(\"${iso.server.host}\")\n    private String host;\n\n    @Value(\"${iso.server.port}\")\n    private int port;\n\n    @Value(\"${iso.server.packager}\")\n    private String packagerPath;\n\n    public String getHost() {\n        return host;\n    }\n\n    public int getPort() {\n        return port;\n    }\n\n    @Bean\n    public ISOPackager getPackager() throws ISOException {\n        return new GenericPackager(packagerPath);\n    }\n}"
+      "type": "heading",
+      "level": 2,
+      "text": "3.10 Design Note: Why a Thread per Connection?"
     },
     {
       "type": "para",
-      "text": "This class uses Spring's `@Value` annotation to inject configuration properties and creates a bean for the `ISOPackager`."
+      "text": "In 2.1.x each connection gets a thread that only waits in `receive()`. One thread reads one connection in order, so a listener never sees two messages from the same connection at once, a slow peer slows only itself, and the code is plain blocking I/O with no callbacks."
     },
     {
       "type": "para",
-      "text": "Lastly, let's implement a simple `TransactionRequestListener`:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\npublic class TransactionRequestListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            // Log the incoming message\n            System.out.println(\"Received message: \" + m.toString());\n\n            // Create a response message\n            ISOMsg response = (ISOMsg) m.clone();\n            response.setResponseMTI();\n            response.set(39, \"00\"); // Approval code\n\n            // Send the response\n            source.send(response);\n\n            return true;\n        } catch (Exception e) {\n            e.printStackTrace();\n            return false;\n        }\n    }\n}"
+      "text": "A thread is not cheap, so the pool is bounded, and the bound turns dead connections into refused ones; jPOS relies on the read timeout to end them. A thread that waits in `receive()` can't do anything else, so any work a listener does stops its connection; jPOS puts a queue between the listener and the TransactionManager (unit s1)."
     },
     {
       "type": "para",
-      "text": "This listener simply logs the incoming message, creates a basic response, and sends it back."
-    },
-    {
-      "type": "para",
-      "text": "To use this setup, you would need to add the following properties to your `application.properties` file:"
-    },
-    {
-      "type": "code",
-      "lang": "",
-      "text": "iso.server.host=localhost\niso.server.port=8000\niso.server.packager=path/to/your/packager.xml"
-    },
-    {
-      "type": "para",
-      "text": "This implementation provides a solid foundation for a jPOS server with channel management. It handles multiple connections, and can be easily extended to include more complex business logic in the `TransactionRequestListener`."
+      "text": "jPOS 3 keeps the model and changes the thread: with virtual threads, thousands of mostly idle connections cost little memory. A dead connection still has to be noticed, though, and a listener still holds up its connection."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 3,
-    "paras": 11,
-    "code": 4,
-    "tables": 0,
+    "headings": 12,
+    "paras": 55,
+    "code": 22,
+    "tables": 3,
     "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "feef146bf0fe1097185ebb7f393acad9dfa38074305a9e04e71a1fc37cff02fb"
+  "content_sha256": "48487cf1405279062ba9330c9085d5e6cbacb85b893fc15f71c8892286d73fc4"
 }

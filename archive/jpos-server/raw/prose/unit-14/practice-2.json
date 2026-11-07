@@ -1,0 +1,136 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Let the PIN service find its HSM after a restart",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your server translates PIN blocks through an HSM driver that is a QBean of its own: it registers itself in the `NameRegistrar` under its name when it starts. `PinService`, in `src/main/java/com/example/practice/PinService.java`, asks it for every translation. Its descriptor is in the comment at the top of the file."
+    },
+    {
+      "type": "para",
+      "text": "The service worked in testing, where it was copied into a server that was already running. Since the last restart it has done nothing, and an operator can't tell that from JMX. The HSM team also redeploys their driver now and then, while the server runs."
+    },
+    {
+      "type": "para",
+      "text": "Finish `awaitHsm` and `hsm`, marked `TODO`. About six lines in total. When you're done, the service works after a restart, an operator can see when it can't work and start it again once the HSM is back, and it follows the HSM driver through a redeploy."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy your service and a stand-in HSM driver with a real Q2 in the test's JVM: in the same pass, in different passes, without the HSM, and with the HSM redeployed while the service runs."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.annotation.Config;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * Translates PIN blocks from the terminals' key to the issuer's, through the HSM driver: a QBean\n * of its own that registers an {@link Hsm} under its name when it starts. Deployed from a\n * descriptor such as:\n *\n * <pre>\n * &lt;pin-service name=\"pin-service\" class=\"com.example.practice.PinService\"&gt;\n *   &lt;property name=\"hsm\" value=\"hsm\"/&gt;\n *   &lt;property name=\"wait\" value=\"1000\"/&gt;\n * &lt;/pin-service&gt;\n * </pre>\n */\npublic class PinService extends QBeanSupport {\n    /** What the HSM driver registers. */\n    public interface Hsm {\n        String translate(String pinBlock);\n    }\n\n    @Config(\"hsm\")\n    private String hsmName = \"hsm\";               // the name the HSM driver registers under\n    @Config(\"wait\")\n    private long wait = 1000L;                    // ms the start may wait for it\n\n    @Override\n    protected void startService() {\n        awaitHsm();\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** Called when the service starts, before anything uses it. */\n    void awaitHsm() {\n        if (NameRegistrar.get(hsmName, wait) == null)\n            throw new IllegalStateException(\"HSM '\" + hsmName + \"' is not registered\");\n    }\n\n    /** The HSM to use for this call. */\n    Hsm hsm() {\n        Hsm hsm = NameRegistrar.getIfExists(hsmName);\n        if (hsm == null)\n            throw new IllegalStateException(\"HSM '\" + hsmName + \"' is not registered\");\n        return hsm;\n    }\n\n    public String translate(String pinBlock) {\n        if (!running())\n            throw new IllegalStateException(\"the PIN service is not running\");\n        return hsm().translate(pinBlock);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.annotation.Config;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * Translates PIN blocks from the terminals' key to the issuer's, through the HSM driver: a QBean\n * of its own that registers an {@link Hsm} under its name when it starts. Deployed from a\n * descriptor such as:\n *\n * <pre>\n * &lt;pin-service name=\"pin-service\" class=\"com.example.practice.PinService\"&gt;\n *   &lt;property name=\"hsm\" value=\"hsm\"/&gt;\n *   &lt;property name=\"wait\" value=\"1000\"/&gt;\n * &lt;/pin-service&gt;\n * </pre>\n */\npublic class PinService extends QBeanSupport {\n    /** What the HSM driver registers. */\n    public interface Hsm {\n        String translate(String pinBlock);\n    }\n\n    @Config(\"hsm\")\n    private String hsmName = \"hsm\";               // the name the HSM driver registers under\n    @Config(\"wait\")\n    private long wait = 1000L;                    // ms the start may wait for it\n\n    @Override\n    protected void startService() {\n        awaitHsm();\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** Called when the service starts, before anything uses it. */\n    void awaitHsm() {\n        // TODO: The PIN service can't do anything without the HSM. When it isn't there, an operator\n        //       must be able to tell from the PIN service's state, and start it again once the HSM is\n        //       up. The two descriptors may be deployed in the same pass or in different ones.\n        throw new IllegalStateException(\"TODO: awaitHsm\");\n    }\n\n    /** The HSM to use for this call. */\n    Hsm hsm() {\n        // TODO: The HSM driver may be redeployed while the PIN service runs, or removed.\n        throw new IllegalStateException(\"TODO: hsm\");\n    }\n\n    public String translate(String pinBlock) {\n        if (!running())\n            throw new IllegalStateException(\"the PIN service is not running\");\n        return hsm().translate(pinBlock);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "1867fe5cd495e0a5973216be879c54081eea86aebf63e85b315bbbd699a3d931",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.annotation.Config;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.util.NameRegistrar;\n\n/**\n * Translates PIN blocks from the terminals' key to the issuer's, through the HSM driver: a QBean\n * of its own that registers an {@link Hsm} under its name when it starts. Deployed from a\n * descriptor such as:\n *\n * <pre>\n * &lt;pin-service name=\"pin-service\" class=\"com.example.practice.PinService\"&gt;\n *   &lt;property name=\"hsm\" value=\"hsm\"/&gt;\n *   &lt;property name=\"wait\" value=\"1000\"/&gt;\n * &lt;/pin-service&gt;\n * </pre>\n */\npublic class PinService extends QBeanSupport {\n    /** What the HSM driver registers. */\n    public interface Hsm {\n        String translate(String pinBlock);\n    }\n\n    @Config(\"hsm\")\n    private String hsmName = \"hsm\";               // the name the HSM driver registers under\n    @Config(\"wait\")\n    private long wait = 1000L;                    // ms the start may wait for it\n\n    @Override\n    protected void startService() {\n        awaitHsm();\n        NameRegistrar.register(getName(), this);\n    }\n\n    @Override\n    protected void stopService() {\n        NameRegistrar.unregister(getName());\n    }\n\n    /** Called when the service starts, before anything uses it. */\n    void awaitHsm() {\n        // TODO: The PIN service can't do anything without the HSM. When it isn't there, an operator\n        //       must be able to tell from the PIN service's state, and start it again once the HSM is\n        //       up. The two descriptors may be deployed in the same pass or in different ones.\n        throw new IllegalStateException(\"TODO: awaitHsm\");\n    }\n\n    /** The HSM to use for this call. */\n    Hsm hsm() {\n        // TODO: The HSM driver may be redeployed while the PIN service runs, or removed.\n        throw new IllegalStateException(\"TODO: hsm\");\n    }\n\n    public String translate(String pinBlock) {\n        if (!running())\n            throw new IllegalStateException(\"the PIN service is not running\");\n        return hsm().translate(pinBlock);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-14/practice-2/src/main/java/com/example/practice/PinService.java",
+    "test_path": "practice/jpos-server/prose/unit-14/practice-2/src/test/java/com/example/practice/PinServiceTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-14/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-14/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PinServiceTest#translatesThroughAnHsmThatIsAlreadyRunning",
+        "kind": "main",
+        "says": "added to a server whose HSM driver is already running, the PIN service starts and translates through it"
+      },
+      {
+        "id": "com.example.practice.PinServiceTest#startsWhenDeployedInTheSamePassAsTheHsm",
+        "kind": "edge",
+        "says": "deployed in the same pass as the HSM driver, the PIN service still starts, because it looks for the HSM only once starts begin"
+      },
+      {
+        "id": "com.example.practice.PinServiceTest#aMissingHsmLeavesTheServiceFailedUntilStartedAgain",
+        "kind": "edge",
+        "says": "with no HSM the start fails, so the service is Failed rather than Started, and it can be started again once the HSM is up"
+      },
+      {
+        "id": "com.example.practice.PinServiceTest#aRedeployedHsmIsUsed",
+        "kind": "edge",
+        "says": "after the HSM driver is redeployed, translations go to the new instance, not the stopped one"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-14/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s14.md",
+      "section": "14.5 Nothing Is Started Until Everything Is Initialised, So a QBean Looks for What It Needs in `startService`"
+    },
+    "concepts": [
+      "Within one pass every init comes before every start, so a QBean looks for another in startService, fails the start when it is missing, and looks it up again at each use."
+    ]
+  }
+}

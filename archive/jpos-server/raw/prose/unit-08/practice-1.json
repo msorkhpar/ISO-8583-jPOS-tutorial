@@ -8,8 +8,8 @@
   "unit": 8,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Leave one trace of every transaction",
+  "ingested": "2026-11-05",
+  "title": "Make an expiry check explain its refusals in the log",
   "blocks": [
     {
       "type": "heading",
@@ -18,19 +18,19 @@
     },
     {
       "type": "para",
-      "text": "An operator reading a server's log after an incident needs one thing above all: every transaction the server touched left a trace, including the ones that failed. The page builds its event in a `try` and logs it in a `finally` for exactly that reason."
+      "text": "The support desk has a run of tickets about cards refused with `54` (expired card), and a few with `30`, from cardholders whose cards are valid until next year. The server's log has the TransactionManager's events and nothing else: `prepare: c.e.p.CardExpiry ABORTED`. Nobody can tell which expiry date the server read, or which month it compared it with."
     },
     {
       "type": "para",
-      "text": "Write `TransactionProcessor`, built from a jPOS `Logger`, with `boolean process(ISOMsg msg)`. For every call it delivers exactly one event tagged `transaction.process` to that logger:"
+      "text": "Write `prepare` in `src/main/java/com/example/practice/CardExpiry.java`. `refusal` already decides and `reply` builds the answer: `54` for an expired card, `30` for an expiry that can't be read."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "for a good message the event says `Processing transaction: <MTI>` and then `Transaction processed successfully`, and `process` returns `true`;",
-        "for a message that cannot be processed (one with no MTI, say) the event carries the exception jPOS raised instead of the success line, and `process` returns `false`. It is still logged, once."
-      ]
+      "type": "para",
+      "text": "When you're done, an operator who has a terminal ID and a STAN finds in the log one entry for every purchase this participant handled, whether it let it through, refused it, or couldn't read it, with what it decided and why. From that entry the operator can find the TransactionManager's event for the same transaction. The log is shipped to a platform that a few hundred people can search. About 15 lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests call the participant directly. They give it a logger whose chain is the production one, `ProtectedLogListener` and then a writer, the way `logger=\"Q2\" realm=\"card-expiry\"` would under Q2. The current month is fixed at November 2026."
     },
     {
       "type": "heading",
@@ -45,7 +45,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    private final LogSource source;\n\n    public TransactionProcessor(Logger logger) {\n        this.source = new SimpleLogSource(logger, \"server\");\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        LogEvent event = new LogEvent(source, \"transaction.process\");\n        try {\n            event.addMessage(\"Processing transaction: \" + msg.getMTI());\n            event.addMessage(\"Transaction processed successfully\");\n            return true;\n        } catch (ISOException e) {\n            event.addMessage(e);\n            return false;\n        } finally {\n            Logger.log(event);\n        }\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\nimport java.io.Serializable;\nimport java.time.YearMonth;\nimport java.time.ZoneOffset;\n\n/**\n * Refuses a purchase whose card has expired: 54 when the expiry date (field 14, YYMM) is before\n * this month, 30 when field 14 can't be read. Deployed as\n * {@code <participant class=\"com.example.practice.CardExpiry\" logger=\"Q2\" realm=\"card-expiry\"/>}.\n */\npublic class CardExpiry extends Log implements TransactionParticipant, Configurable {\n    private YearMonth fixedMonth;                       // configuration only: set by tests\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        String m = cfg.get(\"this-month\", null);\n        fixedMonth = m == null ? null : YearMonth.parse(m);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        LogEvent ev = createInfo();\n        ev.addMessage(\"txn \" + id);\n        ev.addMessage(request);\n        try {\n            String reason = refusal(request.getString(14));\n            if (reason == null) {\n                ev.addMessage(\"expiry ok\");\n                return PREPARED | NO_JOIN | READONLY;\n            }\n            ev.addMessage(reason);\n            ctx.put(ContextConstants.RESPONSE.toString(), reply(request, \"54\"));\n        } catch (IllegalArgumentException e) {\n            ev.addMessage(e.getMessage());\n            ctx.put(ContextConstants.RESPONSE.toString(), reply(request, \"30\"));\n        } finally {\n            Logger.log(ev);\n        }\n        return ABORTED;\n    }\n\n    /**\n     * Why a card with this expiry date is refused, or null when it may be used.\n     * Throws IllegalArgumentException when the date can't be read.\n     */\n    String refusal(String field14) {\n        if (field14 == null || !field14.matches(\"\\\\d{2}(0[1-9]|1[0-2])\"))\n            throw new IllegalArgumentException(\"expiry unreadable: '\" + field14 + \"'\");\n        YearMonth expiry = YearMonth.of(2000 + Integer.parseInt(field14.substring(0, 2)),\n                                        Integer.parseInt(field14.substring(2)));\n        YearMonth now = fixedMonth != null ? fixedMonth : YearMonth.now(ZoneOffset.UTC);\n        return expiry.isBefore(now) ? \"card expired \" + field14 + \", this month is \" + now : null;\n    }\n\n    /** The answer the terminal gets, carrying response code rc. */\n    static ISOMsg reply(ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55);\n            return r;\n        } catch (ISOException e) {\n            throw new IllegalStateException(e);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -57,7 +57,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    public TransactionProcessor(Logger logger) {\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\nimport java.io.Serializable;\nimport java.time.YearMonth;\nimport java.time.ZoneOffset;\n\n/**\n * Refuses a purchase whose card has expired: 54 when the expiry date (field 14, YYMM) is before\n * this month, 30 when field 14 can't be read. Deployed as\n * {@code <participant class=\"com.example.practice.CardExpiry\" logger=\"Q2\" realm=\"card-expiry\"/>}.\n */\npublic class CardExpiry extends Log implements TransactionParticipant, Configurable {\n    private YearMonth fixedMonth;                       // configuration only: set by tests\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        String m = cfg.get(\"this-month\", null);\n        fixedMonth = m == null ? null : YearMonth.parse(m);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // TODO: Decide with refusal(...) and answer with reply(...): 54 for an expired card, 30 for\n        //       an expiry that can't be read. Today this participant noted its reasons with ctx.log,\n        //       and the production log showed only \"CardExpiry ABORTED\". Make every purchase it\n        //       sees explain itself in the log, as the statement describes.\n        throw new IllegalStateException(\"TODO: prepare\");\n    }\n\n    /**\n     * Why a card with this expiry date is refused, or null when it may be used.\n     * Throws IllegalArgumentException when the date can't be read.\n     */\n    String refusal(String field14) {\n        if (field14 == null || !field14.matches(\"\\\\d{2}(0[1-9]|1[0-2])\"))\n            throw new IllegalArgumentException(\"expiry unreadable: '\" + field14 + \"'\");\n        YearMonth expiry = YearMonth.of(2000 + Integer.parseInt(field14.substring(0, 2)),\n                                        Integer.parseInt(field14.substring(2)));\n        YearMonth now = fixedMonth != null ? fixedMonth : YearMonth.now(ZoneOffset.UTC);\n        return expiry.isBefore(now) ? \"card expired \" + field14 + \", this month is \" + now : null;\n    }\n\n    /** The answer the terminal gets, carrying response code rc. */\n    static ISOMsg reply(ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55);\n            return r;\n        } catch (ISOException e) {\n            throw new IllegalStateException(e);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,10 +65,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 2,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -76,11 +76,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "13d5f3097e4a922c2ebb29350c7fefbd6b65bff381f9924d2bacbe94ace43285",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.util.Logger;\n\n/** Processes a message and leaves exactly one trace of it, whatever happens. */\npublic final class TransactionProcessor {\n\n    public TransactionProcessor(Logger logger) {\n    }\n\n    /** Process `msg`, log one `transaction.process` event, and say whether it worked. */\n    public boolean process(ISOMsg msg) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n",
+  "content_sha256": "d31fd39ca16aba7ca97cdd2be650aaf048f6a3dc6b85851574bae810f6840daa",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\nimport java.io.Serializable;\nimport java.time.YearMonth;\nimport java.time.ZoneOffset;\n\n/**\n * Refuses a purchase whose card has expired: 54 when the expiry date (field 14, YYMM) is before\n * this month, 30 when field 14 can't be read. Deployed as\n * {@code <participant class=\"com.example.practice.CardExpiry\" logger=\"Q2\" realm=\"card-expiry\"/>}.\n */\npublic class CardExpiry extends Log implements TransactionParticipant, Configurable {\n    private YearMonth fixedMonth;                       // configuration only: set by tests\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        String m = cfg.get(\"this-month\", null);\n        fixedMonth = m == null ? null : YearMonth.parse(m);\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // TODO: Decide with refusal(...) and answer with reply(...): 54 for an expired card, 30 for\n        //       an expiry that can't be read. Today this participant noted its reasons with ctx.log,\n        //       and the production log showed only \"CardExpiry ABORTED\". Make every purchase it\n        //       sees explain itself in the log, as the statement describes.\n        throw new IllegalStateException(\"TODO: prepare\");\n    }\n\n    /**\n     * Why a card with this expiry date is refused, or null when it may be used.\n     * Throws IllegalArgumentException when the date can't be read.\n     */\n    String refusal(String field14) {\n        if (field14 == null || !field14.matches(\"\\\\d{2}(0[1-9]|1[0-2])\"))\n            throw new IllegalArgumentException(\"expiry unreadable: '\" + field14 + \"'\");\n        YearMonth expiry = YearMonth.of(2000 + Integer.parseInt(field14.substring(0, 2)),\n                                        Integer.parseInt(field14.substring(2)));\n        YearMonth now = fixedMonth != null ? fixedMonth : YearMonth.now(ZoneOffset.UTC);\n        return expiry.isBefore(now) ? \"card expired \" + field14 + \", this month is \" + now : null;\n    }\n\n    /** The answer the terminal gets, carrying response code rc. */\n    static ISOMsg reply(ISOMsg request, String rc) {\n        try {\n            ISOMsg r = (ISOMsg) request.clone();\n            r.setResponseMTI();\n            r.set(39, rc);\n            r.unset(14, 35, 45, 52, 55);\n            return r;\n        } catch (ISOException e) {\n            throw new IllegalStateException(e);\n        }\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-08/practice-1/src/main/java/com/example/practice/TransactionProcessor.java",
-    "test_path": "practice/jpos-server/prose/unit-08/practice-1/src/test/java/com/example/practice/TransactionProcessorTest.java",
+    "main_path": "practice/jpos-server/prose/unit-08/practice-1/src/main/java/com/example/practice/CardExpiry.java",
+    "test_path": "practice/jpos-server/prose/unit-08/practice-1/src/test/java/com/example/practice/CardExpiryTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -101,14 +101,44 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.TransactionProcessorTest#aGoodMessageLogsOneEventSayingItWasProcessed",
+        "id": "com.example.practice.CardExpiryTest#aCurrentCardGoesThrough",
         "kind": "main",
-        "says": "a good message is logged as one event saying it was processed"
+        "says": "a card that has not expired is not refused and gets no response from this participant"
       },
       {
-        "id": "com.example.practice.TransactionProcessorTest#aMessageThatFailsStillLogsExactlyOneEvent",
+        "id": "com.example.practice.CardExpiryTest#anExpiredCardIsRefusedAndExplained",
+        "kind": "main",
+        "says": "an expired card is answered 54, and one event in the participant's realm shows the purchase and the expiry it read"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#anUnreadableExpiryIsAnsweredAndExplained",
         "kind": "edge",
-        "says": "a message that fails still leaves exactly one event, carrying the error"
+        "says": "an expiry that can't be read is answered 30 and still leaves its one event, because the event is written whatever happened"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#anApprovalIsExplainedToo",
+        "kind": "edge",
+        "says": "a purchase the participant lets through leaves an event as well, not only the refusals"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#noCardDataReachesTheWriterInClear",
+        "kind": "edge",
+        "says": "the request goes into the event as a message, so the filter masks it; the Context, which dumps the request in clear, does not"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#eachTransactionIsExplainedOnItsOwn",
+        "kind": "edge",
+        "says": "each transaction gets a new event, because one participant instance serves every transaction"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#theMessagesKeepTheirCardNumber",
+        "kind": "edge",
+        "says": "logging leaves the request and the response as they are; masking is the filter's job, on its own copy"
+      },
+      {
+        "id": "com.example.practice.CardExpiryTest#theEventLeadsToTheTransactionManagersEvent",
+        "kind": "edge",
+        "says": "the event carries the transaction id, which joins it to the TransactionManager's event for the same transaction"
       }
     ],
     "report": {
@@ -117,10 +147,10 @@
     },
     "origin": {
       "path": "src/s8.md",
-      "section": "8.1 jPOS Logging Framework"
+      "section": "8.3 One Event per Transaction, Carrying Its Id and the Message Itself"
     },
     "concepts": [
-      "A server builds one LogEvent per transaction and logs it in a finally block, so a failed transaction leaves a trace carrying its exception just as a good one does."
+      "A participant writes one event per transaction, created in prepare, with the transaction id, the request as a message for the filter to mask, and the reason, logged in finally whatever happened."
     ]
   }
 }

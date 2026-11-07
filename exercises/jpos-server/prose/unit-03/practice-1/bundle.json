@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 3,
   "ordinal": 1,
-  "title": "Answer requests from a server's request listener",
+  "title": "Decline what the server can't decide during maintenance",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ApprovingListener.java",
-  "test_file": "src/test/java/com/example/practice/ApprovingListenerTest.java",
+  "main_file": "src/main/java/com/example/practice/MaintenanceListener.java",
+  "test_file": "src/test/java/com/example/practice/MaintenanceListenerTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ApprovingListenerTest#answersARequestWithItsResponseThroughItsSource",
+      "id": "com.example.practice.MaintenanceListenerTest#aPurchaseDuringMaintenanceIsDeclinedAtOnce",
       "kind": "main",
-      "says": "a request is answered once, through its own source, with the response MTI, response code 00 and the request's fields, and the listener says it dealt with it"
+      "says": "during maintenance a purchase is answered at once on its own connection with its response MTI, 39=91 and its STAN and terminal ID"
     },
     {
-      "id": "com.example.practice.ApprovingListenerTest#theRequestItselfIsLeftUnchanged",
+      "id": "com.example.practice.MaintenanceListenerTest#outsideMaintenanceEverythingReachesTheQueue",
       "kind": "edge",
-      "says": "answering never changes the request the server handed in"
+      "says": "outside maintenance the listener answers nothing and passes every request on"
     },
     {
-      "id": "com.example.practice.ApprovingListenerTest#aReplyThatCannotBeSentIsNotClaimed",
+      "id": "com.example.practice.MaintenanceListenerTest#reversalsAndAdvicesReachTheQueueDuringMaintenance",
       "kind": "edge",
-      "says": "when the reply cannot be sent the listener returns false instead of throwing or claiming it"
+      "says": "reversals and advices are passed on during maintenance, because any answer would tell the terminal they had arrived"
+    },
+    {
+      "id": "com.example.practice.MaintenanceListenerTest#aDeclinedRequestGoesNoFurther",
+      "kind": "edge",
+      "says": "a request the listener declined is claimed, so the next listener never processes and answers it again"
+    },
+    {
+      "id": "com.example.practice.MaintenanceListenerTest#anEchoDuringMaintenanceStillReachesTheQueue",
+      "kind": "edge",
+      "says": "a message the listener doesn't answer is passed on, not swallowed"
     }
   ],
   "report": {
@@ -54,6 +64,6 @@
   },
   "origin": {
     "path": "src/s3.md",
-    "section": "3.2 NAC Channel"
+    "section": "3.2.1 Spot the Problem: The Audit Listener"
   }
 }

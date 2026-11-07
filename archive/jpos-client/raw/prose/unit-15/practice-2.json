@@ -1,0 +1,145 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Take a link out only when its host has stopped answering",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "This picks up where the previous practice ended: `LinkPolicy` already contains its solution, and the sign-on manager now also reports every echo to it."
+    },
+    {
+      "type": "para",
+      "text": "Two incidents from the same month:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "Every evening during the host's batch run, link A leaves the pool for a moment and signs on again, though nothing is wrong with the host. The manager takes a link out after a single unanswered echo.",
+        "A colleague's first fix counted unanswered echoes and took the link out at the third. On Friday a link that had missed one echo on Monday and one on Wednesday was taken out over a single slow answer."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The network's operations team settled on `echoLimit`: after that many unanswered echoes, the manager gives up on a link whose host has stopped answering. Finish `signedOn`, `echoAnswered` and `echoFailed` in `src/main/java/com/example/practice/LinkPolicy.java`. About five lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt and\n * each echo. Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private final int echoLimit;\n    private int refusals;\n    private long notBefore;\n    private int echoFailures;\n\n    public enum EchoVerdict { KEEP, SIGN_ON_AGAIN }\n\n    public LinkPolicy(long firstWait, long longestWait, int echoLimit) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n        this.echoLimit = echoLimit;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        refusals++;\n        long wait = firstWait;\n        for (int i = 1; i < refusals && wait < longestWait; i++)\n            wait = Math.min(wait * 2, longestWait);\n        notBefore = now + Math.min(wait, longestWait);\n        return notBefore;\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        refusals = 0;\n        notBefore = 0;\n        echoFailures = 0;\n    }\n\n    /** An echo on the signed-on link was answered with 00. */\n    public synchronized void echoAnswered() {\n        echoFailures = 0;\n    }\n\n    /** An echo on the signed-on link got no answer, or a refusal. Should the link stay in the pool? */\n    public synchronized EchoVerdict echoFailed() {\n        echoFailures++;\n        return echoFailures >= echoLimit ? EchoVerdict.SIGN_ON_AGAIN : EchoVerdict.KEEP;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt and\n * each echo. Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private final int echoLimit;\n    private int refusals;\n    private long notBefore;\n    private int echoFailures;\n\n    public enum EchoVerdict { KEEP, SIGN_ON_AGAIN }\n\n    public LinkPolicy(long firstWait, long longestWait, int echoLimit) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n        this.echoLimit = echoLimit;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        refusals++;\n        long wait = firstWait;\n        for (int i = 1; i < refusals && wait < longestWait; i++)\n            wait = Math.min(wait * 2, longestWait);\n        notBefore = now + Math.min(wait, longestWait);\n        return notBefore;\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        refusals = 0;\n        notBefore = 0;\n        // TODO: a fresh sign-on, a fresh judgement of its echoes.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n\n    /** An echo on the signed-on link was answered with 00. */\n    public synchronized void echoAnswered() {\n        // TODO: what does an answered echo say about the failures before it?\n        throw new IllegalStateException(\"TODO: echoAnswered\");\n    }\n\n    /** An echo on the signed-on link got no answer, or a refusal. Should the link stay in the pool? */\n    public synchronized EchoVerdict echoFailed() {\n        // TODO: SIGN_ON_AGAIN only once the host has stopped answering, judged by echoLimit;\n        //       KEEP otherwise.\n        throw new IllegalStateException(\"TODO: echoFailed\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "5b7e8ac2a3b8e8c80c2a17402a836750625aac04c2f580414659e6a29369b513",
+  "starting_code": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt and\n * each echo. Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private final int echoLimit;\n    private int refusals;\n    private long notBefore;\n    private int echoFailures;\n\n    public enum EchoVerdict { KEEP, SIGN_ON_AGAIN }\n\n    public LinkPolicy(long firstWait, long longestWait, int echoLimit) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n        this.echoLimit = echoLimit;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        refusals++;\n        long wait = firstWait;\n        for (int i = 1; i < refusals && wait < longestWait; i++)\n            wait = Math.min(wait * 2, longestWait);\n        notBefore = now + Math.min(wait, longestWait);\n        return notBefore;\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        refusals = 0;\n        notBefore = 0;\n        // TODO: a fresh sign-on, a fresh judgement of its echoes.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n\n    /** An echo on the signed-on link was answered with 00. */\n    public synchronized void echoAnswered() {\n        // TODO: what does an answered echo say about the failures before it?\n        throw new IllegalStateException(\"TODO: echoAnswered\");\n    }\n\n    /** An echo on the signed-on link got no answer, or a refusal. Should the link stay in the pool? */\n    public synchronized EchoVerdict echoFailed() {\n        // TODO: SIGN_ON_AGAIN only once the host has stopped answering, judged by echoLimit;\n        //       KEEP otherwise.\n        throw new IllegalStateException(\"TODO: echoFailed\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-15/practice-2/src/main/java/com/example/practice/LinkPolicy.java",
+    "test_path": "practice/jpos-client/prose/unit-15/practice-2/src/test/java/com/example/practice/LinkPolicyTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkPolicyTest#oneLostEchoKeepsTheLink",
+        "kind": "main",
+        "says": "with a limit of 3, one unanswered echo leaves the link in the pool"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#aHostThatStopsAnsweringIsEventuallyLeft",
+        "kind": "main",
+        "says": "a host that answers no echo at all is eventually reported as needing a new sign-on"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#failuresSpreadOverTheWeekNeverReachTheLimit",
+        "kind": "edge",
+        "says": "an answered echo clears the failures before it, so failures spread out over time never reach the limit"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#theFailureThatReachesTheLimitAsksForANewSignOn",
+        "kind": "edge",
+        "says": "the failure that reaches the limit asks for a new sign-on, not the one after it; a limit of 1 reacts to the first"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#aFreshSignOnIsJudgedOnItsOwnEchoes",
+        "kind": "edge",
+        "says": "failures counted before a new sign-on do not count against it"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-15/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c15.md",
+      "section": "15.3 One Lost Echo Is Not a Dead Host"
+    },
+    "concepts": [
+      "Only echo failures in a row count, an answered echo or a new sign-on starts the count again, and the link is taken out at the limit."
+    ]
+  }
+}

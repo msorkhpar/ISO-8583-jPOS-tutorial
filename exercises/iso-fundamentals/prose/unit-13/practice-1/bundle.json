@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 13,
   "ordinal": 1,
-  "title": "Mask the card number in a message before it is shown",
+  "title": "Find the card numbers customers type into support tickets",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/CardMasking.java",
-  "test_file": "src/test/java/com/example/practice/CardMaskingTest.java",
+  "main_file": "src/main/java/com/example/practice/CardNumberFinder.java",
+  "test_file": "src/test/java/com/example/practice/CardNumberFinderTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.CardMaskingTest#showsOnlyTheFirstSixAndLastFourDigits",
+      "id": "com.example.practice.CardNumberFinderTest#findsCardNumbersTypedInGroupsOfFour",
       "kind": "main",
-      "says": "the copy for display shows the PAN's first six and last four digits and keeps every other field"
+      "says": "card numbers typed in groups with spaces or dashes are found where they start, and the report says which card each was"
     },
     {
-      "id": "com.example.practice.CardMaskingTest#masksAPanOfAnyLength",
-      "kind": "edge",
-      "says": "a 19-digit PAN still shows only its first six and last four digits"
+      "id": "com.example.practice.CardNumberFinderTest#aTicketWithoutCardNumbersHasNoFindings",
+      "kind": "main",
+      "says": "a ticket with dates, phone numbers and order numbers but no card number has no findings"
     },
     {
-      "id": "com.example.practice.CardMaskingTest#leavesTheMessageBeingProcessedUntouched",
+      "id": "com.example.practice.CardNumberFinderTest#aNumberThatFailsTheCheckDigitIsNotACard",
       "kind": "edge",
-      "says": "the message being processed keeps its full PAN"
+      "says": "a number of card length whose last digit is not its check digit is not reported"
+    },
+    {
+      "id": "com.example.practice.CardNumberFinderTest#aCardGroupedAsItIsPrintedOnAFifteenDigitCardIsFound",
+      "kind": "edge",
+      "says": "a 15-digit card typed in groups of four, six and five is found, not only groups of four"
+    },
+    {
+      "id": "com.example.practice.CardNumberFinderTest#aCardGluedToLettersIsFound",
+      "kind": "edge",
+      "says": "a card number with a letter right before it, as in a pasted track 1, is found"
+    },
+    {
+      "id": "com.example.practice.CardNumberFinderTest#digitsInsideALongerNumberAreNotACard",
+      "kind": "edge",
+      "says": "card-length digits that are part of a longer run of digits are not reported"
+    },
+    {
+      "id": "com.example.practice.CardNumberFinderTest#theReportNeverHoldsTheNumberInClear",
+      "kind": "edge",
+      "says": "the report shows each card number masked, never in clear"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/13.md",
-    "section": "13.1.1. Data Protection"
+    "section": "13.2. A Card Number Is Recognised by Its Length and Its Check Digit"
   }
 }

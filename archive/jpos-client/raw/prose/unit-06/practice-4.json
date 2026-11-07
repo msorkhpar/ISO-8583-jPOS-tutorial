@@ -1,0 +1,223 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what a field holds",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-field-55-read",
+        "stem": "A host's 0110 is unpacked, and its field 55 is an ISOBinaryField holding 12 bytes. Your code calls response.getString(55). What does it return?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A 24-character string, since getString writes each byte as two hex digits",
+            "correct": true,
+            "says": "getString on a binary field returns the hex form of its bytes"
+          },
+          {
+            "id": "b",
+            "text": "A 12-character string, since getString maps each byte to the character with that code",
+            "correct": false,
+            "says": "that is what getBytes does in reverse for text; getString on bytes gives hex"
+          },
+          {
+            "id": "c",
+            "text": "No string at all but null, since getString has no text to give for a byte field",
+            "correct": false,
+            "says": "getString returns null for an absent field or a nested message, not for bytes"
+          },
+          {
+            "id": "d",
+            "text": "No string at all but an exception, since a byte field must be read with getBytes",
+            "correct": false,
+            "says": "getString never throws for a field it can't read as text; on bytes it gives hex"
+          }
+        ],
+        "origin": {
+          "path": "src/c6.md",
+          "section": "6.1 A Field Holds Text, Bytes or a Message"
+        }
+      },
+      {
+        "id": "q-pin-from-web-form",
+        "stem": "A gateway gets an 8-byte PIN block from a web form as 16 hex characters. It calls request.set(52, pinHex) on a new ISOMsg and hands the message to the MUX. The channel's packager declares field 52 as binary. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The field holds 16 characters, so packing on the channel fails and the request never leaves",
+            "correct": true,
+            "says": "with no packager attached at set time the value stays text, and the binary field packager refuses 16 for 8"
+          },
+          {
+            "id": "b",
+            "text": "The field holds 16 characters, so the host receives 32 hex digits and rejects the PIN",
+            "correct": false,
+            "says": "the binary packager refuses the 16-character value; nothing is sent"
+          },
+          {
+            "id": "c",
+            "text": "The field holds 8 bytes, since set asks the packager the message will travel with",
+            "correct": false,
+            "says": "set uses only a packager already attached to the message; the channel attaches its own at send time"
+          },
+          {
+            "id": "d",
+            "text": "The field holds 8 bytes, since set sees hex digits and stores the bytes they spell",
+            "correct": false,
+            "says": "set(n, String) converts only when an attached packager says the field is binary"
+          }
+        ],
+        "origin": {
+          "path": "src/c6.md",
+          "section": "6.2 Binary Data Goes In as Bytes"
+        }
+      },
+      {
+        "id": "q-tier-in-62",
+        "stem": "Your client's channel uses the stock iso87ascii.xml. The host puts a loyalty tier in sub-field 3 of field 62 of its responses. What does response.getString(\"62.3\") return for a response that carries it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The tier, since jPOS splits a received field into sub-fields when a path asks",
+            "correct": false,
+            "says": "only the packager splits a field, and the stock one declares 62 as plain text"
+          },
+          {
+            "id": "b",
+            "text": "The tier, since the host's message carries its sub-field layout with the data",
+            "correct": false,
+            "says": "the layout lives in the packager on each side, never in the message"
+          },
+          {
+            "id": "c",
+            "text": "null, since field 62 arrives as plain text with no nested message inside it",
+            "correct": true,
+            "says": "unpacked without a declaration the field is text, and every dotted path into it returns null without an error"
+          },
+          {
+            "id": "d",
+            "text": "null, since a dotted path finds sub-fields your own code put into the message",
+            "correct": false,
+            "says": "a dotted path reads any nested message, including one a declaring packager unpacked"
+          }
+        ],
+        "origin": {
+          "path": "src/c6.md",
+          "section": "6.3.1 The Receiving Side Needs the Declaration Too"
+        }
+      },
+      {
+        "id": "q-two-steps-48",
+        "stem": "One step of a client sets 48.1 and 48.2 with dotted paths. A later step does ISOMsg f = new ISOMsg(48); f.set(3, \"Y\"); request.set(f). Which sub-fields does field 48 hold afterwards?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Only 3, since set puts the new component in place of the one under that number",
+            "correct": true,
+            "says": "set(ISOComponent) replaces whatever the field held; dotted paths add to a nested message"
+          },
+          {
+            "id": "b",
+            "text": "Only 1 and 2, since set ignores a component whose field number is already in use",
+            "correct": false,
+            "says": "set replaces an existing field; it never ignores the new component"
+          },
+          {
+            "id": "c",
+            "text": "1, 2 and 3, since set merges a nested message into the one already there",
+            "correct": false,
+            "says": "set does not merge; the earlier nested message is dropped"
+          },
+          {
+            "id": "d",
+            "text": "1, 2 and 3, since sub-fields are stored under their full path such as 48.3",
+            "correct": false,
+            "says": "sub-fields live inside the nested ISOMsg(48), which the new component replaced"
+          }
+        ],
+        "origin": {
+          "path": "src/c6.md",
+          "section": "6.3 Sub-fields Are a Nested Message That Only a Declaring Packager Can Carry"
+        }
+      },
+      {
+        "id": "q-clearing-pin",
+        "stem": "A gateway keeps each purchase it receives and forwards a copy made with clone(). Once the copy is sent, it calls Arrays.fill(copy.getBytes(52), (byte) 0) to clear the PIN block from memory. What does the kept purchase's field 52 hold now?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Zeros, since the copy and the original share the array that holds the PIN block",
+            "correct": true,
+            "says": "clone shares leaf components, and getBytes returns the array itself"
+          },
+          {
+            "id": "b",
+            "text": "Zeros, since clone() links the two messages and a change to the copy reaches the original",
+            "correct": false,
+            "says": "set and unset on the copy leave the original alone; only writes into a shared array reach it"
+          },
+          {
+            "id": "c",
+            "text": "The PIN block, since clone() gives the copy its own array for each byte field",
+            "correct": false,
+            "says": "clone gives the copy its own field map and nested messages, but byte fields are shared"
+          },
+          {
+            "id": "d",
+            "text": "The PIN block, since getBytes returns a fresh copy of the bytes on each call",
+            "correct": false,
+            "says": "getBytes returns the stored array, so writing into it changes the field"
+          }
+        ],
+        "origin": {
+          "path": "src/c6.md",
+          "section": "6.4 A Follow-up Copies the Fields It Lists and Leaves the Original Alone"
+        }
+      }
+    ],
+    "concepts": [
+      "A field holds text, bytes or a nested message, and getString gives hex for bytes and null for a nested message.",
+      "A clone shares its text and byte components with the original, so a write into a copied array changes both.",
+      "A receiver whose packager does not declare the sub-fields gets the field as text and null for every sub-field, without an error."
+    ]
+  }
+}

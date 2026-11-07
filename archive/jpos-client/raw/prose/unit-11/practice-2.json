@@ -1,0 +1,151 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Take a link out for maintenance without losing purchases",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An acquirer runs two links, `acq-mux` and a second one, behind a pool with `check-enabled`, and one sign-on manager per link. Every Tuesday night operations take `acq-mux` out for maintenance by stopping its manager, and every Wednesday morning there are complaints:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "a handful of purchases routed to `acq-mux` during the maintenance stop came back declined;",
+        "the host's operators ask why they keep receiving an 0800 with code 002 on connections that never signed on, and on links that are down;",
+        "when the manager is deployed again, `acq-mux` sometimes stays out of the pool until the next day, and sometimes only when the host did not answer the 002."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The manager's per-link logic is `LinkSession` in `src/main/java/com/example/practice/LinkSession.java`. `step()` works. Write `signOff()`, which the manager calls when it is stopped. About five lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests use a plain `TSpace`, write the adaptor's ready entry themselves, and play the host through the `Exchanger`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The per-link part of the page's sign-on manager, taken out of Q2. The 0800 exchange is passed\n * in, so that a test can play the host. The marks are {@code <mux>.logon}, {@code <mux>.echo}\n * and {@code <mux>.enabled}, as on the page.\n */\npublic class LinkSession {\n    public enum Action { WAIT, LOGON, ECHO, IDLE }\n\n    /** Sends an 0800 with the given field 70 code on the named MUX; true if answered with 00. */\n    public interface Exchanger {\n        boolean exchange(String muxName, String code);\n    }\n\n    private final Space<String, Object> sp;\n    private final String muxName;\n    private final String readyKey;\n    private final Exchanger exchanger;\n    private final long echoInterval;\n    private final long logonInterval;\n\n    public LinkSession(Space<String, Object> sp, String muxName, String readyKey, Exchanger exchanger,\n                       long echoInterval, long logonInterval) {\n        this.sp = sp;\n        this.muxName = muxName;\n        this.readyKey = readyKey;\n        this.exchanger = exchanger;\n        this.echoInterval = echoInterval;\n        this.logonInterval = logonInterval;\n    }\n\n    public static Action decide(Object ready, Object logonMark, Object echoMark) {\n        if (ready == null)\n            return Action.WAIT;\n        if (logonMark != ready)\n            return Action.LOGON;\n        if (echoMark == null)\n            return Action.ECHO;\n        return Action.IDLE;\n    }\n\n    /** One pass of the manager's loop for this link; returns what it decided. */\n    public Action step() {\n        Object ready = sp.rdp(readyKey);\n        Action action = decide(ready, sp.rdp(muxName + \".logon\"), sp.rdp(muxName + \".echo\"));\n        switch (action) {\n            case WAIT:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                break;\n            case LOGON:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                if (exchanger.exchange(muxName, \"001\")) {\n                    sp.put(muxName + \".logon\", ready, logonInterval);\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                    sp.put(muxName + \".enabled\", ready);\n                }\n                break;\n            case ECHO:\n                if (exchanger.exchange(muxName, \"301\")) {\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                } else {\n                    SpaceUtil.wipe(sp, muxName + \".enabled\");\n                    SpaceUtil.wipe(sp, muxName + \".logon\");\n                }\n                break;\n            default:\n                break;\n        }\n        return action;\n    }\n\n    /** Called once when the manager is stopped for planned maintenance of this link. */\n    public void signOff() {\n        SpaceUtil.wipe(sp, muxName + \".enabled\");\n        Object ready = sp.rdp(readyKey);\n        if (ready != null && ready == sp.rdp(muxName + \".logon\"))\n            exchanger.exchange(muxName, \"002\");\n        SpaceUtil.wipe(sp, muxName + \".logon\");\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The per-link part of the page's sign-on manager, taken out of Q2. The 0800 exchange is passed\n * in, so that a test can play the host. The marks are {@code <mux>.logon}, {@code <mux>.echo}\n * and {@code <mux>.enabled}, as on the page.\n */\npublic class LinkSession {\n    public enum Action { WAIT, LOGON, ECHO, IDLE }\n\n    /** Sends an 0800 with the given field 70 code on the named MUX; true if answered with 00. */\n    public interface Exchanger {\n        boolean exchange(String muxName, String code);\n    }\n\n    private final Space<String, Object> sp;\n    private final String muxName;\n    private final String readyKey;\n    private final Exchanger exchanger;\n    private final long echoInterval;\n    private final long logonInterval;\n\n    public LinkSession(Space<String, Object> sp, String muxName, String readyKey, Exchanger exchanger,\n                       long echoInterval, long logonInterval) {\n        this.sp = sp;\n        this.muxName = muxName;\n        this.readyKey = readyKey;\n        this.exchanger = exchanger;\n        this.echoInterval = echoInterval;\n        this.logonInterval = logonInterval;\n    }\n\n    public static Action decide(Object ready, Object logonMark, Object echoMark) {\n        if (ready == null)\n            return Action.WAIT;\n        if (logonMark != ready)\n            return Action.LOGON;\n        if (echoMark == null)\n            return Action.ECHO;\n        return Action.IDLE;\n    }\n\n    /** One pass of the manager's loop for this link; returns what it decided. */\n    public Action step() {\n        Object ready = sp.rdp(readyKey);\n        Action action = decide(ready, sp.rdp(muxName + \".logon\"), sp.rdp(muxName + \".echo\"));\n        switch (action) {\n            case WAIT:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                break;\n            case LOGON:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                if (exchanger.exchange(muxName, \"001\")) {\n                    sp.put(muxName + \".logon\", ready, logonInterval);\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                    sp.put(muxName + \".enabled\", ready);\n                }\n                break;\n            case ECHO:\n                if (exchanger.exchange(muxName, \"301\")) {\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                } else {\n                    SpaceUtil.wipe(sp, muxName + \".enabled\");\n                    SpaceUtil.wipe(sp, muxName + \".logon\");\n                }\n                break;\n            default:\n                break;\n        }\n        return action;\n    }\n\n    /** Called once when the manager is stopped for planned maintenance of this link. */\n    public void signOff() {\n        // TODO: Take this link out of service and tell the host, code 002. Nobody may lose a\n        //       purchase to it, the host must not hear 002 for a connection it never signed on,\n        //       and when the manager is deployed again on the same connection, the link must\n        //       come back into service by itself.\n        throw new IllegalStateException(\"TODO: signOff\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "305c6995b88171ed8588bc80957212c501bd5c39d00a2fe6a3b5a16ab3204a64",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * The per-link part of the page's sign-on manager, taken out of Q2. The 0800 exchange is passed\n * in, so that a test can play the host. The marks are {@code <mux>.logon}, {@code <mux>.echo}\n * and {@code <mux>.enabled}, as on the page.\n */\npublic class LinkSession {\n    public enum Action { WAIT, LOGON, ECHO, IDLE }\n\n    /** Sends an 0800 with the given field 70 code on the named MUX; true if answered with 00. */\n    public interface Exchanger {\n        boolean exchange(String muxName, String code);\n    }\n\n    private final Space<String, Object> sp;\n    private final String muxName;\n    private final String readyKey;\n    private final Exchanger exchanger;\n    private final long echoInterval;\n    private final long logonInterval;\n\n    public LinkSession(Space<String, Object> sp, String muxName, String readyKey, Exchanger exchanger,\n                       long echoInterval, long logonInterval) {\n        this.sp = sp;\n        this.muxName = muxName;\n        this.readyKey = readyKey;\n        this.exchanger = exchanger;\n        this.echoInterval = echoInterval;\n        this.logonInterval = logonInterval;\n    }\n\n    public static Action decide(Object ready, Object logonMark, Object echoMark) {\n        if (ready == null)\n            return Action.WAIT;\n        if (logonMark != ready)\n            return Action.LOGON;\n        if (echoMark == null)\n            return Action.ECHO;\n        return Action.IDLE;\n    }\n\n    /** One pass of the manager's loop for this link; returns what it decided. */\n    public Action step() {\n        Object ready = sp.rdp(readyKey);\n        Action action = decide(ready, sp.rdp(muxName + \".logon\"), sp.rdp(muxName + \".echo\"));\n        switch (action) {\n            case WAIT:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                break;\n            case LOGON:\n                SpaceUtil.wipe(sp, muxName + \".enabled\");\n                if (exchanger.exchange(muxName, \"001\")) {\n                    sp.put(muxName + \".logon\", ready, logonInterval);\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                    sp.put(muxName + \".enabled\", ready);\n                }\n                break;\n            case ECHO:\n                if (exchanger.exchange(muxName, \"301\")) {\n                    sp.put(muxName + \".echo\", Boolean.TRUE, echoInterval);\n                } else {\n                    SpaceUtil.wipe(sp, muxName + \".enabled\");\n                    SpaceUtil.wipe(sp, muxName + \".logon\");\n                }\n                break;\n            default:\n                break;\n        }\n        return action;\n    }\n\n    /** Called once when the manager is stopped for planned maintenance of this link. */\n    public void signOff() {\n        // TODO: Take this link out of service and tell the host, code 002. Nobody may lose a\n        //       purchase to it, the host must not hear 002 for a connection it never signed on,\n        //       and when the manager is deployed again on the same connection, the link must\n        //       come back into service by itself.\n        throw new IllegalStateException(\"TODO: signOff\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-11/practice-2/src/main/java/com/example/practice/LinkSession.java",
+    "test_path": "practice/jpos-client/prose/unit-11/practice-2/src/test/java/com/example/practice/LinkSessionTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-11/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-11/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkSessionTest#aSignedOnLinkIsSignedOffAndLeavesService",
+        "kind": "main",
+        "says": "a signed-on link is signed off with 002 and is out of service afterwards"
+      },
+      {
+        "id": "com.example.practice.LinkSessionTest#noPurchaseCanReachTheLinkWhileItSignsOff",
+        "kind": "edge",
+        "says": "the link leaves service before 002 goes out, so no purchase is routed to it while it signs off"
+      },
+      {
+        "id": "com.example.practice.LinkSessionTest#aConnectionThatNeverSignedOnGetsNoSignOff",
+        "kind": "edge",
+        "says": "only the connection that signed on is signed off, told apart by identity even from an equal Date"
+      },
+      {
+        "id": "com.example.practice.LinkSessionTest#aLinkThatIsDownGetsNoSignOff",
+        "kind": "edge",
+        "says": "a link with no connection gets no sign-off, whatever logon mark is left over"
+      },
+      {
+        "id": "com.example.practice.LinkSessionTest#deployedAgainOnTheSameConnectionTheLinkComesBack",
+        "kind": "edge",
+        "says": "the session is forgotten at sign-off, so a manager deployed again signs the same connection on and the link returns"
+      },
+      {
+        "id": "com.example.practice.LinkSessionTest#aSignOffTheHostNeverAnsweredStillEndsTheSession",
+        "kind": "edge",
+        "says": "the session ends at sign-off whether or not the host answered the 002"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-11/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c11.md",
+      "section": "11.5 Take a Link Out of Service Before You Sign It Off"
+    },
+    "concepts": [
+      "At a planned stop the link leaves service before the 002, the 002 goes only to the connection that signed on, and the session is forgotten whatever the host answered."
+    ]
+  }
+}

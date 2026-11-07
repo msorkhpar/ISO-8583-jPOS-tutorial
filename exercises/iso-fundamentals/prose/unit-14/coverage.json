@@ -1,82 +1,115 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/14.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/14.md": "sha256:f7cbcf6040983d1f51daf55ab7ea6f38aac076c652dcaf6da0a1d503792e41f2"
+    "src/14.md": "sha256:83973ba6b5d5e06afed2b1b1fca6dd3955c309e339e8ab95440295a759ecec0a"
   },
   "plan": {
     "plan_api": 2,
     "tier": "advanced",
-    "count": 2,
+    "count": 3,
     "aspects": [
       {
-        "id": "chip-entry-fields",
-        "says": "A chip transaction also marks itself outside field 55, in the entry mode, card sequence number and PIN capture fields.",
+        "id": "chip-cryptogram-covers-data",
+        "says": "A chip's cryptogram is a MAC over the amount, currency, date, type, the terminal's random number and the counter; the issuer recomputes it, so a hop that changes a covered value makes the card look counterfeit, and DE 55 passes through unchanged.",
         "basis": [
-          "example:src/14.md:2",
-          "section:14.1.2. Chip card specific fields"
-        ],
-        "exercise": null,
-        "reason": "the values are network-specific codes the page itself only hedges ('typically', 'might'); setting a field is practised on earlier pages"
-      },
-      {
-        "id": "detokenize-or-refuse",
-        "says": "De-tokenization restores the card number in field 2 from the vault, and a token the vault does not know is refused rather than passed on.",
-        "basis": [
-          "example:src/14.md:4",
-          "section:14.2.2. De-tokenization process"
-        ],
-        "exercise": "tokenize-pan",
-        "reason": null
-      },
-      {
-        "id": "emv-tlv-in-field-55",
-        "says": "A chip card's EMV data travels in field 55 as a run of tag-length-value items, and a tag may take more than one byte.",
-        "basis": [
+          "section:14.1. A Chip Purchase Carries a Cryptogram Over Its Own Data, So Nobody on the Path May Change That Data",
           "example:src/14.md:1",
-          "section:14.1.1. EMV data in ISO-8583 messages"
+          "example:src/14.md:2"
         ],
-        "exercise": "chip-data-tags",
+        "exercise": "check-yourself",
         "reason": null
       },
       {
-        "id": "format-preserving-token",
-        "says": "A token keeps the shape of the card number it replaces, the same length with the first six and last four digits kept, so existing systems still accept it, and one card always gets one token.",
+        "id": "detokenize-in-app-undoes-tokens",
+        "says": "A merchant app that may detokenize puts every card number back in reach of a breach of that app, whatever the tokens look like.",
         "basis": [
+          "section:14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "detokenize-separate-permission",
+        "says": "Only the station that builds the network message may detokenize, for the token's own requestor; unknown, revoked or foreign tokens are refused before anything reaches the issuer, and a revoked card gets a new token.",
+        "basis": [
+          "section:14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number",
+          "example:src/14.md:9",
+          "example:src/14.md:10"
+        ],
+        "exercise": "guard-detokenize",
+        "reason": null
+      },
+      {
+        "id": "three-ds-rides-in-authorization",
+        "says": "The 3-D Secure result (ECI, authentication value, DS transaction ID) must travel in the authorization; a hop that drops it turns an authenticated purchase into an unauthenticated one, declined where authentication is required and a fraud chargeback for the merchant elsewhere.",
+        "basis": [
+          "section:14.2. A 3-D Secure Result Rides in the Authorization, and a Hop That Drops It Drops the Proof",
           "example:src/14.md:3",
-          "section:14.2.1. Token formats"
+          "example:src/14.md:4"
         ],
-        "exercise": "tokenize-pan",
+        "exercise": "check-yourself",
         "reason": null
       },
       {
-        "id": "three-d-secure-subelements",
-        "says": "3-D Secure values ride in a private-use field (48 or 124) as a marker followed by length-prefixed sub-elements.",
+        "id": "token-per-requestor",
+        "says": "A token is issued per requestor and found through the keyed lookup value, never the card number, so a token leaked from one merchant is useless at another.",
         "basis": [
-          "example:src/14.md:5",
-          "example:src/14.md:6",
-          "section:14.3. 3-D Secure integration"
+          "section:14.4. A Token Belongs to the Requestor It Was Issued To",
+          "example:src/14.md:7",
+          "example:src/14.md:8"
         ],
-        "exercise": null,
-        "reason": "the page's layout is an illustration it says varies by network; reading length-marked values out of one field is what the field 55 exercise already practises"
+        "exercise": "issue-tokens",
+        "reason": null
+      },
+      {
+        "id": "token-random-under-reserved-bin",
+        "says": "A token's digits are random, not derived from the card; it has sixteen digits and a correct check digit so card-number systems accept it, and a reserved BIN so it can never be a real card; a draw already taken is drawn again.",
+        "basis": [
+          "section:14.3. A Token Is Random, Shaped Like a Card Number Under a BIN of Its Own",
+          "example:src/14.md:5",
+          "example:src/14.md:6"
+        ],
+        "exercise": "issue-tokens",
+        "reason": null
+      },
+      {
+        "id": "token-range-protects-strangers",
+        "says": "A random token outside a reserved range can be a real card number, so a token that escapes into a system that doesn't know it charges a stranger's card.",
+        "basis": [
+          "section:14.3. A Token Is Random, Shaped Like a Card Number Under a BIN of Its Own"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "chip-data-tags",
+        "name": "issue-tokens",
         "aspects": [
-          "emv-tlv-in-field-55"
+          "token-per-requestor",
+          "token-random-under-reserved-bin"
         ]
       },
       {
         "slot": 2,
-        "name": "tokenize-pan",
+        "name": "guard-detokenize",
         "aspects": [
-          "detokenize-or-refuse",
-          "format-preserving-token"
+          "detokenize-separate-permission"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "chip-cryptogram-covers-data",
+          "detokenize-in-app-undoes-tokens",
+          "three-ds-rides-in-authorization",
+          "token-range-protects-strangers"
         ]
       }
     ],
@@ -84,21 +117,50 @@
   },
   "shipped": [
     "exercises/iso-fundamentals/prose/unit-14/practice-1",
-    "exercises/iso-fundamentals/prose/unit-14/practice-2"
+    "exercises/iso-fundamentals/prose/unit-14/practice-2",
+    "exercises/iso-fundamentals/prose/unit-14/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-1",
       "origin": {
         "path": "src/14.md",
-        "section": "14.1.1. EMV data in ISO-8583 messages"
+        "section": "14.4. A Token Belongs to the Requestor It Was Issued To"
       }
     },
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-2",
       "origin": {
         "path": "src/14.md",
-        "section": "14.2. Tokenization"
+        "section": "14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-3:q-deposit-in-chip-data",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.1. A Chip Purchase Carries a Cryptogram Over Its Own Data, So Nobody on the Path May Change That Data"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-3:q-gateway-field-list",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.2. A 3-D Secure Result Rides in the Authorization, and a Hop That Drops It Drops the Proof"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-3:q-token-without-range",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.3. A Token Is Random, Shaped Like a Card Number Under a BIN of Its Own"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-14/practice-3:q-shop-app-detokenize",
+      "origin": {
+        "path": "src/14.md",
+        "section": "14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
       }
     }
   ],

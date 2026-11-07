@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Let each terminal have one transaction in flight",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A parking-garage network allows one transaction in flight per terminal. Its terminals give up after 20 seconds and send the next request at once, and the network wants that request declined while the first one is still being processed. The switch runs two TransactionManagers, one for purchases and one for refunds, and each has its own instance of the participant that uses `TerminalLock`."
+    },
+    {
+      "type": "para",
+      "text": "Finish `claim` and `release` in `src/main/java/com/example/practice/TerminalLock.java`. The claims live in the space the class is given, under `key(terminal)`. When you're done:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "a terminal with a transaction in flight is refused, whichever TransactionManager asks, even when both ask at the same moment;",
+        "a session that hangs and never calls `release` does not lock its terminal for longer than `maxHold` milliseconds;",
+        "after `release` the terminal's next request is accepted at once."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About four lines in total. The tests use a space that records how each entry was written, and in one test it makes two callers meet in the middle of their work."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * One transaction in flight per terminal. A participant claims the terminal in prepare and\n * releases it when the transaction has ended; a request from a terminal that is already claimed\n * is declined. Every TransactionManager that runs such a participant has its own instance.\n */\npublic class TerminalLock {\n    private final Space<String, Object> sp;\n    private final long maxHold;                  // ms: longer than any transaction may run\n\n    public TerminalLock(Space<String, Object> sp, long maxHold) {\n        this.sp = sp;\n        this.maxHold = maxHold;\n    }\n\n    /** Where a terminal's claim lives in the space. */\n    static String key(String terminal) {\n        return \"inflight.\" + terminal;\n    }\n\n    /** True if this call claimed the terminal, false if a transaction already holds it. */\n    public boolean claim(String terminal) {\n        return SpaceUtil.outIfEmpty(sp, key(terminal), Boolean.TRUE, 0, maxHold);\n    }\n\n    /** Ends the claim, so that the terminal's next request is accepted at once. */\n    public void release(String terminal) {\n        sp.inp(key(terminal));\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * One transaction in flight per terminal. A participant claims the terminal in prepare and\n * releases it when the transaction has ended; a request from a terminal that is already claimed\n * is declined. Every TransactionManager that runs such a participant has its own instance.\n */\npublic class TerminalLock {\n    private final Space<String, Object> sp;\n    private final long maxHold;                  // ms: longer than any transaction may run\n\n    public TerminalLock(Space<String, Object> sp, long maxHold) {\n        this.sp = sp;\n        this.maxHold = maxHold;\n    }\n\n    /** Where a terminal's claim lives in the space. */\n    static String key(String terminal) {\n        return \"inflight.\" + terminal;\n    }\n\n    /** True if this call claimed the terminal, false if a transaction already holds it. */\n    public boolean claim(String terminal) {\n        // TODO: claim the terminal for this transaction. Two sessions, or two TransactionManagers,\n        //       may claim the same terminal at the same moment; exactly one may win. A session that\n        //       hangs or dies never calls release.\n        throw new IllegalStateException(\"TODO: claim\");\n    }\n\n    /** Ends the claim, so that the terminal's next request is accepted at once. */\n    public void release(String terminal) {\n        // TODO: give the terminal back.\n        throw new IllegalStateException(\"TODO: release\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "5da978384dfa13233855434c382a4355de6248f58c10af509e021df139ee9eaf",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * One transaction in flight per terminal. A participant claims the terminal in prepare and\n * releases it when the transaction has ended; a request from a terminal that is already claimed\n * is declined. Every TransactionManager that runs such a participant has its own instance.\n */\npublic class TerminalLock {\n    private final Space<String, Object> sp;\n    private final long maxHold;                  // ms: longer than any transaction may run\n\n    public TerminalLock(Space<String, Object> sp, long maxHold) {\n        this.sp = sp;\n        this.maxHold = maxHold;\n    }\n\n    /** Where a terminal's claim lives in the space. */\n    static String key(String terminal) {\n        return \"inflight.\" + terminal;\n    }\n\n    /** True if this call claimed the terminal, false if a transaction already holds it. */\n    public boolean claim(String terminal) {\n        // TODO: claim the terminal for this transaction. Two sessions, or two TransactionManagers,\n        //       may claim the same terminal at the same moment; exactly one may win. A session that\n        //       hangs or dies never calls release.\n        throw new IllegalStateException(\"TODO: claim\");\n    }\n\n    /** Ends the claim, so that the terminal's next request is accepted at once. */\n    public void release(String terminal) {\n        // TODO: give the terminal back.\n        throw new IllegalStateException(\"TODO: release\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-12/practice-1/src/main/java/com/example/practice/TerminalLock.java",
+    "test_path": "practice/jpos-server/prose/unit-12/practice-1/src/test/java/com/example/practice/TerminalLockTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TerminalLockTest#aBusyTerminalIsRefusedAndOthersAreNot",
+        "kind": "main",
+        "says": "a claimed terminal refuses a second claim, and other terminals are unaffected"
+      },
+      {
+        "id": "com.example.practice.TerminalLockTest#aClaimEndsOnItsOwnIfNobodyReleasesIt",
+        "kind": "edge",
+        "says": "a claim nobody takes carries a lease, so a hung or dead session does not lock the terminal for good"
+      },
+      {
+        "id": "com.example.practice.TerminalLockTest#twoTransactionManagersClaimingAtOnceGetOneClaim",
+        "kind": "edge",
+        "says": "the check and the write happen under the space's lock, so two instances claiming at once get one claim"
+      },
+      {
+        "id": "com.example.practice.TerminalLockTest#aReleasedTerminalCanBeClaimedAgainAtOnce",
+        "kind": "edge",
+        "says": "releasing takes the entry away; writing a 'free' value over it leaves the key occupied"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-12/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s12.md",
+      "section": "12.3 The Space's Own Operations Are Atomic, and a Read Followed by a Write Is Not"
+    },
+    "concepts": [
+      "An entry nobody takes stays until it is taken, so marks and claims carry a lease.",
+      "Each Space operation is atomic but a read followed by a write is not; the two steps go under the space's lock, with outIfEmpty, nextLong or synchronized on the space."
+    ]
+  }
+}

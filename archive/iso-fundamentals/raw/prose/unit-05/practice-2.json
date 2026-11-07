@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Name each transaction in a merchant's daily report",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Merchants compare the acquirer's end-of-day report with their tills, and a coffee chain has opened a ticket: on some days the report shows more sales than its tills, on others fewer. The acquirer reaches Visa over both kinds of link, and its terminals send every kind of account their cards offer."
+    },
+    {
+      "type": "para",
+      "text": "`DailyReport` in `src/main/java/com/example/practice/DailyReport.java` already walks the messages the acquirer sent and adds up the amounts per kind. Finish the three methods marked `TODO` that decide what each message is:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`undoesAnother`: whether a message cancels an earlier one;",
+        "`asksAboutMoney`: whether a message is about a transaction with the cardholder's money at all;",
+        "`byProcessingCode`: purchase, cash or refund, from field 3."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About ten lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        return mti.charAt(1) == '4';\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        return mti.charAt(1) == '1' || mti.charAt(1) == '2';\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        switch (processingCode.substring(0, 2)) {\n            case \"00\": return Kind.PURCHASE;\n            case \"01\": return Kind.CASH;\n            case \"20\": return Kind.REFUND;\n            default:   return Kind.OTHER;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        // TODO: whether this message cancels an earlier one.\n        throw new IllegalStateException(\"TODO: undoesAnother\");\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        // TODO: whether this message asks for, or reports, a transaction with a cardholder's money.\n        throw new IllegalStateException(\"TODO: asksAboutMoney\");\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        // TODO: purchase, cash or refund; anything else is OTHER.\n        throw new IllegalStateException(\"TODO: byProcessingCode\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "e44cb087ca0bec5ded9239f98c53ac6395439e22b56e7550b2c643ed3f9d0cdc",
+  "starting_code": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        // TODO: whether this message cancels an earlier one.\n        throw new IllegalStateException(\"TODO: undoesAnother\");\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        // TODO: whether this message asks for, or reports, a transaction with a cardholder's money.\n        throw new IllegalStateException(\"TODO: asksAboutMoney\");\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        // TODO: purchase, cash or refund; anything else is OTHER.\n        throw new IllegalStateException(\"TODO: byProcessingCode\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/com/example/practice/DailyReport.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-05/practice-2/src/test/java/com/example/practice/DailyReportTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-05/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-05/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DailyReportTest#namesFinancialMessagesByTheirType",
+        "kind": "main",
+        "says": "financial messages for a purchase, a cash withdrawal and a refund get those names"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#addsUpADay",
+        "kind": "main",
+        "says": "a day of purchases and a refund adds up per kind, and a network message adds nothing"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#networkMessagesAreNoTransaction",
+        "kind": "main",
+        "says": "a network management message is no transaction"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#accountDigitsDoNotChangeTheType",
+        "kind": "edge",
+        "says": "only the first two digits of field 3 name the type; the account digits change nothing"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#aReversalIsNamedByItsClass",
+        "kind": "edge",
+        "says": "a message of the reversal class is a reversal, whatever its field 3 repeats"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#anAuthorizationNamesItsTransactionToo",
+        "kind": "edge",
+        "says": "authorization-class messages name their transaction by field 3 just as financial ones do"
+      },
+      {
+        "id": "com.example.practice.DailyReportTest#everyReversalClassMessageIsAReversal",
+        "kind": "edge",
+        "says": "a reversal request and a repeated reversal advice are reversals as much as a first advice is"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-05/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/5.md",
+      "section": "5.3. The MTI and the Processing Code Together Name the Transaction"
+    },
+    "concepts": [
+      "The class digit says authorization, financial or reversal, the first two digits of field 3 say purchase, cash or refund, and the account digits change neither."
+    ]
+  }
+}

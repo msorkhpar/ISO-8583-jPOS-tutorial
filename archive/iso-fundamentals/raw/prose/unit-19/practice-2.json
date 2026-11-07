@@ -1,0 +1,152 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 19,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Count the day the way the network counts it",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An acquirer's switch sends its totals in an `0500` every evening, and the network answers `2`, out of balance, on most days, even on days when the network's settlement report pays exactly what the switch expected."
+    },
+    {
+      "type": "para",
+      "text": "`DayTotals.count` in `src/main/java/com/example/practice/DayTotals.java` reads one day's journal and returns the totals the `0500` carries. Its journal holds purchases and refunds (processing code `20`), authorizations, and reversals of purchases and of refunds, with their repeats. The comment above `count` says what an entry holds."
+    },
+    {
+      "type": "para",
+      "text": "Finish the three methods marked `TODO` so that the switch counts the day the way the network does. `add` holds the switch's current counting, which is what makes the network answer `2`. About 20 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** One business day's 1987 reconciliation totals, counted from the acquirer's journal. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        return de15.equals(m.getString(15));\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        return isReversal(m) || \"00\".equals(m.getString(39));\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            if (!t.reversed.add(m.getString(90)))\n                return;\n            if (isRefund(m)) {\n                t.creditReversals++;\n                t.creditReversalsAmount += amount;\n            } else {\n                t.debitReversals++;\n                t.debitReversalsAmount += amount;\n            }\n        } else if (m.getString(0).startsWith(\"01\")) {\n            t.authorizations++;\n        } else if (isRefund(m)) {\n            t.credits++;\n            t.creditsAmount += amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** One business day's 1987 reconciliation totals, counted from the acquirer's journal. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        // TODO: one line.\n        throw new IllegalStateException(\"TODO: onTheDay\");\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        // TODO: Which entries have something to count? Look at what each kind of entry carries.\n        //       (one or two lines)\n        throw new IllegalStateException(\"TODO: settled\");\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        // TODO: This is how the switch has counted so far, and the network answers 2 on most days.\n        //       Put each entry where the network counts it. (about 15 lines in place of these)\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            t.debits--;\n            t.debitsAmount -= amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "cc22ecbe33a2829cb0ad3bf1ce5fbbbaf654d593f9230174603dc20fc0c38f3d",
+  "starting_code": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** One business day's 1987 reconciliation totals, counted from the acquirer's journal. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        // TODO: one line.\n        throw new IllegalStateException(\"TODO: onTheDay\");\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        // TODO: Which entries have something to count? Look at what each kind of entry carries.\n        //       (one or two lines)\n        throw new IllegalStateException(\"TODO: settled\");\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        // TODO: This is how the switch has counted so far, and the network answers 2 on most days.\n        //       Put each entry where the network counts it. (about 15 lines in place of these)\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            t.debits--;\n            t.debitsAmount -= amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-19/practice-2/src/main/java/com/example/practice/DayTotals.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-19/practice-2/src/test/java/com/example/practice/DayTotalsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DayTotalsTest#purchasesAreDebitsAndRefundsAreCredits",
+        "kind": "main",
+        "says": "approved purchases are counted and summed as debits, approved refunds as credits"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aDeclinedRequestCountsNowhere",
+        "kind": "edge",
+        "says": "a declined purchase or refund moved nothing, so it counts nowhere"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#anAuthorizationIsCountedButMovesNoMoney",
+        "kind": "edge",
+        "says": "an approved 0100 is counted as an authorization and never as a debit"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aReversalAndItsRepeatAreOneReversal",
+        "kind": "edge",
+        "says": "an 0420 and its 0421 repeats name one original in DE 90 and count once"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aReversedPurchaseStaysCountedAsADebit",
+        "kind": "edge",
+        "says": "a reversal is counted in the reversal fields and does not take its purchase off the debits"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aRefundsReversalIsACreditReversal",
+        "kind": "edge",
+        "says": "the reversal of a refund is a credit reversal"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#entriesOfAnotherDayWaitForTheirOwn",
+        "kind": "edge",
+        "says": "entries whose DE 15 is another business day are left out"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#anAcknowledgedReversalCountsWithoutAField39",
+        "kind": "edge",
+        "says": "an acknowledged reversal counts although it carries no DE 39"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-19/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/19.md",
+      "section": "19.3. Both Ends Count the Day by the Same Rules, and a Reversal Is Counted in Fields of Its Own"
+    },
+    "concepts": [
+      "A day's totals count only that day's approved requests and acknowledged reversals, keep authorizations out of the money fields, and count each reversal once, in fields of its own, without taking its original off."
+    ]
+  }
+}

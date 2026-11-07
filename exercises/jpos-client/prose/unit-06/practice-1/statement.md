@@ -1,18 +1,18 @@
-The page turns a request into a response by changing it in place: a new MTI, a response code,
-the EMV data removed. That is a hazard in a client or server that still holds the request, to
-log it, match it or retry it, because after the call the request is no longer the request.
+The fuel stations' new pay-at-pump terminals talk to `TerminalBridge`, in
+`src/main/java/com/example/practice/TerminalBridge.java`. Their software sends everything as hex
+text, and the PIN pad driver hands over each PIN block in a buffer that it fills again for the next
+customer. The client sends to two hosts: the course's ASCII link and a second link whose packager
+treats field 55 as binary.
 
-Write `ResponseMaker` with `respond(ISOMsg request, String responseCode)`. It returns a new
-`ISOMsg` that:
+`purchase` already builds the request. Finish the three methods marked `TODO`:
 
-- has the response MTI for the request's MTI: the third digit goes up by one, so a `0200` is
-  answered with a `0210`;
-- carries every field of the request, with the same values;
-- carries `responseCode` in field 39;
-- does not carry field 55 (the chip's EMV data), whether or not the request had it.
+- `putChipData`: the chip's data into the request;
+- `putPinBlock`: the PIN block into the request;
+- `chipDataForTerminal`: the host's chip data, from field 55 of a response, back to the terminal.
 
-Mind these:
+When you're done, both hosts receive exactly the bytes the chip produced and the PIN block each
+customer typed, even when a request is packed after the next customer has used the PIN pad. The
+terminal gets the host's chip data as hex from either link, and `null` when the host sent none.
+About five lines in total.
 
-- Do not assume every request is a `0200`. An authorization `0100` is answered with a `0110`.
-- The request passed in must come out of the call exactly as it went in: same MTI, same fields,
-  its field 55 still there, and no field 39 added to it.
+The tests pack each message with the link's packager and unpack it again, as the other end does.

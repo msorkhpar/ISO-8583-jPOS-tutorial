@@ -1,0 +1,169 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 20,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Schedule a link's advices: back off, reconnect, park",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer is replacing the store-and-forward queue of its network link. The old one caused four incidents last quarter:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "after a 40-minute outage the link came back, and the queue sent nothing for another 12 minutes;",
+        "on a night when the link went down and up every few minutes, one reversal stayed at the front of the queue until morning, and the 300 completions behind it missed the clearing cut-off;",
+        "a voided sale was charged, because its completion reached the issuer after its reversal;",
+        "reversals that the network would no longer accept disappeared, and nobody could say which."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The network's specification for the link: after an advice's first unanswered attempt, wait the base delay before the next one, and twice as long after each further failure, but never longer than the cap. An advice gets at most `limit` attempts, and none at or after `window` from its first attempt. The constructor takes these four values."
+    },
+    {
+      "type": "para",
+      "text": "`LinkSaf` in `src/main/java/com/example/practice/LinkSaf.java` stores advices and hands its single sender what to send. `store`, `acknowledged` and the accessors are written. Write `due`, `failed`, `linkUp` and `waitAfter`; the comment on each says what it is for. About 25 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The store-and-forward queue of one outbound link. A single sender asks {@link #due} what to send,\n * sends it, and reports back with {@link #acknowledged} or {@link #failed}. Times are milliseconds\n * on the caller's clock.\n */\npublic class LinkSaf {\n\n    static final class Entry {\n        final ISOMsg stored;          // as it was stored: never changed\n        final long storedAt;\n        int attempts;                 // attempts that went out and were not answered\n        long firstTriedAt = -1;       // when the first of them failed, -1 before that\n        long dueAt;                   // the earliest time the next attempt may go out\n\n        Entry(ISOMsg stored, long storedAt) {\n            this.stored = stored;\n            this.storedAt = storedAt;\n            this.dueAt = storedAt;\n        }\n    }\n\n    private final Deque<Entry> pending = new ArrayDeque<>();\n    private final List<ISOMsg> parked = new ArrayList<>();\n    private final long base;\n    private final long cap;\n    private final int limit;\n    private final long window;\n\n    /**\n     * @param baseMillis the wait after the first failure\n     * @param capMillis the longest wait between two attempts\n     * @param limit the most attempts the network allows for one advice\n     * @param windowMillis how long after its first attempt an advice may still be tried\n     */\n    public LinkSaf(long baseMillis, long capMillis, int limit, long windowMillis) {\n        this.base = baseMillis;\n        this.cap = capMillis;\n        this.limit = limit;\n        this.window = windowMillis;\n    }\n\n    /** Queues an advice behind the others, due from {@code now}. The queue keeps its own copy. */\n    public void store(ISOMsg advice, long now) {\n        pending.addLast(new Entry((ISOMsg) advice.clone(), now));\n    }\n\n    /**\n     * What the sender should send at {@code now}, or null when nothing may go out yet. The result is\n     * a copy the sender may change; it is a repeat if an earlier attempt of the same advice failed.\n     */\n    ISOMsg due(long now) throws ISOException {\n        Entry head = pending.peekFirst();\n        if (head == null || head.dueAt > now)\n            return null;\n        ISOMsg m = (ISOMsg) head.stored.clone();\n        if (head.attempts > 0)\n            m.setRetransmissionMTI();\n        return m;\n    }\n\n    /** The host answered what {@link #due} returned. */\n    public void acknowledged() {\n        pending.removeFirst();\n    }\n\n    /**\n     * What {@link #due} returned went out at {@code now} and got no answer. Either the advice gets\n     * another attempt later, or the network's limits are reached and it is parked for operations.\n     */\n    void failed(long now) {\n        Entry head = pending.peekFirst();\n        head.attempts++;\n        if (head.firstTriedAt < 0)\n            head.firstTriedAt = now;\n        long next = now + waitAfter(head.attempts);\n        if (head.attempts >= limit || next - head.firstTriedAt >= window) {\n            parked.add(pending.removeFirst().stored);\n            return;\n        }\n        head.dueAt = next;\n    }\n\n    /** The link has just come back up. */\n    void linkUp(long now) {\n        Entry head = pending.peekFirst();\n        if (head != null && head.dueAt > now)\n            head.dueAt = now;\n    }\n\n    /** How long to wait after the given number of failed attempts of one advice. */\n    long waitAfter(int failures) {\n        long w = base;\n        for (int i = 1; i < failures && w < cap; i++)\n            w *= 2;\n        return Math.min(w, cap);\n    }\n\n    /** When the head may next go out, or -1 if the queue is empty. */\n    public long nextDueAt() {\n        Entry head = pending.peekFirst();\n        return head == null ? -1 : head.dueAt;\n    }\n\n    public int size() {\n        return pending.size();\n    }\n\n    /** Advices that reached the network's limits, as they were stored. */\n    public List<ISOMsg> parked() {\n        return List.copyOf(parked);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The store-and-forward queue of one outbound link. A single sender asks {@link #due} what to send,\n * sends it, and reports back with {@link #acknowledged} or {@link #failed}. Times are milliseconds\n * on the caller's clock.\n */\npublic class LinkSaf {\n\n    static final class Entry {\n        final ISOMsg stored;          // as it was stored: never changed\n        final long storedAt;\n        int attempts;                 // attempts that went out and were not answered\n        long firstTriedAt = -1;       // when the first of them failed, -1 before that\n        long dueAt;                   // the earliest time the next attempt may go out\n\n        Entry(ISOMsg stored, long storedAt) {\n            this.stored = stored;\n            this.storedAt = storedAt;\n            this.dueAt = storedAt;\n        }\n    }\n\n    private final Deque<Entry> pending = new ArrayDeque<>();\n    private final List<ISOMsg> parked = new ArrayList<>();\n    private final long base;\n    private final long cap;\n    private final int limit;\n    private final long window;\n\n    /**\n     * @param baseMillis the wait after the first failure\n     * @param capMillis the longest wait between two attempts\n     * @param limit the most attempts the network allows for one advice\n     * @param windowMillis how long after its first attempt an advice may still be tried\n     */\n    public LinkSaf(long baseMillis, long capMillis, int limit, long windowMillis) {\n        this.base = baseMillis;\n        this.cap = capMillis;\n        this.limit = limit;\n        this.window = windowMillis;\n    }\n\n    /** Queues an advice behind the others, due from {@code now}. The queue keeps its own copy. */\n    public void store(ISOMsg advice, long now) {\n        pending.addLast(new Entry((ISOMsg) advice.clone(), now));\n    }\n\n    /**\n     * What the sender should send at {@code now}, or null when nothing may go out yet. The result is\n     * a copy the sender may change; it is a repeat if an earlier attempt of the same advice failed.\n     */\n    ISOMsg due(long now) throws ISOException {\n        throw new IllegalStateException(\"TODO: due\");\n    }\n\n    /** The host answered what {@link #due} returned. */\n    public void acknowledged() {\n        pending.removeFirst();\n    }\n\n    /**\n     * What {@link #due} returned went out at {@code now} and got no answer. Either the advice gets\n     * another attempt later, or the network's limits are reached and it is parked for operations.\n     */\n    void failed(long now) {\n        throw new IllegalStateException(\"TODO: failed\");\n    }\n\n    /** The link has just come back up. */\n    void linkUp(long now) {\n        throw new IllegalStateException(\"TODO: linkUp\");\n    }\n\n    /** How long to wait after the given number of failed attempts of one advice. */\n    long waitAfter(int failures) {\n        throw new IllegalStateException(\"TODO: waitAfter\");\n    }\n\n    /** When the head may next go out, or -1 if the queue is empty. */\n    public long nextDueAt() {\n        Entry head = pending.peekFirst();\n        return head == null ? -1 : head.dueAt;\n    }\n\n    public int size() {\n        return pending.size();\n    }\n\n    /** Advices that reached the network's limits, as they were stored. */\n    public List<ISOMsg> parked() {\n        return List.copyOf(parked);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b7f180da07efacfad2bd2b1b0e1e00c02270168edbbf368d4b1c80bc5236b96c",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The store-and-forward queue of one outbound link. A single sender asks {@link #due} what to send,\n * sends it, and reports back with {@link #acknowledged} or {@link #failed}. Times are milliseconds\n * on the caller's clock.\n */\npublic class LinkSaf {\n\n    static final class Entry {\n        final ISOMsg stored;          // as it was stored: never changed\n        final long storedAt;\n        int attempts;                 // attempts that went out and were not answered\n        long firstTriedAt = -1;       // when the first of them failed, -1 before that\n        long dueAt;                   // the earliest time the next attempt may go out\n\n        Entry(ISOMsg stored, long storedAt) {\n            this.stored = stored;\n            this.storedAt = storedAt;\n            this.dueAt = storedAt;\n        }\n    }\n\n    private final Deque<Entry> pending = new ArrayDeque<>();\n    private final List<ISOMsg> parked = new ArrayList<>();\n    private final long base;\n    private final long cap;\n    private final int limit;\n    private final long window;\n\n    /**\n     * @param baseMillis the wait after the first failure\n     * @param capMillis the longest wait between two attempts\n     * @param limit the most attempts the network allows for one advice\n     * @param windowMillis how long after its first attempt an advice may still be tried\n     */\n    public LinkSaf(long baseMillis, long capMillis, int limit, long windowMillis) {\n        this.base = baseMillis;\n        this.cap = capMillis;\n        this.limit = limit;\n        this.window = windowMillis;\n    }\n\n    /** Queues an advice behind the others, due from {@code now}. The queue keeps its own copy. */\n    public void store(ISOMsg advice, long now) {\n        pending.addLast(new Entry((ISOMsg) advice.clone(), now));\n    }\n\n    /**\n     * What the sender should send at {@code now}, or null when nothing may go out yet. The result is\n     * a copy the sender may change; it is a repeat if an earlier attempt of the same advice failed.\n     */\n    ISOMsg due(long now) throws ISOException {\n        throw new IllegalStateException(\"TODO: due\");\n    }\n\n    /** The host answered what {@link #due} returned. */\n    public void acknowledged() {\n        pending.removeFirst();\n    }\n\n    /**\n     * What {@link #due} returned went out at {@code now} and got no answer. Either the advice gets\n     * another attempt later, or the network's limits are reached and it is parked for operations.\n     */\n    void failed(long now) {\n        throw new IllegalStateException(\"TODO: failed\");\n    }\n\n    /** The link has just come back up. */\n    void linkUp(long now) {\n        throw new IllegalStateException(\"TODO: linkUp\");\n    }\n\n    /** How long to wait after the given number of failed attempts of one advice. */\n    long waitAfter(int failures) {\n        throw new IllegalStateException(\"TODO: waitAfter\");\n    }\n\n    /** When the head may next go out, or -1 if the queue is empty. */\n    public long nextDueAt() {\n        Entry head = pending.peekFirst();\n        return head == null ? -1 : head.dueAt;\n    }\n\n    public int size() {\n        return pending.size();\n    }\n\n    /** Advices that reached the network's limits, as they were stored. */\n    public List<ISOMsg> parked() {\n        return List.copyOf(parked);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-20/practice-2/src/main/java/com/example/practice/LinkSaf.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-20/practice-2/src/test/java/com/example/practice/LinkSafTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkSafTest#advicesGoOutInTheOrderStoredAndLeaveWhenAnswered",
+        "kind": "main",
+        "says": "advices are handed out in the order they were stored, and an answered one leaves the queue"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#anUnansweredAdviceWaitsThenGoesOutAsARepeat",
+        "kind": "main",
+        "says": "after an unanswered attempt the advice is not due at once, and when it is due again it is the repeat, otherwise unchanged"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#theFirstWaitIsTheBaseAndEachFailureDoublesIt",
+        "kind": "edge",
+        "says": "the wait after the first failure is the base delay, and it doubles after each further failure"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#theWaitStopsGrowingAtTheCap",
+        "kind": "edge",
+        "says": "the wait never grows beyond the cap"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#theWaitStaysAtTheCapAfterManyFailures",
+        "kind": "edge",
+        "says": "after dozens of failures the wait is still exactly the cap, never zero or negative"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#theWindowCountsFromTheFirstAttempt",
+        "kind": "edge",
+        "says": "the network's time window runs from the first attempt, so time spent waiting for the link does not use it up, and no attempt goes out at or after it"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#aReconnectMakesTheHeadDueAtOnceWithoutAFreshStart",
+        "kind": "edge",
+        "says": "a reconnect makes a waiting head due at once, still as a repeat, and does not give back the attempts it has used"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#laterAdvicesWaitWhileTheHeadWaits",
+        "kind": "edge",
+        "says": "while the head waits for its next attempt, nothing behind it is due"
+      },
+      {
+        "id": "com.example.practice.LinkSafTest#anAdviceAtItsLimitIsParkedAsStoredAndTheNextGoesOut",
+        "kind": "edge",
+        "says": "an advice that used its last attempt is kept among the parked advices in its stored form, and the next advice becomes due"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-20/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/20.md",
+      "section": "20.4. After the Network's Limit an Entry Is Parked and Reported, Never Deleted"
+    },
+    "concepts": [
+      "One sender per link takes only the head, so entries about one transaction reach the receiver in the order they were decided.",
+      "At the network's limit, in attempts or time from the first attempt, an entry is parked in its stored form and reported, and the next entry goes.",
+      "Later attempts are repeats; the wait doubles from a base up to a cap, and a reconnect makes the head due at once without resetting its count."
+    ]
+  }
+}

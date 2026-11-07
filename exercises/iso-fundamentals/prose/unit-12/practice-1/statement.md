@@ -1,30 +1,17 @@
-Your switch speaks ISO-8583; the payment gateway behind it speaks a REST API with its own
-names and formats. The bridge between them has two halves: turn the request into the
-gateway's request, and turn the gateway's reply back into the ISO-8583 response your
-acquirer is waiting for.
+Your switch now takes purchases from a bank's terminals in Germany, the United Kingdom, Switzerland,
+Chile and Kuwait, and forwards them to a REST gateway as `POST /charges`. Finance has found charges
+that don't match what cardholders signed for, and the gateway's operator has sent back requests it
+says should never have reached it.
 
-Write `GatewayBridge.toGateway(ISOMsg request, LocalDate today)`, returning a
-`PaymentRequest` with:
+`ChargeMapper.toCharge` in `src/main/java/com/example/practice/ChargeMapper.java` builds each
+`Charge` from a terminal's 1987 request. It is written except for three methods marked `TODO`:
 
-- `amount`: field 4, an amount in minor units, with its decimal point (`000000100000`
-  becomes `1000.00`);
-- `cardNumber`: field 2, as it is;
-- `expirationDate`: field 14, `YYMM`, as `MM/YY` (`2405` becomes `05/24`);
-- `transactionType`: from the processing code in field 3, `000000` is `PURCHASE` and
-  `200000` is `REFUND`;
-- `transactionDate`: field 13, `MMDD`, as `YYYY-MM-DD`, in the year of `today`.
+- `kind`: the gateway knows two kinds, `"sale"` and `"refund"`;
+- `amount`: the amount as the gateway reads it, a decimal number in the request's currency. The
+  currencies in the gateway's contract are in `ACCEPTED`;
+- `localTime`: the terminal's local date and time of the purchase, as the gateway's reports and
+  date checks will read it.
 
-Then write `GatewayBridge.toIso(ISOMsg request, GatewayResponse reply)`. It answers the
-request: a copy of it with the response MTI, and
-
-- when the reply's status is `SUCCESS`: field 39 `00` and the reply's transaction id in
-  field 38;
-- otherwise: field 39 `05` and the reply's error message in field 63, with no field 38.
-
-Edge cases:
-
-- Field 13 carries no year. A month and day still ahead of `today` cannot have happened
-  this year, so it belongs to the year before.
-- A processing code that is neither `000000` nor `200000` is refused with an
-  `IllegalArgumentException`: sending the gateway a guessed transaction type moves money
-  the wrong way.
+`toCharge` is called with the moment of mapping and the terminal's time zone, so that the tests can
+map requests at any moment of the year. A request the gateway can't take is refused with an
+`ISOException` and never sent. About ten lines in total.

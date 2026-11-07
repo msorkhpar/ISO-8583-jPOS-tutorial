@@ -8,8 +8,8 @@
   "unit": 15,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Reconcile a business day",
+  "ingested": "2026-11-05",
+  "title": "Find the shapes no approved message has",
   "blocks": [
     {
       "type": "heading",
@@ -18,24 +18,23 @@
     },
     {
       "type": "para",
-      "text": "At the end of a business day the network sends you a settlement file: the total it expects you to have processed and the ids of the transactions it counted. You have your own record of what you processed, id by id, with each amount."
+      "text": "One approved message is a thin reference. Approved purchases differ among themselves: some cards have 19 digits, some terminals send an expiry date and others don't. Compared with one of them, a rejected purchase can show differences that the host accepts every day."
     },
     {
       "type": "para",
-      "text": "Write `Reconciliation.check(BigDecimal expectedTotal, List<String> expectedIds, Map<String, BigDecimal> processed)`. It returns a `Result` with:"
+      "text": "So the support desk keeps the morning's approved purchases from the same release, and `Shapes.unseen(approved, rejected)` lists the fields of a rejected message whose shape none of them has. `unseen` is written. Finish the two methods marked `TODO` in `src/main/java/com/example/practice/Shapes.java`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`balanced`: whether the processed amounts add up to the expected total;",
-        "`difference`: the expected total minus the processed total;",
-        "`missingIds`: the expected ids you have no record of, in ascending order."
+        "`shape(...)`: one field described in one of the forms the comment above it lists;",
+        "`seen(...)`: every description a field has across the approved messages."
       ]
     },
     {
       "type": "para",
-      "text": "Amounts are compared as numbers, so `100.0` and `100.00` are the same amount. Only an expected id can be missing: a transaction you processed that the network did not count is a different problem, and it is not reported here."
+      "text": "About twelve lines in total. Some tests' messages carry a PIN block, which is binary."
     },
     {
       "type": "heading",
@@ -50,7 +49,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeSet;\n\n/** One business day's settlement, checked against what was processed. */\npublic final class Reconciliation {\n\n    /** What the check found. */\n    public record Result(boolean balanced, BigDecimal difference, List<String> missingIds) {\n    }\n\n    private Reconciliation() {\n    }\n\n    /** Compare the network's expected total and ids with what was processed. */\n    public static Result check(BigDecimal expectedTotal, List<String> expectedIds,\n                               Map<String, BigDecimal> processed) {\n        BigDecimal actual = processed.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);\n        BigDecimal difference = expectedTotal.subtract(actual);\n        TreeSet<String> missing = new TreeSet<>(expectedIds);\n        missing.removeAll(processed.keySet());\n        return new Result(difference.compareTo(BigDecimal.ZERO) == 0, difference, List.copyOf(missing));\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\nimport java.util.TreeSet;\n\n/** Which fields of a rejected message have a shape that none of the approved messages has. */\npublic final class Shapes {\n\n    private Shapes() { }\n\n    /** The fields, ascending, whose shape in {@code rejected} no message in {@code approved} has. */\n    public static List<Integer> unseen(List<ISOMsg> approved, ISOMsg rejected) {\n        Set<Integer> fields = new TreeSet<>(numbers(rejected));\n        for (ISOMsg m : approved)\n            fields.addAll(numbers(m));\n        List<Integer> out = new ArrayList<>();\n        for (int f : fields)\n            if (!seen(approved, f).contains(shape(rejected, f)))\n                out.add(f);\n        return out;\n    }\n\n    /** The data fields a message carries: 2 and up (field 1 is the second bitmap, never a value). */\n    private static Set<Integer> numbers(ISOMsg m) {\n        Set<Integer> n = new TreeSet<>();\n        for (int f = 2; f <= m.getMaxField(); f++)\n            if (m.hasField(f))\n                n.add(f);\n        return n;\n    }\n\n    /**\n     * The shape of one field: \"absent\"; \"bytes N\" for a binary value of N bytes; otherwise the kind\n     * of characters and the length: \"digits N\", \"text N\" (printable ASCII, not all digits), or\n     * \"other N\" (at least one character outside printable ASCII).\n     */\n    static String shape(ISOMsg m, int field) {\n        if (!m.hasField(field))\n            return \"absent\";\n        Object v = m.getValue(field);\n        if (v instanceof byte[] b)\n            return \"bytes \" + b.length;\n        String s = (String) v;\n        String kind = s.chars().allMatch(c -> c >= '0' && c <= '9') ? \"digits\"\n                : s.chars().allMatch(c -> c >= 0x20 && c <= 0x7E) ? \"text\" : \"other\";\n        return kind + \" \" + s.length();\n    }\n\n    /** Every shape that {@code field} has in the approved messages. */\n    static Set<String> seen(List<ISOMsg> approved, int field) {\n        Set<String> shapes = new HashSet<>();\n        for (ISOMsg m : approved)\n            shapes.add(shape(m, field));\n        return shapes;\n    }\n}\n"
         }
       ]
     },
@@ -62,7 +61,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\n\n/** One business day's settlement, checked against what was processed. */\npublic final class Reconciliation {\n\n    /** What the check found. */\n    public record Result(boolean balanced, BigDecimal difference, List<String> missingIds) {\n    }\n\n    private Reconciliation() {\n    }\n\n    /** Compare the network's expected total and ids with what was processed. */\n    public static Result check(BigDecimal expectedTotal, List<String> expectedIds,\n                               Map<String, BigDecimal> processed) {\n        throw new UnsupportedOperationException(\"write check\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\nimport java.util.TreeSet;\n\n/** Which fields of a rejected message have a shape that none of the approved messages has. */\npublic final class Shapes {\n\n    private Shapes() { }\n\n    /** The fields, ascending, whose shape in {@code rejected} no message in {@code approved} has. */\n    public static List<Integer> unseen(List<ISOMsg> approved, ISOMsg rejected) {\n        Set<Integer> fields = new TreeSet<>(numbers(rejected));\n        for (ISOMsg m : approved)\n            fields.addAll(numbers(m));\n        List<Integer> out = new ArrayList<>();\n        for (int f : fields)\n            if (!seen(approved, f).contains(shape(rejected, f)))\n                out.add(f);\n        return out;\n    }\n\n    /** The data fields a message carries: 2 and up (field 1 is the second bitmap, never a value). */\n    private static Set<Integer> numbers(ISOMsg m) {\n        Set<Integer> n = new TreeSet<>();\n        for (int f = 2; f <= m.getMaxField(); f++)\n            if (m.hasField(f))\n                n.add(f);\n        return n;\n    }\n\n    /**\n     * The shape of one field: \"absent\"; \"bytes N\" for a binary value of N bytes; otherwise the kind\n     * of characters and the length: \"digits N\", \"text N\" (printable ASCII, not all digits), or\n     * \"other N\" (at least one character outside printable ASCII).\n     */\n    static String shape(ISOMsg m, int field) {\n        // TODO: Describe the field so that two values that differ only as two purchases differ\n        //       (another card, amount or time) get the same description, and a value whose form\n        //       changed gets another. Use the forms in the comment above.\n        throw new IllegalStateException(\"TODO: shape\");\n    }\n\n    /** Every shape that {@code field} has in the approved messages. */\n    static Set<String> seen(List<ISOMsg> approved, int field) {\n        // TODO: Every description the field has across the approved messages.\n        throw new IllegalStateException(\"TODO: seen\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -81,11 +80,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "8538ff86e061141d6d8779aa3f8ca37455fd1e9b3868033997259b8557c2a9a6",
-  "starting_code": "package com.example.practice;\n\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\n\n/** One business day's settlement, checked against what was processed. */\npublic final class Reconciliation {\n\n    /** What the check found. */\n    public record Result(boolean balanced, BigDecimal difference, List<String> missingIds) {\n    }\n\n    private Reconciliation() {\n    }\n\n    /** Compare the network's expected total and ids with what was processed. */\n    public static Result check(BigDecimal expectedTotal, List<String> expectedIds,\n                               Map<String, BigDecimal> processed) {\n        throw new UnsupportedOperationException(\"write check\");\n    }\n}\n",
+  "content_sha256": "91d0a7bc761647f25b98715ce1988c51c7a88bceaa34e900af08c8746742479d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\nimport java.util.TreeSet;\n\n/** Which fields of a rejected message have a shape that none of the approved messages has. */\npublic final class Shapes {\n\n    private Shapes() { }\n\n    /** The fields, ascending, whose shape in {@code rejected} no message in {@code approved} has. */\n    public static List<Integer> unseen(List<ISOMsg> approved, ISOMsg rejected) {\n        Set<Integer> fields = new TreeSet<>(numbers(rejected));\n        for (ISOMsg m : approved)\n            fields.addAll(numbers(m));\n        List<Integer> out = new ArrayList<>();\n        for (int f : fields)\n            if (!seen(approved, f).contains(shape(rejected, f)))\n                out.add(f);\n        return out;\n    }\n\n    /** The data fields a message carries: 2 and up (field 1 is the second bitmap, never a value). */\n    private static Set<Integer> numbers(ISOMsg m) {\n        Set<Integer> n = new TreeSet<>();\n        for (int f = 2; f <= m.getMaxField(); f++)\n            if (m.hasField(f))\n                n.add(f);\n        return n;\n    }\n\n    /**\n     * The shape of one field: \"absent\"; \"bytes N\" for a binary value of N bytes; otherwise the kind\n     * of characters and the length: \"digits N\", \"text N\" (printable ASCII, not all digits), or\n     * \"other N\" (at least one character outside printable ASCII).\n     */\n    static String shape(ISOMsg m, int field) {\n        // TODO: Describe the field so that two values that differ only as two purchases differ\n        //       (another card, amount or time) get the same description, and a value whose form\n        //       changed gets another. Use the forms in the comment above.\n        throw new IllegalStateException(\"TODO: shape\");\n    }\n\n    /** Every shape that {@code field} has in the approved messages. */\n    static Set<String> seen(List<ISOMsg> approved, int field) {\n        // TODO: Every description the field has across the approved messages.\n        throw new IllegalStateException(\"TODO: seen\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/com/example/practice/Reconciliation.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-15/practice-2/src/test/java/com/example/practice/ReconciliationTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/com/example/practice/Shapes.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-15/practice-2/src/test/java/com/example/practice/ShapesTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -106,19 +105,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ReconciliationTest#anOutOfBalanceDayReportsItsDifferenceAndItsMissingIds",
+        "id": "com.example.practice.ShapesTest#reportsTheFieldsWhoseShapeNoApprovedMessageHas",
         "kind": "main",
-        "says": "an out-of-balance day reports its difference and the transactions missing"
+        "says": "a field missing from the rejected message, or of another length, is reported when no approved message has it that way"
       },
       {
-        "id": "com.example.practice.ReconciliationTest#amountsThatDifferOnlyInScaleBalance",
-        "kind": "edge",
-        "says": "100.0 and 100.00 are the same amount, so the day balances"
+        "id": "com.example.practice.ShapesTest#aRejectedMessageShapedLikeTheApprovedOnesGivesNothing",
+        "kind": "main",
+        "says": "values that differ as two purchases differ (card, amount, STAN, time, terminal) are not reported"
       },
       {
-        "id": "com.example.practice.ReconciliationTest#aProcessedTransactionNobodyExpectedIsNotMissing",
+        "id": "com.example.practice.ShapesTest#aLetterInAFieldOfDigitsIsReported",
         "kind": "edge",
-        "says": "a processed transaction nobody expected is not reported as missing"
+        "says": "a letter in place of a digit is reported although the length is unchanged"
+      },
+      {
+        "id": "com.example.practice.ShapesTest#aCharacterOutsideAsciiIsReported",
+        "kind": "edge",
+        "says": "an accented letter is outside printable ASCII and is reported, although Java counts it as a letter"
+      },
+      {
+        "id": "com.example.practice.ShapesTest#aBinaryFieldIsComparedByItsLength",
+        "kind": "edge",
+        "says": "a binary field is compared by its length in bytes, not by the hex text of its value"
+      },
+      {
+        "id": "com.example.practice.ShapesTest#aShapeOneApprovedMessageHasIsNotReported",
+        "kind": "edge",
+        "says": "a shape that any one approved message has is not reported, so the comparison is with all of them"
+      },
+      {
+        "id": "com.example.practice.ShapesTest#aFieldSomeApprovedMessagesLackIsNotReportedWhenItIsMissing",
+        "kind": "edge",
+        "says": "a field absent from the rejected message is not reported when some approved message lacked it too"
       }
     ],
     "report": {
@@ -127,10 +146,11 @@
     },
     "origin": {
       "path": "src/15.md",
-      "section": "15.3. Reconciliation problems"
+      "section": "15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field"
     },
     "concepts": [
-      "A business day balances when the processed amounts add up to the network's total and every expected transaction was processed."
+      "A rejected message is compared with approved ones by each field's presence, length and kind of characters, because values differ between any two purchases.",
+      "The comparison is with approved messages of the same release and kind of purchase, and a shape any of them has is not a fault."
     ]
   }
 }

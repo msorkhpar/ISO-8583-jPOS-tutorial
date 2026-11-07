@@ -1,0 +1,190 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: simulators and test harnesses",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-resend-witness",
+        "stem": "On a null from mux.request, a client sends the same 0200 once more, with the same STAN. The simulator approves every purchase after 1.5 seconds, and the client waits 1 second on each try. What do the client and the host end up with?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The client reports an approval, since the first try's late answer meets the second try; the host approved two purchases",
+            "correct": true,
+            "says": "after the first try times out its key is free again, so the resend waits on the same key and receives the first approval, while the host approves the resend too"
+          },
+          {
+            "id": "b",
+            "text": "The client reports an approval, since the second try is answered in time; the host approved one purchase",
+            "correct": false,
+            "says": "the simulator, like many hosts, does not look for duplicates: it approves both 0200s, and the second try's own answer comes after 1.5 seconds, too late"
+          },
+          {
+            "id": "c",
+            "text": "The client reports no answer, since each try times out after 1 second; the host approved two purchases",
+            "correct": false,
+            "says": "the first try's approval arrives at 1.5 seconds, while the resend is still waiting with the same key, so the client does get an approval"
+          },
+          {
+            "id": "d",
+            "text": "The client reports no answer, since QMUX refuses the second try as a duplicate key; the host approved one purchase",
+            "correct": false,
+            "says": "a duplicate key needs two requests waiting at once; the first one stopped waiting when it timed out, so the resend is accepted and sent"
+          }
+        ],
+        "origin": {
+          "path": "src/c16.md",
+          "section": "16.3 The Simulator Is a Witness: Ask It What the Client Sent"
+        }
+      },
+      {
+        "id": "q-proxy-wait",
+        "stem": "Testers' clients wait 20 seconds for an answer. The recording proxy in front of the acquirer's test host waits 8 seconds on its upstream QMUX and sends nothing when that wait ends empty. The host approves a purchase at second 12. What does the tester see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The approval at second 12, since the proxy relays whatever its QMUX receives while the client still waits",
+            "correct": false,
+            "says": "the proxy's request stopped waiting at second 8; an answer with nobody waiting goes to the proxy's unhandled queue, not to the client"
+          },
+          {
+            "id": "b",
+            "text": "The approval at second 12, since the client's longer wait keeps the proxy's upstream request open",
+            "correct": false,
+            "says": "the proxy's wait is its own timeout on mux.request; the client's wait on another connection does not extend it"
+          },
+          {
+            "id": "c",
+            "text": "No answer by second 20, so the client reverses a purchase the host approved, since that approval reached nobody",
+            "correct": true,
+            "says": "a proxy that waits less than its client loses answers the client could still use; its wait must be at least as long as the client's"
+          },
+          {
+            "id": "d",
+            "text": "No answer by second 20, so the client reverses a purchase the host declined, since the host saw the proxy quit",
+            "correct": false,
+            "says": "the host never learns that the proxy stopped waiting; it approved the purchase at second 12"
+          }
+        ],
+        "origin": {
+          "path": "src/c16.md",
+          "section": "16.4.1 Spot the Problem: The Proxy That Helped"
+        }
+      },
+      {
+        "id": "q-shared-proxy-key",
+        "stem": "Two testers run their clients through one recording proxy. Both clients are configured with terminal 29110005, and both number their STANs from 000001 every morning. Their purchases often go out within the same second. What do the testers see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Now and then one gets no answer, since the proxy's QMUX refuses a second request with the same terminal and STAN while the first one waits",
+            "correct": true,
+            "says": "the proxy's one QMUX keys by MTI, field 41 and field 11, so the second live request is refused as a duplicate key and the proxy sends nothing back"
+          },
+          {
+            "id": "b",
+            "text": "Now and then one gets the other's answer, since the proxy's QMUX hands each answer to whichever request with that terminal and STAN asked first",
+            "correct": false,
+            "says": "QMUX never lets two requests with one key wait together; it refuses the second instead of mixing up their answers"
+          },
+          {
+            "id": "c",
+            "text": "Every purchase is answered correctly, since the proxy keeps the two connections apart and matches each answer on its own connection",
+            "correct": false,
+            "says": "the proxy has separate sessions but forwards both through one QMUX, which matches answers by key only"
+          },
+          {
+            "id": "d",
+            "text": "Every purchase is answered correctly, since the acquirer's host renumbers the STANs it receives from the proxy",
+            "correct": false,
+            "says": "the host echoes the STAN it was sent; renumbering is the sender's job, and a recording proxy should not do it either"
+          }
+        ],
+        "origin": {
+          "path": "src/c16.md",
+          "section": "16.4.2 One QMUX Serves Every Client of the Proxy"
+        }
+      },
+      {
+        "id": "q-first-failure",
+        "stem": "A certification case expects 39=00, field 38 present, and field 11 echoed. The host's answer has 39=05, no field 38, and field 11 echoed. The harness checks the case in a JUnit test with one assertEquals per field, in the order 39, 38, 11. What does one run tell the analyst?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Only that 39 is wrong, since the first failed assertion ends the test before 38 is checked",
+            "correct": true,
+            "says": "an assertion failure throws and ends the test, so every later difference stays hidden until the next run"
+          },
+          {
+            "id": "b",
+            "text": "Only that 39 is wrong, since a missing 38 is normal on a decline and isn't counted against the case",
+            "correct": false,
+            "says": "the case expects 38 present; whether a decline normally carries it doesn't change what this case checks"
+          },
+          {
+            "id": "c",
+            "text": "That 39 and 38 are wrong, since JUnit gathers every failed assertEquals of the test into one report",
+            "correct": false,
+            "says": "plain assertEquals throws on the first failure; collecting every difference is what a grader that returns a list does"
+          },
+          {
+            "id": "d",
+            "text": "That 39 and 38 are wrong, since each assertEquals reports its own field and the test goes on to the next one",
+            "correct": false,
+            "says": "the test does not go on: the first failed assertion ends it"
+          }
+        ],
+        "origin": {
+          "path": "src/c16.md",
+          "section": "16.5 A Scripted Case Grades Every Field and Reports Every Failure"
+        }
+      }
+    ],
+    "concepts": [
+      "A scripted case grades every expected field and reports every difference in field order, with card numbers protected and a missing answer as a single failure.",
+      "All of a proxy's clients share its one QMUX, so two clients with the same terminal ID and STAN collide as a duplicate key.",
+      "A proxy's upstream wait must be at least as long as its clients' wait, or it loses answers the client could still use.",
+      "A client can report the right outcome and still do the wrong thing, so a test asserts on what the simulator received, taken with a timeout from records that expire."
+    ]
+  }
+}

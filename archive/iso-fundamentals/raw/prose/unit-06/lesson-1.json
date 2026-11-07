@@ -8,7 +8,7 @@
   "unit": 6,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Mastercard-specific Implementation",
   "blocks": [
     {
@@ -17,149 +17,345 @@
       "text": "6. Mastercard-specific Implementation"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "6.1. Mastercard transaction types"
+      "type": "para",
+      "text": "A processor's Visa link works (unit 5), and the next project is a Mastercard connection. The team writes a packager for it, and every unit test passes: each message packs and reads back with the same fields. On the first session with the network's test system, the analyst on the call says the host can't read them."
     },
     {
       "type": "para",
-      "text": "Mastercard supports various transaction types, including:"
+      "text": "Mastercard's interface specifications are confidential and go to its customers and their processors. This unit uses only what is publicly described, and the specification for your connection governs wherever it says otherwise. Four rules follow, one per section heading. Every output is from jPOS 2.1.7."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap"
+    },
+    {
+      "type": "para",
+      "text": "A Mastercard link is described as EBCDIC: the MTI, the numeric and text fields and the length prefixes are EBCDIC characters, one byte each, and only the bitmap is binary. In jPOS that is a `GenericPackager` file of `IFE_` field classes with an `IFB_BITMAP`. This one, `cfg/mastercard-ebcdic.xml`, covers a small authorization with the 1987 lengths; a real file takes every field from your specification:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n<isopackager>\n  <isofield id=\"0\" length=\"4\" name=\"MTI\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n  <isofield id=\"1\" length=\"16\" name=\"BITMAP\" class=\"org.jpos.iso.IFB_BITMAP\"/>\n  <isofield id=\"2\" length=\"19\" name=\"PAN\" class=\"org.jpos.iso.IFE_LLNUM\"/>\n  <isofield id=\"3\" length=\"6\" name=\"PROCESSING CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n  <isofield id=\"4\" length=\"12\" name=\"AMOUNT, TRANSACTION\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n  <isofield id=\"7\" length=\"10\" name=\"TRANSMISSION DATE AND TIME\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n  <isofield id=\"11\" length=\"6\" name=\"STAN\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n  <isofield id=\"41\" length=\"8\" name=\"TERMINAL ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n  <isofield id=\"42\" length=\"15\" name=\"CARD ACCEPTOR ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n  <isofield id=\"49\" length=\"3\" name=\"CURRENCY CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n</isopackager>"
+    },
+    {
+      "type": "para",
+      "text": "An 0100 for 25.00, packed by this file; the same message is also packed by jPOS's `iso87binary.xml` for comparison:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "ISOMsg m = new ISOMsg(\"0100\");\nm.set(2, \"5555555555554444\");               // Mastercard test PAN\nm.set(3, \"000000\");\nm.set(4, \"000000002500\");                   // 25.00\nm.set(11, \"000731\");\nm.set(41, \"29110001\");\nm.setPackager(new GenericPackager(\"cfg/mastercard-ebcdic.xml\"));\nbyte[] wire = m.pack();"
+    },
+    {
+      "type": "para",
+      "text": "One column per part: MTI, bitmap, fields 2, 3, 4, 11 and 41, with the PAN's middle digits masked."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mastercard-ebcdic, 62 bytes: F0F1F0F0 7020000000800000 F1F6F5F5F5F5F5F5____________F4F4F4F4 F0F0F0F0F0F0 F0F0F0F0F0F0F0F0F2F5F0F0 F0F0F0F7F3F1 F2F9F1F1F0F0F0F1\niso87binary, 39 bytes: 0100 7020000000800000 16555555______4444 000000 000000002500 000731 3239313130303031"
+    },
+    {
+      "type": "para",
+      "text": "The MTI is `F0F1F0F0`, and the amount takes twelve bytes. The binary packager writes digits in BCD, two to a byte, so its MTI is the two bytes `01 00`. The bitmap is the same 8 bytes in both. Field 41 is text in both and still differs: EBCDIC `F2F9…` against ASCII `3239…`."
+    },
+    {
+      "type": "para",
+      "text": "Unit 5's Visa packager writes text in EBCDIC but numbers in BCD. A host that expects the layout above reads its first four bytes, `01 00 70 20`, as the MTI and refuses the session's first message."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Clearing is another format.** Authorizations travel online in the 1987 messages this unit packs. Mastercard's clearing files are commonly described as following the 1993 edition, with MTIs such as `1240` and `1442`, so they need 1993 field definitions (unit 1). Unit 7 shows where clearing fits in the flow."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
+    },
+    {
+      "type": "para",
+      "text": "The team in the opening built its layout from `iso87binary.xml`, turning each numeric `IFB_` class into its `IFE_` twin and keeping `IFB_BITMAP`. Field 41 there is `IF_CHAR`, which has no `B` to replace, so this line came through unchanged:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<isofield id=\"41\" length=\"8\" name=\"TERMINAL ID\" class=\"org.jpos.iso.IF_CHAR\"/>"
+    },
+    {
+      "type": "para",
+      "text": "Their tests pack a message and unpack it with the same file. The purchase from 6.1, tested that way, then compared with the bytes of 6.1, standing in for the specification's sample:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "round trip with the team's layout: 5 of 5 fields equal\nsame length as the sample: true\nfirst difference at byte 54: sample F2F9F1F1F0F0F0F1, ours 3239313130303031\nfield 41 as the host reads it: \"\\u0016\\u0099\\u0091\\u0091\\u0090\\u0090\\u0090\\u0091\""
+    },
+    {
+      "type": "para",
+      "text": "Only field 41 differs: it went out in ASCII. The host reads those eight bytes as EBCDIC and gets control characters instead of `29110001`, so its terminal lookup finds nothing for any message from that terminal."
+    },
+    {
+      "type": "para",
+      "text": "A round trip can't catch this, because the same wrong class packs and unpacks and the two mistakes cancel. Only bytes from outside your code can: the specification's sample messages. Copy a sample's hex dump into a test and compare byte for byte:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.mastercard;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.junit.jupiter.api.Test;\n\nimport static org.junit.jupiter.api.Assertions.assertArrayEquals;\n\nclass SampleMessageTest {\n    /** The specification's sample 0100, copied from its hex dump (here, the bytes of 6.1). */\n    static final String SAMPLE = \"F0F1F0F0\" + \"7020000000800000\"\n            + \"F1F6\" + \"F5F5F5F5F5F5F5F5F5F5F5F5F4F4F4F4\"\n            + \"F0F0F0F0F0F0\" + \"F0F0F0F0F0F0F0F0F2F5F0F0\" + \"F0F0F0F7F3F1\" + \"F2F9F1F1F0F0F0F1\";\n\n    @Test\n    void purchaseMatchesTheSample() throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, \"5555555555554444\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000002500\");\n        m.set(11, \"000731\");\n        m.set(41, \"29110001\");\n        m.setPackager(new GenericPackager(\"cfg/mastercard-ebcdic.xml\"));\n\n        assertArrayEquals(ISOUtil.hex2byte(SAMPLE), m.pack());\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "With the team's file, it fails at byte 54, the first byte of field 41 (`F2` is -14 as a Java byte, `32` is 50):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchaseMatchesTheSample  FAILED: array contents differ at index [54], expected: <-14> but was: <50>"
+    },
+    {
+      "type": "para",
+      "text": "With the file from 6.1, it passes. Write one such test for every sample message in the specification."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.3. A Frame Is a Two-Byte Binary Length, Then the Message"
+    },
+    {
+      "type": "para",
+      "text": "TCP delivers a stream of bytes, so each message travels behind its length, which belongs to the transport rather than the message (unit 1). Mastercard links are commonly described with a two-byte binary length and no other header. Here jPOS's `PostChannel` sends the 0100 from 6.1 to a plain socket that prints what arrives:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "first 6 bytes: 003EF0F1F0F0  length 003E = 62, message bytes after the length: 62, more: false"
+    },
+    {
+      "type": "para",
+      "text": "`00 3E` is 62, the length of the message alone, and the MTI follows at once. The team's domestic link used `ASCIIChannel`, which writes the length as four ASCII digits. Both mismatches:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "ASCIIChannel host: org.jpos.iso.ISOException: Invalid message length .>..\nPostChannel host, after 2005 ms: java.net.SocketTimeoutException: Read timed out"
+    },
+    {
+      "type": "para",
+      "text": "An `ASCIIChannel` host reads `00 3E F0 F1` as four digits and refuses them. The other direction is worse: a `PostChannel` host reads the first two ASCII digits, `30 30`, as a length of 12336 bytes and waits for bytes that never come, until its read timeout fires (two seconds in this run). Meanwhile the client gets no answer, and a purchase without an answer has to be reversed (unit 4)."
+    },
+    {
+      "type": "para",
+      "text": "jPOS has no channel named after Mastercard because none is needed: `PostChannel` writes two big-endian length bytes and, unless you give it a header, nothing else. Q2 deploys it like any channel, in `deploy/10_host_channel.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name=\"host-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.PostChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\"\n           logger=\"Q2\" realm=\"mastercard-channel\">\n    <property name=\"packager-config\" value=\"cfg/mastercard-ebcdic.xml\"/>\n    <property name=\"host\" value=\"127.0.0.1\"/>\n    <property name=\"port\" value=\"8000\"/>\n  </channel>\n  <in>host-send</in>\n  <out>host-receive</out>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "para",
+      "text": "Confirm in your specification that the length counts only the message, and whether your connection puts anything else in front of it. Unit c3 shows channels in jPOS."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message"
+    },
+    {
+      "type": "para",
+      "text": "Field 48, \"additional data, private use\", is a container on a Mastercard link. It is generally described as a one-character transaction category code (TCC), then subelements, each a two-digit tag, a two-digit length and that many characters. The tags and their meanings are in the specification. jPOS reads this shape with `MasterCardEBCDICSubFieldPackager`, declared inside the layout file:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<isofieldpackager id=\"48\" length=\"999\" name=\"ADDITIONAL DATA - PRIVATE\" class=\"org.jpos.iso.IFE_LLLBINARY\"\n                  packager=\"org.jpos.iso.packager.MasterCardEBCDICSubFieldPackager\">\n  <isofield id=\"0\" length=\"1\" name=\"TRANSACTION CATEGORY CODE\" class=\"org.jpos.iso.IFEMC_TCC\"/>\n  <isofield id=\"42\" length=\"99\" name=\"SUBELEMENT 42\" class=\"org.jpos.iso.IFEPE_LLCHAR\"/>\n  <isofield id=\"61\" length=\"99\" name=\"SUBELEMENT 61\" class=\"org.jpos.iso.IFEPE_LLCHAR\"/>\n</isofieldpackager>"
+    },
+    {
+      "type": "para",
+      "text": "Field 48 itself is `IFE_LLLBINARY`: an EBCDIC length, then the bytes the subfield packager has already written in EBCDIC. `IFE_LLLCHAR` would convert them a second time (the category code `D9` goes out as `FD`), and the message would still read back, as in 6.2. `IFEMC_TCC` takes the first character as the category code (subfield 0) only when it is a letter or a space, since some messages carry none."
+    },
+    {
+      "type": "para",
+      "text": "A field 48 with category code `R` and subelements 42 and 61, then the same field after a release adds subelement 33 in front. Both fields are read at 42's old offset and by the packager above (`consumed` counts the bytes before field 48):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "field 48 as text: 017R4203210610500000\n  fixed offsets, 42 = 210\n  by tag: TCC R, 42 = 210, 61 = 00000\nfield 48 as text: 025R3304AB124203210610500000\n  fixed offsets, 42 = AB1\n  by tag: Unsupported sub-field 33 unpacking field 48 unpacking field=48, consumed=62"
+    },
+    {
+      "type": "para",
+      "text": "The fixed-offset reader takes `AB1` for subelement 42 without any error, and every decision that uses 42 is now made on another subelement's data. The packager finds 42 by its tag wherever it is, but it refuses a tag it has no definition for, and the whole message with it."
+    },
+    {
+      "type": "para",
+      "text": "Mastercard publishes mandated changes on a regular release schedule, so plan for tags you have never seen. Declaring every tag from 01 to 99 with `IFEPE_LLCHAR` keeps the ones you don't use as text:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "every tag declared: TCC R, 33 = AB12, 42 = 210, 61 = 00000"
+    },
+    {
+      "type": "para",
+      "text": "You can also declare field 48 as plain EBCDIC text and split it in your own code, keeping what you don't know. Either way, keep the meaning of each tag in one mapping between your internal format and the network's, so that a release changes that mapping and not every application behind it."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.5. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A Mastercard message is EBCDIC characters behind a binary bitmap.** A packager borrowed from a BCD link sends an MTI the host can't read.",
+        "**A packager that reads its own messages back proves nothing.** A wrong class packs and unpacks its own bytes. Compare every message with the specification's samples, byte for byte.",
+        "**A frame is a two-byte binary length, then the message.** An ASCII length on either side gets the first frame refused or leaves the host waiting for bytes that never come.",
+        "**Field 48 is read tag by tag.** Fixed offsets misread after the next release, and a packager missing one tag refuses the whole message. Declare every tag, or split the field in code."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.6. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Fields with a Mastercard-specific role**, as publicly described:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Role"
+      ],
+      "rows": [
+        [
+          "48",
+          "additional data, private use: a transaction category code, then tag-length-value subelements"
+        ],
+        [
+          "61",
+          "point-of-service data: whether the cardholder and the card were present, the terminal's capabilities and location"
+        ],
+        [
+          "63",
+          "network data: the network's reference for the transaction; keep it from the authorization response, since later messages may need it"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**jPOS 2.1.7 classes for an EBCDIC link:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Class",
+        "Writes"
+      ],
+      "rows": [
+        [
+          "`IFE_NUMERIC`",
+          "fixed digits, one EBCDIC byte each, zero-filled on the left (`2500` in 12: `F0…F0F2F5F0F0`)"
+        ],
+        [
+          "`IFE_CHAR`",
+          "fixed text in EBCDIC, filled with EBCDIC spaces (`T1` in 8: `E3F1404040404040`)"
+        ],
+        [
+          "`IFE_LLNUM`, `IFE_LLLNUM`",
+          "two or three EBCDIC length digits, then EBCDIC digits"
+        ],
+        [
+          "`IFE_LLLBINARY`",
+          "three EBCDIC length digits, then the bytes as given"
+        ],
+        [
+          "`IFB_BITMAP`",
+          "the bitmap, 8 binary bytes per bitmap"
+        ],
+        [
+          "`MasterCardEBCDICSubFieldPackager`",
+          "field 48: an optional category code, then subelements by tag"
+        ],
+        [
+          "`IFEMC_TCC`",
+          "the category code: one EBCDIC character, read only when it is a letter or a space"
+        ],
+        [
+          "`IFEPE_LLCHAR`",
+          "one subelement: EBCDIC tag (2), EBCDIC length (2), EBCDIC data"
+        ],
+        [
+          "`PostChannel`",
+          "the frame: a two-byte big-endian length, then the message (a header only if you set one)"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "6.7. Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Purchase",
-        "Cash Advance",
-        "Balance Inquiry",
-        "Refund"
+        "Your specification has three sample messages, one with a field above 64. What does that third sample check that the other two can't, and which mistake in a packager would only it catch?",
+        "Field 48 on your link has 40 defined tags, and you use three. Compare declaring all 99, declaring field 48 as text and splitting it in code, and declaring only your three: what does each do on the day a release adds a tag?",
+        "A switch relays between a Mastercard link and an internal ASCII link. Which conversions happen at the boundary, and could any field pass through as the same bytes?",
+        "Your Visa and Mastercard links each have a packager file. List what the two share, and decide whether a shared base file is worth having."
       ]
-    },
-    {
-      "type": "para",
-      "text": "Each of these transaction types has specific requirements and data elements that need to be included in the ISO-8583 message."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "6.2. Mastercard-specific data elements"
+      "text": "6.8. Design Note: Why Tags Inside a Bitmapped Message?"
     },
     {
       "type": "para",
-      "text": "Mastercard uses several specific data elements in their ISO-8583 implementation. Here are some of the key fields:"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "6.2.1. Field 48: Additional Data - Private Use"
+      "text": "ISO 8583 announces fields with a bitmap and keeps each field's format in a table both sides hold (unit 1). The standard fixes that table, so a network can't add a field number for a new program. Field 48 is the way out. Inside one field the network defines a small format of its own, and makes it tag-length-value, so it can add a subelement in any release without touching the bitmap or the standard."
     },
     {
       "type": "para",
-      "text": "This field is used for various purposes, including additional transaction data, loyalty program information, and other Mastercard-specific data."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "6.2.2. Field 61: Point-of-Service (POS) Data"
-    },
-    {
-      "type": "para",
-      "text": "This field contains information about the point-of-sale terminal and transaction environment."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "6.2.3. Field 63: Network Data"
-    },
-    {
-      "type": "para",
-      "text": "This field is used for network-specific information and can contain various subfields."
-    },
-    {
-      "type": "para",
-      "text": "Let's implement a Java class to handle Mastercard-specific data elements:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class MastercardDataElementHandler {\n\n    public void setAdditionalData(ISOMsg isoMsg, String additionalData) throws ISOException {\n        isoMsg.set(48, additionalData);\n    }\n\n    public void setPOSData(ISOMsg isoMsg, String posData) throws ISOException {\n        isoMsg.set(61, posData);\n    }\n\n    public void setNetworkData(ISOMsg isoMsg, String networkData) throws ISOException {\n        isoMsg.set(63, networkData);\n    }\n\n    public String getAdditionalData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(48);\n    }\n\n    public String getPOSData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(61);\n    }\n\n    public String getNetworkData(ISOMsg isoMsg) throws ISOException {\n        return isoMsg.getString(63);\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "6.3. Mastercard processing codes"
-    },
-    {
-      "type": "para",
-      "text": "Mastercard uses processing codes to identify the type of transaction. The processing code (field 3) is six digits: the transaction type (2), the from-account type (2) and the to-account type (2). The transaction-type values vary by network, so take them from your network's specification. The codes below are examples, with both account types 00 (default account):"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Purchase: 000000",
-        "Cash Advance: 010000",
-        "Void: 020000",
-        "Refund: 200000"
-      ]
-    },
-    {
-      "type": "para",
-      "text": "Let's implement a Java enum to represent these processing codes:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public enum MastercardProcessingCode {\n    PURCHASE(\"000000\"),\n    CASH_ADVANCE(\"010000\"),\n    VOID(\"020000\"),\n    REFUND(\"200000\");\n\n    private final String code;\n\n    MastercardProcessingCode(String code) {\n        this.code = code;\n    }\n\n    public String getCode() {\n        return code;\n    }\n\n    public static MastercardProcessingCode fromCode(String code) {\n        for (MastercardProcessingCode processingCode : values()) {\n            if (processingCode.getCode().equals(code)) {\n                return processingCode;\n            }\n        }\n        throw new IllegalArgumentException(\"Invalid Mastercard processing code: \" + code);\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's create a service to handle Mastercard transactions:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class MastercardTransactionService {\n\n    @Autowired\n    private MastercardDataElementHandler dataElementHandler;\n\n    public ISOMsg createPurchaseRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.PURCHASE.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for purchase\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for purchase\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for purchase\");\n\n        return isoMsg;\n    }\n\n    public ISOMsg createCashAdvanceRequest(String pan, String amount, String merchantId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.CASH_ADVANCE.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for cash advance\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for cash advance\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for cash advance\");\n\n        return isoMsg;\n    }\n\n    public ISOMsg createRefundRequest(String pan, String amount, String merchantId, String originalTransactionId) throws ISOException {\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.setMTI(\"0200\");\n        isoMsg.set(2, pan);\n        isoMsg.set(3, MastercardProcessingCode.REFUND.getCode());\n        isoMsg.set(4, amount);\n        isoMsg.set(42, merchantId);\n        isoMsg.set(37, originalTransactionId);\n\n        // Set additional Mastercard-specific data\n        dataElementHandler.setAdditionalData(isoMsg, \"Additional data for refund\");\n        dataElementHandler.setPOSData(isoMsg, \"POS data for refund\");\n        dataElementHandler.setNetworkData(isoMsg, \"Network data for refund\");\n\n        return isoMsg;\n    }\n\n    public boolean isApproved(ISOMsg response) throws ISOException {\n        String responseCode = response.getString(39);\n        return \"00\".equals(responseCode);\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's create a test class to verify the functionality of our Mastercard transaction service:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertFalse;\nimport static org.junit.jupiter.api.Assertions.assertTrue;\nimport static org.mockito.Mockito.verify;\n\n@ExtendWith(MockitoExtension.class)\npublic class MastercardTransactionServiceTest {\n\n    @Mock\n    private MastercardDataElementHandler dataElementHandler;\n\n    @InjectMocks\n    private MastercardTransactionService transactionService;\n\n    @Test\n    public void testCreatePurchaseRequest() throws Exception {\n        ISOMsg purchaseRequest = transactionService.createPurchaseRequest(\"1234567890123456\", \"100000\", \"MERCHANT01\");\n\n        assertEquals(\"0200\", purchaseRequest.getMTI());\n        assertEquals(\"1234567890123456\", purchaseRequest.getString(2));\n        assertEquals(MastercardProcessingCode.PURCHASE.getCode(), purchaseRequest.getString(3));\n        assertEquals(\"100000\", purchaseRequest.getString(4));\n        assertEquals(\"MERCHANT01\", purchaseRequest.getString(42));\n\n        verify(dataElementHandler).setAdditionalData(purchaseRequest, \"Additional data for purchase\");\n        verify(dataElementHandler).setPOSData(purchaseRequest, \"POS data for purchase\");\n        verify(dataElementHandler).setNetworkData(purchaseRequest, \"Network data for purchase\");\n    }\n\n    @Test\n    public void testCreateCashAdvanceRequest() throws Exception {\n        ISOMsg cashAdvanceRequest = transactionService.createCashAdvanceRequest(\"1234567890123456\", \"50000\", \"MERCHANT01\");\n\n        assertEquals(\"0200\", cashAdvanceRequest.getMTI());\n        assertEquals(\"1234567890123456\", cashAdvanceRequest.getString(2));\n        assertEquals(MastercardProcessingCode.CASH_ADVANCE.getCode(), cashAdvanceRequest.getString(3));\n        assertEquals(\"50000\", cashAdvanceRequest.getString(4));\n        assertEquals(\"MERCHANT01\", cashAdvanceRequest.getString(42));\n\n        verify(dataElementHandler).setAdditionalData(cashAdvanceRequest, \"Additional data for cash advance\");\n        verify(dataElementHandler).setPOSData(cashAdvanceRequest, \"POS data for cash advance\");\n        verify(dataElementHandler).setNetworkData(cashAdvanceRequest, \"Network data for cash advance\");\n    }\n\n    @Test\n    public void testCreateRefundRequest() throws Exception {\n        ISOMsg refundRequest = transactionService.createRefundRequest(\"1234567890123456\", \"25000\", \"MERCHANT01\", \"123456789\");\n\n        assertEquals(\"0200\", refundRequest.getMTI());\n        assertEquals(\"1234567890123456\", refundRequest.getString(2));\n        assertEquals(MastercardProcessingCode.REFUND.getCode(), refundRequest.getString(3));\n        assertEquals(\"25000\", refundRequest.getString(4));\n        assertEquals(\"MERCHANT01\", refundRequest.getString(42));\n        assertEquals(\"123456789\", refundRequest.getString(37));\n\n        verify(dataElementHandler).setAdditionalData(refundRequest, \"Additional data for refund\");\n        verify(dataElementHandler).setPOSData(refundRequest, \"POS data for refund\");\n        verify(dataElementHandler).setNetworkData(refundRequest, \"Network data for refund\");\n    }\n\n    @Test\n    public void testIsApproved() throws Exception {\n        ISOMsg approvedResponse = new ISOMsg();\n        approvedResponse.set(39, \"00\");\n\n        ISOMsg declinedResponse = new ISOMsg();\n        declinedResponse.set(39, \"05\");\n\n        assertTrue(transactionService.isApproved(approvedResponse));\n        assertFalse(transactionService.isApproved(declinedResponse));\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This implementation covers the main aspects of Mastercard-specific ISO-8583 message handling, including:"
-    },
-    {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "Creating purchase, cash advance, and refund requests",
-        "Handling Mastercard-specific data elements (fields 48, 61, and 63)",
-        "Using processing codes to identify different transaction types",
-        "Checking the approval status of a response message"
-      ]
+      "text": "A tagged format grows safely only if every receiver skips unknown tags using the sender's length. A receiver that reads at fixed offsets, or refuses a tag it hasn't declared, turns the network's addition into an outage on release day."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 7,
-    "paras": 12,
-    "code": 4,
-    "tables": 0,
-    "lists": 3,
+    "headings": 9,
+    "paras": 28,
+    "code": 13,
+    "tables": 2,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "ff1678032109646d294b31283cb6e1800261b6118ff8f4d0bb13e976d8bce5b4"
+  "content_sha256": "5c8bff445ca54f6373850e805f0934f020e921ba28884fcdda4f8e069e4873ac"
 }

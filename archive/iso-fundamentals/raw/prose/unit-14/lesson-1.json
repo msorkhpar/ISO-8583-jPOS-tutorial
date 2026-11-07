@@ -8,7 +8,7 @@
   "unit": 14,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Advanced Topics",
   "blocks": [
     {
@@ -17,140 +17,387 @@
       "text": "14. Advanced Topics"
     },
     {
+      "type": "para",
+      "text": "A web shop's order table leaks: 40,000 card numbers, each with its expiry date. What can a thief do with them? That depends on what else an authorization carries besides the card number, and on whether the shop had to keep the numbers at all. Five rules, one per section heading."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Moved.** This unit once also covered the 2023 datasets (now unit 17), chip data in depth (unit 18), high availability (unit c14) and TransactionManager sessions (units s4 and s15)."
+        }
+      ]
+    },
+    {
       "type": "heading",
       "level": 3,
-      "text": "14.1. EMV and chip card transactions"
+      "text": "14.1. A Chip Purchase Carries a Cryptogram Over Its Own Data, So Nobody on the Path May Change That Data"
     },
     {
       "type": "para",
-      "text": "EMV (Europay, Mastercard, and Visa) is a global standard for credit and debit card payments using chip card technology. When implementing ISO-8583 for EMV transactions, additional data elements and processing are required."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "14.1.1. EMV data in ISO-8583 messages"
+      "text": "A card number printed on plastic can be copied by anyone who has seen it. A chip can't be copied the same way: for each purchase it computes a cryptogram, the ARQC in tag `9F26` of DE 55 (unit 3). The cryptogram is a MAC (unit 8) under a key that only the chip and its issuer hold. It covers the amount, the currency, the date, the transaction type, a random number from the terminal, the card's transaction counter and a few more values, each of them also a tag in DE 55. The issuer recomputes the MAC from the tags it receives. A match proves that this card took part in this purchase, and that the values it covered arrived as the card saw them. A thief with the leaked table has no chip and no key."
     },
     {
       "type": "para",
-      "text": "EMV data is typically included in ISO-8583 messages using specific fields, most commonly field 55 (ICC System Related Data). This field contains EMV-specific data in Tag-Length-Value (TLV) format."
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how to handle EMV data in jPOS:"
+      "text": "A restaurant's gateway adds a 2.50 tip to a 25.00 chip purchase before forwarding it. Someone has noticed that field 4 and tag `9F02` (the amount) should agree, so the gateway updates both:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.emv.EMVStandardTagType;\nimport org.jpos.emv.EMVTagSequence;\nimport org.jpos.emv.EMVTag;\n\npublic class EMVHandler {\n\n    public void processEMVData(ISOMsg msg) throws ISOException {\n        byte[] emvData = msg.getBytes(55);\n        if (emvData != null) {\n            EMVTagSequence tagSequence = new EMVTagSequence(emvData);\n            for (EMVTag tag : tagSequence) {\n                processEMVTag(tag);\n            }\n        }\n    }\n\n    private void processEMVTag(EMVTag tag) {\n        EMVStandardTagType tagType = EMVStandardTagType.forCode(tag.getTagNumber());\n        if (tagType != null) {\n            switch (tagType) {\n                case APPLICATION_INTERCHANGE_PROFILE:\n                    processAIP(tag.getValueAsHexString());\n                    break;\n                case TERMINAL_VERIFICATION_RESULTS:\n                    processTVR(tag.getValueAsHexString());\n                    break;\n                // Add more cases for other relevant EMV tags\n            }\n        }\n    }\n\n    private void processAIP(String aip) {\n        // Process Application Interchange Profile\n        System.out.println(\"AIP: \" + aip);\n    }\n\n    private void processTVR(String tvr) {\n        // Process Terminal Verification Results\n        System.out.println(\"TVR: \" + tvr);\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "14.1.2. Chip card specific fields"
+      "text": "ISOMsg up = (ISOMsg) sent.clone();          // the gateway adds a 2.50 tip\nup.set(4, \"000000002750\");\nTLVList icc = new TLVList();                 // ...and keeps DE 55 \"consistent\"\nicc.unpack(up.getBytes(55));\nicc.deleteByTag(0x9F02);\nicc.append(0x9F02, \"000000002750\");\nup.set(55, icc.pack());"
     },
     {
       "type": "para",
-      "text": "In addition to field 55, other fields may be used or modified for chip card transactions:"
+      "text": "In the program, a retail MAC (ISO 9797-1 algorithm 3) under a test key stands in for the card's cryptogram. Each run prints the cryptogram as received, then whether the issuer's recomputation matches it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "as the terminal sent it\n  field 4 000000002500   9F02 000000002500\n  cryptogram 014D2FF614B2F9AB  recomputed by the issuer: matches\ntip written into field 4 and 9F02\n  field 4 000000002750   9F02 000000002750\n  cryptogram 014D2FF614B2F9AB  recomputed by the issuer: DOES NOT MATCH\ntip written into field 4 only\n  field 4 000000002750   9F02 000000002500\n  cryptogram 014D2FF614B2F9AB  recomputed by the issuer: matches"
+    },
+    {
+      "type": "para",
+      "text": "The issuer finds each covered value by its tag, so their order in DE 55 doesn't matter: the gateway's code moved `9F02` to the end, and only its new value broke the match. The rewritten `9F02` breaks the cryptogram, and an issuer that checks it treats the card as counterfeit: most decline every tipped chip purchase in the restaurant. Changing field 4 alone keeps the cryptogram intact, because the cryptogram can't see field 4, but it asks the issuer to approve 27.50 on a card that agreed to 25.00. The issuer's comparison of field 4 with `9F02` catches that (unit 18). The tip belongs in the completion or the clearing record, as the network's rules say (unit 19), not in the authorization."
+    },
+    {
+      "type": "para",
+      "text": "DE 55 also carries the terminal's own checks (tag `95`), which the issuer reads together with field 22, the way the card number was read (chip, contactless, or magnetic stripe after the chip failed). Nobody on the path changes a tag the cryptogram covers. Pass DE 55 on as it came, unless the network's specification tells you how to re-wrap it."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.2. A 3-D Secure Result Rides in the Authorization, and a Hop That Drops It Drops the Proof"
+    },
+    {
+      "type": "para",
+      "text": "Online there is no chip, and 3-D Secure proves the cardholder instead. Before the shop asks for the authorization, the issuer authenticates the customer: from device and purchase data alone, or, when it wants more, with a challenge in its app or a code. The result comes back to the shop as a few values:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "Field 22 (Point of Service Entry Mode): Indicates that the transaction was chip-based",
-        "Field 23 (Card Sequence Number): Contains the chip card's sequence number",
-        "Field 26 (Point of Service PIN Capture Code): Indicates how the PIN was captured for chip transactions"
+        "the **ECI** (electronic commerce indicator), which says whether the cardholder was authenticated;",
+        "the **authentication value** (CAVV at Visa, AAV at Mastercard), a cryptogram the issuer can verify;",
+        "the **directory server transaction ID** and the protocol version."
       ]
     },
     {
       "type": "para",
-      "text": "Here's an example of how to set these fields for a chip card transaction:"
+      "text": "The shop's gateway must put these into the authorization, and every hop after it must keep them. This gateway copies a fixed list of fields upstream, a list written when it carried only card-present traffic. The 3-D Secure values sit in field 48, in a layout made up for this example, and `22=812` is this network's code for an e-commerce purchase:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class ChipCardFieldSetter {\n\n    public void setChipCardFields(ISOMsg msg) throws ISOException {\n        // Set Point of Service Entry Mode for chip card\n        msg.set(22, \"05\"); // '05' typically indicates chip card read\n\n        // Set Card Sequence Number (if available)\n        msg.set(23, \"001\"); // Example sequence number\n\n        // Set Point of Service PIN Capture Code\n        msg.set(26, \"12\"); // '12' might indicate offline PIN verification\n\n        // EMV data would be set in field 55 as shown in the previous example\n    }\n}"
+      "text": "static final int[] COPIED = { 2, 3, 4, 7, 11, 12, 13, 14, 22, 25, 37, 41, 42, 49 };"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "from the web shop: 22=812 48=EC00202AV028kAbCdEfGhIjKlMnOpQrStUvWxYz=DS036f25084f0-5b16-4c0a-ae5d-b24808a95e4bVR0052.2.0\nforwarded with COPIED: 2=555555______4444 22=812 48 ABSENT\nforwarded with COPIED_WITH_48: 2=555555______4444 22=812 48 present"
+    },
+    {
+      "type": "para",
+      "text": "The customer did authenticate, but the authentication happened outside the authorization, and the authorization is all the issuer gets. It sees an e-commerce purchase with no result attached. Where the law requires strong customer authentication online, as in the European Economic Area, the issuer usually declines it with a code that asks for authentication, unless an exemption applies. Elsewhere it may approve. Under most networks' rules a fraud chargeback on an authenticated (or attempted) purchase falls on the issuer, and on an unauthenticated one on the merchant, whatever the amount: what decides it is whether the result reached the issuer in the authorization. So the thief with the leaked table can still buy at shops that skip 3-D Secure and don't ask for the CVV2, and those shops pay."
+    },
+    {
+      "type": "para",
+      "text": "The authentication value proves one authentication for one purchase. Treat it like authentication data and keep it out of logs (unit 8)."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** Each network defines where the 3-D Secure values go in its 1987-based messages, often a private field with tagged subfields. On a 2023 link they go in the datasets of DE 34 (unit 17). Take the layout from your network's specification."
+        }
+      ]
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "14.2. Tokenization"
+      "text": "14.3. A Token Is Random, Shaped Like a Card Number Under a BIN of Its Own"
     },
     {
       "type": "para",
-      "text": "Tokenization is a security measure that replaces sensitive data (like a PAN) with a non-sensitive equivalent (a token) that can be used in the payment ecosystem."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "14.2.1. Token formats"
-    },
-    {
-      "type": "para",
-      "text": "Tokens often maintain the same format as the original PAN to ensure compatibility with existing systems. Here's an example of a simple tokenization service:"
+      "text": "The shop in the opening kept card numbers so that returning customers could pay with one click. It needed something that leads back to the card, not the card number itself. A **token** replaces the card number in every system that doesn't need the number: the shop's database, its logs, its analytics. A vault keeps the card number, sealed, and maps each token to it."
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.springframework.stereotype.Service;\nimport java.security.SecureRandom;\nimport java.util.HashMap;\nimport java.util.Map;\n\n@Service\npublic class TokenizationService {\n\n    private final Map<String, String> tokenToCardMap = new HashMap<>();\n    private final Map<String, String> cardToTokenMap = new HashMap<>();\n    private final SecureRandom random = new SecureRandom();\n\n    public String tokenize(String cardNumber) {\n        if (cardToTokenMap.containsKey(cardNumber)) {\n            return cardToTokenMap.get(cardNumber);\n        }\n\n        String token = generateToken(cardNumber);\n        tokenToCardMap.put(token, cardNumber);\n        cardToTokenMap.put(cardNumber, token);\n        return token;\n    }\n\n    public String detokenize(String token) {\n        return tokenToCardMap.get(token);\n    }\n\n    private String generateToken(String cardNumber) {\n        StringBuilder token = new StringBuilder();\n        for (int i = 0; i < cardNumber.length(); i++) {\n            if (i < 6 || i >= cardNumber.length() - 4) {\n                token.append(cardNumber.charAt(i));\n            } else {\n                token.append(random.nextInt(10));\n            }\n        }\n        return token.toString();\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "14.2.2. De-tokenization process"
+      "text": "package com.example.iso.advanced;\n\nimport org.jpos.iso.ISOUtil;\n\nimport java.security.SecureRandom;\n\n/** Random 16-digit tokens under a range reserved for tokens, with a correct check digit. */\npublic final class TokenGenerator {\n    private final String tokenBin;\n    private final SecureRandom random = new SecureRandom();\n\n    public TokenGenerator(String tokenBin) {\n        if (!tokenBin.matches(\"\\\\d{6,8}\"))\n            throw new IllegalArgumentException(\"token BIN must be 6 to 8 digits\");\n        this.tokenBin = tokenBin;\n    }\n\n    public String next() {\n        StringBuilder sb = new StringBuilder(tokenBin);\n        while (sb.length() < 15)\n            sb.append(random.nextInt(10));                 // nothing here comes from the card\n        return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();\n    }\n}"
     },
     {
       "type": "para",
-      "text": "De-tokenization is the process of retrieving the original PAN from a token. This typically happens in a secure environment. Here's how you might use the tokenization service in an ISO-8583 context:"
+      "text": "Three tokens under the made-up token BIN `990001`:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class TokenizationHandler {\n\n    @Autowired\n    private TokenizationService tokenizationService;\n\n    public void handleTokenization(ISOMsg msg) throws ISOException {\n        String pan = msg.getString(2);\n        String token = tokenizationService.tokenize(pan);\n        msg.set(2, token);\n    }\n\n    public void handleDetokenization(ISOMsg msg) throws ISOException {\n        String token = msg.getString(2);\n        String pan = tokenizationService.detokenize(token);\n        if (pan != null) {\n            msg.set(2, pan);\n        } else {\n            throw new ISOException(\"Invalid token\");\n        }\n    }\n}"
+      "lang": "text",
+      "text": "9900010811949446  check digit ok\n9900019699817039  check digit ok\n9900012320294322  check digit ok"
+    },
+    {
+      "type": "para",
+      "text": "**Nothing in a token comes from the card.** The obvious shortcut, encrypting the card number or hashing it, gives a value that can be turned back. Whoever holds the key decrypts every token at once. Unit s9 showed that an unkeyed hash of a card number whose BIN and last four digits are known is reversed by trying about 100,000 candidates, in a quarter of a second. A token that keeps the card's last four digits gives part of the number away; the vault can keep them as display data instead. With random digits, the leaked token table is only a list of numbers, and the vault holds the only map back."
+    },
+    {
+      "type": "para",
+      "text": "**The token looks like a card number** so that every system on the way accepts it: field 2, a database column sized for 16 digits, the Luhn check that unit 10 described. **The BIN is reserved for tokens.** Without it, a random 16-digit number with a correct check digit can be a real card number: if a token escapes into a system that doesn't recognise it, the number is routed to the issuer of that range and can be approved against a stranger's card. A range your network has assigned for tokens can't collide with a real card, and any system can see from the first digits that it holds a token. The `990001` above is made up."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Network tokens.** The tokens on this page belong to a merchant's or gateway's vault and are turned back into card numbers before anything goes to the network. Card networks also issue tokens of their own (EMVCo payment tokens), which travel to the network in field 2, usually with a cryptogram, and are turned back by the network's or issuer's token service. The design rules are the same."
+        }
+      ]
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "14.3. 3-D Secure integration"
+      "text": "14.4. A Token Belongs to the Requestor It Was Issued To"
     },
     {
       "type": "para",
-      "text": "3-D Secure is a protocol designed to be an additional security layer for online credit and debit card transactions."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "14.3.1. 3-D Secure data in ISO-8583"
+      "text": "One customer pays at a bookshop and at a florist, both through the same gateway. Should both shops get the same token for that card?"
     },
     {
       "type": "para",
-      "text": "3-D Secure data is typically included in private-use fields of ISO-8583 messages, such as field 48 or field 124. The exact implementation can vary depending on the card network and acquirer requirements."
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how you might include 3-D Secure data in an ISO-8583 message:"
+      "text": "A single token per card is tempting: it works like a customer ID that every shop shares. But then a token leaked from the bookshop pays at the florist, and anyone holding both shops' data can follow the customer from one to the other. So the vault issues tokens per **requestor**, the party that asked for them. It finds an existing token through the keyed lookup value of unit s9, never through the card number:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ThreeDSecureHandler {\n\n    public void add3DSecureData(ISOMsg msg, String eci, String cavv, String xid) throws ISOException {\n        StringBuilder sb = new StringBuilder();\n        sb.append(\"3D\");\n        sb.append(ISOUtil.padleft(eci, 2, '0'));\n        sb.append(ISOUtil.padleft(cavv.length() + \"\", 3, '0')).append(cavv);\n        sb.append(ISOUtil.padleft(xid.length() + \"\", 3, '0')).append(xid);\n\n        msg.set(48, sb.toString());\n    }\n\n    public void parse3DSecureData(ISOMsg msg) throws ISOException {\n        String data = msg.getString(48);\n        if (data != null && data.startsWith(\"3D\")) {\n            String eci = data.substring(2, 4);\n            int cavvLength = Integer.parseInt(data.substring(4, 7));\n            String cavv = data.substring(7, 7 + cavvLength);\n            int xidLength = Integer.parseInt(data.substring(7 + cavvLength, 10 + cavvLength));\n            String xid = data.substring(10 + cavvLength, 10 + cavvLength + xidLength);\n\n            System.out.println(\"ECI: \" + eci);\n            System.out.println(\"CAVV: \" + cavv);\n            System.out.println(\"XID: \" + xid);\n        }\n    }\n}"
+      "text": "String a1 = vault.tokenize(\"bookshop\", \"4111111111111111\");\nString a2 = vault.tokenize(\"bookshop\", \"4111111111111111\");\nString b1 = vault.tokenize(\"florist\", \"4111111111111111\");"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "bookshop, first purchase:  9900010746498386\nbookshop, second purchase: 9900010746498386\nflorist:                   9900019874249727"
+    },
+    {
+      "type": "para",
+      "text": "The bookshop gets the same token on every purchase, so one-click checkout and refunds keep working. The florist gets a different one. When the gateway receives a token, it uses it only for the requestor it was issued to."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "14.3.2. 3-D Secure 2.0 considerations"
+      "level": 3,
+      "text": "14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
     },
     {
       "type": "para",
-      "text": "3-D Secure 2.0 introduces new data elements and flows. While the basic principle remains the same, you may need to handle additional data elements and potentially use different fields or formats."
+      "text": "The bookshop's developers ask for the right to detokenize: their refund screen wants to show the full card number."
     },
     {
       "type": "para",
-      "text": "Here's a simple example of how you might handle some 3-D Secure 2.0 specific data:"
+      "text": "That undoes the whole design. The thief who breaks into the bookshop's app now calls detokenize with the app's own credentials and gets every card number back. The app and its database are back in PCI DSS scope (unit 13). Tokenization is worth something only if it changes where card numbers can be read. So detokenizing is a separate permission, held by one component: the one that builds the ISO 8583 request for the network, here called the station. It acts for one requestor at a time:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class ThreeDSecure2Handler {\n\n    public void add3DS2Data(ISOMsg msg, String threeDSServerTransID, String dsTransID, String acsTransID) throws ISOException {\n        StringBuilder sb = new StringBuilder();\n        sb.append(\"3DS2\");\n        sb.append(ISOUtil.padleft(threeDSServerTransID.length() + \"\", 3, '0')).append(threeDSServerTransID);\n        sb.append(ISOUtil.padleft(dsTransID.length() + \"\", 3, '0')).append(dsTransID);\n        sb.append(ISOUtil.padleft(acsTransID.length() + \"\", 3, '0')).append(acsTransID);\n\n        msg.set(124, sb.toString());\n    }\n\n    public void parse3DS2Data(ISOMsg msg) throws ISOException {\n        String data = msg.getString(124);\n        if (data != null && data.startsWith(\"3DS2\")) {\n            int pos = 4;\n            int threeDSServerTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String threeDSServerTransID = data.substring(pos, pos + threeDSServerTransIDLength);\n            pos += threeDSServerTransIDLength;\n\n            int dsTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String dsTransID = data.substring(pos, pos + dsTransIDLength);\n            pos += dsTransIDLength;\n\n            int acsTransIDLength = Integer.parseInt(data.substring(pos, pos + 3));\n            pos += 3;\n            String acsTransID = data.substring(pos, pos + acsTransIDLength);\n\n            System.out.println(\"3DS Server Transaction ID: \" + threeDSServerTransID);\n            System.out.println(\"DS Transaction ID: \" + dsTransID);\n            System.out.println(\"ACS Transaction ID: \" + acsTransID);\n        }\n    }\n}"
+      "text": "Set<String> station = Set.of(\"DETOKENIZE\");\nSet<String> shopApp = Set.of(\"TOKENIZE\", \"REVOKE\");"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "station for bookshop, bookshop's token -> 411111______1111\nstation for florist, bookshop's token  -> ISOException: unknown token\nbookshop's own app, its own token      -> SecurityException: caller may not detokenize\nstation for bookshop, after revoke     -> ISOException: unknown token\nbookshop, next purchase:   9900014607903054"
+    },
+    {
+      "type": "para",
+      "text": "The shop app may create and revoke tokens, and show display data kept beside them, such as the last four digits and the expiry date. A token the vault doesn't know, one revoked, or one presented for another requestor gets the same refusal, and the transaction stops before anything reaches the issuer. After a revoke the card gets a new token. The CVV is never stored, so no detokenization can return it."
+    },
+    {
+      "type": "para",
+      "text": "The card number still leaves the vault for each authorization, but only to the station, inside the systems that are in PCI DSS scope anyway."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.6. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A chip purchase carries a cryptogram over its own data.** Anything that changes a value the cryptogram covers makes the issuer see a counterfeit card, so DE 55 passes through unchanged.",
+        "**A 3-D Secure result rides in the authorization.** A hop that drops it turns an authenticated purchase into an unauthenticated one: declined where the law requires authentication, and a fraud chargeback for the merchant elsewhere.",
+        "**A token is random, under a BIN of its own.** A token derived from the card number can be turned back; one outside a reserved range can be a real card number.",
+        "**A token belongs to its requestor.** A token leaked from one merchant pays nowhere else, and tokens don't link a customer across merchants.",
+        "**Only the component that builds the network message may detokenize.** A merchant app that can detokenize puts every card number back in reach of a breach."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.7. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Chip-related fields (common ISO 8583:1987 usage; each network defines its codes):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Content",
+        "Chip values"
+      ],
+      "rows": [
+        [
+          "22",
+          "POS entry mode, n3",
+          "`05x` chip, `07x` contactless chip, `80x` magnetic stripe after a failed chip read (fallback), `90x` full magnetic stripe; third digit: PIN capability"
+        ],
+        [
+          "23",
+          "card sequence number, n3",
+          "from tag `5F34`; tells apart cards with the same number"
+        ],
+        [
+          "52",
+          "PIN block",
+          "when the PIN is verified online (unit 8)"
+        ],
+        [
+          "55",
+          "ICC data, BER-TLV (unit 3)",
+          "passed through unchanged"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Tags in nearly every chip authorization:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Tag",
+        "Name",
+        "Note"
+      ],
+      "rows": [
+        [
+          "`9F26`",
+          "application cryptogram",
+          "the ARQC in a request"
+        ],
+        [
+          "`9F27`",
+          "cryptogram information data",
+          "which kind of cryptogram"
+        ],
+        [
+          "`9F10`",
+          "issuer application data",
+          "issuer-specific data from the card"
+        ],
+        [
+          "`9F37`",
+          "unpredictable number",
+          "from the terminal"
+        ],
+        [
+          "`9F36`",
+          "application transaction counter",
+          "increases with every transaction"
+        ],
+        [
+          "`95`",
+          "terminal verification results",
+          "the terminal's checks"
+        ],
+        [
+          "`82`",
+          "application interchange profile",
+          "what the card supports"
+        ],
+        [
+          "`9F02`, `5F2A`, `9A`, `9C`",
+          "amount, currency, date, type",
+          "covered by the cryptogram; must agree with the ISO fields"
+        ],
+        [
+          "`91`, `71`, `72`",
+          "issuer authentication data, issuer scripts",
+          "in the response"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**3-D Secure values in an authorization:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Value",
+        "Holds",
+        "Common values"
+      ],
+      "rows": [
+        [
+          "ECI",
+          "how the cardholder was authenticated",
+          "Visa `05` authenticated, `06` attempted, `07` none; Mastercard `02`, `01`, `00`"
+        ],
+        [
+          "authentication value",
+          "CAVV (Visa), AAV (Mastercard)",
+          "a 20-byte cryptogram, often sent in base64"
+        ],
+        [
+          "DS transaction ID",
+          "the 3-D Secure 2 transaction",
+          "a UUID; replaced the XID of version 1"
+        ],
+        [
+          "protocol version",
+          "the 3-D Secure version",
+          "for example `2.2.0`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What a token vault keeps per token:** the requestor, the card number sealed (unit s9), and the card's keyed lookup value, filed under that requestor. A new draw that is already taken is drawn again. Display data (last four digits, expiry) may be kept beside it; the CVV never."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.8. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "A restaurant adds tips after the card has left the reader. Find out how one network you know expects the final amount to reach the issuer, and what tolerance it allows between the authorization and the final amount.",
+        "Your vault issues 16-digit tokens under one 8-digit token BIN. How many tokens can it issue before a new draw collides more than one time in a hundred, and what do you do before that?",
+        "A merchant wants to move from your gateway to another one and asks for its customers' card numbers. Which design choices in this unit make that easy, and which make it hard?",
+        "A subscription service charges every month without the customer present. Which of this unit's proofs can such a charge carry, and what does the issuer rely on instead?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.9. Design Note: Why Tokens Look Like Card Numbers"
+    },
+    {
+      "type": "para",
+      "text": "A token could be anything, a UUID or a random string. Many gateways make it a number of card length with a correct check digit because of everything already built around card numbers. Field 2, the card-number columns of databases, the validation in checkout forms and reports expect (usually sixteen) digits that pass the Luhn check. A token in that shape replaces the card number without changing any of them, and a merchant can switch to tokens system by system."
+    },
+    {
+      "type": "para",
+      "text": "The price is that a token can be mistaken for a card. Length and check digit can't tell a token from a card number; only the reserved BIN can. Assessors have to check which systems see which ranges, and a token range that overlaps a real one turns a harmless number into someone's card. Some gateways choose the other side of the trade: tokens that deliberately fail the Luhn check, or contain letters, so nothing can take them for cards, at the cost of changing every system that stores them."
     }
   ],
   "video": null,
@@ -158,16 +405,16 @@
   "attachments": [],
   "counts": {
     "headings": 10,
-    "paras": 13,
-    "code": 6,
-    "tables": 0,
-    "lists": 1,
+    "paras": 27,
+    "code": 10,
+    "tables": 3,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 3,
+    "html": 2,
     "disclosures": 0
   },
-  "content_sha256": "847702e2f13826572876bb4171f485eaffbadac454a5b7ed13ae30cda82d1690"
+  "content_sha256": "5f764a21993b531350ae96d339314e9e30a6d4a9bf5fa540243e458cde90b97b"
 }

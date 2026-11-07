@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 5,
   "ordinal": 1,
-  "title": "Build Visa and Mastercard requests from one set of rules",
+  "title": "Build each merchant's purchases from its boarding data",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/CardRequests.java",
-  "test_file": "src/test/java/com/example/practice/CardRequestsTest.java",
+  "main_file": "src/main/java/com/example/practice/Boarding.java",
+  "test_file": "src/test/java/com/example/practice/BoardingTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.CardRequestsTest#eachTransactionTypeIsNamedByItsProcessingCode",
+      "id": "com.example.practice.BoardingTest#aVisaPurchaseCarriesTheMerchantsBoarding",
       "kind": "main",
-      "says": "a purchase, a cash advance, a refund and a balance inquiry are each a 0100 request told apart by field 3, the refund carrying the original RRN and the balance inquiry no amount"
+      "says": "a Visa purchase carries the merchant's Visa acquirer ID, terminal, merchant ID and amount, and the host reads its name, city and country back"
     },
     {
-      "id": "com.example.practice.CardRequestsTest#eachNetworkAddsItsOwnData",
+      "id": "com.example.practice.BoardingTest#aMastercardPurchaseCarriesItsOwnAcquirerId",
       "kind": "main",
-      "says": "a Visa request carries Visa's acquirer and no field 61; a Mastercard request carries Mastercard's acquirer and its point-of-service data"
+      "says": "each network's purchase carries the acquirer ID boarded for that network, whatever case the network name is written in"
     },
     {
-      "id": "com.example.practice.CardRequestsTest#theNetworkNameIgnoresCase",
+      "id": "com.example.practice.BoardingTest#aNetworkTheMerchantIsNotBoardedForIsRefused",
       "kind": "edge",
-      "says": "the network is recognised whatever the case of its name"
+      "says": "a purchase on a network the merchant has no acquirer ID for is refused instead of being built without field 32"
     },
     {
-      "id": "com.example.practice.CardRequestsTest#anUnsupportedNetworkIsRefused",
+      "id": "com.example.practice.BoardingTest#anUnknownNetworkIsNotSentAsAnother",
       "kind": "edge",
-      "says": "a network other than Visa or Mastercard is refused, not sent as one of them"
+      "says": "a network nobody boarded is refused rather than given another network's acquirer ID"
+    },
+    {
+      "id": "com.example.practice.BoardingTest#aShortNameLeavesTheCityWhereTheHostLooks",
+      "kind": "edge",
+      "says": "a short merchant name is padded so the city and country stay in their positions"
+    },
+    {
+      "id": "com.example.practice.BoardingTest#aLongNameStillFitsTheField",
+      "kind": "edge",
+      "says": "a merchant name longer than its positions is cut, so field 43 still packs and the city stays in place"
+    },
+    {
+      "id": "com.example.practice.BoardingTest#aLongCityStillLeavesTheCountryInPlace",
+      "kind": "edge",
+      "says": "a city longer than its positions is cut as well, so the country stays at the end of the field"
     }
   ],
   "report": {
@@ -59,6 +74,6 @@
   },
   "origin": {
     "path": "src/c5.md",
-    "section": "5. Visa and Mastercard Specific Requests"
+    "section": "5.2.2 Field 43 Has Positions, Not Separators"
   }
 }

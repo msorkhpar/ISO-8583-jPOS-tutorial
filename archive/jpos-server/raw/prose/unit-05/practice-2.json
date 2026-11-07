@@ -1,0 +1,138 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "End a purchase the network never answered",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer forwards Mastercard purchases to the network with `QueryHost`. Cardholders write in: the terminal said the purchase failed, they paid again another way, and their bank still shows a hold for the first attempt. On the same days, a few terminals waited their full timeout and got nothing at all. The Mastercard link also goes down for maintenance now and then."
+    },
+    {
+      "type": "para",
+      "text": "`AfterNetwork` in `src/main/java/com/example/practice/AfterNetwork.java` stands right after `QueryHost` in the `mastercard` group. After the group the chain has an abort participant that answers reported failures (as in the unit) and `SendResponse`. Finish `prepare`, marked `TODO`, so that every purchase ends with the right answer at the terminal and nothing left wrong at the network. Something else sends what you put on the `saf` queue, and `reversalOf` builds the message. About eight lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager, a real `QueryHost` and two real QMUXes with Q2, in the test's own JVM. A scripted network on the far side approves, declines or never answers. One QMUX's link is down."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * Stands right after QueryHost in the mastercard group. QueryHost has sent the purchase to the\n * network and put the network's answer, if one came, under RESPONSE.\n */\npublic class AfterNetwork implements TransactionParticipant, Configurable {\n    private final Space<String, Object> space = SpaceFactory.getSpace();\n    private final AtomicLong stans = new AtomicLong();\n    private String saf;                                  // the queue the network's SAF sender reads\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        saf = cfg.get(\"saf\", \"saf.mastercard\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        if (ctx.get(ContextConstants.RESPONSE.toString()) != null)\n            return PREPARED | NO_JOIN | READONLY;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        try {\n            space.out(saf, reversalOf(request));\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    /** The message that asks the network to undo {@code original}: a new message pointing back at it. */\n    ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 42, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        rev.set(90, original.getMTI()\n                + ISOUtil.zeropad(original.getString(11), 6)\n                + ISOUtil.zeropad(original.hasField(7) ? original.getString(7) : \"\", 10)\n                + ISOUtil.zeropad(\"\", 22));\n        return rev;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * Stands right after QueryHost in the mastercard group. QueryHost has sent the purchase to the\n * network and put the network's answer, if one came, under RESPONSE.\n */\npublic class AfterNetwork implements TransactionParticipant, Configurable {\n    private final Space<String, Object> space = SpaceFactory.getSpace();\n    private final AtomicLong stans = new AtomicLong();\n    private String saf;                                  // the queue the network's SAF sender reads\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        saf = cfg.get(\"saf\", \"saf.mastercard\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // TODO: Decide how this purchase ends, from what QueryHost left in the Context. Whatever the\n        //       network may still hold for it must be put right: the SAF sender delivers whatever\n        //       you put on the space's 'saf' queue. reversalOf(...) below builds the message.\n        throw new IllegalStateException(\"TODO: prepare\");\n    }\n\n    /** The message that asks the network to undo {@code original}: a new message pointing back at it. */\n    ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 42, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        rev.set(90, original.getMTI()\n                + ISOUtil.zeropad(original.getString(11), 6)\n                + ISOUtil.zeropad(original.hasField(7) ? original.getString(7) : \"\", 10)\n                + ISOUtil.zeropad(\"\", 22));\n        return rev;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b7fca0f2bd25a522395f933919eeedfbf80da91d93feffc98336ee6b9893a78b",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * Stands right after QueryHost in the mastercard group. QueryHost has sent the purchase to the\n * network and put the network's answer, if one came, under RESPONSE.\n */\npublic class AfterNetwork implements TransactionParticipant, Configurable {\n    private final Space<String, Object> space = SpaceFactory.getSpace();\n    private final AtomicLong stans = new AtomicLong();\n    private String saf;                                  // the queue the network's SAF sender reads\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        saf = cfg.get(\"saf\", \"saf.mastercard\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // TODO: Decide how this purchase ends, from what QueryHost left in the Context. Whatever the\n        //       network may still hold for it must be put right: the SAF sender delivers whatever\n        //       you put on the space's 'saf' queue. reversalOf(...) below builds the message.\n        throw new IllegalStateException(\"TODO: prepare\");\n    }\n\n    /** The message that asks the network to undo {@code original}: a new message pointing back at it. */\n    ISOMsg reversalOf(ISOMsg original) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 42, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, ISOUtil.zeropad((stans.incrementAndGet() - 1) % 999999 + 1, 6));\n        rev.set(90, original.getMTI()\n                + ISOUtil.zeropad(original.getString(11), 6)\n                + ISOUtil.zeropad(original.hasField(7) ? original.getString(7) : \"\", 10)\n                + ISOUtil.zeropad(\"\", 22));\n        return rev;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-05/practice-2/src/main/java/com/example/practice/AfterNetwork.java",
+    "test_path": "practice/jpos-server/prose/unit-05/practice-2/src/test/java/com/example/practice/AfterNetworkTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-05/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-05/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AfterNetworkTest#anApprovalGoesBackAsItIs",
+        "kind": "main",
+        "says": "the network's approval reaches the terminal and leaves nothing to put right"
+      },
+      {
+        "id": "com.example.practice.AfterNetworkTest#aSilentNetworkIsNotADecline",
+        "kind": "edge",
+        "says": "a purchase the network never answered fails as unreachable (91), not as a decline"
+      },
+      {
+        "id": "com.example.practice.AfterNetworkTest#aSilentNetworkLeavesOneReversal",
+        "kind": "edge",
+        "says": "a purchase the network received but never answered leaves one reversal pointing at it"
+      },
+      {
+        "id": "com.example.practice.AfterNetworkTest#aNetworkDeclineIsPassedOnAndNotReversed",
+        "kind": "edge",
+        "says": "a decline from the network is an answer: it goes to the terminal and needs no reversal"
+      },
+      {
+        "id": "com.example.practice.AfterNetworkTest#aDownLinkLeavesNothingToReverse",
+        "kind": "edge",
+        "says": "a purchase that was never sent because the link was down leaves nothing to reverse"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-05/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s5.md",
+      "section": "5.6 A Network That Doesn't Answer Has Not Declined"
+    },
+    "concepts": [
+      "Only a request the network received can need a reversal: a silent network does, a decline or a down link doesn't.",
+      "With continuations, QueryHost resumes a timed-out transaction as prepared with no response; a participant after it must fail the transaction so the terminal gets 91."
+    ]
+  }
+}

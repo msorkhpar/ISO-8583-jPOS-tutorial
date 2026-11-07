@@ -1,0 +1,485 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "MUXPool and High Availability",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "14. MUXPool and High Availability"
+    },
+    {
+      "type": "para",
+      "text": "The host runs two data centres, and you have one link to each, with a `MUXPool` in front of them (unit c4). At 14:02 the link to data centre B drops while a purchase is on it. The pool sends the next purchases to A, and the dashboard stays green. The purchase that was on B came back `null`. Someone suggests sending it again, since the pool will now pick A."
+    },
+    {
+      "type": "para",
+      "text": "Was the cardholder charged? Where does the reversal go, and what does A make of it? The answers come down to five rules, one per section heading."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.1 Links You Can Take Down"
+    },
+    {
+      "type": "para",
+      "text": "A pool never touches a socket. It asks each member whether it is connected, and a QMUX with `<ready>` answers by looking for its adaptor's ready entry in the Space (unit c4). So a test can run real QMUXes and a real `MUXPool` in one JVM, with unit c12's test host behind each QMUX, and take a link down by removing its ready entry."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "// not-compiled: uses TestHost from unit c12\npackage com.example.jpos.client.ha;\n\nimport com.example.jpos.client.testhost.TestHost;\nimport org.jdom2.Element;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.q2.iso.MUXPool;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceFactory;\n\nimport java.util.Date;\n\n/** Links in one JVM: a real QMUX per link, a test host behind each, and a real MUXPool in front. */\npublic final class Links {\n    public final LocalSpace<String, Object> sp;\n    private final String space;\n    private final String[] muxes;\n    private final TestHost[] hosts;\n\n    /** Link 0 uses the unit c4 names (host-mux, host-send, ...), link 1 adds \"-b\", link 2 \"-c\". */\n    @SuppressWarnings(\"unchecked\")\n    public Links(String space, int count) throws Exception {\n        this.space = space;\n        this.sp = (LocalSpace<String, Object>) SpaceFactory.getSpace(space);\n        this.muxes = new String[count];\n        this.hosts = new TestHost[count];\n        for (int i = 0; i < count; i++) {\n            String s = i == 0 ? \"\" : \"-\" + (char) ('a' + i);\n            muxes[i] = \"host-mux\" + s;\n            Element e = new Element(\"mux\");\n            e.addContent(new Element(\"space\").setText(space));\n            e.addContent(new Element(\"in\").setText(\"host\" + s + \"-receive\"));\n            e.addContent(new Element(\"out\").setText(\"host\" + s + \"-send\"));\n            e.addContent(new Element(\"ready\").setText(\"host-channel\" + s + \".ready\"));\n            e.addContent(new Element(\"unhandled\").setText(\"host\" + s + \"-unhandled\"));\n            QMUX mux = new QMUX();                       // what Q2 does with 20_host_mux.xml\n            mux.setName(muxes[i]);\n            mux.setPersist(e);\n            mux.setConfiguration(new SimpleConfiguration());\n            mux.init();\n            mux.start();\n            hosts[i] = new TestHost(sp, \"host\" + s + \"-send\", \"host\" + s + \"-receive\");\n        }\n    }\n\n    public TestHost host(int i) { return hosts[i]; }\n    public String mux(int i) { return muxes[i]; }\n\n    /** The adaptor connects: a new ready Date, as ChannelAdaptor writes it. */\n    public void up(int i) { sp.put(ready(i), new Date()); }\n    public void down(int i) { sp.inp(ready(i)); }\n    /** What a sign-on manager writes after an approved sign-on (unit c11). */\n    public void signOn(int i) { sp.put(muxes[i] + \".enabled\", sp.rdp(ready(i))); }\n    public String ready(int i) { return \"host-channel\" + (i == 0 ? \"\" : \"-\" + (char) ('a' + i)) + \".ready\"; }\n\n    /** Deploys a MUXPool over every link, as Q2 does with 25_host_pool.xml. */\n    public MUXPool pool(String name, String strategy, boolean checkEnabled, Element... extra) throws Exception {\n        Element e = new Element(\"mux\");\n        e.addContent(new Element(\"muxes\").setText(String.join(\" \", muxes)));\n        if (strategy != null) e.addContent(new Element(\"strategy\").setText(strategy));\n        e.addContent(new Element(\"space\").setText(space));\n        for (Element x : extra) e.addContent(x);\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        if (checkEnabled) cfg.put(\"check-enabled\", \"true\");\n        MUXPool p = new MUXPool();\n        p.setName(name);\n        p.setPersist(e);\n        p.setConfiguration(cfg);\n        p.init();\n        p.start();\n        return p;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`pool(...)` builds the element Q2 reads from a descriptor like this one:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux name=\"host-pool\" class=\"org.jpos.q2.iso.MUXPool\" logger=\"Q2\">\n  <muxes>host-mux host-mux-b</muxes>\n  <strategy>round-robin</strategy>\n  <property name=\"check-enabled\" value=\"true\"/>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "Every output in this unit comes from the jPOS 2.1.7 `MUXPool` and QMUX deployed this way."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.2 A Pool Chooses a Link Once per Request"
+    },
+    {
+      "type": "para",
+      "text": "A round-robin pool sends the opening's purchase to `host-mux-b`, whose host answers 1.5 seconds late. The client waits one second, gets `null`, and tries again through the pool:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "links.host(1).then(1500);                    // the host behind host-mux-b answers late\nISOMsg p = purchase(\"29110001\", \"000201\");\nISOMsg r = pool.request(p, 1000);\nr = pool.request(p, 1000);                   // try again: the pool picks a link afresh"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "try 1: null\ntry 2: 0210 39=00\nhost-mux   received 0200 11=000201 and approved it\nhost-mux-b received 0200 11=000201 and approved it"
+    },
+    {
+      "type": "para",
+      "text": "The second try looked like a success, and the cardholder paid twice: the resend of unit c12. With one link it double-charges too, once the slow host gets to it. A pool makes it look safe, because the retry may go to a healthy link and be approved at once."
+    },
+    {
+      "type": "para",
+      "text": "The pool picks a member when `request` is called and hands it the message. From then on the member's QMUX does the waiting. If that link drops or the host stays silent, the member returns `null` at the timeout, and the pool passes the `null` up without moving the request. It has no way to tell a request that never arrived from an approval that got lost, any more than a single QMUX can."
+    },
+    {
+      "type": "para",
+      "text": "New purchases stop going to a dead link, so a pool means fewer unknown outcomes, but the ones already on that link stay unknown. A `null` from the pool is reversed, never resent, whatever the strategy (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "The response comes back on the link that carried the request, because each QMUX matches only its own traffic (the out queue is part of the key, unit c12). A request still in a member's send queue when its link drops waits there until the link comes back or the request expires (unit c4); the pool doesn't take it back."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.3 A Link Is Usable When It Is Connected and Signed On"
+    },
+    {
+      "type": "para",
+      "text": "The pool acts on a single signal per member: **usable** or not. It reads that signal on every request, so a link joins or leaves the rotation from one request to the next."
+    },
+    {
+      "type": "para",
+      "text": "Without `check-enabled`, usable means `isConnected()`. Many hosts refuse traffic on a connection until the acquirer has signed on (unit c11), so a connected link is not enough. With `check-enabled`, a QMUX member is usable only while the entry `<mux-name>.enabled` holds the very object stored under its ready key. Two links, both connected, under a primary-secondary pool with and without `check-enabled`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "without check-enabled:\nboth connected, none signed on     isConnected=true  -> host-mux\nwith check-enabled:\nboth connected, none signed on     isConnected=false -> nobody\nhost-mux-b signed on               isConnected=true  -> host-mux-b\nhost-mux signed on                 isConnected=true  -> host-mux\nhost-mux reconnected               isConnected=true  -> host-mux-b\nenabled copy: equals=true same=false\nhost-mux enabled with a copy       isConnected=true  -> host-mux-b\nhost-mux signed on again           isConnected=true  -> host-mux"
+    },
+    {
+      "type": "para",
+      "text": "In the \"reconnected\" line, `host-mux` had signed on, its link dropped, and the adaptor reconnected. Nobody told the pool, and it stopped using the link anyway. The adaptor writes a new `Date` as the ready entry on every connect. The enabled mark still holds the old one, and the pool compares the two with `==`, so the old sign-on no longer counts."
+    },
+    {
+      "type": "para",
+      "text": "An equal copy fails too: a `Date` with the same time is `equals`, but it is not the ready object. For a QMUX with one `<ready>` name, a sign-on manager that writes `Boolean.TRUE`, a fresh `Date` or a copy keeps its link out of the pool for good. One that writes the ready object it signed on with (as `signOn` does above) gets it in. (With several `<ready>` names the pool only checks that the mark exists; see the reference table.)"
+    },
+    {
+      "type": "para",
+      "text": "The pool compares the two entries in its own `<space>`. If the adaptors write their ready entries to another space, both lookups return `null`, `null == null` is true, and `check-enabled` silently lets every connected link through. Leave `<space>` out, or name the adaptors' space."
+    },
+    {
+      "type": "para",
+      "text": "A link whose host process hangs stays connected at TCP level, and the pool keeps sending to it. Unit c11's read timeout, echoes more often than that timeout, and a sign-on manager that removes `<mux>.enabled` when an echo fails turn that failure into the signal. A host that stops answering then leaves the rotation within one echo interval plus the echo's own timeout."
+    },
+    {
+      "type": "para",
+      "text": "`isConnected()` on the pool is true while any member is usable, so as an alarm it stays quiet while one of two links is out. An alarm should name the members the pool is skipping."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.4 The Strategy Decides Where Traffic Goes When a Link Fails"
+    },
+    {
+      "type": "para",
+      "text": "Three links, all usable at first. Each line sends requests with STANs from 000001 and shows which link received which STAN. In the first line `host-mux` goes down after two requests and comes back after four. The \"split on 41\" line sends two requests each from terminals 29110001, 29110002 and 29110003; the next line sends four from 29110001 alone:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "primary-secondary:      host-mux [000001 000002 000005 000006] -b [000003 000004]        -c []\nround-robin, all up:    host-mux [000003 000006]        -b [000001 000004]        -c [000002 000005]\nround-robin, -b down:   host-mux [000002 000004 000006] -b []                     -c [000001 000003 000005]\nsplit on 41:            host-mux [000003 000004]        -b [000005 000006]        -c [000001 000002]\nsplit on 41, -c down:   host-mux [000002 000004]        -b [000001 000003]        -c []\nsplit, 41=GW000001:     host-mux [000003]               -b [000001]               -c [000002]"
+    },
+    {
+      "type": "para",
+      "text": "**`primary-secondary`** takes the first usable member in `<muxes>` order. Request 5 went back to `host-mux` the moment it was up again: failback has no hold-down period. A flapping primary drags all traffic with it; with `check-enabled` it returns only after signing on again. It is also the default, and any `<strategy>` text the pool doesn't recognise selects it, so a typo in `round-robin` silently gives you active/standby."
+    },
+    {
+      "type": "para",
+      "text": "**`round-robin`** keeps one counter for the pool and increments it before using it, so the first request goes to the second member. In the third line, with `-b` down, `host-mux` and `-c` got three requests each. A simpler rule, \"start at the counter and take the next usable member\", would give `-c` both its own turn and `-b`'s, two requests out of three. The 2.1.7 pool increments the counter once more for every member it skips, which spreads a dead member's share evenly. Under load the shares are only roughly equal, because many threads move the counter at once."
+    },
+    {
+      "type": "para",
+      "text": "**`split-by-divisor`** with `<split-field>` sends a message to member number `value % size`, here terminal ID modulo 3. Terminal 29110001 always lands on `-c`, while that member is usable. With `-c` down, its requests went round-robin to the other two, one each. A field that is missing or not all digits, such as `GW000001`, goes round-robin as well. So this strategy can't pin a terminal's traffic to one link."
+    },
+    {
+      "type": "para",
+      "text": "**`round-robin-with-override`** keeps chosen MTIs on a named link while that link is usable, and otherwise sends them round-robin (14.6)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "14.4.1 Spot the Problem: Eight Months of Uptime"
+    },
+    {
+      "type": "para",
+      "text": "A switch has run a round-robin pool of three links for 250 days at about 100 requests a second. Today two purchases in three fail before they are sent, and the third always goes to the first link. The same pool, with its private counter set close to its limit by reflection:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "counter at 2147483646, request 1: sent to another member\ncounter at 2147483646, request 2: ArrayIndexOutOfBoundsException: Index -2 out of bounds for length 3\ncounter at 2147483646, request 3: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 3\ncounter at 2147483646, request 4: sent to host-mux\ncounter at 2147483646, request 5: ArrayIndexOutOfBoundsException: Index -2 out of bounds for length 3\ncounter at 2147483646, request 6: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 3"
+    },
+    {
+      "type": "para",
+      "text": "The counter is an `int`. After 2^31 increments it wraps to a negative number, and `counter % size` in Java keeps the sign, so the index is negative unless the remainder happens to be 0. That stays so until the counter climbs back above zero, another 2^31 increments later. At 100 a second, 2^31 requests take about 249 days, and skipped members and idle polling (14.5) add increments of their own."
+    },
+    {
+      "type": "para",
+      "text": "A planned restart before that point resets the counter. A router of your own avoids it with `Math.floorMod`, as in 14.6."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.5 With Nothing Usable, the Pool Spends the Request's Own Time"
+    },
+    {
+      "type": "para",
+      "text": "Both links are down, and a request arrives with a 200 ms timeout. Then a link comes up 300 ms into a request that may wait 5 seconds:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "none usable, timeout 200:  null after 1000 ms, hosts received 0\nisConnected():             false after 0 ms\nlink up at 300 ms:         0210 after 1000 ms"
+    },
+    {
+      "type": "para",
+      "text": "When no member is usable, the pool sleeps one second and looks again, until the deadline has passed. It checks the deadline only after the sleep, so a 200 ms request returns after a whole second. A link that comes up during the sleep is noticed at the next look, and the time spent waiting comes out of the request's budget: the pool turns the timeout into a deadline at the start and hands the member only what is left."
+    },
+    {
+      "type": "para",
+      "text": "This `null` means nothing was sent, so there is nothing to reverse, but the caller can't tell it from the `null` of 14.2. Ask the pool's `isConnected()` first, as unit c4 did with a single QMUX: it answers at once, you can report \"host unavailable\", and every `null` that `request` returns afterwards means an unknown outcome. A member can still drop between the check and the request. You then reverse a purchase that was never sent, which costs one message and is safe."
+    },
+    {
+      "type": "para",
+      "text": "Keep request timeouts well above a second, or the polling eats most of them."
+    },
+    {
+      "type": "para",
+      "text": "The other entry points end differently when nothing is usable. `send(m)` throws `No available MUX` after one second, and the asynchronous `request` throws `No MUX available` once its timeout has passed, rounded up to whole seconds, without calling the listener (2500 ms became 3000 ms in our run). `request(m, 0)` does not just send. With two usable links:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "request(m, 0):             hosts received 2 copies of 000403 (host-mux [000402 000403], host-mux-b [000403])"
+    },
+    {
+      "type": "para",
+      "text": "In 2.1.7 a zero timeout makes the pool call `send(m)` first, and then fall into the normal path with a deadline of \"now\". Within the same millisecond, that path hands the message to a member again. Both copies are queued without an expiry, so on a link that drops they wait until it is back. When you mean to send without waiting, call `send`."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.6 A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own"
+    },
+    {
+      "type": "para",
+      "text": "A reversal refers to an earlier message. Whether it must travel on the original's link depends on what is behind the links:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "several connections to one host instance: any link works, and the reversal queue of unit c12 can send through the pool;",
+        "several host instances that share their state at once, such as two front ends on one database: any link works too;",
+        "instances that don't share state, or share it late, such as two data centres that replicate asynchronously: the reversal must reach the data centre that saw the original."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Take the third case with the opening's purchase. Data centre B approved it, and the answer was lost. The link to B is down. The test host for each data centre approves purchases and reverses only what it has a record of, answering `25` (original not found) otherwise. The pool uses `round-robin-with-override` with `<follower-override>0420 0421</follower-override>`, and the test puts the original link's adaptor name, `host-channel-b`, into the field that `<original-channel-field>` names. A real application would first have to learn that name: the pool doesn't say which member it chose."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "override pool\npurchase:          null\nreversal, -b down: 0430 39=25\ndata centre A saw: [0420 11=000502 -> 25]\ndata centre B saw: [0200 11=000501 -> 00 (answer lost)]"
+    },
+    {
+      "type": "para",
+      "text": "With `-b` down, the override fell back to round-robin and sent the reversal to A, which had never seen the purchase. In most networks any answer acknowledges a reversal (unit c12), so the queue deleted it. B still holds an approved purchase that nobody will reverse, and the cardholder's money stays with the merchant until someone finds it at reconciliation."
+    },
+    {
+      "type": "para",
+      "text": "Here the follow-up must go back to the original's link, and when that link is down it must wait in the queue. The 2.1.7 pool has no hook for a choice of your own (later releases add one). The `MUX` interface is small, though, so a class of your own can implement it, wrap the members, and take the pool's place under its name:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.ha;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.atomic.AtomicInteger;\n\n/** Round-robin for new requests; a reversal goes back to its original's link, or waits. */\npublic class StickyRouter implements MUX {\n    private final Space<String, Object> routes;         // persistent in production\n    private final long routeTtl;                         // longer than the reversal window\n    private final MUX[] members;\n    private final AtomicInteger next = new AtomicInteger();\n\n    public StickyRouter(Space<String, Object> routes, long routeTtl, MUX... members) {\n        this.routes = routes;\n        this.routeTtl = routeTtl;\n        this.members = members.clone();\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        MUX member = route(m);\n        return member == null ? null : member.request(m, timeout);   // null: nothing was sent\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack)\n            throws ISOException {\n        member(m).request(m, timeout, l, handBack);\n    }\n\n    @Override\n    public void send(ISOMsg m) throws ISOException, java.io.IOException {\n        member(m).send(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        for (MUX member : members)\n            if (member.isConnected())\n                return true;\n        return false;\n    }\n\n    private MUX member(ISOMsg m) throws ISOException {\n        MUX member = route(m);\n        if (member == null)\n            throw new ISOException(\"no usable member\");\n        return member;\n    }\n\n    private MUX route(ISOMsg m) throws ISOException {\n        boolean reversal = m.getMTI().startsWith(\"04\") && m.hasField(90);\n        if (reversal) {\n            Integer index = (Integer) routes.rdp(originalOf(m));\n            if (index != null)                                       // (1) known original:\n                return members[index].isConnected() ? members[index] : null;   // its link, or wait\n        }\n        int start = next.getAndIncrement();\n        for (int i = 0; i < members.length; i++) {\n            int j = Math.floorMod(start + i, members.length);        // (2) survives the wrap\n            if (members[j].isConnected()) {\n                if (!reversal)\n                    routes.put(idOf(m), j, routeTtl);                // (3) remember the route\n                return members[j];\n            }\n        }\n        return null;\n    }\n\n    /** Terminal, STAN and transmission time: how a reversal names its original. */\n    static String idOf(ISOMsg m) {\n        return \"route.\" + m.getString(41) + \".\" + m.getString(11) + \".\" + m.getString(7);\n    }\n\n    static String originalOf(ISOMsg reversal) {\n        String de90 = reversal.getString(90);\n        return \"route.\" + reversal.getString(41) + \".\" + de90.substring(4, 10)\n                + \".\" + de90.substring(10, 20);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The same story through `StickyRouter` (an earlier purchase went to A, so this one goes to B):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "StickyRouter\npurchase:          null\nreversal, -b down: null\nreversal, -b up:   0430 39=00\ndata centre A saw: [0200 11=000500 -> 00]\ndata centre B saw: [0200 11=000501 -> 00 (answer lost), 0420 11=000502 -> 00]"
+    },
+    {
+      "type": "para",
+      "text": "**(1) Its link, or wait.** While B is down, `request` returns `null` and sends nothing. The reversal queue of unit c12 sees no answer and keeps the reversal, and the next attempt after B is back reaches it. Test a router like this with the original's link down: one that fails over passes every test in which all links stay up."
+    },
+    {
+      "type": "para",
+      "text": "**(2) The index survives the wrap.** `Math.floorMod` keeps it between 0 and the member count when the counter goes negative, the failure of 14.4.1."
+    },
+    {
+      "type": "para",
+      "text": "**(3) The route is remembered under the original's identity**, the way a reversal states it: field 41, and the STAN and transmission time from field 90 (positions 5-10 and 11-20, unit c12). The reversal's own STAN and time are new and match nothing. The routes live in a Space with a TTL longer than the network's reversal window, so they don't grow for ever; a persistent space keeps them across a restart. A reversal whose route is unknown (it expired, or the original went out before a restart with a transient space) goes round-robin here. If your hosts can't take that, return `null` for it instead, and decide what alerts on reversals that never leave the queue."
+    },
+    {
+      "type": "para",
+      "text": "Usability here is `isConnected()`. To keep unsigned links out as well, test the enabled mark the way `check-enabled` does (14.3), in the adaptors' space, before choosing a member."
+    },
+    {
+      "type": "para",
+      "text": "Your code sets field 11 before the router or the pool picks a link, so the STAN can't come from the chosen link's sequence. Use one sequence for the pool, such as `stan.host-pool` (unit c4), and every STAN is unique on every member. A network that wants the STANs on each connection to run without gaps needs the STAN set after the choice, inside a router like this one."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A pool chooses a link once per request.** It never moves a request a member has taken, so a `null` is still an unknown outcome to reverse. A retry through the pool is a second purchase, often on another link that approves it at once.",
+        "**Usable means connected, and with `check-enabled` signed on over this connection.** The enabled mark must be the very ready object, so a reconnect takes the link out until it signs on again. A hung host leaves the rotation only if read timeouts, echoes and the sign-on manager say so.",
+        "**The strategy decides where traffic goes on failure.** `primary-secondary` fails back at once; `round-robin` spreads a dead member's share evenly, and its 2.1.7 counter breaks most requests after 2^31 increments; `split-by-divisor` and the override fall back to round-robin when their member is down.",
+        "**With nothing usable, the pool polls once a second inside the request's own budget** and returns `null` with nothing sent. Check `isConnected()` first, and never call `request(m, 0)`.",
+        "**A follow-up that must reach its original's host needs a router of your own**, which remembers each original's link and makes the follow-up wait while that link is down. The STAN is set before the choice, so the pool uses one sequence."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**What `MUXPool` 2.1.7 reads:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Element",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<muxes>`",
+          "member names, looked up as `mux.<name>` once at initialisation; a missing name fails the deployment, so the pool's file sorts after its members (`25_`); redeploy the pool after a member changes (unit c4)"
+        ],
+        [
+          "`<strategy>`",
+          "`primary-secondary` (default, also for any unknown text), `round-robin`, `round-robin-with-override`, `split-by-divisor`"
+        ],
+        [
+          "`<space>`",
+          "where `check-enabled` reads the ready and enabled entries; default space if absent. Must be the adaptors' space: elsewhere both entries are `null`, which compare equal, and every connected link passes"
+        ],
+        [
+          "`<property name=\"check-enabled\">`",
+          "`true` adds the sign-on test below"
+        ],
+        [
+          "`<split-field>`",
+          "field whose numeric value picks the member for `split-by-divisor`"
+        ],
+        [
+          "`<follower-override>`",
+          "MTIs that `round-robin-with-override` keeps on their original's link, e.g. `0420 0421`"
+        ],
+        [
+          "`<original-channel-field>`",
+          "field holding the ChannelAdaptor name (not the QMUX name) of the original's link; the member whose QMUX `<in>` is that adaptor's `<out>` is used if usable. A name that is not registered, or a member that is not a QMUX, makes the pool return no member at all (`null`, nothing sent). The field travels with the message: a packager with no definition for it fails the pack (`null field N packager`), so remove it in an outgoing filter or use a field the host ignores"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Usable in 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Member",
+        "Usable when"
+      ],
+      "rows": [
+        [
+          "any `MUX`, no `check-enabled`",
+          "`isConnected()`"
+        ],
+        [
+          "a non-QMUX member (a pool of pools), with `check-enabled`",
+          "`isConnected()`"
+        ],
+        [
+          "QMUX with one `<ready>` name, `check-enabled`",
+          "`isConnected()` and `<mux-name>.enabled` `==` the ready entry"
+        ],
+        [
+          "QMUX with several `<ready>` names, `check-enabled`",
+          "`isConnected()` and `<mux-name>.enabled` present, whatever it holds"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Entry points when nothing is usable:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Call",
+        "Result"
+      ],
+      "rows": [
+        [
+          "`request(m, timeout)`",
+          "polls every second until the deadline, so at least one second, then returns `null`; nothing sent"
+        ],
+        [
+          "`request(m, timeout, listener, handBack)`",
+          "polls the same way, then throws `ISOException(\"No MUX available\")`; the listener is not called"
+        ],
+        [
+          "`send(m)`",
+          "looks once, sleeps a second, then throws `ISOException(\"No available MUX\")`"
+        ],
+        [
+          "`isConnected()`",
+          "answers at once: true when any member is usable"
+        ],
+        [
+          "`request(m, 0)`",
+          "calls `send(m)` and then the normal path: the message can go out twice, both copies without an expiry"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The counter.** `round-robin`, the fallback of `split-by-divisor` and of the override share one `int` counter. It is incremented once per round-robin choice (for the other two, only when they fall back), once per skipped member, and once per member on every one-second poll while nothing is usable. Past 2^31 it is negative, and every choice whose remainder is not 0 fails: `round-robin` throws `ArrayIndexOutOfBoundsException`, while the other two catch the exception, log it and return no member, so `request` returns `null` with nothing sent."
+    },
+    {
+      "type": "para",
+      "text": "**JMX.** The pool's MBean shows `getMuxNames()` and `getStrategy()` (0 primary-secondary, 1 round-robin, 2 round-robin-with-override, 3 split-by-divisor). The members' QMUX counters (unit c11) show where traffic actually went."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.9 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your primary link drops for a few seconds about once an hour. Compare `primary-secondary` with and without `check-enabled`, and with `round-robin`: how many requests move during each blip, and how many unknown outcomes does each choice produce?",
+        "A round-robin pool of four links runs at 400 requests a second, and one link is down for 20 minutes every night with nothing usable for one minute of that. How long until the counter wraps? Work it out, then decide when to schedule restarts.",
+        "Two data centres replicate within 3 seconds. Is that \"sharing state\" for reversals? Which reversals could still arrive before their original is known, and what would you measure to decide between the pool and a router of your own?",
+        "`StickyRouter` keeps routes in a Space. Design the same memory as a column in the transaction table instead. What becomes simpler, and what happens to a reversal whose original's row has not been written yet?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14.10 Design Note: Why the Pool Knows Only \"Usable\""
+    },
+    {
+      "type": "para",
+      "text": "`MUXPool` knows nothing about hosts or data centres, only one bit per member: usable or not (14.3). Writing the bit is someone else's job: the adaptor writes the ready entry, and the sign-on manager writes and removes the enabled mark."
+    },
+    {
+      "type": "para",
+      "text": "That split keeps the pool under 300 lines in 2.1.7. The adaptor and the sign-on manager need not know the pool exists; they only follow its convention, the `<mux-name>.enabled` key and the identity rule. A failure the pool should react to needs a component that turns it into the bit, not a change to the pool."
+    },
+    {
+      "type": "para",
+      "text": "The price is that the pool cannot link a message to an earlier one. It can route an MTI to a named link, but it doesn't know which link carried a reversal's original, and it returns the same `null` for \"not sent\" and \"not answered\". Those decisions need the application's knowledge, and in 2.1.7 the only place to put that knowledge is a `MUX` of your own in front of, or instead of, the pool."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 49,
+    "code": 12,
+    "tables": 3,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 4,
+    "disclosures": 0
+  },
+  "content_sha256": "87a6813aaa7aadbef6b9a20c024e7349ac941e1d86590479f65c91c0932d4d6a"
+}

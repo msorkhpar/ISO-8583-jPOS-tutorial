@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "ordinal": 3,
+  "title": "Check yourself: is this link really in service?",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-frozen-application",
+        "stem": "A client's adaptor has <keep-alive>yes</keep-alive>, the channel has TCP keep-alive switched on and a read timeout of 6 minutes, and nothing sends echoes. At 14:00 the host's authorization application freezes, while its process keeps running and reading the socket. What does the client see over the next hour?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The link stays up and purchases come back declined, since the frozen application still replies with an error code",
+            "correct": false,
+            "says": "a frozen application replies with nothing; only the host's channel, below it, still answers the empty frames"
+          },
+          {
+            "id": "b",
+            "text": "The link stays up and purchases go out and expire, since the empty frames are answered below the host application",
+            "correct": true,
+            "says": "the host's channel answers each empty frame in its own read loop, so bytes keep arriving, the read timeout rarely fires, and every request expires unanswered"
+          },
+          {
+            "id": "c",
+            "text": "The link is closed after 6 minutes and traffic stops, since the read timeout fires when purchases go unanswered",
+            "correct": false,
+            "says": "the read timeout measures silence on the socket, and the answered keep-alives keep it from being silent"
+          },
+          {
+            "id": "d",
+            "text": "The link is closed after the first keep-alive and traffic stops, since the TCP stack reports the frozen application",
+            "correct": false,
+            "says": "TCP keep-alive probes the far TCP stack, which is alive; it knows nothing about the application"
+          }
+        ],
+        "origin": {
+          "path": "src/c11.md",
+          "section": "11.2 Only an Echo Proves the Host Is Answering"
+        }
+      },
+      {
+        "id": "q-busy-manager-thread",
+        "stem": "A home-grown sign-on manager serves links P and Q from one thread. It sets a boolean for P after P's 001 is answered and clears it when it finds P's ready entry missing. One night the thread spends 30 seconds waiting on a sign-on to Q that never comes back. Meanwhile P's host restarts, and P's adaptor reconnects 8 seconds later. What happens on P?",
+        "options": [
+          {
+            "id": "a",
+            "text": "P carries purchases on a connection nobody signed on, since the boolean was never cleared while the thread was away",
+            "correct": true,
+            "says": "the thread never saw P's ready entry missing, so the flag still says signed on about a new, unsigned connection"
+          },
+          {
+            "id": "b",
+            "text": "P carries purchases on a connection that is signed on, since the adaptor repeats the last sign-on when it reconnects",
+            "correct": false,
+            "says": "the adaptor sends no 0800 of its own; nothing in jPOS 2.1.7 signs a connection on"
+          },
+          {
+            "id": "c",
+            "text": "P is signed on again when the thread comes back, since the reconnect clears the boolean through the Space",
+            "correct": false,
+            "says": "a field in the manager is not in the Space; nothing clears it except the manager's own loop"
+          },
+          {
+            "id": "d",
+            "text": "P is signed on again when the thread comes back, since a new connection makes the old boolean expire",
+            "correct": false,
+            "says": "a field does not expire; only Space entries with a lease do, and the flag is not one"
+          }
+        ],
+        "origin": {
+          "path": "src/c11.md",
+          "section": "11.3 A Sign-On Belongs to One Connection"
+        }
+      },
+      {
+        "id": "q-enabled-written-as-true",
+        "stem": "A colleague's sign-on manager writes Boolean.TRUE under <mux>.enabled after each successful sign-on. The client has one QMUX, with one <ready> name, behind a MUXPool with check-enabled, and the host accepts sign-ons and echoes normally. What do the purchases get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Purchases are approved after the first sign-on, since the pool only checks that the entry exists",
+            "correct": false,
+            "says": "with a single ready name the pool compares the entry with the ready object by identity, not mere presence"
+          },
+          {
+            "id": "b",
+            "text": "Purchases are approved after the first sign-on, since the value matches any connection that is up",
+            "correct": false,
+            "says": "Boolean.TRUE is never the same object as the adaptor's ready Date"
+          },
+          {
+            "id": "c",
+            "text": "Nothing reaches the host and each request fails at once, since the pool rejects a member that is not enabled",
+            "correct": false,
+            "says": "with no usable member the 2.1.7 pool keeps checking until the timeout and then returns null; it does not fail at once"
+          },
+          {
+            "id": "d",
+            "text": "Nothing reaches the host and each request returns null at its timeout, since the pool finds no usable member",
+            "correct": true,
+            "says": "the identity test never holds, so the pool never hands a request to the QMUX and returns null when the timeout is spent"
+          }
+        ],
+        "origin": {
+          "path": "src/c11.md",
+          "section": "11.4 A Pool Uses a Link Only While It Is Signed On"
+        }
+      },
+      {
+        "id": "q-host-checks-the-link",
+        "stem": "A host sends its own 0800 echo every 2 minutes and drops the connection after three in a row go unanswered. The client's QMUX is configured as in unit c4, with no request listener, and the client sends its own echo every 5 minutes, which the host answers. What happens to the link?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It stays up through the day, since the client's own echoes count as answers to the host's",
+            "correct": false,
+            "says": "the host's echoes are requests with their own STANs; the client's echoes answer none of them"
+          },
+          {
+            "id": "b",
+            "text": "It stays up through the day, since the client's channel answers an 0800 by itself",
+            "correct": false,
+            "says": "the channel only answers empty keep-alive frames; an 0800 goes up to QMUX like any message"
+          },
+          {
+            "id": "c",
+            "text": "It is dropped every few minutes, since the host's echoes wait in a queue where nothing answers them",
+            "correct": true,
+            "says": "the echoes match no waiting request, no listener takes them, and they expire on the unhandled queue"
+          },
+          {
+            "id": "d",
+            "text": "It is dropped every few minutes, since QMUX sends back an error for requests it did not send",
+            "correct": false,
+            "says": "QMUX never answers on its own; an unmatched message goes to the listeners or the unhandled queue"
+          }
+        ],
+        "origin": {
+          "path": "src/c11.md",
+          "section": "11.6 The Host's Own Echo Is a Request, and Someone Must Answer It"
+        }
+      }
+    ]
+  }
+}

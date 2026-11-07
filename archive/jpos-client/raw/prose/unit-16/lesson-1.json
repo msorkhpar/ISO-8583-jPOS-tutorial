@@ -1,0 +1,636 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Simulators and Test Harnesses",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "16. Simulators and Test Harnesses"
+    },
+    {
+      "type": "para",
+      "text": "Certification with the acquirer is booked for two slots of three hours each. The acquirer's script has forty cases. Card `5555555555554444` must be declined with `05`. A purchase over 500.00 must be declined with `51`, and one of exactly 500.00 approved. For 777.00 the acquirer's test host stays silent, and the client has to reverse the purchase before the case passes. 888.00 is approved after 1.5 seconds. Each failed case costs slot time, and a third slot costs money."
+    },
+    {
+      "type": "para",
+      "text": "Before the first slot the team runs the same cases every night against a simulator on 127.0.0.1, and they pass. In the first slot the silent-host case fails: the client never sent a reversal. The simulator had answered 777.00 with `51` every night, so the reversal path had never run."
+    },
+    {
+      "type": "para",
+      "text": "A simulator, a proxy or a test harness can disagree with the real host while the build stays green. This unit's five rules:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "A simulator's rules are data, and the first rule that matches decides.",
+        "A listener runs on the session's thread, so a late answer is scheduled, never slept.",
+        "The simulator is a witness: ask it what the client sent.",
+        "A proxy may answer only for a request that never left.",
+        "A scripted case grades every field and reports every failure."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Unit c10's stand-ins live inside the test. The tools here run beside the system while you develop and certify it. Every output comes from jPOS 2.1.7, with the simulator, the client's `host-channel` and its `host-mux` deployed by one Q2 in one JVM."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.1 A Simulator's Rules Are Data, and the First Rule That Matches Decides"
+    },
+    {
+      "type": "para",
+      "text": "A simulator that a team shares gets a new case every week. If its behaviour is code, each new case waits for a developer, a build and a redeploy. If it is a table in the deploy descriptor, the tester adds a line."
+    },
+    {
+      "type": "para",
+      "text": "The team's nightly table has one rule per line: conditions, an arrow, actions."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "pan=5555555555554444             -> rc=05\nmti=0200 amount=50001-99999999   -> rc=51\nmti=0200 amount=77700-77700      -> silent\nmti=0200 pcode=31                -> rc=00 54=1001840C000000012345\nany                              -> rc=00 38=A1B2C3"
+    },
+    {
+      "type": "para",
+      "text": "Amounts are in minor units, as in field 4, and a range includes both of its ends. Which rule answers a purchase of 777.00?"
+    },
+    {
+      "type": "para",
+      "text": "The simulator tries the rules from the top, and the first match answers. 777.00 is inside `50001-99999999`, so the second rule answers `51` and the third never runs. Six requests, against that table and then with the silent rule moved to the top (card's first digits, field 3, field 4, answer):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "silent rule last:\n  4111  000000  000000012000  0210 39=00 38=A1B2C3\n  5555  000000  000000012000  0210 39=05\n  4111  000000  000000050000  0210 39=00 38=A1B2C3\n  4111  000000  000000050001  0210 39=51\n  4111  000000  000000077700  0210 39=51\n  4111  310000  000000000000  0210 39=00 54=1001840C000000012345\nsilent rule first:\n  4111  000000  000000012000  0210 39=00 38=A1B2C3\n  5555  000000  000000012000  0210 39=05\n  4111  000000  000000050000  0210 39=00 38=A1B2C3\n  4111  000000  000000050001  0210 39=51\n  4111  000000  000000077700  silent\n  4111  310000  000000000000  0210 39=00 54=1001840C000000012345"
+    },
+    {
+      "type": "para",
+      "text": "The first run is the nightly one: it answers every request, so the silent case never happens."
+    },
+    {
+      "type": "para",
+      "text": "Why not let the most specific rule win? A tester can't check \"most specific\" by eye: is a card rule more specific than an amount range? First-match can be checked by reading from the top. So put exceptions first, ranges after them, and `any` last."
+    },
+    {
+      "type": "para",
+      "text": "The simulator is an `ISORequestListener`, like unit c10's `LoopbackHost`. `QServer` creates it with its no-arg constructor and hands it its `<property>` elements through `Configurable`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.sim;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\n\nimport java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.ScheduledExecutorService;\nimport java.util.concurrent.TimeUnit;\n\n/** A host simulator driven by an ordered table of rules: the first rule that matches answers. */\npublic class RuleHost implements ISORequestListener, Configurable {\n    private static final List<String> CONDITIONS = List.of(\"any\", \"mti\", \"pan\", \"pcode\", \"amount\");\n\n    record Rule(String text, Map<String, String> when, Map<String, String> then) { }\n\n    private final List<Rule> rules = new ArrayList<>();\n    private final ScheduledExecutorService later = Executors.newSingleThreadScheduledExecutor(r -> {\n        Thread t = new Thread(r, \"rule-host-late\");\n        t.setDaemon(true);\n        return t;\n    });\n    private Space<String, Object> sp;\n    private String seen;                                 // queue of what the host received\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        rules.clear();\n        for (String text : cfg.getAll(\"rule\"))          // a repeated property, in order\n            rules.add(parse(text));\n        sp = SpaceFactory.getSpace(cfg.get(\"space\", \"tspace:default\"));\n        seen = cfg.get(\"seen\", null);\n    }\n\n    static Rule parse(String text) throws ConfigurationException {\n        String[] sides = text.split(\"->\");\n        if (sides.length != 2)\n            throw new ConfigurationException(\"rule without '->': \" + text);\n        Map<String, String> when = words(sides[0]), then = words(sides[1]);\n        for (String k : when.keySet())\n            if (!CONDITIONS.contains(k))\n                throw new ConfigurationException(\"unknown condition '\" + k + \"' in: \" + text);\n        for (Map.Entry<String, String> a : then.entrySet())\n            if (!a.getKey().matches(\"rc|silent|late|\\\\d+\") || a.getValue().isEmpty() != a.getKey().equals(\"silent\"))\n                throw new ConfigurationException(\"bad action '\" + a.getKey() + \"' in: \" + text);\n        if (!then.containsKey(\"rc\") && !then.containsKey(\"silent\"))\n            throw new ConfigurationException(\"rule needs rc= or silent: \" + text);\n        return new Rule(text.trim(), when, then);\n    }\n\n    private static Map<String, String> words(String s) {\n        Map<String, String> m = new LinkedHashMap<>();\n        for (String w : s.trim().split(\"\\\\s+\")) {\n            String[] kv = w.split(\"=\", 2);\n            m.put(kv[0], kv.length > 1 ? kv[1] : \"\");\n        }\n        return m;\n    }\n\n    static boolean matches(Rule rule, ISOMsg m) throws ISOException {\n        for (Map.Entry<String, String> c : rule.when().entrySet()) {\n            String v = c.getValue();\n            boolean ok = switch (c.getKey()) {\n                case \"mti\" -> v.equals(m.getMTI());\n                case \"pan\" -> v.equals(m.getString(2));\n                case \"pcode\" -> m.hasField(3) && m.getString(3).startsWith(v);\n                case \"amount\" -> {                       // lo-hi in minor units, both ends included\n                    String[] r = v.split(\"-\");\n                    long amount = Long.parseLong(m.getString(4));\n                    yield amount >= Long.parseLong(r[0]) && amount <= Long.parseLong(r[1]);\n                }\n                default -> true;                         // any\n            };\n            if (!ok)\n                return false;\n        }\n        return true;\n    }\n\n    /** The first rule that matches, or null. */\n    Rule decide(ISOMsg m) throws ISOException {\n        for (Rule rule : rules)\n            if (matches(rule, m))\n                return rule;\n        return null;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;                            // a response is not ours to answer\n            if (seen != null)\n                sp.out(seen, m.clone(), 60000L);         // what the client sent, kept for a minute\n            Rule rule = decide(m);\n            if (rule == null)\n                return false;                            // let the next listener try\n            if (rule.then().containsKey(\"silent\"))\n                return true;                             // handled: the host says nothing\n            ISOMsg r = (ISOMsg) m.clone();               // never change the request itself\n            r.setResponseMTI();\n            r.unset(35, 45, 52, 55);                     // no card secrets in an answer\n            for (Map.Entry<String, String> a : rule.then().entrySet()) {\n                if (a.getKey().equals(\"rc\")) r.set(39, a.getValue());\n                else if (a.getKey().matches(\"\\\\d+\")) r.set(Integer.parseInt(a.getKey()), a.getValue());\n            }\n            long late = Long.parseLong(rule.then().getOrDefault(\"late\", \"0\"));\n            if (late > 0)\n                later.schedule(() -> send(source, r), late, TimeUnit.MILLISECONDS);\n            else\n                send(source, r);\n            return true;\n        } catch (ISOException | NumberFormatException e) {\n            return false;                                // no MTI, or an amount that isn't a number\n        }\n    }\n\n    private static void send(ISOSource source, ISOMsg r) {\n        try {\n            if (source.isConnected())\n                source.send(r);\n        } catch (Exception e) {\n            // the client went away; a real host would log it\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The answer is a clone, so the request the session holds is unchanged (unit c10 showed what a stand-in that answers with the request itself hides). A `silent` rule returns `true`: handled, by saying nothing. When no rule matches, `process` returns `false` and `ISOServer` offers the message to its next listener, so end the table with `any`."
+    },
+    {
+      "type": "para",
+      "text": "Amounts are compared as numbers: field 4 is twelve zero-padded digits and the bounds are not, so as text `000000077700` would sort below `50001`."
+    },
+    {
+      "type": "para",
+      "text": "**A rule that can't be read stops the deploy.** Suppose a tester types `amout=` in the over-limit rule. A parser that skips unknown words reads the rule as \"every 0200 gets `51`\". One that skips the whole rule approves every purchase over 500.00, and the nightly run stays green until the over-limit case meets the real host. `parse` refuses instead:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "refused: unknown condition 'amout' in: mti=0200 amout=50001-99999999 -> rc=51\nrefused: bad action 'rc' in: pan=5555555555554444 -> rc 05\nrefused: rule without '->': pan=5555555555554444 rc=05"
+    },
+    {
+      "type": "para",
+      "text": "Each rule is one repeated `rule` property, and `cfg.getAll(\"rule\")` returns them in descriptor order:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<server name=\"host-simulator\" class=\"org.jpos.q2.iso.QServer\" logger=\"Q2\">\n  <attr name=\"port\" type=\"java.lang.Integer\">${sim.port:8000}</attr>\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\" logger=\"Q2\" realm=\"host-simulator\"\n           packager=\"org.jpos.iso.packager.GenericPackager\">\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  </channel>\n  <request-listener class=\"com.example.jpos.client.sim.RuleHost\" logger=\"Q2\">\n    <property name=\"seen\" value=\"host-simulator.seen\"/>\n    <property name=\"rule\" value=\"pan=5555555555554444             -> rc=05\"/>\n    <property name=\"rule\" value=\"mti=0200 amount=77700-77700      -> silent\"/>\n    <property name=\"rule\" value=\"mti=0200 amount=88800-88800      -> rc=00 late=1500\"/>\n    <property name=\"rule\" value=\"mti=0200 amount=50001-99999999   -> rc=51\"/>\n    <property name=\"rule\" value=\"mti=0420                         -> rc=00\"/>\n    <property name=\"rule\" value=\"any                              -> rc=00 38=A1B2C3\"/>\n  </request-listener>\n</server>"
+    },
+    {
+      "type": "para",
+      "text": "The rest of the unit runs this simulator, saved as `deploy/50_host_simulator.xml`. With `amout=` in it, Q2 deploys the file and the `QServer` fails to start:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    error starting service\n      org.jpos.core.ConfigurationException: unknown condition 'amout' in: mti=0200 amout=50001-99999999   -> rc=51"
+    },
+    {
+      "type": "para",
+      "text": "Nothing listens on the port, the client's link never comes up, and the client reports `isConnected: false`. The nightly run fails at its first case, with the rule's text in the log."
+    },
+    {
+      "type": "para",
+      "text": "Use the real host's channel class and packager. A simulator with an easier wire format hides the framing and packing problems you most want to find before certification."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.2 A Listener Runs on the Session's Thread, So a Late Answer Is Scheduled"
+    },
+    {
+      "type": "para",
+      "text": "For the slow 888.00 case, the obvious simulator sleeps:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "if (\"000000088800\".equals(m.getString(4)))\n    Thread.sleep(1500);                    // \"the host is slow today\""
+    },
+    {
+      "type": "para",
+      "text": "The client, with a one-second timeout, sends the 888.00 purchase and, while it waits, a purchase of 120.00 on the same connection. When does 120.00 get its answer?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000101 (888.00): null at 1000 ms\n000102 (120.00): null at 1000 ms"
+    },
+    {
+      "type": "para",
+      "text": "Both timed out. `ISOServer` gives each connection a session. The session reads one message, calls the listeners on its own thread, and reads the next only when `process` has returned. While the listener sleeps, 120.00 sits unread in the socket, and its answer leaves after the first, 1.5 seconds late too."
+    },
+    {
+      "type": "para",
+      "text": "The same two purchases against `RuleHost`, whose rule for 888.00 is `late=1500`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000101 (888.00): null at 1000 ms\n000102 (120.00): 0210 39=00 at 0 ms"
+    },
+    {
+      "type": "para",
+      "text": "`process` hands the late answer to a scheduler and returns, so the session reads 120.00 at once. The answer to 888.00 still arrives after 1.5 seconds, and QMUX, with nobody waiting for it, puts it on `host-unhandled` (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "With the sleep, one slow case became two unknown outcomes. A client that reverses on `null` (unit c12) sends two reversals where the script expects one, and the failing case is 120.00, which had nothing to do with the slow host. In a load run (unit c10) every session that meets a slow case stops reading, so the run measures the simulator instead of the system. Keep sleeps out of a simulator's listeners."
+    },
+    {
+      "type": "para",
+      "text": "Two other faults:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Every answer slow.** jPOS 2.1.7's `org.jpos.iso.filter.DelayFilter` sleeps for its `delay` property, in milliseconds, each time a message passes. On the simulator's channel, outgoing, it delays every answer. It sleeps in the sending thread, on a server the session's, so it blocks the session as `Thread.sleep` does. Use it to size timeouts against a uniformly slow host, and `late` rules for one slow case.",
+        "**The connection drops mid-purchase.** In `process`, the `ISOSource` is the session's channel, so a `drop` action is `((ISOChannel) source).disconnect()` followed by `return true`."
+      ]
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel class=\"org.jpos.iso.channel.ASCIIChannel\" logger=\"Q2\" realm=\"host-simulator\"\n         packager=\"org.jpos.iso.packager.GenericPackager\">\n  <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  <filter class=\"org.jpos.iso.filter.DelayFilter\" direction=\"outgoing\">\n    <property name=\"delay\" value=\"1500\"/>\n  </filter>\n</channel>"
+    },
+    {
+      "type": "para",
+      "text": "With this channel in the simulator, both purchases above came back `null` at 1000 ms."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.3 The Simulator Is a Witness: Ask It What the Client Sent"
+    },
+    {
+      "type": "para",
+      "text": "A test that checks only what the client reports can pass a client that does the wrong thing. Two clients each send a 0200 with a one-second timeout. When no answer comes, the first sends the same 0200 again:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "static String retrying(MUX mux, ISOMsg p) throws Exception {\n    ISOMsg r = mux.request(p, 1000);\n    if (r == null) r = mux.request(p, 1000);\n    return r == null ? \"NO_ANSWER\" : \"00\".equals(r.getString(39)) ? \"APPROVED\" : \"DECLINED\";\n}"
+    },
+    {
+      "type": "para",
+      "text": "The second, `reversing`, sends an 0420 that points at the purchase through field 90, as unit c12 builds it. Both run against the 888.00 rule. Then the test takes the next two requests the simulator received from its `seen` queue:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "Space<String, Object> sp = SpaceFactory.getSpace();          // the default Space, as RuleHost's\nfor (int i = 0; i < 2; i++) {\n    ISOMsg m = (ISOMsg) sp.in(\"host-simulator.seen\", 2000);     // waits for it, at most 2 s\n    System.out.println(\"  host saw \" + m.getMTI() + \" 11=\" + m.getString(11)\n        + (m.hasField(90) ? \" 90=\" + m.getString(90) : \"\"));\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "retrying:  APPROVED\n  host saw 0200 11=000301\n  host saw 0200 11=000301\nreversing: NO_ANSWER\n  host saw 0200 11=000311\n  host saw 0420 11=000312 90=020000031111061015000000012345600000000000"
+    },
+    {
+      "type": "para",
+      "text": "The retrying client reports `APPROVED`. When the first `request` returned `null`, QMUX released its key, so the resend was accepted and sent. It has the same key, so the *first* attempt's approval, arriving at 1.5 seconds, matched the resend, which was still waiting. The host received two purchases and approved both. The cardholder paid twice, and a test that asserts \"approved\" passes."
+    },
+    {
+      "type": "para",
+      "text": "Only the simulator knows what crossed the wire, so the test asks it. `RuleHost` writes a clone of every request it receives to the queue named by its `seen` property, in the default Space. A test in the same JVM takes them in arrival order."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Take with a timeout.** `sp.in(key, 2000)` returns `null` after two seconds when the client sent nothing, so the test fails instead of hanging.",
+        "**Let the records expire.** Each clone goes in with a lifetime of 60 seconds, so a simulator that runs all week doesn't keep every request it ever saw. The clones hold clear test PANs and live only in memory."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.4 A Proxy May Answer Only for a Request That Never Left"
+    },
+    {
+      "type": "para",
+      "text": "To see what your client and the acquirer's test host say to each other, put a recording proxy between them: a `QServer` your client connects to, whose listener forwards each request through a QMUX to the test host, relays the answer, and logs both."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "16.4.1 Spot the Problem: The Proxy That Helped"
+    },
+    {
+      "type": "para",
+      "text": "A first version has no answer to relay in two situations, and answers both the same way:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.sim;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\n\n/** The proxy that \"helps\": it answers 91 whenever it has nothing better. */\npublic class EagerProxy implements ISORequestListener, Configurable {\n    private String muxName;\n    private long timeout;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"upstream-mux\");\n        timeout = cfg.getLong(\"timeout\", 30000L);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n            ISOMsg response = mux != null && mux.isConnected()\n                ? mux.request(request, timeout)                // (1)\n                : null;\n            if (response == null) {                            // (2)\n                response = (ISOMsg) request.clone();\n                response.setResponseMTI();\n                response.set(39, \"91\");                        // (3) \"the switch is down, try later\"\n            }\n            source.send(response);\n        } catch (Exception e) {\n            // ignored in this version\n        }\n        return true;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The client waits three seconds and the proxy one. What happens to the 888.00 purchase, which the host approves after 1.5 seconds?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "EagerProxy, proxy waits 1000 ms, client waits 3000 ms\n  client 000401: 0210 39=00 at 0 ms\n  client 000402: 0210 39=91 at 1000 ms\n  upstream-unhandled: 0210 11=000402 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The client was told `91` at one second, a decline. Half a second later the host approved the purchase, and its approval landed on the proxy's `upstream-unhandled` queue, where nobody reads it. At a real counter the cardholder is told the payment failed, pays another way, and finds both payments on the statement. The client got an answer, so it has nothing to reverse."
+    },
+    {
+      "type": "para",
+      "text": "The mistake is at (2), which treats two situations as one. When the link is down, (1) sent nothing, the host knows nothing of the purchase, and `91` is true. When `request` returns `null`, the purchase has left, and the proxy knows as little as a client whose request timed out (unit c12). It must not answer, so that the client's own timeout fires and the client reverses."
+    },
+    {
+      "type": "para",
+      "text": "`RecordingProxy` keeps the two apart:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.sim;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.NameRegistrar;\n\n/** Sits between a client and a test host: forwards each request, relays the answer, logs both. */\npublic class RecordingProxy implements ISORequestListener, Configurable, LogSource {\n    private String muxName;\n    private long timeout;\n    private Logger logger;\n    private String realm;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"upstream-mux\");\n        timeout = cfg.getLong(\"timeout\", 30000L);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        LogEvent ev = new LogEvent(this, \"proxy\");\n        ev.addMessage(request);                          // the ISOMsg itself: the logger masks it\n        try {\n            MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n            if (mux == null || !mux.isConnected()) {     // (1) nothing has left\n                ISOMsg r = (ISOMsg) request.clone();\n                r.setResponseMTI();\n                r.set(39, \"91\");                         // issuer or switch inoperative\n                source.send(r);\n                ev.addMessage(\"upstream down, answered 91\");\n                return true;\n            }\n            ISOMsg response = mux.request(request, timeout);\n            if (response == null) {                      // (2) it left, and the host may have approved it\n                ev.addMessage(\"no answer upstream, nothing sent to the client\");\n                return true;\n            }\n            ev.addMessage(response);\n            source.send(response);                       // (3) exactly as the host sent it\n        } catch (Exception e) {\n            ev.addMessage(e);\n        } finally {\n            Logger.log(ev);\n        }\n        return true;\n    }\n\n    @Override public void setLogger(Logger logger, String realm) { this.logger = logger; this.realm = realm; }\n    @Override public String getRealm() { return realm; }\n    @Override public Logger getLogger() { return logger; }\n}"
+    },
+    {
+      "type": "para",
+      "text": "It is still not right with a one-second wait:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "RecordingProxy, proxy waits 1000 ms, client waits 3000 ms\n  client 000401: 0210 39=00 at 0 ms\n  client 000402: null at 3000 ms\n  upstream-unhandled: 0210 11=000402 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The client now reverses, which is safe. But the approval came at 1.5 seconds, while the client was still waiting, but after the proxy had given up. A purchase that would have gone through became a reversal. The client decides how long to wait, so the proxy must wait at least as long:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "RecordingProxy, proxy waits 5000 ms, client waits 3000 ms\n  client 000401: 0210 39=00 at 0 ms\n  client 000402: 0210 39=00 at 1500 ms"
+    },
+    {
+      "type": "para",
+      "text": "**What the proxy records is not what it forwards.** The host needs the PAN, and the client needs the answer exactly as the host sent it, so (3) relays the host's message untouched. The record is the `LogEvent`, which carries the `ISOMsg` objects themselves, so the `ProtectedLogListener` at the front of the `Q2` logger (unit c8, with `protect` covering field 2) masks a copy before any writer sees it. The request shows as `outgoing` because the event is logged at the end, after the upstream channel has sent the same object on:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"proxy\" at=\"2026-11-06T12:51:42.131643850\" lifespan=\"2ms\">\n  <proxy>\n    <isomsg direction=\"outgoing\">\n      <!-- org.jpos.iso.packager.GenericPackager[jar:packager/iso87ascii.xml] -->\n      <field id=\"0\" value=\"0200\"/>\n      <field id=\"2\" value=\"411111______1111\"/>\n      <field id=\"3\" value=\"000000\"/>\n      <field id=\"4\" value=\"000000012000\"/>\n      <field id=\"7\" value=\"1106101500\"/>\n      <field id=\"11\" value=\"000401\"/>\n      <field id=\"32\" value=\"123456\"/>\n      <field id=\"41\" value=\"29110001\"/>\n    </isomsg>"
+    },
+    {
+      "type": "para",
+      "text": "Masking field 2 in the forwarded message instead would make the host decline every purchase as an invalid card. Logging the message as a string would put the PAN in clear on disk."
+    },
+    {
+      "type": "para",
+      "text": "Toward the test host the proxy is an ordinary client: a `ChannelAdaptor` named `upstream-channel` with queues `upstream-send` and `upstream-receive`, like unit c1's `host-channel`, and this QMUX:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux name=\"upstream-mux\" class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\">\n  <in>upstream-receive</in>\n  <out>upstream-send</out>\n  <ready>upstream-channel.ready</ready>\n  <unhandled>upstream-unhandled</unhandled>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "The server your client connects to names the listener, the QMUX and the wait:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<server name=\"proxy-server\" class=\"org.jpos.q2.iso.QServer\" logger=\"Q2\">\n  <attr name=\"port\" type=\"java.lang.Integer\">${proxy.port:8001}</attr>\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\" logger=\"Q2\" realm=\"proxy-client-side\"\n           packager=\"org.jpos.iso.packager.GenericPackager\">\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  </channel>\n  <request-listener class=\"com.example.jpos.client.sim.RecordingProxy\" logger=\"Q2\" realm=\"proxy\">\n    <property name=\"mux\" value=\"upstream-mux\"/>\n    <property name=\"timeout\" value=\"${proxy.timeout:30000}\"/>\n  </request-listener>\n</server>"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "16.4.2 One QMUX Serves Every Client of the Proxy"
+    },
+    {
+      "type": "para",
+      "text": "Two testers point their clients at one proxy. Both use the lab's terminal ID, `29110001`, and both number STANs from the start of the day. While the first tester's 888.00 purchase waits for the host, the second sends a purchase with the same STAN:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "Duplicate key 'upstream-send.0200000000029110001000501.req' detected\nRESULT first client:  0210 39=00\nRESULT second client: nothing within 3000 ms"
+    },
+    {
+      "type": "para",
+      "text": "The proxy's QMUX builds its key from the MTI and fields 41 and 11 (unit c12), and it can't tell the two clients apart. It refused the second request, and the proxy logged the exception and sent nothing. The second tester sees a host that didn't answer."
+    },
+    {
+      "type": "para",
+      "text": "A recording proxy shouldn't renumber STANs the way unit c12's gateway does, because then what it records is no longer what the client sent. Give each client its own terminal ID, or run one proxy per client."
+    },
+    {
+      "type": "para",
+      "text": "`mux.request` also blocks the session thread (16.2), so requests on one connection are answered one at a time. Separate clients don't wait on each other, since each connection has its own session."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Test links only.** A proxy on a production link holds every PAN that crosses it, and it falls under the same card-data controls as the systems on both sides."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.5 A Scripted Case Grades Every Field and Reports Every Failure"
+    },
+    {
+      "type": "para",
+      "text": "A certification case is data: a request, and what its answer must carry. The answer can fail in several fields at once, and the analyst reading the report has one slot to fix them in. A test that asserts field by field stops at the first failure. A grader that collects every difference reports them all in one run."
+    },
+    {
+      "type": "para",
+      "text": "The expected values take four forms: a literal (`00`), `*` for \"present, any value\" (38 on an approval), `-` for \"absent\" (38 on a decline), and `=` for \"the request's value echoed\" (11, 41):"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.sim;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.TreeMap;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Grades a response field by field: a literal, \"*\" present, \"-\" absent, \"=\" echoed. */\npublic final class CaseGrader {\n    private CaseGrader() { }\n\n    public static List<String> grade(ISOMsg request, Map<Integer, String> expect, ISOMsg response)\n            throws ISOException {\n        if (response == null)\n            return List.of(\"no response\");\n        List<String> failures = new ArrayList<>();\n        for (Map.Entry<Integer, String> e : new TreeMap<>(expect).entrySet()) {   // field order\n            int f = e.getKey();\n            String want = e.getValue();\n            String got = f == 0 ? response.getMTI() : response.getString(f);\n            if (want.equals(\"*\") && got == null)\n                failures.add(f + \": expected a value, got none\");\n            else if (want.equals(\"-\") && got != null)\n                failures.add(f + \": expected none, got \" + show(f, got));\n            else if (want.equals(\"=\") && (got == null || !got.equals(request.getString(f))))\n                failures.add(f + \": expected echo \" + show(f, request.getString(f)) + \", got \" + show(f, got));\n            else if (!want.matches(\"[*=-]\") && !want.equals(got))\n                failures.add(f + \": expected \" + show(f, want) + \", got \" + show(f, got));\n        }\n        return failures;\n    }\n\n    private static String show(int field, String value) {\n        if (value == null) return \"none\";\n        return field == 2 || field == 35 ? ISOUtil.protect(value) : value;   // reports get pasted\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The script sends each case through the client's `host-mux` to the simulator of 16.1, and takes every STAN from one counter, so no case repeats a key and each one can be found in both logs:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "MUX mux = NameRegistrar.get(\"mux.host-mux\", 10000);     // the client's QMUX, deployed by Q2\nAtomicLong stan = new AtomicLong(700);                    // one counter: no key repeats\nfor (Case c : script) {\n    ISOMsg request = new ISOMsg(\"0200\");\n    request.set(2, c.pan()); request.set(3, c.pcode()); request.set(4, c.amount());\n    request.set(11, ISOUtil.zeropad(stan.incrementAndGet(), 6)); request.set(41, \"29110001\");\n    ISOMsg response = mux.request(request, 2000);\n    List<String> failures = CaseGrader.grade(request, c.expect(), response);\n    System.out.printf(\"%-19s %s%n\", c.name(), failures.isEmpty() ? \"OK\" : \"FAIL \" + failures);\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "approved purchase   OK\ndeclined card       OK\nlimit is inclusive  OK\nover the limit      OK\nwrong expectation   FAIL [2: expected 411111______1111, got 555555______4444, 38: expected a value, got none, 39: expected 00, got 05]"
+    },
+    {
+      "type": "para",
+      "text": "Each `Case` holds a name, the card, field 3, field 4 and the expectations. The last case is wrong on purpose: it expects an approval, and the Visa PAN in field 2, for the card the table declines. The report lists all three differences in field order, and the card numbers in it are protected, because reports get pasted into tickets."
+    },
+    {
+      "type": "para",
+      "text": "A `null` response is one failure, `no response`, not one line per expected field. A case that expects silence, like 777.00, runs outside this loop: it passes when the simulator's `seen` queue shows the reversal (16.3)."
+    },
+    {
+      "type": "para",
+      "text": "Run the same script against the simulator on every build, and against the acquirer's test host in the certification slot. When the two disagree, the simulator is the one to fix."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.6 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A simulator's rules are data, and the first rule that matches decides.** Put exceptions above ranges and `any` last. Compare amounts as numbers, and refuse a rule you can't read, so a typo fails the deploy instead of quietly approving.",
+        "**A listener runs on the session's thread.** A sleep delays every later request on the connection. Schedule a late answer, use `DelayFilter` for a uniformly slow host, and keep the simulator out of a load run's measurements.",
+        "**The simulator is a witness.** A client can report the right outcome and still double-charge. Assert on what the simulator received, take with a timeout, and let the records expire.",
+        "**A proxy may answer only for a request that never left.** `91` when the link is down, silence when the host didn't answer, a wait at least as long as the client's, the host's answer relayed untouched and only the log copy masked. Its one QMUX needs distinct keys from all its clients.",
+        "**A scripted case grades every field and reports every failure,** in field order, with card numbers protected and a missing answer as one failure."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.7 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**`RuleHost` rule syntax** (conditions, `->`, actions; words separated by spaces):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Condition",
+        "Matches when"
+      ],
+      "rows": [
+        [
+          "`any`",
+          "always"
+        ],
+        [
+          "`mti=0200`",
+          "the MTI is exactly that"
+        ],
+        [
+          "`pan=...`",
+          "field 2 is exactly that"
+        ],
+        [
+          "`pcode=31`",
+          "field 3 starts with those digits"
+        ],
+        [
+          "`amount=lo-hi`",
+          "field 4, as a number of minor units, is from `lo` to `hi`, both included"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Action",
+        "Effect"
+      ],
+      "rows": [
+        [
+          "`rc=NN`",
+          "answer with `NN` in field 39"
+        ],
+        [
+          "`NN=value`",
+          "also set field `NN` in the answer"
+        ],
+        [
+          "`silent`",
+          "answer nothing, and report the request as handled"
+        ],
+        [
+          "`late=ms`",
+          "send the answer that many milliseconds later, from a scheduler"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What a stand-in exercises** (the first three are unit c10's):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Stand-in",
+        "Lives",
+        "Exercises"
+      ],
+      "rows": [
+        [
+          "fake `MUX`",
+          "inside the test",
+          "the client's decisions"
+        ],
+        [
+          "real QMUX + queue host",
+          "inside the test",
+          "keys and matching"
+        ],
+        [
+          "`ISOServer` on 127.0.0.1 + embedded Q2",
+          "inside the test",
+          "your descriptors, packager and channel"
+        ],
+        [
+          "rule-table simulator",
+          "a `QServer` beside the system",
+          "scripted cases, by people and by builds"
+        ],
+        [
+          "recording proxy",
+          "a `QServer` between client and test host",
+          "what two real parties exchange"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What a proxy sends the client:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Upstream",
+        "Sent to the host?",
+        "Proxy sends"
+      ],
+      "rows": [
+        [
+          "answered",
+          "yes",
+          "the host's answer, unchanged"
+        ],
+        [
+          "no answer within the proxy's wait",
+          "yes",
+          "nothing; the client times out and reverses"
+        ],
+        [
+          "link down",
+          "no",
+          "a copy of the request with the response MTI and `39=91`"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.8 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The acquirer's script has a case in which the host answers after 25 seconds and your client waits 20. Write the rule, then say what the case's expected result is: the answer, the reversal, or both, and how the harness checks each.",
+        "Your QA team wants the simulator to decline the third purchase of the day on any card. What state does `RuleHost` need for that, where would you keep it so that two sessions agree, and what does a restart of the simulator do to the case?",
+        "The simulator runs from a descriptor that QA edits. How would you stop a table whose `any` rule is not last from deploying at all, and is a rule that can never match always a mistake?",
+        "A partner asks you to put the recording proxy in front of their certification endpoint for a week. List what it holds in memory and on disk, and what you would change before agreeing."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16.9 Design Note: A Simulator Built From Your Own Parts"
+    },
+    {
+      "type": "para",
+      "text": "The simulator is built from the same jPOS pieces as the client: a `QServer`, the channel class and packager from the acquirer's specification, and a listener. That makes it cheap: there is no second tool to learn."
+    },
+    {
+      "type": "para",
+      "text": "It also shares the client's blind spots. If the packager you copied into the simulator misreads a field, the client and the simulator misread it the same way, and every case passes (unit c13 showed a round-trip test failing the same way). The same holds for anything else the two share: a misunderstanding of the specification written into the rule table is checked only against itself. It finds faults in the client's behaviour (declines, silence, late answers, reversals), not differences between your reading of the specification and the acquirer's."
+    },
+    {
+      "type": "para",
+      "text": "So keep two sources of truth. The specification's sample messages, packed and compared byte for byte, check the packager. The acquirer's test host, in the certification slot, checks everything else once. The simulator sits between them and makes the slot short, because every case has already run every night."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 58,
+    "code": 25,
+    "tables": 4,
+    "lists": 5,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 1,
+    "html": 4,
+    "disclosures": 0
+  },
+  "content_sha256": "b2240b2b9d3e6f220799f9cc18e5253a9e677278080e1ee0075d81b45b035467"
+}

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "ordinal": 3,
+  "title": "Check yourself: Compliance and Regulations",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-build-server-scope",
+        "stem": "A team's PCI DSS scope lists the switch and its database. A build server, which never stores or receives a card number, deploys every release to the switch. Where does the build server stand?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In scope, since each release it deploys changes the code that runs where the card numbers are",
+            "correct": true,
+            "says": "the CDE includes every system able to affect the security of a card data system; a build server can ship a build that copies every card number"
+          },
+          {
+            "id": "b",
+            "text": "In scope, since the switch's card numbers pass through it while each release is deployed",
+            "correct": false,
+            "says": "the stem says no card number reaches it; it is in scope for what it can change on the switch, not for data passing through"
+          },
+          {
+            "id": "c",
+            "text": "Out of scope, since the card numbers never reach it in any of the releases it deploys",
+            "correct": false,
+            "says": "the misconception the page names: only systems with card numbers count; it leaves the build server without controls"
+          },
+          {
+            "id": "d",
+            "text": "Out of scope, since each release it deploys is signed and reviewed before the switch runs it",
+            "correct": false,
+            "says": "signing does not change that the build server can change what runs on the switch; scope follows what a system can reach and affect"
+          }
+        ],
+        "origin": {
+          "path": "src/13.md",
+          "section": "13.1. PCI DSS Covers Every System That Touches Card Data, and Every System That Can Reach One"
+        }
+      },
+      {
+        "id": "q-empty-queue-on-disk",
+        "stem": "A reversal queue runs on a Berkeley DB space. Last night's reversals were cloned from their purchases, and all of them were answered, so the queue is empty this morning. A text search of the store's files for the card numbers finds nothing. What do the files hold?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing from last night, since an answered reversal is removed from the queue and from the file",
+            "correct": false,
+            "says": "taking an entry out appends a deletion to Berkeley DB's log; the old bytes stay until the cleaner deletes the file"
+          },
+          {
+            "id": "b",
+            "text": "Nothing from last night, since the search would show any card number the files still hold",
+            "correct": false,
+            "says": "Berkeley DB stores byte arrays with the top bit of each byte flipped, so a plain text search finds nothing although the data is there"
+          },
+          {
+            "id": "c",
+            "text": "The cloned card numbers only, encrypted by the store, which is why the search missed them",
+            "correct": false,
+            "says": "the store does not encrypt; it keeps whole messages, and a clone carries track 2 and the PIN block as well as the card number"
+          },
+          {
+            "id": "d",
+            "text": "The cloned reversals in full, encoded by the store, which is why the search missed them",
+            "correct": true,
+            "says": "the cloned reversals carried every field, tracks and PIN blocks included; the log keeps them after they are taken out, encoded so a text search misses them"
+          }
+        ],
+        "origin": {
+          "path": "src/13.md",
+          "section": "13.3. Card Data Ends Up Where Nobody Meant to Store It"
+        }
+      },
+      {
+        "id": "q-critical-but-unexposed",
+        "stem": "Ten days before certification, the dependency scanner marks an XML library that jPOS pulls in as critical. The finding is real, but the vulnerable parser only reads the deploy files at start-up, and only administrators can change those files. What do you do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Defer it with a risk acceptance naming an owner and a review date, since the path is closed",
+            "correct": true,
+            "says": "an unexposed finding can be deferred, with an owner, a review date and the event that would reopen it written down"
+          },
+          {
+            "id": "b",
+            "text": "Close it as not applicable with the reachability analysis attached, since the path is closed",
+            "correct": false,
+            "says": "the finding is confirmed; closing it drops the owner, the review date and the event that would reopen it, which a deferral keeps"
+          },
+          {
+            "id": "c",
+            "text": "Override the library in tonight's build and attach the new scan, since the fix is a small step",
+            "correct": false,
+            "says": "an override is the lighter fix when the issue is real and exposed; a change days before certification carries its own risk"
+          },
+          {
+            "id": "d",
+            "text": "Upgrade jPOS before certification and rerun the full test plan, since the finding is critical",
+            "correct": false,
+            "says": "severity is the component's worst case; with no exposure, a rushed upgrade in the payment path is the larger risk"
+          }
+        ],
+        "origin": {
+          "path": "src/13.md",
+          "section": "13.5. A Scanner Finding Is a Question, and the Answer Is Written Down"
+        }
+      },
+      {
+        "id": "q-erasure-and-retention",
+        "stem": "Legal decides that a cardholder's transaction records stay for the retention period and everything else about them is erased. The processor stores card numbers only encrypted, in its transaction and dispute tables. What does the system need to carry this out?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A plain hash stored beside each record, since it finds the person's records without a clear card number",
+            "correct": false,
+            "says": "the page asks for keyed values, not plain hashes, which unit s9 reverses in a quarter of a second"
+          },
+          {
+            "id": "b",
+            "text": "A keyed lookup value beside each record, since it finds the person's records without a clear card number",
+            "correct": true,
+            "says": "the keyed lookup of unit s9 finds a card's records without storing the number in clear, which erasure and export need"
+          },
+          {
+            "id": "c",
+            "text": "A search of every store for the card number in clear, since the person's data is wherever it appears",
+            "correct": false,
+            "says": "the tables hold the number only encrypted, so a search for it in clear finds none of the person's records"
+          },
+          {
+            "id": "d",
+            "text": "A search of every store for the card number masked, since the person's data is wherever it appears",
+            "correct": false,
+            "says": "a masked number keeps only six and four digits, which many cards share, and the encrypted tables don't hold it either"
+          }
+        ],
+        "origin": {
+          "path": "src/13.md",
+          "section": "13.7. Data Protection Law Covers the Same Records and Can Ask for the Opposite"
+        }
+      }
+    ]
+  }
+}

@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 8,
   "ordinal": 1,
-  "title": "Leave one trace of every transaction",
+  "title": "Make an expiry check explain its refusals in the log",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/TransactionProcessor.java",
-  "test_file": "src/test/java/com/example/practice/TransactionProcessorTest.java",
+  "main_file": "src/main/java/com/example/practice/CardExpiry.java",
+  "test_file": "src/test/java/com/example/practice/CardExpiryTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,14 +33,44 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.TransactionProcessorTest#aGoodMessageLogsOneEventSayingItWasProcessed",
+      "id": "com.example.practice.CardExpiryTest#aCurrentCardGoesThrough",
       "kind": "main",
-      "says": "a good message is logged as one event saying it was processed"
+      "says": "a card that has not expired is not refused and gets no response from this participant"
     },
     {
-      "id": "com.example.practice.TransactionProcessorTest#aMessageThatFailsStillLogsExactlyOneEvent",
+      "id": "com.example.practice.CardExpiryTest#anExpiredCardIsRefusedAndExplained",
+      "kind": "main",
+      "says": "an expired card is answered 54, and one event in the participant's realm shows the purchase and the expiry it read"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#anUnreadableExpiryIsAnsweredAndExplained",
       "kind": "edge",
-      "says": "a message that fails still leaves exactly one event, carrying the error"
+      "says": "an expiry that can't be read is answered 30 and still leaves its one event, because the event is written whatever happened"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#anApprovalIsExplainedToo",
+      "kind": "edge",
+      "says": "a purchase the participant lets through leaves an event as well, not only the refusals"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#noCardDataReachesTheWriterInClear",
+      "kind": "edge",
+      "says": "the request goes into the event as a message, so the filter masks it; the Context, which dumps the request in clear, does not"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#eachTransactionIsExplainedOnItsOwn",
+      "kind": "edge",
+      "says": "each transaction gets a new event, because one participant instance serves every transaction"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#theMessagesKeepTheirCardNumber",
+      "kind": "edge",
+      "says": "logging leaves the request and the response as they are; masking is the filter's job, on its own copy"
+    },
+    {
+      "id": "com.example.practice.CardExpiryTest#theEventLeadsToTheTransactionManagersEvent",
+      "kind": "edge",
+      "says": "the event carries the transaction id, which joins it to the TransactionManager's event for the same transaction"
     }
   ],
   "report": {
@@ -49,6 +79,6 @@
   },
   "origin": {
     "path": "src/s8.md",
-    "section": "8.1 jPOS Logging Framework"
+    "section": "8.3 One Event per Transaction, Carrying Its Id and the Message Itself"
   }
 }

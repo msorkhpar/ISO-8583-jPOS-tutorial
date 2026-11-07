@@ -8,136 +8,564 @@
   "unit": 5,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Visa and Mastercard Specific Processing",
   "blocks": [
     {
       "type": "heading",
       "level": 1,
-      "text": "Visa and Mastercard Specific Processing in jPOS"
+      "text": "5. Visa and Mastercard Specific Processing"
+    },
+    {
+      "type": "para",
+      "text": "Your server authorizes Visa purchases. Next month it takes Mastercard as well: Mastercard purchases must carry fields 48 and 61, they go to another host, and the Visa path, which works, must not change. The quick way is an `if` on the card number in each participant that differs. A year later six participants have one, one of them tests `pan.startsWith(\"5\")`, and every Mastercard that starts with a 2 is declined at the counter with 15, \"no such issuer\"."
+    },
+    {
+      "type": "para",
+      "text": "jPOS puts brand rules in the descriptor instead. A participant called a **group selector** names a **group** of participants declared in the TransactionManager, which runs that group for this one transaction. Six rules, one per section heading, route each card to its brand's checks and network."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** The field lists here illustrate the mechanism. The real requirements are in each network's specifications."
+        }
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Every output comes from jPOS 2.1.7 run as unit s4 runs its server: Q2 deploys the unit's descriptors in the same JVM, and unit s4's `DirectTerminal` hands each request to a real `IncomingListener`, with no socket. The purchases come from terminal `29110001`. An answer line names the request, then shows the answer's MTI, response code (39) and STAN (11)."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Overview"
+      "text": "5.1 A Selector Names a Group, and the Group Runs Where the Selector Stands"
     },
     {
       "type": "para",
-      "text": "When implementing a payment processing system using jPOS, it's essential to handle Visa and Mastercard transactions differently due to their specific requirements and data elements. We'll create custom participants for both Visa and Mastercard logic, which will be part of the transaction processing flow."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "Implementation"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "1. Create Custom Participants"
-    },
-    {
-      "type": "para",
-      "text": "First, let's create abstract base classes for Visa and Mastercard participants:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\n\nimport java.io.Serializable;\n\npublic abstract class AbstractCardParticipant implements TransactionParticipant, Configurable {\n    protected Configuration cfg;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        this.cfg = cfg;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        // Common preparation logic\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        // Common commit logic\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        // Common abort logic\n    }\n\n    protected abstract void processSpecificFields(Context context);\n}\n\npublic abstract class VisaParticipant extends AbstractCardParticipant {\n    // Visa-specific methods and fields\n}\n\npublic abstract class MastercardParticipant extends AbstractCardParticipant {\n    // Mastercard-specific methods and fields\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "2. Implement Visa-specific Participant"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's create a concrete Visa participant:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.transaction.Context;\nimport org.springframework.stereotype.Component;\n\nimport java.io.Serializable;\n\n@Component\npublic class VisaAuthorizationParticipant extends VisaParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        int result = super.prepare(id, context);\n        if (\"VISA\".equals(((Context) context).get(\"CARD_TYPE\"))) { // only Visa cards; any other card passes through untouched\n            processSpecificFields((Context) context);\n        }\n        return result;\n    }\n\n    @Override\n    protected void processSpecificFields(Context context) {\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            // Process Visa-specific fields\n            String cardAcceptorId = msg.getString(42);\n            String cardAcceptorNameLocation = msg.getString(43);\n            String additionalData = msg.getString(48);\n\n            // Validate and process Visa-specific data\n            if (isValidVisaTransaction(cardAcceptorId, cardAcceptorNameLocation, additionalData)) {\n                context.put(\"VISA_TRANSACTION_VALID\", true);\n            } else {\n                context.put(\"VISA_TRANSACTION_VALID\", false);\n                context.put(\"VISA_ERROR\", \"Invalid Visa transaction data\");\n            }\n\n        } catch (RuntimeException e) {\n            context.put(\"VISA_TRANSACTION_VALID\", false);\n            context.put(\"VISA_ERROR\", \"Error processing Visa fields: \" + e.getMessage());\n        }\n    }\n\n    private boolean isValidVisaTransaction(String cardAcceptorId, String cardAcceptorNameLocation, String additionalData) {\n        // Implement Visa-specific validation logic\n        return cardAcceptorId != null && cardAcceptorNameLocation != null && additionalData != null;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3. Implement Mastercard-specific Participant"
-    },
-    {
-      "type": "para",
-      "text": "Similarly, let's create a concrete Mastercard participant:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.transaction.Context;\nimport org.springframework.stereotype.Component;\n\nimport java.io.Serializable;\n\n@Component\npublic class MastercardAuthorizationParticipant extends MastercardParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        int result = super.prepare(id, context);\n        if (\"MASTERCARD\".equals(((Context) context).get(\"CARD_TYPE\"))) { // only Mastercard cards; any other card passes through untouched\n            processSpecificFields((Context) context);\n        }\n        return result;\n    }\n\n    @Override\n    protected void processSpecificFields(Context context) {\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            // Process Mastercard-specific fields\n            String additionalData = msg.getString(48);\n            String posData = msg.getString(61);\n            String networkData = msg.getString(63);\n\n            // Validate and process Mastercard-specific data\n            if (isValidMastercardTransaction(additionalData, posData, networkData)) {\n                context.put(\"MASTERCARD_TRANSACTION_VALID\", true);\n            } else {\n                context.put(\"MASTERCARD_TRANSACTION_VALID\", false);\n                context.put(\"MASTERCARD_ERROR\", \"Invalid Mastercard transaction data\");\n            }\n\n        } catch (RuntimeException e) {\n            context.put(\"MASTERCARD_TRANSACTION_VALID\", false);\n            context.put(\"MASTERCARD_ERROR\", \"Error processing Mastercard fields: \" + e.getMessage());\n        }\n    }\n\n    private boolean isValidMastercardTransaction(String additionalData, String posData, String networkData) {\n        // Implement Mastercard-specific validation logic\n        return additionalData != null && posData != null && networkData != null;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "4. Configure Transaction Manager"
-    },
-    {
-      "type": "para",
-      "text": "To use these participants in the transaction flow, configure them in the TransactionManager's Q2 deploy descriptor:"
+      "text": "The server's TransactionManager:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<txnmgr class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n    <property name=\"queue\" value=\"txnqueue\"/>\n    <property name=\"sessions\" value=\"2\"/>\n    <property name=\"max-sessions\" value=\"128\"/>\n    <participant class=\"CardTypeIdentifierParticipant\" logger=\"Q2\"/>\n    <participant class=\"VisaAuthorizationParticipant\" logger=\"Q2\"/>\n    <participant class=\"MastercardAuthorizationParticipant\" logger=\"Q2\"/>\n    <!-- Other participants -->\n</txnmgr>"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "5. Implement Card Type Identifier"
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n\n  <participant class=\"org.jpos.transaction.participant.CheckFields\" logger=\"Q2\">\n    <property name=\"mandatory\" value=\"CARD PCODE 4 7 11 41\"/>\n    <property name=\"optional\" value=\"22 25 42 43 48 49 61\"/>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.SelectDestination\" logger=\"Q2\">\n    <endpoint destination=\"visa\">4</endpoint>\n    <endpoint destination=\"mastercard\">51..55 2221..2720</endpoint>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.Switch\" logger=\"Q2\">\n    <property name=\"txnname\" value=\"DESTINATION\"/>\n    <property name=\"visa\" value=\"visa\"/>\n    <property name=\"mastercard\" value=\"mastercard\"/>\n    <property name=\"unknown\" value=\"unknown\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.Approve\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.AnswerFailures\" logger=\"Q2\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n\n  <group name=\"visa\">\n    <participant class=\"com.example.jpos.server.participant.RequireFields\" logger=\"Q2\" realm=\"visa\">\n      <property name=\"fields\" value=\"22 25 42 43\"/>\n    </participant>\n  </group>\n  <group name=\"mastercard\">\n    <participant class=\"com.example.jpos.server.participant.RequireFields\" logger=\"Q2\" realm=\"mastercard\">\n      <property name=\"fields\" value=\"22 42 43 48 61\"/>\n    </participant>\n  </group>\n  <group name=\"unknown\">\n    <participant class=\"com.example.jpos.server.participant.Decline\" logger=\"Q2\" realm=\"unknown\">\n      <property name=\"rc\" value=\"15\"/>   <!-- no such issuer -->\n    </participant>\n  </group>\n</txnmgr>"
     },
     {
       "type": "para",
-      "text": "To determine which participant should process the transaction, create a `CardTypeIdentifierParticipant`:"
+      "text": "The `<group>` elements don't run on their own. A participant that implements `GroupSelector` names them, with one method more than a plain participant:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\nimport java.io.Serializable;\n\n@Component\npublic class CardTypeIdentifierParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable serializable) {\n        Context context = (Context) serializable;\n        ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n        try {\n            String pan = msg.getString(2);\n            String cardType = identifyCardType(pan);\n            context.put(\"CARD_TYPE\", cardType);\n        } catch (RuntimeException e) {\n            context.put(\"CARD_TYPE_ERROR\", \"Error identifying card type: \" + e.getMessage());\n        }\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    private String identifyCardType(String pan) {\n        if (pan.startsWith(\"4\")) {\n            return \"VISA\";\n        } else if (pan.startsWith(\"51\") || pan.startsWith(\"52\") || pan.startsWith(\"53\") || \n                   pan.startsWith(\"54\") || pan.startsWith(\"55\")) {\n            return \"MASTERCARD\";\n        } else {\n            return \"UNKNOWN\";\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {}\n\n    @Override\n    public void abort(long id, Serializable context) {}\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "6. Testing"
+      "text": "// not-compiled: org.jpos.transaction.GroupSelector as declared in jPOS 2.1.7\npublic interface GroupSelector extends TransactionParticipant {\n    String select(long id, Serializable context);\n}"
     },
     {
       "type": "para",
-      "text": "To ensure our Visa and Mastercard specific processing works correctly, let's create unit tests:"
+      "text": "After the selector's `prepare`, the TransactionManager calls `select`, puts the named group's participants into the chain right after the selector, and carries on with the rest of the chain. The selector here is jPOS's `Switch`. It reads the Context entry named by `txnname`, here `DESTINATION`, and returns the property of that name, or the `unknown` property when there is none. `SelectDestination`, one step earlier, set `DESTINATION` by comparing the card number with its `<endpoint>` ranges (5.2). `Approve` stands in for unit s4's authorizer and approves whatever reaches it. `Decline` answers every request with its `rc`. `RequireFields` (5.4) declines a request that lacks one of its `fields`, and `AnswerFailures` (5.5) answers failures that other participants only reported."
+    },
+    {
+      "type": "para",
+      "text": "Six purchases, one at a time:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "visa             0210 39=00 11=000501\nmc-without-61    0210 39=30 11=000502\nmc-2-series      0210 39=00 11=000503\nbad-check-digit  0210 39=14 11=000504\ndiscover         0210 39=15 11=000505\nvisa-with-12     0210 39=30 11=000506"
+    },
+    {
+      "type": "para",
+      "text": "In what order did the participants run for the second purchase, the Mastercard without field 61?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: o.j.t.p.CheckFields PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.SelectDestination PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.Switch PREPARED READONLY NO_JOIN\n           selector: 'mastercard'\n            prepare: c.e.j.s.p.RequireFields:mastercard ABORTED NO_JOIN\n    prepareForAbort: c.e.j.s.p.AnswerFailures\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "The group ran where `Switch` stands, before `Approve`, although the file declares it at the end. `RequireFields:mastercard` aborted, so `Approve` never ran (after an abort only abort participants are asked, unit s4), and `SendResponse` sent the 30 that `RequireFields` had put in the Context. The name after the colon is the descriptor's `realm`, which tells the Visa and Mastercard instances of `RequireFields` apart in the log."
+    },
+    {
+      "type": "para",
+      "text": "A selector may return several names, separated by spaces or commas, and their groups run in that order. With `<property name=\"visa\" value=\"visa contactless\"/>` and a `contactless` group holding one more `RequireFields`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "           selector: 'visa contactless'\n            prepare: c.e.j.s.p.RequireFields:visa PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.RequireFields:contactless PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.Approve PREPARED NO_JOIN"
+    },
+    {
+      "type": "para",
+      "text": "**The selector also selects on the abort path.** The card with a bad check digit:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: o.j.t.p.CheckFields ABORTED READONLY NO_JOIN\n           selector: 'unknown'\n    prepareForAbort: c.e.j.s.p.AnswerFailures\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "`CheckFields` aborted, so neither `SelectDestination` nor `Switch` was prepared. The TransactionManager still called `Switch`'s `select`, because its `call-selector-on-abort` property is `true` unless you set it to `false`. With no `DESTINATION` in the Context, `Switch` fell back to `unknown`. The `Decline` in that group is a plain participant, so it was skipped, and the 14 came from `AnswerFailures`. Abort participants in the selected group would have been asked, which is what the setting is for: a brand's group can carry its own work for failed transactions. A selector you write can therefore have `select` called when its own `prepare` never ran, and must cope with a Context that holds nothing it put there."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.2 The BIN Table Is Configuration, and the Most Specific Range Wins"
+    },
+    {
+      "type": "para",
+      "text": "The leading digits of a card number, the BIN (bank identification number), say which network and which issuer it belongs to. `SelectDestination` maps them to destinations: `4` means every number that starts with 4, `51..55` every number that starts with 51 to 55. The opening's bug as configuration is `<endpoint destination=\"mastercard\">5</endpoint>`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mc               0210 39=00 11=000501\nmc-2-series      0210 39=15 11=000502"
+    },
+    {
+      "type": "para",
+      "text": "The test card `2223000048400011` is a Mastercard: Mastercard also issues numbers from 2221 to"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "With the range written as `5`, the card is `unknown` and is declined with 15 before any issuer sees it. It works in every other shop, the bank has no record of the attempt, and your log shows an ordinary decline."
+      ],
+      "start": 2720
+    },
+    {
+      "type": "para",
+      "text": "The ranges come from the networks' BIN tables, and they overlap. Say the acquirer also issues BIN `411111` and handles its own cards in-house (\"on us\"): `<endpoint destination=\"onus\">411111</endpoint>` beside the `4`. At deploy, `SelectDestination` logs its table in the order it tries it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    13:4111110000000000000..4111119999999999999 [onus]\n    15:2221000000000000000..2720999999999999999 [mastercard]\n    17:5100000000000000000..5599999999999999999 [mastercard]\n    18:4000000000000000000..4999999999999999999 [visa]"
+    },
+    {
+      "type": "para",
+      "text": "Each range is widened to 19 digits, and the number in front is 19 minus the digits you wrote, so the range written with the most digits is tried first, whatever the order of the `<endpoint>` lines. \"Most specific\" means exactly that: `4000..4999` is tried before `41`, although `41` is the narrower range. The test card `4111111111111111` now goes to `onus`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "visa             0210 39=15 11=000501\nmc               0210 39=00 11=000502"
+    },
+    {
+      "type": "para",
+      "text": "It was declined with 15 all the same: `Switch` has no `onus` property, so it fell back to `unknown`. A new destination needs an `<endpoint>`, a `Switch` property and a group."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.3 A Name With No Group Behind It Runs Nothing"
+    },
+    {
+      "type": "para",
+      "text": "A month after Mastercard went live, the network's monthly report lists your approvals that carried no field 61, which the `mastercard` group requires. The production descriptor's `Switch`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"org.jpos.transaction.participant.Switch\" logger=\"Q2\">\n  <property name=\"txnname\" value=\"DESTINATION\"/>\n  <property name=\"visa\" value=\"visa\"/>\n  <property name=\"mastercard\" value=\"mastercad\"/>\n  <property name=\"unknown\" value=\"unknown\"/>\n</participant>"
+    },
+    {
+      "type": "para",
+      "text": "The trail of a Mastercard purchase without field 61:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: o.j.t.p.Switch PREPARED READONLY NO_JOIN\n           selector: 'mastercad'\n                     WARNING: group 'mastercad' not configured\n            prepare: c.e.j.s.p.Approve PREPARED NO_JOIN\n            prepare: c.e.j.s.p.AnswerFailures PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.SendResponse PREPARED READONLY\n             commit: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mc-without-61    0210 39=00 11=000501"
+    },
+    {
+      "type": "para",
+      "text": "The TransactionManager looked up a group named `mastercad`, found none, and added nothing: no deploy error, no exception, no abort. The one sign is the `WARNING` inside the transaction's event, and a server that sets `debug` to `false` to keep the log small logs no event per transaction. With `debug` off, the same purchase was approved with `00` and left no line in the log."
+    },
+    {
+      "type": "para",
+      "text": "Skipped checks cost the network's fees or rejections, and a skipped forwarding step means the purchase never reaches the network."
+    },
+    {
+      "type": "para",
+      "text": "To prevent it:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Make the warning mean a bug.** Back every name you intend with a group, an empty one if nothing should run. Then any `not configured` line is a mistake, and a log alert can look for it.",
+        "**Test each brand through the real descriptor.** A test that sends each brand a request missing one of its fields, and expects a refusal, fails the day the typo is made."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.4 Each `<participant>` Element Is Its Own Instance, With Its Own Configuration"
+    },
+    {
+      "type": "para",
+      "text": "The two brand groups use one class, `RequireFields`, configured twice:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.jpos.transaction.Context;\nimport static org.junit.jupiter.api.Assertions.*;\n\nclass VisaAuthorizationParticipantTest {\n\n    private VisaAuthorizationParticipant participant;\n    private Context context;\n    private ISOMsg msg;\n\n    @BeforeEach\n    void setUp() throws ISOException {\n        participant = new VisaAuthorizationParticipant();\n        context = new Context();\n        msg = new ISOMsg();\n        msg.set(2, \"4111111111111111\");\n        msg.set(42, \"VISA_MERCHANT_ID\");\n        msg.set(43, \"VISA_MERCHANT_NAME_LOCATION\");\n        msg.set(48, \"ADDITIONAL_DATA\");\n        context.put(\"REQUEST\", msg);\n        context.put(\"CARD_TYPE\", \"VISA\");\n    }\n\n    @Test\n    void testValidVisaTransaction() {\n        participant.prepare(1L, context);\n        assertEquals(Boolean.TRUE, context.get(\"VISA_TRANSACTION_VALID\"));\n        assertNull(context.get(\"VISA_ERROR\"));\n    }\n\n    @Test\n    void testInvalidVisaTransaction() throws ISOException {\n        msg.unset(42);\n        participant.prepare(1L, context);\n        assertEquals(Boolean.FALSE, context.get(\"VISA_TRANSACTION_VALID\"));\n        assertNotNull(context.get(\"VISA_ERROR\"));\n    }\n}\n\nclass MastercardAuthorizationParticipantTest {\n\n    private MastercardAuthorizationParticipant participant;\n    private Context context;\n    private ISOMsg msg;\n\n    @BeforeEach\n    void setUp() throws ISOException {\n        participant = new MastercardAuthorizationParticipant();\n        context = new Context();\n        msg = new ISOMsg();\n        msg.set(2, \"5111111111111111\");\n        msg.set(48, \"ADDITIONAL_DATA\");\n        msg.set(61, \"POS_DATA\");\n        msg.set(63, \"NETWORK_DATA\");\n        context.put(\"REQUEST\", msg);\n        context.put(\"CARD_TYPE\", \"MASTERCARD\");\n    }\n\n    @Test\n    void testValidMastercardTransaction() {\n        participant.prepare(1L, context);\n        assertEquals(Boolean.TRUE, context.get(\"MASTERCARD_TRANSACTION_VALID\"));\n        assertNull(context.get(\"MASTERCARD_ERROR\"));\n    }\n\n    @Test\n    void testInvalidMastercardTransaction() throws ISOException {\n        msg.unset(61);\n        participant.prepare(1L, context);\n        assertEquals(Boolean.FALSE, context.get(\"MASTERCARD_TRANSACTION_VALID\"));\n        assertNotNull(context.get(\"MASTERCARD_ERROR\"));\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Declines with {@code rc} unless the request carries every field in {@code fields}. */\npublic class RequireFields implements TransactionParticipant, Configurable {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    private int[] fields;                                // this element's list, not the class's\n    private String rc;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        String list = cfg.get(\"fields\").trim();\n        if (list.isEmpty())                              // a misspelt property must not mean \"check nothing\"\n            throw new ConfigurationException(\"property 'fields' is required\");\n        String[] f = list.split(\"[\\\\s,]+\");\n        fields = new int[f.length];\n        for (int i = 0; i < f.length; i++)\n            fields[i] = Integer.parseInt(f[i]);\n        rc = cfg.get(\"rc\", \"30\");                        // 30 = format error\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        List<Integer> missing = new ArrayList<>();\n        for (int f : fields)\n            if (!request.hasField(f))\n                missing.add(f);\n        if (missing.isEmpty())\n            return PREPARED | NO_JOIN | READONLY;\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rc);\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        ctx.log(\"missing \" + missing);                   // field numbers, never values\n        return ABORTED | NO_JOIN;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This implementation provides a solid foundation for processing Visa and Mastercard transactions in a jPOS server. The custom participants handle the specific requirements for each card network, while the `CardTypeIdentifierParticipant` ensures that the correct participant is used for each transaction."
+      "text": "The response is built as in unit s2."
     },
     {
       "type": "para",
-      "text": "The modular design allows for easy extension and modification of the processing logic for each card network. The unit tests ensure that the participants behave correctly for both valid and invalid transactions."
+      "text": "The TransactionManager builds one object per `<participant>` element and configures it with that element's properties. Unit s1's rule, one instance for every session, holds per element: two elements of one class are two objects, each with its own list."
+    },
+    {
+      "type": "para",
+      "text": "Hold the list in a static field instead, perhaps because \"the TransactionManager makes one instance anyway\":"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "private static int[] fields;\nprivate static String rc;"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "visa             0210 39=30 11=000501\nmc               0210 39=00 11=000502"
+    },
+    {
+      "type": "para",
+      "text": "Both objects wrote the same static fields, and Mastercard's, configured last, won. A complete Visa purchase was declined with 30 for lacking fields 48 and 61. The tests pass while Visa runs alone; the bug arrives with the second element."
+    },
+    {
+      "type": "para",
+      "text": "The check at the top of `setConfiguration` covers the other way a list goes wrong. Misspell the property as `field`, and `cfg.get(\"fields\")` returns an empty string. Without the check, an empty list means \"nothing is missing\", and the group passes everything. With it, the TransactionManager refuses to start, and Q2 logs it once, at deploy (unit s1):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <warn>\n    init\n    <iso-exception>\n      org.jpos.core.ConfigurationException: property 'fields' is required"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.5 A Stock Participant Reports a Failure, and an Abort Participant Has to Answer It"
+    },
+    {
+      "type": "para",
+      "text": "`CheckFields`, first in the chain, checks the request against two lists, `mandatory` and `optional`, of field numbers and names such as `CARD` or `PCODE`, and puts what it parsed into the Context (the Reference lists the names). When something is wrong it records the failure in the Context's `Result` (`ctx.getResult()`) and votes `ABORTED`, but builds no response. `SelectDestination` works the same way, and so does `QueryHost` when its MUX is missing or not connected."
+    },
+    {
+      "type": "para",
+      "text": "Without `AnswerFailures` in the chain, the card with a bad check digit and the Visa purchase with field 12 get this:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "bad-check-digit  no answer\nvisa-with-12     no answer"
+    },
+    {
+      "type": "para",
+      "text": "Unit s1's rule, that a refusal must leave a response in the Context, applies to jPOS's own participants too, and they leave that response to you. Each terminal waits out its timeout, often 30 seconds at the counter, then treats the purchase as unknown and reverses it (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "One abort participant near the end of the chain answers whatever the stock participants reported:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.rc.CMF;\nimport org.jpos.rc.IRC;\nimport org.jpos.rc.Result;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\n\nimport java.io.Serializable;\n\n/** On the abort path, answers a failure that a stock participant only reported. */\npublic class AnswerFailures implements AbortParticipant {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        return PREPARED | NO_JOIN | READONLY;            // nothing failed: nothing to do\n    }\n\n    @Override\n    public int prepareForAbort(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        if (request == null || ctx.get(ContextConstants.RESPONSE.toString()) != null)\n            return ABORTED | NO_JOIN | READONLY;         // nothing to answer, or answered already\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rcFor(ctx.getResult()));\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    static String rcFor(Result result) {\n        Result.Entry failure = result.failure();\n        IRC irc = failure != null ? failure.getIrc() : null;\n        if (irc == CMF.INVALID_CARD_NUMBER || irc == CMF.INVALID_CARD_OR_CARDHOLDER_NUMBER)\n            return \"14\";                                 // invalid card number\n        if (irc == CMF.MISSING_FIELD || irc == CMF.EXTRA_FIELD || irc == CMF.INVALID_FIELD)\n            return \"30\";                                 // format error\n        if (irc == CMF.HOST_UNREACHABLE)\n            return \"91\";                                 // issuer or switch inoperative\n        return \"96\";                                     // system malfunction\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "It does nothing when an earlier participant has already answered, as `RequireFields` and `Decline` do. In 5.1 it gave `bad-check-digit` its 14 and `visa-with-12` its 30. Unit s10 grows this mapping into the server's error handling."
+    },
+    {
+      "type": "para",
+      "text": "The 30 for `visa-with-12` comes from `allow-extra-fields`, which is `false` unless you set it: a field in neither list is a failure (`EXTRA_FIELD`). A field listed by number is checked only for being there, never for its format; only named entries such as `PCODE` get a format check. Field 12, the local time, is in neither list above, so a terminal update that starts sending it turns every purchase from those terminals into a 30. The strict lists catch garbage, at the price that a terminal change needs a server change first: add `12` to `optional`."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.6 A Network That Doesn't Answer Has Not Declined"
+    },
+    {
+      "type": "para",
+      "text": "So far the server decides by itself. An acquirer forwards each purchase to its brand's network instead, from the brand group. jPOS's `QueryHost` sends `REQUEST` through the MUX registered as `mux.` plus the `DESTINATION`, and puts the answer in the Context as `RESPONSE`. A forwarding server's `visa` group:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<group name=\"visa\">\n  <participant class=\"com.example.jpos.server.participant.RequireFields\" logger=\"Q2\" realm=\"visa\">\n    <property name=\"fields\" value=\"22 25 42 43\"/>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.QueryHost\" logger=\"Q2\" realm=\"visa\">\n    <property name=\"timeout\" value=\"2000\"/>\n  </participant>\n</group>"
+    },
+    {
+      "type": "para",
+      "text": "`Approve` is gone from the main chain, and a QMUX named `visa` is deployed beside the TransactionManager. Unit c12's test host sits on that QMUX's queues in place of the Visa network. It answers the first purchase and drops the second. With `continuations` at its default, `true`, `QueryHost` waits with `PAUSE` (unit s4), so no session is held while the network decides."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "first:  0210 39=00 11=000501\nsecond: no answer after 6 s\nhost received 2"
+    },
+    {
+      "type": "para",
+      "text": "The second purchase's trail:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.RequireFields:visa PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.QueryHost:visa PREPARED PAUSE READONLY NO_JOIN\n            prepare: c.e.j.s.p.AnswerFailures PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.SendResponse PREPARED READONLY\n             commit: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "It matches the first purchase's trail line for line; only the event's `elapsed`, 2005 ms instead of 8, differs. When the two seconds ran out, `QueryHost` recorded `HOST_UNREACHABLE` in the `Result` and resumed the transaction, still `PREPARED`, so nothing aborted. `AnswerFailures` does nothing on the commit path, and `SendResponse` found no `RESPONSE`, so it sent nothing."
+    },
+    {
+      "type": "para",
+      "text": "The network got the purchase and may have approved it. If it did, the issuer holds the amount on the cardholder's account for a purchase the terminal showed as failed, and the cardholder has paid another way."
+    },
+    {
+      "type": "para",
+      "text": "A missing answer has to fail the transaction. One participant after `QueryHost` in the group does it:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\n\n/** After QueryHost: a network that did not answer has not declined, and the transaction fails. */\npublic class CheckHostAnswer implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        if (ctx.get(ContextConstants.RESPONSE.toString()) != null)\n            return PREPARED | NO_JOIN | READONLY;        // the network's answer goes back as it is\n        return ABORTED | NO_JOIN | READONLY;             // QueryHost reported HOST_UNREACHABLE\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "With it, first with the network silent, then with the network's link down (the QMUX has a `<ready>` element, and nothing ever sets that key):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "network silent:\nfirst:  0210 39=00 11=000501\nsecond: 0210 39=91 11=000502 after 2 s\nhost received 2\nlink down:\nfirst:  0210 39=91 11=000501\nsecond: 0210 39=91 11=000502 after 1 s\nhost received 0"
+    },
+    {
+      "type": "para",
+      "text": "Every purchase without an answer gets 91, \"issuer or switch inoperative\", from `AnswerFailures`. For the network the two cases differ. A silent network received the purchase, and only a reversal (unit c12) undoes an approval it may have given. With the link down, `QueryHost` waited a second for it, recorded the same `HOST_UNREACHABLE` and voted `ABORTED` without sending anything, so there is nothing to reverse. `CheckHostAnswer` is a plain participant, so with `QueryHost`'s defaults it runs only after the request was actually sent, and its `ABORTED` branch is the place to queue the reversal. (With `ignore-host-unreachable` set, `QueryHost` lets a request it never sent go on as prepared, and that no longer holds.)"
+    },
+    {
+      "type": "para",
+      "text": "Keep `QueryHost`'s `timeout` (2 seconds here) below the terminal's (6), as unit c12 requires. `QueryHost` never waits less than one second."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Forwarding as is.** `QueryHost` sends the terminal's message unchanged and returns the network's answer unchanged. A real acquirer renumbers each message for its upstream link and restores the terminal's fields on the way back, as the gateway of unit c12 does."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A selector names a group, and the group runs where the selector stands**, before the rest of the chain. `select` is called on the abort path too, where only the group's abort participants run.",
+        "**The BIN table is configuration.** `SelectDestination` tries the most specific range first. A table that says Mastercard is `5` declines every 2-series card with 15.",
+        "**A name with no group runs nothing.** The TransactionManager warns inside the transaction event, which `debug` off removes. Give every name a group, and test each brand through the descriptor.",
+        "**Each `<participant>` element is its own instance.** Its configuration belongs in instance fields. A static field lets the last element configured set the rules for all of them, and an empty list must stop the deploy, not check nothing.",
+        "**Stock participants report; an abort participant answers.** Without one, a refused card leaves the terminal waiting until it reverses.",
+        "**No answer from the network is not a decline.** With continuations, `QueryHost` resumes a timed-out transaction as prepared. Fail it after `QueryHost`, answer 91, and reverse what was sent."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Groups in the 2.1.7 TransactionManager:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Item",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<group name=\"...\">`",
+          "participants that run only when a selector names the group; a duplicate name stops the deploy"
+        ],
+        [
+          "`GroupSelector.select`",
+          "called after the selector's `prepare`; returns names separated by spaces or commas, or `null` for none"
+        ],
+        [
+          "`call-selector-on-abort`",
+          "TransactionManager property, default `true`: `select` is also called on the abort path, after the selector's own `ABORTED` vote too; a plain selector such as `Switch` is not prepared there"
+        ],
+        [
+          "unknown name",
+          "adds nothing; `WARNING: group '...' not configured` in the transaction event when `debug` is on"
+        ],
+        [
+          "an exception in `select`",
+          "logged with the selector's name; no group is added"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Stock selectors and routing participants:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Participant",
+        "Configuration",
+        "Does"
+      ],
+      "rows": [
+        [
+          "`Switch`",
+          "`txnname` (default `TXNNAME`), one property per value, `unknown`",
+          "returns the property named by the Context entry; the `unknown` property, else `\"\"`, when there is none"
+        ],
+        [
+          "`HasEntry`",
+          "`name`, `yes`, `no`",
+          "returns the `yes` property when the Context has the entry `name`, else the `no` property; a missing property gives the group name `UNKNOWN`"
+        ],
+        [
+          "`SelectDestination`",
+          "`<endpoint destination=\"...\">` with BINs or ranges `a..b`; `<regexp destination=\"...\">`; `default-destination`; `ignore-luhn`; `fail`",
+          "tries `<regexp>` entries first, then ranges by the number of digits written; puts the destination under `DESTINATION`; fails with `INVALID_CARD_OR_CARDHOLDER_NUMBER` on a bad card, and with `ROUTING_ERROR` when `fail` is set and nothing matched"
+        ],
+        [
+          "`QueryHost`",
+          "`timeout` (30000), `continuations` (`true`), `mux.<destination>` (registry key, default `mux.<destination>`), `ignore-host-unreachable`, `wait-timeout` (1000)",
+          "sends `REQUEST` and puts the answer under `RESPONSE`; with no answer, records `HOST_UNREACHABLE` and resumes the transaction prepared (with `continuations` off it votes `ABORTED` instead); with the MUX missing or not connected, fails without sending"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**`CheckFields` in 2.1.7** (`mandatory`, `optional`, `allow-extra-fields` default `false`, `ignore-card-validation`):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Name in a list",
+        "Checks",
+        "Puts in the Context"
+      ],
+      "rows": [
+        [
+          "`CARD`",
+          "builds an `org.jpos.core.Card` from fields 2, 14, 35, 45 and validates it",
+          "`CARD`"
+        ],
+        [
+          "`PCODE`",
+          "field 3 is six letters or digits",
+          "`PCODE`"
+        ],
+        [
+          "`TID`, `MID`",
+          "fields 41, 42",
+          "`TID`, `MID`"
+        ],
+        [
+          "`TRANSMISSION_TIMESTAMP`",
+          "field 7 is ten digits",
+          "`TRANSMISSION_TIMESTAMP`"
+        ],
+        [
+          "`TRANSACTION_TIMESTAMP`",
+          "field 12 is fourteen digits (the CMF layout, not 1987's six)",
+          "`TRANSACTION_TIMESTAMP`"
+        ],
+        [
+          "`POS_DATA_CODE`, `CAPTURE_DATE`, `ORIGINAL_DATA_ELEMENTS`",
+          "fields 22 (16 bytes), 17, 56",
+          "the same names"
+        ],
+        [
+          "`AMOUNT`",
+          "field 4 or 5 is an `ISOAmount`, which the CMF packager produces and `iso87ascii.xml` doesn't; there, list `4` instead",
+          "`AMOUNT`"
+        ],
+        [
+          "a number, such as `11`",
+          "mandatory: the field must be present; optional: the field is allowed",
+          "nothing"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.9 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your acquirer adds Maestro, whose BINs overlap some Mastercard ranges, and Maestro purchases need a PIN. Write the `<endpoint>` lines, the `Switch` properties and the groups. Which test tells you the overlap went the right way?",
+        "Write a startup check that fails the deployment when a `Switch` property names a group the TransactionManager doesn't have. What can it read, and from where?",
+        "Visa and Mastercard want different response codes for the same failure. Where does the difference go: in `AnswerFailures`, in a group's abort participant, or somewhere else? What does each choice cost when a third brand arrives?",
+        "The network answers at second 2.5, after `QueryHost` gave up at 2. Trace that answer through the QMUX of unit c12 and decide what your server should do with it."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.10 Design Note: Why Groups in the Descriptor?"
+    },
+    {
+      "type": "para",
+      "text": "The brand rules could live in Java, as one participant with a `switch` on the brand. In the descriptor, operations can read which checks run for Mastercard without reading code, and a new network reuses participants that are already tested."
+    },
+    {
+      "type": "para",
+      "text": "The price is that the descriptor is a program the compiler never sees. In Java, a misspelt brand name in a `switch` is at least a constant a search can find, and a missing class doesn't compile. In the descriptor, a `Switch` property that names nothing is accepted and does nothing (5.3), so the checking moves from the compiler to tests that run the real descriptor, one brand at a time."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 9,
-    "paras": 9,
-    "code": 6,
-    "tables": 0,
-    "lists": 0,
+    "headings": 11,
+    "paras": 48,
+    "code": 23,
+    "tables": 3,
+    "lists": 4,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "752f7e64353374cef60d8ea45f3c2b33489eb8a8c9c4023dec7f73274415d16b"
+  "content_sha256": "827af11a900ce89cd2232592d60a2bbc555f6b20d7f12aca960ee0a6b3be129d"
 }

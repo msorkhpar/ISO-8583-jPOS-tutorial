@@ -1,0 +1,74 @@
+{
+  "bundle_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "ordinal": 3,
+  "title": "Send the core system's answer, whatever it contains",
+  "lang": "java",
+  "main_file": "src/main/java/com/example/practice/CoreAnswer.java",
+  "test_file": "src/test/java/com/example/practice/CoreAnswerTest.java",
+  "build": [
+    "pom.xml"
+  ],
+  "run_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-server/prose/unit-06/practice-3/pom.xml",
+    "compile"
+  ],
+  "test_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-server/prose/unit-06/practice-3/pom.xml",
+    "test"
+  ],
+  "provenance": "generated",
+  "trust": "advisory",
+  "cases": [
+    {
+      "id": "com.example.practice.CoreAnswerTest#anApprovalCarriesTheCoresCodeAndMessage",
+      "kind": "main",
+      "says": "an approval goes out with the core's approval code and message"
+    },
+    {
+      "id": "com.example.practice.CoreAnswerTest#aDeclineCarriesItsMessage",
+      "kind": "main",
+      "says": "a decline goes out with its response code and message and no approval code"
+    },
+    {
+      "id": "com.example.practice.CoreAnswerTest#anApprovalCodeThatDoesNotFitEndsAsASystemError",
+      "kind": "edge",
+      "says": "an approval code too long for field 38 turns the answer into a sendable 96, without the code that didn't fit"
+    },
+    {
+      "id": "com.example.practice.CoreAnswerTest#aLongMessageDoesNotTurnADeclineIntoSomethingElse",
+      "kind": "edge",
+      "says": "a message too long for field 44 is dropped from a decline, which still goes out, because only packing reveals which field doesn't fit"
+    },
+    {
+      "id": "com.example.practice.CoreAnswerTest#aLongMessageDoesNotCostTheApproval",
+      "kind": "edge",
+      "says": "a message too long for field 44 is dropped and the approval keeps its code"
+    },
+    {
+      "id": "com.example.practice.CoreAnswerTest#aLinkWithRoomForTheMessageGetsAllOfIt",
+      "kind": "edge",
+      "says": "the check uses the packager of the channel the request came in on, so a link whose field 44 is longer keeps the whole message"
+    }
+  ],
+  "report": {
+    "format": "junit",
+    "path": "target/surefire-reports"
+  },
+  "origin": {
+    "path": "src/s6.md",
+    "section": "6.5 `set` Checks Nothing; the Packager Checks After the Vote"
+  }
+}

@@ -5,7 +5,7 @@
 # the course committed.
 ARG STUDYFORGE_NAMESPACE
 
-FROM ${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE-is-not-set}/studyforge-serve:0.1.0-76df622858caaebd20691d2d40b5289f9bb1bda6beb90407279509c96c3ec19c@sha256:d7998f7902c5643c12fc0c6663567716965598a6b431fbe0170ec9c9ae7d1dcf AS without-narration
+FROM ${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE-is-not-set}/studyforge-serve:0.1.0-b3ea73851d1e83c90d5fe284b2b531896e9ea1dc28d3a5526a0c2bd5f9717174@sha256:9d6fa7854118e274d1221e5b98eca6a20b6e804414576d411ddd36c208a46d47 AS without-narration
 USER root
 RUN --mount=type=bind,source=.,target=/context \
     set -eu; mkdir -p /corpus; \
@@ -18,7 +18,7 @@ USER 1000:1000
 WORKDIR /corpus
 LABEL org.studyforge.course="iso-8583-jpos-tutorial" org.studyforge.narration="without"
 
-FROM ${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE-is-not-set}/studyforge-serve:0.1.0-76df622858caaebd20691d2d40b5289f9bb1bda6beb90407279509c96c3ec19c@sha256:d7998f7902c5643c12fc0c6663567716965598a6b431fbe0170ec9c9ae7d1dcf AS with-narration
+FROM ${STUDYFORGE_NAMESPACE:?STUDYFORGE_NAMESPACE-is-not-set}/studyforge-serve:0.1.0-b3ea73851d1e83c90d5fe284b2b531896e9ea1dc28d3a5526a0c2bd5f9717174@sha256:9d6fa7854118e274d1221e5b98eca6a20b6e804414576d411ddd36c208a46d47 AS with-narration
 USER root
 RUN --mount=type=bind,source=.,target=/context \
     set -eu; mkdir -p /corpus; \

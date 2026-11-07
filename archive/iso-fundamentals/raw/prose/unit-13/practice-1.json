@@ -8,8 +8,8 @@
   "unit": 13,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Mask the card number in a message before it is shown",
+  "ingested": "2026-11-05",
+  "title": "Find the card numbers customers type into support tickets",
   "blocks": [
     {
       "type": "heading",
@@ -18,36 +18,28 @@
     },
     {
       "type": "para",
-      "text": "PCI-DSS lets a PAN be shown only with its first six and last four digits visible. Screens, support tools and log lines all show messages, so the rule is applied to the copy that is shown, while the message being processed keeps the real card number it needs."
+      "text": "Every night support exports its tickets to an analytics vendor. Before the vendor is allowed to receive them, the compliance team wants a report of the tickets that hold card numbers, so that those can be cleaned first and the vendor can stay out of scope."
     },
     {
       "type": "para",
-      "text": "Write `CardMasking.forDisplay(ISOMsg message)`. It returns a copy of the message fit to show:"
+      "text": "Customers type card numbers the way they read them off the card, in groups, with spaces or dashes or neither. Support staff paste lines from terminal logs. Tickets also hold dates, phone numbers, order numbers and case references."
+    },
+    {
+      "type": "para",
+      "text": "`CardNumberFinder.find` in `src/main/java/com/example/practice/CardNumberFinder.java` already walks the ticket and builds the report. Finish the three methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "field 2, the PAN, keeps its first six and last four digits, and every digit between them is replaced by `*` (`4111111111111111` is shown as `411111******1111`);",
-        "every other field is carried over as it is;",
-        "a message with no field 2 is copied as it is."
+        "`candidates()`: what in a ticket might be a card number;",
+        "`isCardNumber(...)`: which candidates are one;",
+        "`shown(...)`: how a card number appears in the report."
       ]
     },
     {
       "type": "para",
-      "text": "Edge cases:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "PANs are not all sixteen digits. However long the PAN, exactly the first six and the last four stay visible.",
-        "The message passed in is not changed. It is still being processed, and it needs its full PAN."
-      ]
-    },
-    {
-      "type": "para",
-      "text": "`ISOUtil.protect` masks with `_`, not `*`, so if you use it, mind the character."
+      "text": "When you're done, the report lists every card number in a ticket, where it starts, and in a form that is safe to hand around, and nothing else. About ten lines in total."
     },
     {
       "type": "heading",
@@ -62,7 +54,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        ISOMsg shown = (ISOMsg) message.clone();\n        if (shown.hasField(2)) {\n            String pan = shown.getString(2);\n            shown.set(2, pan.substring(0, 6) + \"*\".repeat(pan.length() - 10) + pan.substring(pan.length() - 4));\n        }\n        return shown;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\nimport org.jpos.iso.ISOUtil;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private static final Pattern CANDIDATE =\n            Pattern.compile(\"(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])\");\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /** What a card number can look like in a ticket, written by a person or pasted from a log. */\n    static Pattern candidates() {\n        return CANDIDATE;\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. */\n    static boolean isCardNumber(String digits) {\n        int last = digits.length() - 1;\n        return digits.length() >= 13 && digits.length() <= 19\n                && ISOUtil.calcLUHN(digits.substring(0, last)) == digits.charAt(last);\n    }\n\n    /** The card number as the compliance report may show it. */\n    static String shown(String digits) {\n        return ISOUtil.protect(digits);\n    }\n}\n"
         }
       ]
     },
@@ -74,7 +66,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write forDisplay\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /**\n     * What a card number can look like in a ticket, written by a person or pasted from a log.\n     * Every match is a candidate; isCardNumber decides. TODO\n     */\n    static Pattern candidates() {\n        throw new IllegalStateException(\"TODO: candidates\");\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. TODO */\n    static boolean isCardNumber(String digits) {\n        throw new IllegalStateException(\"TODO: isCardNumber\");\n    }\n\n    /** The card number as the compliance report may show it. TODO */\n    static String shown(String digits) {\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -85,7 +77,7 @@
     "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -93,11 +85,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "4c0c7e448d8e78691b9760816866cffd6dea50006302bfd0b08538e6baa3563c",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Makes a message fit to show: its PAN masked as PCI-DSS requires. */\npublic final class CardMasking {\n\n    private CardMasking() {\n    }\n\n    /** A copy of the message with its PAN masked for display. */\n    public static ISOMsg forDisplay(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write forDisplay\");\n    }\n}\n",
+  "content_sha256": "b762e97df96a69a42f8bf44395d4d5b14f2997040ad4463684afeafc49c57b93",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /**\n     * What a card number can look like in a ticket, written by a person or pasted from a log.\n     * Every match is a candidate; isCardNumber decides. TODO\n     */\n    static Pattern candidates() {\n        throw new IllegalStateException(\"TODO: candidates\");\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. TODO */\n    static boolean isCardNumber(String digits) {\n        throw new IllegalStateException(\"TODO: isCardNumber\");\n    }\n\n    /** The card number as the compliance report may show it. TODO */\n    static String shown(String digits) {\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/com/example/practice/CardMasking.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/test/java/com/example/practice/CardMaskingTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/com/example/practice/CardNumberFinder.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/test/java/com/example/practice/CardNumberFinderTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -118,19 +110,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.CardMaskingTest#showsOnlyTheFirstSixAndLastFourDigits",
+        "id": "com.example.practice.CardNumberFinderTest#findsCardNumbersTypedInGroupsOfFour",
         "kind": "main",
-        "says": "the copy for display shows the PAN's first six and last four digits and keeps every other field"
+        "says": "card numbers typed in groups with spaces or dashes are found where they start, and the report says which card each was"
       },
       {
-        "id": "com.example.practice.CardMaskingTest#masksAPanOfAnyLength",
-        "kind": "edge",
-        "says": "a 19-digit PAN still shows only its first six and last four digits"
+        "id": "com.example.practice.CardNumberFinderTest#aTicketWithoutCardNumbersHasNoFindings",
+        "kind": "main",
+        "says": "a ticket with dates, phone numbers and order numbers but no card number has no findings"
       },
       {
-        "id": "com.example.practice.CardMaskingTest#leavesTheMessageBeingProcessedUntouched",
+        "id": "com.example.practice.CardNumberFinderTest#aNumberThatFailsTheCheckDigitIsNotACard",
         "kind": "edge",
-        "says": "the message being processed keeps its full PAN"
+        "says": "a number of card length whose last digit is not its check digit is not reported"
+      },
+      {
+        "id": "com.example.practice.CardNumberFinderTest#aCardGroupedAsItIsPrintedOnAFifteenDigitCardIsFound",
+        "kind": "edge",
+        "says": "a 15-digit card typed in groups of four, six and five is found, not only groups of four"
+      },
+      {
+        "id": "com.example.practice.CardNumberFinderTest#aCardGluedToLettersIsFound",
+        "kind": "edge",
+        "says": "a card number with a letter right before it, as in a pasted track 1, is found"
+      },
+      {
+        "id": "com.example.practice.CardNumberFinderTest#digitsInsideALongerNumberAreNotACard",
+        "kind": "edge",
+        "says": "card-length digits that are part of a longer run of digits are not reported"
+      },
+      {
+        "id": "com.example.practice.CardNumberFinderTest#theReportNeverHoldsTheNumberInClear",
+        "kind": "edge",
+        "says": "the report shows each card number masked, never in clear"
       }
     ],
     "report": {
@@ -139,10 +151,10 @@
     },
     "origin": {
       "path": "src/13.md",
-      "section": "13.1.1. Data Protection"
+      "section": "13.2. A Card Number Is Recognised by Its Length and Its Check Digit"
     },
     "concepts": [
-      "A PAN that is displayed shows only its first six and last four digits, and the masking is applied to what is shown, never to the data being processed."
+      "A card number is 13 to 19 digits that are not part of a longer run and end in a valid Luhn check digit; a scan's hits are places to look at, and its report is masked."
     ]
   }
 }

@@ -1,0 +1,151 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 15,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Space out sign-ons while the host refuses them",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The host's operators have written to you twice."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "During last Tuesday's maintenance window your client sent them a sign-on every second for twenty minutes, and they would like that to stop.",
+        "After a night-long outage, when the host came back at 06:10, your client was among the clients that hammered it with sign-ons, though it had been quiet for most of the night."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Their rules of connection: after a refused or unanswered sign-on, wait `firstWait` before the next one, and twice as long after each further refusal in a row, but never longer than `longestWait`. After an accepted sign-on, the next outage starts afresh."
+    },
+    {
+      "type": "para",
+      "text": "The sign-on manager asks `maySignOn(now)` before each sign-on and reports every outcome to `LinkPolicy` in `src/main/java/com/example/practice/LinkPolicy.java`. Finish `refused` and `signedOn`, the two methods marked `TODO`. About eight lines in total. Times are milliseconds and the caller passes them in, so the tests play a whole night in a moment."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt.\n * Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private int refusals;\n    private long notBefore;\n\n    public LinkPolicy(long firstWait, long longestWait) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        refusals++;\n        long wait = firstWait;\n        for (int i = 1; i < refusals && wait < longestWait; i++)\n            wait = Math.min(wait * 2, longestWait);\n        notBefore = now + Math.min(wait, longestWait);\n        return notBefore;\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        refusals = 0;\n        notBefore = 0;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt.\n * Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private int refusals;\n    private long notBefore;\n\n    public LinkPolicy(long firstWait, long longestWait) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        // TODO: wait longer after each refusal in a row, but never longer than longestWait,\n        //       however long the host keeps refusing. Return when the next attempt may go out.\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        // TODO: the next refusal is the first of a new series, and nothing stops a sign-on now.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "95ad8ad784e15a749b5a5cebfd30b79c84a5c0627e69b38b822f00ca6f0d15be",
+  "starting_code": "package com.example.practice;\n\n/**\n * What the sign-on manager asks before it signs one link on, and tells after each attempt.\n * Times are milliseconds, passed in by the caller.\n */\npublic class LinkPolicy {\n    private final long firstWait;\n    private final long longestWait;\n    private int refusals;\n    private long notBefore;\n\n    public LinkPolicy(long firstWait, long longestWait) {\n        this.firstWait = firstWait;\n        this.longestWait = longestWait;\n    }\n\n    /** May the manager send a sign-on at this time? */\n    public synchronized boolean maySignOn(long now) {\n        return now >= notBefore;\n    }\n\n    /**\n     * The sign-on sent at {@code now} was refused, or got no answer. Returns the earliest time of\n     * the next attempt.\n     */\n    public synchronized long refused(long now) {\n        // TODO: wait longer after each refusal in a row, but never longer than longestWait,\n        //       however long the host keeps refusing. Return when the next attempt may go out.\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n\n    /** The host accepted a sign-on. */\n    public synchronized void signedOn() {\n        // TODO: the next refusal is the first of a new series, and nothing stops a sign-on now.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-15/practice-1/src/main/java/com/example/practice/LinkPolicy.java",
+    "test_path": "practice/jpos-client/prose/unit-15/practice-1/src/test/java/com/example/practice/LinkPolicyTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-15/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkPolicyTest#aRefusedSignOnIsNotRetriedAtOnce",
+        "kind": "main",
+        "says": "after a refusal the next sign-on waits, and it may go out once the longest wait has passed"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#anAcceptedSignOnLiftsTheWait",
+        "kind": "main",
+        "says": "after an accepted sign-on nothing stops the next one"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#theFirstRefusalWaitsTheFirstWait",
+        "kind": "edge",
+        "says": "the first refusal of a series waits exactly the first wait, not twice it"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#eachRefusalInARowWaitsTwiceAsLongUpToTheLongest",
+        "kind": "edge",
+        "says": "each further refusal doubles the wait until it reaches the longest wait, which it never exceeds"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#aNightLongOutageStillWaitsTheLongest",
+        "kind": "edge",
+        "says": "after hundreds of refusals the wait is still the longest wait, never negative, zero or short again"
+      },
+      {
+        "id": "com.example.practice.LinkPolicyTest#afterASuccessTheNextRefusalWaitsTheFirstWaitAgain",
+        "kind": "edge",
+        "says": "a success ends the series, so the next outage starts again from the first wait"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-15/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c15.md",
+      "section": "15.2.1 Spot the Problem: Doubling by Shifting"
+    },
+    "concepts": [
+      "A refused sign-on is retried after a wait that doubles with each refusal in a row up to a cap and starts over after a success; the cap is also how long a link may stay out after its host recovers.",
+      "Doubling by shifting overflows after a few hours of refusals and the delay turns negative, zero or short; doubling step by step inside the cap cannot."
+    ]
+  }
+}

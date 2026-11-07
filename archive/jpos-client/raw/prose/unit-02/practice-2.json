@@ -1,0 +1,135 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Number and date an ATM's requests",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An ATM network is moving its machines to a new acquirer. Each ATM builds its requests with `AtmRequests`, in `src/main/java/com/example/practice/AtmRequests.java`: balance inquiries, cash withdrawals, and the sign-on it sends when it comes into service. The machines stand in several countries, each with its clock set to local time, and they stay in service for years."
+    },
+    {
+      "type": "para",
+      "text": "The two card requests are written. Finish the four methods marked `TODO`; the comment on each says what it is for. The acquirer's test team will compare what your messages say with what it receives and what it echoes back, from ATMs in different time zones. About 10 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        ISOMsg m = stamped(\"0800\");\n        m.set(70, \"001\");\n        return m;\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(7, transmissionTime());\n        m.set(11, nextStan());\n        return m;\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        return clock.instant().atZone(ZoneOffset.UTC).format(MMDDHHMMSS);\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        long n = counter.getAsLong();\n        return ISOUtil.zeropad((n - 1) % 999999 + 1, 6);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        // TODO: Build the sign-on, MTI 0800 with field 70 = 001, ready for this link.\n        throw new IllegalStateException(\"TODO: signOn\");\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        // TODO: Every request above starts here. Give it what the host needs on every message.\n        throw new IllegalStateException(\"TODO: stamped\");\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        // TODO: The ATMs stand in many countries; the host reads this field the same way for all of them.\n        throw new IllegalStateException(\"TODO: transmissionTime\");\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        // TODO: Six digits. The ATM runs for years on the same counter.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 2,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "651326ef17968a33b6381450f492c5a76e86a6668471ed7e062b2b5e2fb884b0",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        // TODO: Build the sign-on, MTI 0800 with field 70 = 001, ready for this link.\n        throw new IllegalStateException(\"TODO: signOn\");\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        // TODO: Every request above starts here. Give it what the host needs on every message.\n        throw new IllegalStateException(\"TODO: stamped\");\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        // TODO: The ATMs stand in many countries; the host reads this field the same way for all of them.\n        throw new IllegalStateException(\"TODO: transmissionTime\");\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        // TODO: Six digits. The ATM runs for years on the same counter.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-02/practice-2/src/main/java/com/example/practice/AtmRequests.java",
+    "test_path": "practice/jpos-client/prose/unit-02/practice-2/src/test/java/com/example/practice/AtmRequestsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-02/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-02/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AtmRequestsTest#eachRequestCarriesItsOwnFieldsAndPacks",
+        "kind": "main",
+        "says": "a balance inquiry, a withdrawal and a sign-on carry their own MTI and fields, a transmission time and consecutive trace numbers, and each packs with iso87ascii"
+      },
+      {
+        "id": "com.example.practice.AtmRequestsTest#fieldSevenReadsTheSameWhereverTheAtmStands",
+        "kind": "edge",
+        "says": "field 7 is the same GMT time for the same instant, whatever zone the ATM's clock is in"
+      },
+      {
+        "id": "com.example.practice.AtmRequestsTest#theCounterCarriesOnPastSixNines",
+        "kind": "edge",
+        "says": "after 999999 the trace number starts again at 000001 and is never 000000"
+      },
+      {
+        "id": "com.example.practice.AtmRequestsTest#theStanInMemoryIsTheStanOnTheWire",
+        "kind": "edge",
+        "says": "the trace number is set at its full six digits, so the message in memory matches what the host echoes"
+      },
+      {
+        "id": "com.example.practice.AtmRequestsTest#theSignOnIsNumberedLikeEveryOtherMessage",
+        "kind": "edge",
+        "says": "the sign-on takes the next trace number from the same sequence as the card requests"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-02/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c2.md",
+      "section": "2.5 The STAN Is One Sequence per Link"
+    },
+    "concepts": [
+      "Field 7 is the transmission time in GMT, whatever the zone of the server or of the clock.",
+      "The fields every message on a link carries are set in one method of a factory with an injected clock and counter, so every message type gets them alike.",
+      "The STAN is one counting sequence per link, shared by every message type, from 000001 to 999999 and around again; random and time-of-day STANs collide."
+    ]
+  }
+}

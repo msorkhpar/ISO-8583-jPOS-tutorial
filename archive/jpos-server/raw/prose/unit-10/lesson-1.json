@@ -8,7 +8,7 @@
   "unit": 10,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Error Handling",
   "blocks": [
     {
@@ -18,129 +18,474 @@
     },
     {
       "type": "para",
-      "text": "Error handling is a crucial aspect of any robust jPOS server implementation. Proper error handling ensures that your application can gracefully manage unexpected situations, provide meaningful feedback, and maintain system stability. In a jPOS server, errors can occur at various levels, including message parsing, transaction processing, and network communication."
+      "text": "At lunchtime the card table behind your server stops answering for four minutes. Every purchase in those minutes comes back `05`, \"do not honour\". Cardholders are told their bank refused them, and the dashboard that alerts on system errors stays green. In the same minutes one purchase is approved at the terminal although the server aborted it and kept no record of it."
+    },
+    {
+      "type": "para",
+      "text": "Units s1, s5 and s6 made sure that a failed request gets an answer. This unit is about which answer, and about making sure it is the one that leaves: four rules, one per section heading."
+    },
+    {
+      "type": "para",
+      "text": "Outputs come from jPOS 2.1.7, run as in unit s5: Q2 deploys the descriptors in one JVM, and unit s4's `DirectTerminal` hands each request to a real `IncomingListener`. Answer lines show the MTI, field 39 and field 11."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.1 Types of Errors"
+      "text": "10.1 A Response Code Says Who Failed, and One Participant Chooses It"
     },
     {
       "type": "para",
-      "text": "In a jPOS server, you may encounter several types of errors:"
+      "text": "The server checks the card, then the account:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n\n  <participant class=\"org.jpos.transaction.participant.CheckFields\" logger=\"Q2\">\n    <property name=\"mandatory\" value=\"CARD PCODE 4 7 11 14 41\"/>\n    <property name=\"optional\" value=\"22 25 42 43 49\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.CheckCard\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n    <property name=\"available\" value=\"12000\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.AnswerFailures\" logger=\"Q2\" realm=\"answer-failures\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "`Authorize` is unit s4's: it declines with `51` above 120.00 and approves the rest. `CheckCard` refuses expired and blocked cards. It reads each card's status from a table, a shared service registered under `card-status`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Card;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.rc.CMF;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.Date;\nimport java.util.function.Function;\n\n/** Refuses expired and blocked cards. Reports why; AnswerFailures picks the code. */\npublic class CheckCard implements TransactionParticipant, Configurable {\n    private Function<String, String> statuses;               // the card table, a shared service\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            statuses = NameRegistrar.get(cfg.get(\"statuses\", \"card-status\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no card status table registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        Card card = ctx.get(ContextConstants.CARD.toString());   // put there by CheckFields\n        if (card.isExpired(new Date()))\n            return ctx.getResult().fail(CMF.EXPIRED, Caller.info(), \"card expired\").FAIL();\n        String status = statuses.apply(card.getPan());           // (1) may throw: the table is down\n        if (!\"active\".equals(status))\n            return ctx.getResult().fail(CMF.RESTRICTED_CARD, Caller.info(), \"status %s\", status).FAIL();\n        return PREPARED | NO_JOIN | READONLY;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`CheckCard` builds no response. It records what it decided in the Context's `Result`, the way `CheckFields` does (unit s5), with a code from jPOS's `CMF` list, and `fail(...).FAIL()` returns `ABORTED | READONLY | NO_JOIN`. Five purchases:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "approved         0210 39=00 11=000601\nexpired          0210 39=54 11=000602\nblocked          0210 39=62 11=000603\nbad-check-digit  0210 39=14 11=000604\nover-balance     0210 39=51 11=000605"
+    },
+    {
+      "type": "para",
+      "text": "Now the table goes down, and line (1) throws. What should the terminal get?"
+    },
+    {
+      "type": "para",
+      "text": "The first version of `CheckCard` built its own answers and ended with this catch:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "} catch (Exception e) {\n    ctx.log(e);\n    return decline(ctx, request, \"05\");                  // do not honour\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "outage           0210 39=05 11=000611\noutage           0210 39=05 11=000612"
+    },
+    {
+      "type": "para",
+      "text": "Each code tells the terminal, and the people behind it, what to do next. `54`, `62` and `51` say the card or the account decided: don't try again. `14` and `30` say the request is wrong. `91` says the issuer couldn't be reached, and `96` says the server failed. With `05`, some cardholders pay with another card and some leave, and the ones who call their bank hear that it saw nothing. Your monitoring, which alerts on the share of `96`, sees four minutes of ordinary declines."
+    },
+    {
+      "type": "para",
+      "text": "The version above doesn't catch at all. The exception leaves `prepare`, the TransactionManager logs it and counts an `ABORTED` vote (unit s1), and the participant that answers failures gives it `96`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "outage           0210 39=96 11=000611\noutage           0210 39=96 11=000612"
+    },
+    {
+      "type": "para",
+      "text": "That participant is unit s5's `AnswerFailures`, grown:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.rc.CMF;\nimport org.jpos.rc.IRC;\nimport org.jpos.rc.Result;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\nimport java.io.Serializable;\nimport java.util.Map;\n\nimport static java.util.Map.entry;\n\n/** On the abort path, answers every failure with the code of its cause, and logs why. */\npublic class AnswerFailures implements AbortParticipant, LogSource {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n    private static final Map<IRC, String> CODES = Map.ofEntries(\n        entry(CMF.INVALID_CARD_NUMBER, \"14\"),                // invalid card number\n        entry(CMF.INVALID_CARD_OR_CARDHOLDER_NUMBER, \"14\"),\n        entry(CMF.MISSING_FIELD, \"30\"),                      // format error\n        entry(CMF.EXTRA_FIELD, \"30\"),\n        entry(CMF.INVALID_FIELD, \"30\"),\n        entry(CMF.INVALID_AMOUNT, \"13\"),                     // invalid amount\n        entry(CMF.EXPIRED, \"54\"),                            // expired card\n        entry(CMF.NOT_SUFFICIENT_FUNDS, \"51\"),               // not sufficient funds\n        entry(CMF.EXCEEDS_WITHDRAWAL_AMOUNT_LIMIT, \"61\"),    // exceeds amount limit\n        entry(CMF.RESTRICTED_CARD, \"62\"),                    // restricted card\n        entry(CMF.ROUTING_ERROR, \"15\"),                      // no such issuer\n        entry(CMF.HOST_UNREACHABLE, \"91\"));                  // issuer or switch inoperative\n\n    private Logger logger;\n    private String realm;\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        return PREPARED | NO_JOIN | READONLY;                // nothing failed: nothing to do\n    }\n\n    @Override\n    public int prepareForAbort(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        ISOMsg built = ctx.get(ContextConstants.RESPONSE.toString());\n        if (request == null || built != null && !\"00\".equals(built.getString(39)))\n            return ABORTED | NO_JOIN | READONLY;             // (3) nothing to answer, or refused already\n        String rc = rcFor(ctx.getResult());                  // (1)\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rc);\n            ctx.put(ContextConstants.RESPONSE.toString(), response);   // replaces an approval\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        Result.Entry failure = ctx.getResult().failure();\n        LogEvent evt = new LogEvent(this, \"answer-failure\");          // (2) why, for the operator\n        evt.addMessage(\"txn \" + id + \" 11=\" + request.getString(11) + \" 41=\" + request.getString(41)\n            + \" 39=\" + rc + (failure != null\n                ? \" \" + failure.getIrc() + \" \" + failure.getSource() + \" \" + failure.getMessage()\n                : \" nothing reported: see the PREPARE warning\"));\n        Logger.log(evt);\n        return ABORTED | NO_JOIN;\n    }\n\n    static String rcFor(Result result) {\n        Result.Entry failure = result.failure();             // the first failure reported\n        return failure == null ? \"96\" : CODES.getOrDefault(failure.getIrc(), \"96\");  // 96: system malfunction\n    }\n\n    @Override public void setLogger(Logger logger, String realm) { this.logger = logger; this.realm = realm; }\n    @Override public String getRealm() { return realm; }\n    @Override public Logger getLogger() { return logger; }\n}"
+    },
+    {
+      "type": "para",
+      "text": "**(1) One table maps causes to codes.** `rcFor` reads the first failure in the `Result` and looks its `CMF` code up in `CODES`. A cause the table doesn't list, or no failure at all, which is what a thrown exception leaves, is `96`. The participants report causes, and only this class knows field"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "ISO-8583 message parsing errors",
-        "Transaction processing errors",
-        "Network communication errors",
-        "Database errors",
-        "Security-related errors"
+        "When the acquirer's specification changes a code, you change one line."
+      ],
+      "start": 39
+    },
+    {
+      "type": "para",
+      "text": "`Authorize` still builds its own `51`, as in unit s4. Such a refusal is already an answer, and (3) leaves it alone. The `NOT_SUFFICIENT_FUNDS` entry serves participants that report the cause instead."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.2 The Reason Goes to the Log, and the Response Carries Only the Code"
+    },
+    {
+      "type": "para",
+      "text": "The terminal got `54`. The operator looking up STAN `000602` needs to know why. The TransactionManager's event says:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <abort>\n    txnmgr-1:idle:2\n            prepare: o.j.t.p.CheckFields PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.CheckCard ABORTED READONLY NO_JOIN\n    prepareForAbort: c.e.j.s.p.AnswerFailures:answer-failures\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "It says who aborted, not why. The reason is in the `Result`, which lives in the Context, and the Context is printed only in the dump that unit s1 turned off. So (2) writes one event per failure it answers, to the logger named in its `<participant>` element (it implements `LogSource`):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    txn 2 11=000602 41=29110001 39=54 EXPIRED c.e.j.s.p.CheckCard.prepare:36 card expired\n    txn 4 11=000604 41=29110001 39=14 INVALID_CARD_NUMBER o.j.t.p.CheckFields.putCard:182 invalid LUHN\n    txn 1 11=000611 41=29110001 39=96 nothing reported: see the PREPARE warning"
+    },
+    {
+      "type": "para",
+      "text": "Each line has the transaction's id, STAN and terminal, the code sent, and the cause with the class and line that reported it. For the outage, the cause is in the `PREPARE` warning the TransactionManager logged (unit s6)."
+    },
+    {
+      "type": "para",
+      "text": "It is tempting to send the reason back too, in a free-text field, \"so support can see it\". The merchant's terminal then shows `card table unavailable: connection refused`, or your database's host name. The field also has a length, and a reason that doesn't fit makes the whole response unsendable (unit s6)."
+    },
+    {
+      "type": "para",
+      "text": "Write the messages without card data. `ProtectedLogListener` masks the fields of a message in an event, not text (unit s1), so a PAN in `fail(...)` or in an exception message reaches the log in clear."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+    },
+    {
+      "type": "para",
+      "text": "Unit s4 advised doing what can fail in `prepare`, while a failure can still become a refusal. So `RecordApproval` now writes each approval to the journal in `prepare`, and its `abort` takes the entry out again. It runs after unit s4's `ReserveDailyLimit` (500.00 a day) and `Authorize`, and before unit s5's `AnswerFailures`, which ran as `demo.S5AnswerFailures`, so the trace calls it `d.S5AnswerFailures`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<participant class=\"com.example.jpos.server.participant.ReserveDailyLimit\" logger=\"Q2\"/>\n<participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n  <property name=\"available\" value=\"12000\"/>\n</participant>\n<participant class=\"com.example.jpos.server.participant.RecordApproval\" logger=\"Q2\"/>\n<participant class=\"com.example.jpos.server.participant.AnswerFailures\" logger=\"Q2\"/>\n<participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "journal.record(key(request), request.getString(2), Long.parseLong(request.getString(4)));  // may throw\nreturn PREPARED | READONLY;                                   // joins: abort takes it out"
+    },
+    {
+      "type": "para",
+      "text": "The journal's disk is full, so `record` throws on a purchase of 27.50 by a card with nothing spent today. What does the terminal print?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00 11=000621\ntotal today: 0   journal entries: 0"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.ReserveDailyLimit PREPARED\n            prepare: c.e.j.s.p.Authorize PREPARED NO_JOIN\n            prepare: c.e.j.s.p.RecordApproval ABORTED\n    prepareForAbort: d.S5AnswerFailures\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: c.e.j.s.p.ReserveDailyLimit\n              abort: c.e.j.s.p.RecordApproval\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "The transaction aborted as it should. `ReserveDailyLimit` gave the 27.50 back to the daily limit, and nothing is in the journal. But `Authorize` had already put its approval in `RESPONSE`. `AnswerFailures`, in unit s5's version, found a response and took it as an answer to a failure. `SendResponse` sends whatever `RESPONSE` holds on either path, and it doesn't read field 39."
+    },
+    {
+      "type": "para",
+      "text": "The terminal printed an approval and the merchant handed over the goods. The server has no journal line, so settlement can't match the purchase, and the daily limit has already forgotten it, so the card can spend the same 27.50 again."
+    },
+    {
+      "type": "para",
+      "text": "That is why the condition at (3) keeps a response only when it refuses. On the abort path an approval is replaced like a missing response, here with `96`, because the exception reported nothing:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=96 11=000621"
+    },
+    {
+      "type": "para",
+      "text": "The fix works only if `AnswerFailures` runs after `RecordApproval`. Put it before, and the approval leaves again:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.AnswerFailures:answer-failures PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.RecordApproval ABORTED\n    prepareForAbort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase: 0210 39=00 11=000621"
+    },
+    {
+      "type": "para",
+      "text": "`prepareForAbort` reaches only the abort participants after the one that aborted (unit s4). `AnswerFailures` had already been prepared, voted `NO_JOIN`, and was never asked again. It belongs right before `SendResponse`, after every participant that can fail, and that includes the groups a selector adds."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once"
+    },
+    {
+      "type": "para",
+      "text": "The server approved a purchase of 42.50, and the `0210` never reached the terminal. The acquirer doesn't know the outcome, so it reverses (unit c12): an `0420`, repeated as `0421` until it gets an answer. A selector sends reversals to their own group:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n\n  <participant class=\"com.example.jpos.server.participant.SelectByMti\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.AnswerFailures\" logger=\"Q2\" realm=\"answer-failures\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n\n  <group name=\"purchase\">\n    <participant class=\"com.example.jpos.server.participant.ReserveDailyLimit\" logger=\"Q2\"/>\n    <participant class=\"com.example.jpos.server.participant.Authorize\" logger=\"Q2\">\n      <property name=\"available\" value=\"12000\"/>\n    </participant>\n    <participant class=\"com.example.jpos.server.participant.RecordApproval\" logger=\"Q2\"/>\n  </group>\n  <group name=\"reversal\">\n    <participant class=\"com.example.jpos.server.participant.Reverse\" logger=\"Q2\"/>\n  </group>\n</txnmgr>"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.GroupSelector;\n\nimport java.io.Serializable;\n\n/** Runs the group \"reversal\" for 0400/0401/0420/0421 and \"purchase\" for everything else. */\npublic class SelectByMti implements GroupSelector {\n    @Override\n    public int prepare(long id, Serializable context) {\n        return PREPARED | NO_JOIN | READONLY;\n    }\n\n    @Override\n    public String select(long id, Serializable context) {\n        ISOMsg request = ((Context) context).get(ContextConstants.REQUEST.toString());\n        return request != null && request.getString(0).startsWith(\"04\") ? \"reversal\" : \"purchase\";\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`RecordApproval` keeps each approval in the journal under the terminal (41), the STAN (11) and the transmission time (7). `Reverse` looks it up and gives the amount back to the daily limit:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.server.journal.Approvals;\nimport com.example.jpos.server.limits.DailyTotals;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Answers a reversal (0400, 0420 and their repeats) and undoes the original, once. */\npublic class Reverse implements TransactionParticipant, Configurable {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 32, 37, 41, 42, 49, 90 };\n    private Approvals journal;\n    private DailyTotals totals;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            journal = NameRegistrar.get(cfg.get(\"journal\", \"approvals\"));\n            totals = NameRegistrar.get(cfg.get(\"totals\", \"daily-totals\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"journal or totals not registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg reversal = ctx.get(REQUEST.toString());\n        String original = reversal.getString(90);                 // MTI, STAN, field 7, 32, 33\n        if (original != null && original.length() >= 20) {\n            String key = Approvals.key(reversal.getString(41),\n                original.substring(4, 10), original.substring(10, 20));  // (1) the original's, not ours\n            Approvals.Approval approved = journal.take(key);           // (2) a repeat finds nothing\n            if (approved != null)\n                totals.release(approved.pan, approved.amount);\n        }\n        try {\n            ISOMsg response = (ISOMsg) reversal.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"00\");                                    // (3) found or not\n            ctx.put(RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return PREPARED | NO_JOIN;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The purchase, its reversal, the repeat, and then a reversal of a purchase the server never saw (each line shows the first 20 of field 90's 42 digits):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0200 11=000631                         0210 39=00 11=000631  total today: 4250\n0420 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: 0\n0421 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: 0\n0420 11=000633 90=02000006991106121530 0430 39=00 11=000633  total today: 0"
+    },
+    {
+      "type": "para",
+      "text": "**(1) The original's STAN is in field 90.** A reversal is a new message with its own STAN and time (unit c12). Field 90 starts with the original's MTI, STAN and field 7. Look the original up by the reversal's own fields 11 and 7 instead:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0200 11=000631                         0210 39=00 11=000631  total today: 4250\n0420 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: 4250\n0421 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: 4250\n0420 11=000633 90=02000006991106121530 0430 39=00 11=000633  total today: 4250"
+    },
+    {
+      "type": "para",
+      "text": "Nothing was undone. The cardholder paid nothing, yet 42.50 of the day's limit stays used until the reset. With a hold on an account, the money stays held."
+    },
+    {
+      "type": "para",
+      "text": "**(2) A repeat finds nothing.** An answer can be lost as well, so the same reversal can arrive several times. `take` removes the approval, and a repeat finds nothing to undo. Read it with `find`, which leaves it in the journal:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0200 11=000631                         0210 39=00 11=000631  total today: 4250\n0420 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: 0\n0421 11=000632 90=02000006311106121530 0430 39=00 11=000632  total today: -4250\n0420 11=000633 90=02000006991106121530 0430 39=00 11=000633  total today: -4250"
+    },
+    {
+      "type": "para",
+      "text": "The repeat gave the 42.50 back a second time, and the card can now spend 542.50 today."
+    },
+    {
+      "type": "para",
+      "text": "**(3) Found or not, the answer is `00`.** A reversal asks that the original have no effect. A purchase the server declined, or never received, has none, so the reversal has done its job. A refusal would leave the acquirer with an open reversal for a purchase that never happened."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.5 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A response code says who failed.** Participants report causes in the `Result`, and one abort participant maps them to field 39. A thrown exception becomes `96`, never a decline.",
+        "**The reason goes to the log.** The TransactionManager's event says who aborted, not why; the answering participant logs the cause with the STAN and terminal, and the response carries only the code.",
+        "**On the abort path `SendResponse` sends whatever `RESPONSE` holds.** An approval built before a later failure goes out unless the answering participant replaces it, and it can only do that from its place right before `SendResponse`.",
+        "**A reversal is answered `00`**, finds its original through field 90, and undoes it once, so a repeat or a reversal of nothing changes nothing."
       ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.2 Implementing Error Handling"
+      "text": "10.6 Reference"
     },
     {
       "type": "para",
-      "text": "Let's implement a comprehensive error handling strategy for a jPOS server using Spring's `@ExceptionHandler` and custom exception classes."
+      "text": "**`CMF` failures and the ISO 8583:1987 codes of `AnswerFailures`:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "`CMF`",
+        "Reported by",
+        "Field 39"
+      ],
+      "rows": [
+        [
+          "`INVALID_CARD_NUMBER`, `INVALID_CARD_OR_CARDHOLDER_NUMBER`",
+          "`CheckFields`, `SelectDestination`",
+          "`14` invalid card number"
+        ],
+        [
+          "`MISSING_FIELD`, `EXTRA_FIELD`, `INVALID_FIELD`",
+          "`CheckFields`",
+          "`30` format error"
+        ],
+        [
+          "`INVALID_AMOUNT`",
+          "your participants",
+          "`13` invalid amount"
+        ],
+        [
+          "`EXPIRED`",
+          "your participants",
+          "`54` expired card"
+        ],
+        [
+          "`NOT_SUFFICIENT_FUNDS`",
+          "your participants",
+          "`51` not sufficient funds"
+        ],
+        [
+          "`EXCEEDS_WITHDRAWAL_AMOUNT_LIMIT`",
+          "your participants",
+          "`61` exceeds amount limit"
+        ],
+        [
+          "`RESTRICTED_CARD`",
+          "your participants",
+          "`62` restricted card"
+        ],
+        [
+          "`ROUTING_ERROR`",
+          "`SelectDestination` with `fail` set",
+          "`15` no such issuer"
+        ],
+        [
+          "`HOST_UNREACHABLE`",
+          "`QueryHost`",
+          "`91` issuer or switch inoperative"
+        ],
+        [
+          "anything else, or nothing reported",
+          "",
+          "`96` system malfunction"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "First, let's create some custom exception classes:"
+      "text": "Networks publish their own tables, and the codes your server returns are part of its interface specification."
+    },
+    {
+      "type": "para",
+      "text": "**`Result` in 2.1.7:** `fail(irc, source, format, args...)` records a failure and returns the `Result`; its `FAIL()` returns `ABORTED | READONLY | NO_JOIN`. `failure()` is the first failure recorded, or `null`. `Caller.info()` gives the calling class, method and line. The `Result` is printed only in the Context dump."
+    },
+    {
+      "type": "para",
+      "text": "**On the abort path in 2.1.7:** `prepareForAbort` is called on the `AbortParticipant`s after the participant that aborted, in order, groups included. `SendResponse` sends `RESPONSE` from `commit` and from `abort` alike, unless `TX` is in the Context, the `Result` has an entry with an inhibiting code, or the source is gone."
+    },
+    {
+      "type": "para",
+      "text": "**Approval codes** other than `00` exist in ISO 8583:1987 (`08`, `10`, `11`). A server that sends them must treat them as approvals at (3) too."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** A partial reversal gives back only part of the amount; ISO 8583:1987 carries the actual amount in field 95, and some networks use field 4 instead. Some networks also match an original by fields 32 and 37."
+        }
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The other classes of the examples.** The journal, registered under `approvals` before Q2 starts:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "public class ISO8583ParseException extends RuntimeException {\n    public ISO8583ParseException(String message) {\n        super(message);\n    }\n}\n\npublic class TransactionProcessingException extends RuntimeException {\n    public TransactionProcessingException(String message) {\n        super(message);\n    }\n}\n\npublic class NetworkCommunicationException extends RuntimeException {\n    public NetworkCommunicationException(String message) {\n        super(message);\n    }\n}"
+      "text": "package com.example.jpos.server.journal;\n\nimport java.io.UncheckedIOException;\nimport java.io.IOException;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/** The approvals journal: one entry per approved purchase, keyed by terminal, STAN and field 7. */\npublic class Approvals {\n    public static final class Approval {\n        public final String pan;\n        public final long amount;\n\n        Approval(String pan, long amount) {\n            this.pan = pan;\n            this.amount = amount;\n        }\n    }\n\n    private final Map<String, Approval> entries = new HashMap<>();\n    private volatile boolean full;\n\n    public static String key(String terminal, String stan, String transmitted) {\n        return terminal + \"/\" + stan + \"/\" + transmitted;\n    }\n\n    public synchronized void record(String key, String pan, long amount) {\n        if (full)\n            throw new UncheckedIOException(new IOException(\"No space left on device\"));\n        entries.put(key, new Approval(pan, amount));\n    }\n\n    /** The approval under this key, or null. It stays in the journal. */\n    public synchronized Approval find(String key) {\n        return entries.get(key);\n    }\n\n    /** Removes and returns the approval under this key: a second call returns null. */\n    public synchronized Approval take(String key) {\n        return entries.remove(key);\n    }\n\n    public synchronized int size() {\n        return entries.size();\n    }\n\n    public void fill() {\n        full = true;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "Now, let's create a global exception handler using Spring's `@ControllerAdvice`:"
+      "text": "`RecordApproval`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\nimport org.springframework.web.bind.annotation.ResponseStatus;\n\n@ControllerAdvice\npublic class GlobalExceptionHandler {\n\n    @ExceptionHandler(ISO8583ParseException.class)\n    @ResponseStatus(HttpStatus.BAD_REQUEST)\n    public ISOMsg handleISO8583ParseException(ISO8583ParseException ex) {\n        return createErrorResponse(\"01\", ex.getMessage());\n    }\n\n    @ExceptionHandler(TransactionProcessingException.class)\n    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)\n    public ISOMsg handleTransactionProcessingException(TransactionProcessingException ex) {\n        return createErrorResponse(\"02\", ex.getMessage());\n    }\n\n    @ExceptionHandler(NetworkCommunicationException.class)\n    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)\n    public ISOMsg handleNetworkCommunicationException(NetworkCommunicationException ex) {\n        return createErrorResponse(\"03\", ex.getMessage());\n    }\n\n    @ExceptionHandler(Exception.class)\n    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)\n    public ISOMsg handleGenericException(Exception ex) {\n        return createErrorResponse(\"99\", \"An unexpected error occurred\");\n    }\n\n    private ISOMsg createErrorResponse(String errorCode, String errorMessage) {\n        try {\n            ISOMsg response = new ISOMsg();\n            response.setMTI(\"0810\");  // Assuming 0810 is used for error responses\n            response.set(39, errorCode);  // Response code field\n            response.set(63, errorMessage);  // Additional data field for error message\n            return response;\n        } catch (ISOException e) {\n            // If we can't create an ISO message, return null and let the framework handle it\n            return null;\n        }\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.server.journal.Approvals;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\nimport static org.jpos.transaction.ContextConstants.REQUEST;\nimport static org.jpos.transaction.ContextConstants.RESPONSE;\n\n/** Writes each approval to the journal in prepare, and takes it out again if the purchase aborts. */\npublic class RecordApproval implements TransactionParticipant, Configurable {\n    private Approvals journal;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            journal = NameRegistrar.get(cfg.get(\"journal\", \"approvals\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no approvals journal registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg response = ctx.get(RESPONSE.toString());\n        if (response == null || !\"00\".equals(response.getString(39)))\n            return PREPARED | NO_JOIN | READONLY;\n        ISOMsg request = ctx.get(REQUEST.toString());\n        journal.record(key(request), request.getString(2), Long.parseLong(request.getString(4)));  // may throw\n        return PREPARED | READONLY;                                   // joins: abort takes it out\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        journal.take(key(((Context) context).get(REQUEST.toString())));\n    }\n\n    static String key(ISOMsg request) {\n        return Approvals.key(request.getString(41), request.getString(11), request.getString(7));\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This global exception handler catches different types of exceptions and creates appropriate ISO-8583 error responses."
-    },
-    {
-      "type": "para",
-      "text": "Next, let's create a custom TransactionParticipant that demonstrates how to use these exceptions:"
+      "text": "`ReserveDailyLimit`, `Authorize` and the daily totals are unit s4's. `DailyTotals`, registered under `daily-totals`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.transaction.TransactionParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class SampleTransactionParticipant implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Context context) {\n        try {\n            ISOMsg msg = (ISOMsg) context.get(\"REQUEST\");\n            if (msg == null) {\n                throw new ISO8583ParseException(\"Invalid or missing ISO message\");\n            }\n\n            // Simulate some processing that might throw exceptions\n            String processingCode = msg.getString(3);\n            if (\"999999\".equals(processingCode)) {\n                throw new TransactionProcessingException(\"Invalid processing code\");\n            }\n\n            // Simulate a network error\n            if (\"888888\".equals(processingCode)) {\n                throw new NetworkCommunicationException(\"Network is unavailable\");\n            }\n\n            // Normal processing continues...\n            return PREPARED | NO_JOIN;\n        } catch (ISOException e) {\n            context.put(\"EXCEPTION\", new ISO8583ParseException(\"Error parsing ISO message: \" + e.getMessage()));\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    @Override\n    public void commit(long id, Context context) {\n        // Commit logic here\n    }\n\n    @Override\n    public void abort(long id, Context context) {\n        // Abort logic here\n    }\n}"
+      "text": "package com.example.jpos.server.limits;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/** Today's total per card, in minor units, against one daily limit. Shared by every session. */\npublic final class DailyTotals {\n    private final Map<String, Long> totals = new HashMap<>();\n    private final long limit;\n\n    public DailyTotals(long limit) {\n        this.limit = limit;\n    }\n\n    /** Adds the amount to the card's total, unless that would pass the limit. */\n    public synchronized boolean reserve(String card, long amount) {\n        long now = totals.getOrDefault(card, 0L);\n        if (now + amount > limit)\n            return false;\n        totals.put(card, now + amount);\n        return true;\n    }\n\n    public synchronized void release(String card, long amount) {\n        totals.merge(card, -amount, Long::sum);\n    }\n\n    public synchronized long total(String card) {\n        return totals.getOrDefault(card, 0L);\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.7 Challenges"
     },
     {
       "type": "para",
-      "text": "To use this participant in your TransactionManager, you would configure it in your Spring context:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<bean id=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\">\n    <property name=\"space\" value=\"tspace:default\"/>\n    <property name=\"queue\" value=\"txnqueue\"/>\n    <property name=\"participants\">\n        <list>\n            <bean class=\"com.example.SampleTransactionParticipant\"/>\n            <!-- Other participants... -->\n        </list>\n    </property>\n</bean>"
-    },
-    {
-      "type": "para",
-      "text": "Finally, let's add some logging to our error handling. We'll use SLF4J with Logback for this example:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n@ControllerAdvice\npublic class GlobalExceptionHandler {\n    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);\n\n    @ExceptionHandler(ISO8583ParseException.class)\n    @ResponseStatus(HttpStatus.BAD_REQUEST)\n    public ISOMsg handleISO8583ParseException(ISO8583ParseException ex) {\n        logger.error(\"ISO-8583 Parse Error: {}\", ex.getMessage(), ex);\n        return createErrorResponse(\"01\", ex.getMessage());\n    }\n\n    // ... other exception handlers ...\n}"
-    },
-    {
-      "type": "para",
-      "text": "Make sure to configure Logback in your `logback.xml` file:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<configuration>\n    <appender name=\"STDOUT\" class=\"ch.qos.logback.core.ConsoleAppender\">\n        <encoder>\n            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n        </encoder>\n    </appender>\n\n    <appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.RollingFileAppender\">\n        <file>logs/jpos-server.log</file>\n        <rollingPolicy class=\"ch.qos.logback.core.rolling.TimeBasedRollingPolicy\">\n            <fileNamePattern>logs/jpos-server.%d{yyyy-MM-dd}.log</fileNamePattern>\n            <maxHistory>30</maxHistory>\n        </rollingPolicy>\n        <encoder>\n            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>\n        </encoder>\n    </appender>\n\n    <root level=\"INFO\">\n        <appender-ref ref=\"STDOUT\" />\n        <appender-ref ref=\"FILE\" />\n    </root>\n</configuration>"
-    },
-    {
-      "type": "para",
-      "text": "This configuration will log errors to both the console and a rolling file."
-    },
-    {
-      "type": "para",
-      "text": "With these implementations in place, your jPOS server will have a robust error handling mechanism that:"
+      "text": "These have no single answer."
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Catches and categorizes different types of exceptions",
-        "Creates appropriate ISO-8583 error responses",
-        "Logs detailed error information for troubleshooting",
-        "Allows for graceful degradation of the system in case of errors"
+        "Your server's queue backs up (unit s4) and a terminal gives up on a purchase that is still waiting for a session. Its reversal is processed first, finds nothing, and is answered `00`. Then the purchase is approved. What must `Reverse` leave behind so that the late purchase is refused, and for how long?",
+        "Visa and Mastercard want different codes for `RESTRICTED_CARD`. Where does the difference go: in `CODES`, in a brand group's abort participant, or in a second table? What does each cost when a third brand arrives?",
+        "Design the alert on `AnswerFailures`'s log. Which codes, over what window, and how would the lunchtime outage have looked?",
+        "The journal in this unit is a map in memory. Move it to the database of unit s9. Which of `record`, `take` and the release of the daily limit belong to one database transaction?"
       ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.8 Design Note: Why Does jPOS Report Failures Instead of Answering Them?"
+    },
+    {
+      "type": "para",
+      "text": "jPOS's stock participants (`CheckFields`, `SelectDestination`, `QueryHost`) report failures and build no response: `CheckFields` records `MISSING_FIELD`, `QueryHost` records `HOST_UNREACHABLE`. The codes are jPOS's own, from `CMF`, and they mean the same on every network."
+    },
+    {
+      "type": "para",
+      "text": "The reason is that the response belongs to the network. Field 39 is two characters in ISO 8583:1987 and four digits in jPOS's own message format, and each network adds codes of its own. A participant that wrote field 39 itself would be tied to one network. A participant that reports a cause can run behind any of them, and one table at the end of the chain speaks the network's language."
+    },
+    {
+      "type": "para",
+      "text": "The price is that a report alone sends no response. Without a participant that turns it into a response, the terminal waits out its timeout (unit s5), and a code missing from the table falls back to `96`, the right answer for a cause nobody planned for."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 3,
-    "paras": 12,
-    "code": 6,
-    "tables": 0,
-    "lists": 2,
+    "headings": 9,
+    "paras": 45,
+    "code": 25,
+    "tables": 1,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "4b5e24fe42afcea760dd73c0c8abc16daa0db7ae0063ec129e79fc100c9bc5fc"
+  "content_sha256": "53880a5414027ce0f20de4937d25982595e8abf58aaea62d9ce846dd4db74ad2"
 }

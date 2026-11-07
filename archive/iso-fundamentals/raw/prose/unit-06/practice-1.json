@@ -8,8 +8,8 @@
   "unit": 6,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Build Mastercard requests from their processing codes",
+  "ingested": "2026-11-05",
+  "title": "Write the packager for an EBCDIC link from its samples",
   "blocks": [
     {
       "type": "heading",
@@ -18,35 +18,83 @@
     },
     {
       "type": "para",
-      "text": "On a Mastercard link the kind of transaction, purchase, cash advance, void or refund, is not a field of its own: it is the processing code in field 3. That code is six digits: two for the transaction type, two for the account the money comes from and two for the account it goes to. Both sides must agree on the codes, and a message whose code you do not recognise must never be treated as something it is not."
+      "text": "A new card-network link is booked for certification next week. Its specification lists the fields of an authorization and gives sample messages as hex dumps; the certification analyst will compare your messages with those samples, byte for byte."
     },
     {
       "type": "para",
-      "text": "Write `MastercardRequests`, using its nested enum `ProcessingCode` with the page's codes, both account types left at `00`: `PURCHASE` `000000`, `CASH_ADVANCE` `010000`, `VOID` `020000`, `REFUND` `200000`."
+      "text": "`src/main/java/com/example/practice/MastercardLayout.java` builds a `GenericPackager` from a list of field definitions. Finish `fields()`, which returns one `<isofield .../>` element per field, so that the packager writes messages the way the samples do. About ten lines."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "`ProcessingCode.fromCode(String code)` returns the type a six-digit code stands for. The type is named by the code's first two digits.",
-        "`request(ProcessingCode type, String pan, String amount, String merchantId)` builds an `0200` with the card number in field 2, the type's six-digit code in field 3, the amount in field 4 and the merchant id in field 42.",
-        "`refund(String pan, String amount, String merchantId, String originalReference)` builds the same request for `REFUND`, and also carries the original transaction's reference in field 37.",
-        "`typeOf(ISOMsg message)` reads a message's type back from its field 3.",
-        "`isApproved(ISOMsg response)` says whether the response approves the transaction: its field 39 is `00`."
+      "type": "para",
+      "text": "The specification's field table:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Name",
+        "Format"
+      ],
+      "rows": [
+        [
+          "0",
+          "message type indicator",
+          "n 4"
+        ],
+        [
+          "1",
+          "bitmap",
+          "b 64"
+        ],
+        [
+          "2",
+          "primary account number",
+          "n ..19, two-digit length"
+        ],
+        [
+          "3",
+          "processing code",
+          "n 6"
+        ],
+        [
+          "4",
+          "amount, transaction",
+          "n 12"
+        ],
+        [
+          "11",
+          "system trace audit number",
+          "n 6"
+        ],
+        [
+          "41",
+          "card acceptor terminal ID",
+          "ans 8"
+        ],
+        [
+          "42",
+          "card acceptor ID",
+          "ans 15"
+        ],
+        [
+          "49",
+          "currency code, transaction",
+          "n 3"
+        ]
       ]
     },
     {
       "type": "para",
-      "text": "Edge cases to handle:"
+      "text": "One of its samples, an `0200` with fields 3, 4, 11, 41 and 49:"
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "A code that is not six digits, or whose first two digits are not one of the four types, is refused with an `IllegalArgumentException`, whether it reaches `fromCode` directly or through `typeOf`.",
-        "The account-type digits do not change the transaction: a code that starts with `20` is a refund whatever its last four digits are.",
-        "A response with no field 39 at all is not approved, and `isApproved` answers `false` rather than failing."
-      ]
+      "type": "code",
+      "lang": "text",
+      "text": "F0F2F0F03020000000808000F0F0F3F0F0F0F0F0F0F0F0F0F0F0F4F8F7F5F0F0F0F9F1F5D2C9D6E2D2F0F740F9F7F8"
+    },
+    {
+      "type": "para",
+      "text": "The tests pack other messages and compare them with the specification's other samples."
     },
     {
       "type": "heading",
@@ -61,7 +109,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"000000\"),\n        CASH_ADVANCE(\"010000\"),\n        VOID(\"020000\"),\n        REFUND(\"200000\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The transaction type: the first two digits of the code. */\n        public String transactionType() {\n            return code.substring(0, 2);\n        }\n\n        /** The type a six-digit processing code stands for, named by its first two digits. */\n        public static ProcessingCode fromCode(String code) {\n            if (code == null || !code.matches(\"\\\\d{6}\")) {\n                throw new IllegalArgumentException(\"not a six-digit processing code: \" + code);\n            }\n            String transactionType = code.substring(0, 2);\n            for (ProcessingCode type : values()) {\n                if (type.transactionType().equals(transactionType)) {\n                    return type;\n                }\n            }\n            throw new IllegalArgumentException(\"not a Mastercard processing code: \" + code);\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0200\");\n        message.set(2, pan);\n        message.set(3, type.code());\n        message.set(4, amount);\n        message.set(42, merchantId);\n        return message;\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        ISOMsg message = request(ProcessingCode.REFUND, pan, amount, merchantId);\n        message.set(37, originalReference);\n        return message;\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        return ProcessingCode.fromCode(message.getString(3));\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        return \"00\".equals(response.getString(39));\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        return \"\"\"\n              <isofield id=\"0\" length=\"4\" name=\"MTI\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"1\" length=\"16\" name=\"BITMAP\" class=\"org.jpos.iso.IFB_BITMAP\"/>\n              <isofield id=\"2\" length=\"19\" name=\"PAN\" class=\"org.jpos.iso.IFE_LLNUM\"/>\n              <isofield id=\"3\" length=\"6\" name=\"PROCESSING CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"4\" length=\"12\" name=\"AMOUNT\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"11\" length=\"6\" name=\"STAN\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"41\" length=\"8\" name=\"TERMINAL ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n              <isofield id=\"42\" length=\"15\" name=\"CARD ACCEPTOR ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n              <isofield id=\"49\" length=\"3\" name=\"CURRENCY CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n            \"\"\";\n    }\n}\n"
         }
       ]
     },
@@ -73,7 +121,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"000000\"),\n        CASH_ADVANCE(\"010000\"),\n        VOID(\"020000\"),\n        REFUND(\"200000\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The transaction type: the first two digits of the code. */\n        public String transactionType() {\n            return code.substring(0, 2);\n        }\n\n        /** The type a six-digit processing code stands for, named by its first two digits. */\n        public static ProcessingCode fromCode(String code) {\n            throw new UnsupportedOperationException(\"write fromCode\");\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write typeOf\");\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write isApproved\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        // TODO: one <isofield .../> line per field of the specification's table, so that every\n        //       message this packager writes has exactly the bytes of the specification's samples.\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -81,10 +129,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
-    "tables": 0,
-    "lists": 2,
+    "paras": 5,
+    "code": 2,
+    "tables": 1,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -92,11 +140,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "57958c1b64cc654273e5499cdd2fa1ed38ec3cbed4e01e971af6ac81d50d9d17",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Mastercard financial requests, typed by their processing code in field 3. */\npublic final class MastercardRequests {\n\n    /** The transaction types and the processing codes that carry them. */\n    public enum ProcessingCode {\n        PURCHASE(\"000000\"),\n        CASH_ADVANCE(\"010000\"),\n        VOID(\"020000\"),\n        REFUND(\"200000\");\n\n        private final String code;\n\n        ProcessingCode(String code) {\n            this.code = code;\n        }\n\n        public String code() {\n            return code;\n        }\n\n        /** The transaction type: the first two digits of the code. */\n        public String transactionType() {\n            return code.substring(0, 2);\n        }\n\n        /** The type a six-digit processing code stands for, named by its first two digits. */\n        public static ProcessingCode fromCode(String code) {\n            throw new UnsupportedOperationException(\"write fromCode\");\n        }\n    }\n\n    private MastercardRequests() {\n    }\n\n    /** An 0200 request of the given type. */\n    public static ISOMsg request(ProcessingCode type, String pan, String amount, String merchantId)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    /** An 0200 refund, carrying the original transaction's reference in field 37. */\n    public static ISOMsg refund(String pan, String amount, String merchantId, String originalReference)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write refund\");\n    }\n\n    /** The type of a message, read from its field 3. */\n    public static ProcessingCode typeOf(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write typeOf\");\n    }\n\n    /** Whether a response approves the transaction. */\n    public static boolean isApproved(ISOMsg response) {\n        throw new UnsupportedOperationException(\"write isApproved\");\n    }\n}\n",
+  "content_sha256": "1ad0a1d15fbcaa429a6b086570b9209ad5f9d0797f78e2f634cd2cfd09929ed1",
+  "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        // TODO: one <isofield .../> line per field of the specification's table, so that every\n        //       message this packager writes has exactly the bytes of the specification's samples.\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/com/example/practice/MastercardRequests.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/test/java/com/example/practice/MastercardRequestsTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/com/example/practice/MastercardLayout.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/test/java/com/example/practice/MastercardLayoutTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -117,19 +165,24 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.MastercardRequestsTest#buildsRequestsAndReadsTheirType",
+        "id": "com.example.practice.MastercardLayoutTest#packsAndReadsBackAnAuthorization",
         "kind": "main",
-        "says": "builds 0200 purchase and refund requests with the right fields, reads a message's type back from field 3, and approves only on 00"
+        "says": "an authorization packs with its MTI written as the samples write it, and unpacks to the same fields"
       },
       {
-        "id": "com.example.practice.MastercardRequestsTest#refusesAnUnknownProcessingCode",
+        "id": "com.example.practice.MastercardLayoutTest#theBitmapIsEightRawBytes",
         "kind": "edge",
-        "says": "a code that is not six digits, or whose transaction type the scheme does not define, is refused rather than mapped to null, while other account-type digits leave a known type unchanged"
+        "says": "the bitmap goes out as 8 binary bytes, not as 16 EBCDIC hex characters, so the first field follows at byte 12"
       },
       {
-        "id": "com.example.practice.MastercardRequestsTest#aResponseWithoutField39IsNotApproved",
+        "id": "com.example.practice.MastercardLayoutTest#thePanAndItsLengthAreOneByteADigit",
         "kind": "edge",
-        "says": "a response that carries no field 39 is not approved, and asking does not fail"
+        "says": "the PAN and its two-digit length are EBCDIC characters, one byte a digit, not BCD as on a BASE I link"
+      },
+      {
+        "id": "com.example.practice.MastercardLayoutTest#textFieldsAreWrittenLikeTheSamples",
+        "kind": "edge",
+        "says": "text fields are EBCDIC and filled with EBCDIC spaces (40), not left in ASCII as iso87binary declares them"
       }
     ],
     "report": {
@@ -138,12 +191,11 @@
     },
     "origin": {
       "path": "src/6.md",
-      "section": "6.3. Mastercard processing codes"
+      "section": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
     },
     "concepts": [
-      "A response is approved only when its field 39 is 00; any other code, or none, is not an approval.",
-      "Every financial request is an 0200 carrying the card number, processing code, amount and merchant id, and a refund also carries the original transaction's reference in field 37.",
-      "A Mastercard transaction's type travels as its processing code in field 3, and a code the scheme does not define is refused rather than guessed."
+      "On a Mastercard-style link the MTI, numbers, length prefixes and text are one EBCDIC byte each and only the bitmap is binary, so a BCD packager's MTI can't be read.",
+      "A wrong field class packs and unpacks its own bytes, so only a comparison with the specification's sample bytes catches it."
     ]
   }
 }

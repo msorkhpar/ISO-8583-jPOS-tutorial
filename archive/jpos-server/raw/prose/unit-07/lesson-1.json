@@ -8,7 +8,7 @@
   "unit": 7,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Security and Encryption",
   "blocks": [
     {
@@ -18,123 +18,404 @@
     },
     {
       "type": "para",
-      "text": "Security is paramount when dealing with financial transactions. jPOS provides robust security features through its `org.jpos.security` package. We'll focus on two main components: the Security Module (SMAdapter) and the JCE Security Module."
+      "text": "A tester on the acquirer's security review sends our server a refund of 950.00 to card `4111111111111111`, from terminal `29110002`, with eight zero bytes where the MAC goes. The server answers `63`, security violation. The Visa network credits the 950.00 to the card anyway."
+    },
+    {
+      "type": "para",
+      "text": "The MAC check did run. It had been added as the last participant before the response was signed and sent, and by then `QueryHost` had forwarded the refund and the network had approved it."
+    },
+    {
+      "type": "para",
+      "text": "Every terminal's PIN blocks, MACs and card numbers arrive at the server. Unit c7 showed what a client does with each; on the server, each step has a place in the TransactionManager and leaves something behind. TLS on the `QServer` is unit s3's subject. Four rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.1 Security Module (SMAdapter)"
+      "text": "7.1 A Server With a Security Module on the Desk"
     },
     {
       "type": "para",
-      "text": "The `SMAdapter` interface defines methods for various security operations. Here's an overview of its key features:"
+      "text": "The server's security module is unit c7's `SMAdaptor` descriptor, saved as `deploy/05_hsm.xml`, which registers the module as `hsm` and names `logger=\"Q2\"`. A client holds a handful of keys. A server holds two for every terminal, a PIN key (TPK) and a MAC key (TAK), plus the keys of each network link. They live in a key store, which Q2 deploys as a QBean and registers under its name, here `ks`. This is `deploy/06_keys.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<key-store name=\"ks\" class=\"org.jpos.q2.security.KeyStoreAdaptor\" logger=\"Q2\">\n  <attr name=\"impl\">org.jpos.security.SimpleKeyFile</attr>\n  <property name=\"key-file\" value=\"cfg/keys\"/>\n</key-store>"
+    },
+    {
+      "type": "para",
+      "text": "`SimpleKeyFile` keeps each key under an alias of your choosing. We use the purpose and the terminal ID: `tpk.29110001`, `tak.29110001`. A setup program, run once per development machine, creates the module's master key (the LMK) and loads the published test keys:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.security.BaseSMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SimpleKeyFile;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\n\n// BaseSMAdapter implements SMAdapter<SecureDESKey>; override the operations your HSM supports\npublic class CustomSMAdapter extends BaseSMAdapter<SecureDESKey> {\n    private SecureKeyStore keyStore;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        super.setConfiguration(cfg);\n        // Initialize the key store\n        try {\n            this.keyStore = new SimpleKeyFile(cfg.get(\"keystore.path\"));\n        } catch (SecureKeyStore.SecureKeyStoreException e) {\n            throw new ConfigurationException(e);\n        }\n    }\n\n    @Override\n    public SecureDESKey generateKey(short keyLength, String keyType) throws SMException {\n        // Implementation for key generation, returning the new key encrypted under the Local Master Key (LMK)\n        // This is just a placeholder, actual implementation would use secure random number generation\n        return new SecureDESKey(keyLength, keyType, new byte[keyLength / 8], new byte[3]);\n    }\n\n    @Override\n    public SecureDESKey importKey(short keyLength, String keyType, byte[] encryptedKey,\n                                  SecureDESKey kek, boolean checkParity) throws SMException {\n        // Implementation for re-encrypting a key received under a KEK so it is under the LMK\n        // This is a simplified version, real implementation would use actual decryption and encryption\n        return new SecureDESKey(keyLength, keyType, encryptedKey, new byte[3]);\n    }\n\n    @Override\n    public byte[] exportKey(SecureDESKey key, SecureDESKey kek) throws SMException {\n        // Implementation for re-encrypting a key from under the LMK to under a KEK, for sending\n        // This is a simplified version, real implementation would use actual encryption\n        return key.getKeyBytes();\n    }\n\n    // Other methods from SMAdapter interface...\n}"
+      "text": "package com.example.jpos.server.security;\n\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SimpleKeyFile;\nimport org.jpos.security.jceadapter.JCESecurityModule;\n\n/** Run once per development machine: a new LMK in cfg/dev.lmk, and the test keys under it in cfg/keys. */\npublic final class LoadTestKeys {\n    // Published test keys, the same on every desk. Real keys arrive in components or under a ZMK.\n    static final String[][] KEYS = {\n        { \"tpk.29110001\", SMAdapter.TYPE_TPK, \"0123456789ABCDEFFEDCBA9876543210\" },\n        { \"tak.29110001\", SMAdapter.TYPE_TAK, \"1C1C1C1C1C1C1C1C2A2A2A2A2A2A2A2A\" },\n        { \"tak.29110002\", SMAdapter.TYPE_TAK, \"4C4C4C4C4C4C4C4C7A7A7A7A7A7A7A7A\" },\n        { \"zpk.visa\",     SMAdapter.TYPE_ZPK, \"89ABCDEF0123456776543210FEDCBA98\" },\n    };\n\n    public static void main(String[] args) throws Exception {\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        cfg.put(\"provider\", \"org.bouncycastle.jce.provider.BouncyCastleProvider\");\n        cfg.put(\"lmk\", \"cfg/dev.lmk\");\n        cfg.put(\"rebuildlmk\", \"true\");                        // overwrites cfg/dev.lmk\n        JCESecurityModule hsm = new JCESecurityModule();\n        hsm.setConfiguration(cfg);\n        SimpleKeyFile keys = new SimpleKeyFile(\"cfg/keys\");\n        for (String[] k : KEYS) {\n            SecureDESKey key = hsm.formKEYfromClearComponents(SMAdapter.LENGTH_DES3_2KEY, k[1], k[2]);\n            keys.setKey(k[0], key);                           // stored under the LMK, never in clear\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Part of the file it writes:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "tpk.29110001.checkvalue=08D7B4\ntpk.29110001.class=org.jpos.security.SecureDESKey\ntpk.29110001.key=2E1EF9CB26B7DE310F50D108C262DBE9\ntpk.29110001.length=128\ntpk.29110001.type=TPK\nzpk.visa.checkvalue=EB7A8D\n..."
+    },
+    {
+      "type": "para",
+      "text": "Each `key` is encrypted under the LMK in `cfg/dev.lmk`, and each check value is the one you compare with the terminal vendor's or the network's (unit c7)."
+    },
+    {
+      "type": "para",
+      "text": "The server is unit s5's forwarding chain, with three security participants that this unit builds:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<txnmgr name=\"txnmgr\" class=\"org.jpos.transaction.TransactionManager\" logger=\"Q2\">\n  <property name=\"queue\" value=\"txnmgr\"/>\n  <property name=\"sessions\" value=\"2\"/>\n  <property name=\"debug-context\" value=\"false\"/>\n  <participant class=\"com.example.jpos.server.participant.VerifyMac\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.TranslatePin\" logger=\"Q2\">\n    <property name=\"network-key\" value=\"zpk.visa\"/>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.SelectDestination\" logger=\"Q2\">\n    <endpoint destination=\"visa\">4</endpoint>\n  </participant>\n  <participant class=\"org.jpos.transaction.participant.QueryHost\" logger=\"Q2\">\n    <property name=\"request\" value=\"UPSTREAM\"/>\n    <property name=\"timeout\" value=\"2000\"/>\n  </participant>\n  <participant class=\"com.example.jpos.server.participant.CheckHostAnswer\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.AnswerFailures\" logger=\"Q2\"/>\n  <participant class=\"com.example.jpos.server.participant.SignResponse\" logger=\"Q2\"/>\n  <participant class=\"org.jpos.transaction.participant.SendResponse\" logger=\"Q2\"/>\n</txnmgr>"
+    },
+    {
+      "type": "para",
+      "text": "Requests come through unit s4's `DirectTerminal`, from a terminal with its own module and the same clear keys. It encrypts the PIN under its TPK, signs with its TAK, and checks every answer's MAC as unit c7's client does. Behind the `visa` QMUX's queues, unit c7's test acquirer plays the network: it reads the PIN with the network key and answers `00`, or `55` for a wrong PIN. Every output in this unit comes from jPOS 2.1.7 run this way, in one JVM."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.2 JCE Security Module"
-    },
-    {
-      "type": "para",
-      "text": "The JCE (Java Cryptography Extension) Security Module provides a concrete implementation of the `SMAdapter` interface using Java's built-in cryptography features."
+      "text": "7.2 A Request's MAC Is Checked Before Anything Acts on It"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.core.ConfigurationException;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SecurityConfig {\n\n    @Bean\n    public JCESecurityModule jceSecurityModule() throws ConfigurationException {\n        JCESecurityModule module = new JCESecurityModule();\n        org.jpos.core.Configuration cfg = new SimpleConfiguration();\n        cfg.put(\"provider\", \"SunJCE\");\n        cfg.put(\"lmk\", \"src/main/resources/lmk.key\");\n        module.setConfiguration(cfg);\n        return module;\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.client.security.MacService;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\n/** First in the chain: a request whose MAC doesn't verify under its terminal's key goes no further. */\npublic class VerifyMac implements TransactionParticipant, Configurable {\n    private String hsmName, keyStoreName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        hsmName = cfg.get(\"hsm\", \"hsm\");\n        keyStoreName = cfg.get(\"key-store\", \"ks\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        if (macVerifies(request))\n            return PREPARED | NO_JOIN | READONLY;\n        ctx.log(\"MAC missing or wrong for terminal \" + request.getString(41));\n        try {\n            ctx.put(ContextConstants.RESPONSE.toString(), Responses.reply(request, \"63\"));  // security violation\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED | NO_JOIN;\n    }\n\n    private boolean macVerifies(ISOMsg request) {\n        try {\n            SMAdapter<SecureDESKey> hsm = NameRegistrar.get(hsmName);\n            SecureKeyStore keys = NameRegistrar.get(keyStoreName);\n            SecureDESKey tak = keys.getKey(\"tak.\" + request.getString(41));   // this terminal's key\n            return new MacService(hsm, tak).verify(request);                   // unit c7\n        } catch (Exception e) {\n            return false;                     // no key for this terminal: nothing can verify\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`VerifyMac` checks the MAC with unit c7's `MacService`, under the key of the terminal that field 41 names. A request without a MAC, or from a terminal with no key on file, fails like a wrong one. On failure it leaves a `63` answer built with unit s4's `Responses.reply` and votes `ABORTED`, and `SendResponse` sends that answer on the abort path (unit s1)."
+    },
+    {
+      "type": "para",
+      "text": "We sent the opening's forged refund (processing code `20`, a refund), then a genuine purchase from `29110001`, once with `VerifyMac` after `AnswerFailures` and once first, as above:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "VerifyMac after AnswerFailures:\nforged refund 950.00, 29110002: 0210 39=63\npurchase 42.50, 29110001:       0210 39=00\nnetwork got 0200 3=200000 4=000000095000, answered 39=00\nnetwork got 0200 3=000000 4=000000004250, answered 39=00\n\nVerifyMac first:\nforged refund 950.00, 29110002: 0210 39=63\npurchase 42.50, 29110001:       0210 39=00\nnetwork got 0200 3=000000 4=000000004250, answered 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The terminal sees the same answers in both runs; only what the network received differs. The forged refund's trail with `VerifyMac` after `AnswerFailures` (`SignResponse`, an abort participant, is 7.4's):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "            prepare: c.e.j.s.p.TranslatePin PREPARED NO_JOIN\n            prepare: o.j.t.p.SelectDestination PREPARED READONLY NO_JOIN\n            prepare: o.j.t.p.QueryHost PREPARED PAUSE READONLY NO_JOIN\n            prepare: c.e.j.s.p.CheckHostAnswer PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.AnswerFailures PREPARED READONLY NO_JOIN\n            prepare: c.e.j.s.p.VerifyMac ABORTED NO_JOIN\n    prepareForAbort: c.e.j.s.p.SignResponse\n    prepareForAbort: o.j.t.p.SendResponse\n              abort: o.j.t.p.SendResponse"
+    },
+    {
+      "type": "para",
+      "text": "`QueryHost` sends in `prepare` without waiting for the vote (unit s5), and an abort reaches only participants that joined, which it didn't. Our server put its `63` in the Context in place of the network's approval, so its records show a declined refund. The network has credited 950.00, and nothing on our side reverses it. A forged purchase on a stolen card number goes the same way: approved at the issuer, declined in our records."
+    },
+    {
+      "type": "para",
+      "text": "After an abort nothing commits, a participant that joined gets its `abort` to undo what it reserved, and what is in the Context never leaves our server. What a participant does outside the server in `prepare`, as `QueryHost` does, nothing calls back. So `VerifyMac` goes first, and a forged message costs one `63` and touches nothing else."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.3 Implementing PIN Encryption"
-    },
-    {
-      "type": "para",
-      "text": "One of the most critical security operations in payment systems is PIN encryption. Here's an example of how to use the JCE Security Module to encrypt a PIN:"
+      "text": "7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class PINEncryptionService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    @Autowired\n    private SecureDESKey zpk;  // Zone PIN Key shared with the next hop, stored under the LMK\n\n    public ISOMsg encryptPIN(ISOMsg msg, String clearPIN) throws SMException {\n        String pan = msg.getString(2);  // Primary Account Number\n        byte pinBlockFormat = SMAdapter.FORMAT05;   // ISO Format 1\n\n        EncryptedPIN pinUnderLmk = securityModule.encryptPIN(clearPIN, pan);\n        EncryptedPIN encryptedPIN = securityModule.exportPIN(pinUnderLmk, zpk, pinBlockFormat);\n        msg.set(52, encryptedPIN.getPINBlock());\n\n        return msg;\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\n/** Builds the network's copy of the request: the PIN under the network's key, no terminal MAC. */\npublic class TranslatePin implements TransactionParticipant, Configurable {\n    public static final String UPSTREAM = \"UPSTREAM\";\n    private String hsmName, keyStoreName, networkKey;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        hsmName = cfg.get(\"hsm\", \"hsm\");\n        keyStoreName = cfg.get(\"key-store\", \"ks\");\n        networkKey = cfg.get(\"network-key\", \"zpk.visa\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        try {\n            ISOMsg upstream = (ISOMsg) request.clone();\n            upstream.unset(64);                                // the terminal's MAC stays on its link\n            if (request.hasField(52)) {\n                SMAdapter<SecureDESKey> hsm = NameRegistrar.get(hsmName);\n                SecureKeyStore keys = NameRegistrar.get(keyStoreName);\n                SecureDESKey tpk = keys.getKey(\"tpk.\" + request.getString(41));\n                EncryptedPIN in = new EncryptedPIN(request.getBytes(52), SMAdapter.FORMAT01, request.getString(2));\n                EncryptedPIN out = hsm.translatePIN(in, tpk, keys.getKey(networkKey), SMAdapter.FORMAT01);\n                upstream.set(52, out.getPINBlock());\n            }\n            ctx.put(UPSTREAM, upstream);\n            return PREPARED | NO_JOIN;\n        } catch (Exception e) {\n            ctx.log(e.getClass().getSimpleName());             // no key material, no PIN data\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(), Responses.reply(request, \"96\"));\n            } catch (ISOException ex) {\n                ctx.log(ex);\n            }\n            return ABORTED | NO_JOIN;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The translation is unit c7's `translatePIN`; the server's part is choosing the key, the TPK of the terminal in field 41. `QueryHost` sends a copy, `UPSTREAM`, in place of `REQUEST`: it carries the translated block and not the terminal's MAC, which belongs to the terminal's link. The request stays as the terminal sent it. Three PIN purchases of 20.00 on card `4111111111111111`; the first line is the first purchase's field 52:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "terminal sent 52=2A3D408A1977DDE9\nPIN 1234: 0210 39=00  terminal: APPROVED\nPIN 9999: 0210 39=55  terminal: DECLINED\nPIN 1234 from 29110002, no TPK on file: 0210 39=96  terminal: DECLINED\nnetwork got 0200 3=000000 4=000000002000 52=58B583E21EEB26B5, answered 39=00\nnetwork got 0200 3=000000 4=000000002000 52=CB920D47963AB3E2, answered 39=55"
+    },
+    {
+      "type": "para",
+      "text": "Terminal `29110002` has a MAC key but no PIN key yet, so its purchase got `96` and the network never saw it."
+    },
+    {
+      "type": "para",
+      "text": "Why a key per terminal? A terminal stands in a shop, and keys can be extracted from a stolen one. With one PIN key shared by all terminals, that key reads the PIN blocks of every terminal you serve. With a key per terminal, it reads one shop's."
+    },
+    {
+      "type": "para",
+      "text": "A copy of the key file is harmless only because its keys are under the LMK. Someone copies `cfg/keys`, and has the block `2A3D408A1977DDE9` from the terminal's link. They load the TPK into a module of their own, then try again with a copy of `cfg/dev.lmk` as well:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "key file, their own module: JCEHandlerException: Parity not adjusted\nkey file and dev.lmk:      PIN 1234"
+    },
+    {
+      "type": "para",
+      "text": "Under another LMK the TPK almost always decrypts to bytes without DES key parity, and the module refuses them. Under ours, the PIN comes out. So the LMK file never sits where the key file, the logs or their backups sit. A hardware module keeps its LMK inside the device. The software LMK is for development only (unit c7)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.3.1 Spot the Problem: The Module That Logged Everything"
+    },
+    {
+      "type": "para",
+      "text": "Both descriptors in 7.1 name `logger=\"Q2\"`, as every QBean in this course does. Here are parts of `log/q2.log` after the PIN purchase above. Which of these would you mind someone reading?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<log realm=\"s-m-adaptor\" at=\"2026-11-06T20:20:39.472750063\">\n  <s-m-operation>\n    <command name=\"Generate CBC-MAC\">\n      <parameter name=\"data\">\n        303230303732323030303030303038303930303131363431313131313131313131313131313130303030303030303030303030303230303031313036313031353030303030373031323931313030303139373832413344343038413139373744444539\n      </parameter>\n...\n<log realm=\"s-m-adaptor\" at=\"2026-11-06T20:20:39.475272320\">\n  <s-m-operation>\n    <command name=\"Translate PIN from Data Key 1 to Data Key 2\">\n      <parameter name=\"PIN under Data Key 1\">\n        <encrypted-pin format=\"01\">\n          <pin-block>2A3D408A1977DDE9</pin-block>\n          <account-number>111111111111</account-number>\n        </encrypted-pin>\n      </parameter>\n      <parameter name=\"Data Key 1\">\n        <secure-des-key length=\"128\" type=\"TPK\" variant=\"0\" scheme=\"X\">\n          <data>2E1EF9CB26B7DE310F50D108C262DBE9</data>"
+    },
+    {
+      "type": "para",
+      "text": "The `s-m-adaptor` realm logs every call to the module with its parameters. The translation entry holds the terminal's PIN block next to the TPK, as the key file stores it, so with `dev.lmk` the log alone reads PINs. The MAC entry holds the packed request in hex, and `3431313131…` is the card number, `4111111111111111`. The `key-store` realm logs each key it hands out as well. `ProtectedLogListener` masks fields of a message in the event (unit s1); a byte array in hex is not a message, so it passes untouched."
+    },
+    {
+      "type": "para",
+      "text": "Deploy `SMAdaptor` and `KeyStoreAdaptor` without a `logger` attribute. We removed it from both descriptors and ran the same purchases. The log had no `s-m-adaptor` or `key-store` entry, and no card number in hex. Turn the module's log on only on a test system with test cards."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.4 Key Management"
+      "text": "7.4 Every Response Is Signed, on the Abort Path Too"
     },
     {
       "type": "para",
-      "text": "Proper key management is crucial for maintaining the security of the system. Here's an example of how to implement key rotation:"
+      "text": "A terminal that checks MACs, as unit c7's client does, believes only an answer that verifies under its key. Our first signing step was a plain participant right before `SendResponse`:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SMException;\nimport org.jpos.security.jceadapter.JCESecurityModule;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.scheduling.annotation.Scheduled;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class KeyRotationService {\n\n    @Autowired\n    private JCESecurityModule securityModule;\n\n    @Autowired\n    private KeyRepository keyRepository;\n\n    @Scheduled(cron = \"0 0 0 1 * ?\")  // Run at midnight on the first day of every month\n    public void rotateKeys() throws SMException {\n        // Generate a new key (the HSM returns it already encrypted under the LMK, ready for storage)\n        SecureDESKey newKey = securityModule.generateKey(SMAdapter.LENGTH_DES3_2KEY, SMAdapter.TYPE_ZPK);\n\n        // Optionally, you might want to keep the old key for a period to handle in-flight transactions\n        keyRepository.archiveKey(\"ZPK\", keyRepository.getKey(\"ZPK\"));\n\n        // Store the new key\n        keyRepository.storeKey(\"ZPK\", newKey);\n    }\n}"
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.client.security.MacService;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\n/** The first version: signs the response in prepare, as the participant right before SendResponse. */\npublic class PlainSignResponse implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        ISOMsg response = ctx.get(ContextConstants.RESPONSE.toString());\n        try {\n            response.setPackager(request.getPackager());\n            SMAdapter<SecureDESKey> hsm = NameRegistrar.get(\"hsm\");\n            SecureKeyStore keys = NameRegistrar.get(\"ks\");\n            new MacService(hsm, keys.getKey(\"tak.\" + request.getString(41))).sign(response);\n        } catch (Exception e) {\n            ctx.log(e.getClass().getSimpleName());\n        }\n        return PREPARED | NO_JOIN;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Two purchases from `29110001`: the network answers the first and stays silent on the second, so unit s5's `AnswerFailures` answers `91`. What does the terminal make of each?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "network answers: 0210 39=00  terminal: APPROVED\nnetwork silent:  0210 39=91  terminal: UNKNOWN (MAC missing)"
+    },
+    {
+      "type": "para",
+      "text": "The `91` left unsigned. After `CheckHostAnswer` voted `ABORTED`, the TransactionManager asked only abort participants (unit s4), and `PlainSignResponse` isn't one. Every answer the server builds on the abort path goes out the same way: `VerifyMac`'s `63`, `TranslatePin`'s `96`, each decline of `AnswerFailures`."
+    },
+    {
+      "type": "para",
+      "text": "The terminal can't tell an unsigned decline from a forged one. Unit c7's client reports the purchase as unknown, reverses it and raises a MAC alert. Ten minutes of network outage at 50 purchases a minute make 500 reversals for our server to answer and 500 MAC alerts. A real tampering attempt in those ten minutes looks like all the others."
+    },
+    {
+      "type": "para",
+      "text": "The signing step is an abort participant, so both paths reach it:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport com.example.jpos.client.security.MacService;\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\n\n/** Right before SendResponse, on both paths: the answer leaves with a MAC under its terminal's key. */\npublic class SignResponse implements AbortParticipant, Configurable {\n    private String hsmName, keyStoreName;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        hsmName = cfg.get(\"hsm\", \"hsm\");\n        keyStoreName = cfg.get(\"key-store\", \"ks\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        sign((Context) context);\n        return PREPARED | NO_JOIN;\n    }\n\n    @Override\n    public int prepareForAbort(long id, Serializable context) {\n        sign((Context) context);                               // declines are answers too\n        return ABORTED | NO_JOIN;\n    }\n\n    private void sign(Context ctx) {\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        ISOMsg response = ctx.get(ContextConstants.RESPONSE.toString());\n        if (response == null)\n            return;\n        try {\n            response.setPackager(request.getPackager());       // the terminal's link, not the network's\n            SMAdapter<SecureDESKey> hsm = NameRegistrar.get(hsmName);\n            SecureKeyStore keys = NameRegistrar.get(keyStoreName);\n            SecureDESKey tak = keys.getKey(\"tak.\" + request.getString(41));\n            new MacService(hsm, tak).sign(response);            // replaces any field 64 it carried\n        } catch (Exception e) {\n            ctx.log(e.getClass().getSimpleName());              // it leaves unsigned\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "network answers: 0210 39=00  terminal: APPROVED\nnetwork silent:  0210 39=91  terminal: DECLINED"
+    },
+    {
+      "type": "para",
+      "text": "It stands after everything that builds or changes the answer, so it signs what is sent, as unit c7 requires of a client. It sets the packager of the terminal's link on the answer: a network's answer was unpacked with the network link's packager, and the MAC must cover the bytes the terminal receives. Signing also replaces any field 64 the answer carried: a MAC under the network's key, or the request's own MAC in an answer cloned whole, means nothing to the terminal. When the network signs its answers, check its MAC when the answer arrives, after `QueryHost`, as unit c7's client checks a host's; an answer that fails it is no answer."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.5 Secure Communication Channel"
+      "text": "7.5 A Key Is Loaded While the Server Runs, and Never Written in Clear"
     },
     {
       "type": "para",
-      "text": "To ensure secure communication between the client and server, we can use SSL/TLS. A jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`:"
+      "text": "A new terminal arrives with keys of its own. They come as unit c7 described: clear components typed in at a key ceremony, or a key encrypted under a key-encrypting key the two sides share. Either way the module turns them into a key under the LMK, and that is all the key file ever holds. The ceremony program writes it to the same file the server reads, as `LoadTestKeys` did in 7.1."
+    },
+    {
+      "type": "para",
+      "text": "Does the server need a restart to use it? A `SimpleKeyFile` that is already open, asked for `tpk.29110002` before and after another program adds that key to the file, then after it replaces the key:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ChannelConfig {\n\n    @Bean\n    public NACChannel secureChannel() throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n        return channel;\n    }\n}"
+      "lang": "text",
+      "text": "before: Key can't be retrieved. Can't get property: tpk.29110002.class\nafter: TPK\nreplaced: check value 08D7B4 -> C9AAD8"
+    },
+    {
+      "type": "para",
+      "text": "`SimpleKeyFile` reads the file again on every lookup, so the next PIN purchase from `29110002` translates without a restart. A replaced key takes effect the same way, at the next lookup. A terminal still MACing with its old key gets `63` from then on, so a key change is agreed with the other side and loaded at the moment both sides switch."
+    },
+    {
+      "type": "para",
+      "text": "The keys for card data at rest follow the same rule. Unit s9 stores card numbers under an AES key and finds them by an HMAC key; those keys come from a key store or the HSM, with the key store's password from the environment (unit c3), never from the descriptors or the database."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "7.6 Testing Security Features"
+      "text": "7.6 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A request's MAC is checked before anything acts on it.** `VerifyMac` goes first, with the key of the terminal in field 41. Behind `QueryHost`, a forged message reaches the network, which approves it while our records say declined.",
+        "**A PIN block is safe only while its key and the LMK stay apart.** Translate with the terminal's own TPK, keep the LMK away from the key file and the logs, and deploy the module and the key store without a logger: their log holds PIN blocks, keys and card numbers in hex.",
+        "**Every response is signed, on the abort path too.** `SignResponse` is an abort participant right before `SendResponse`. An unsigned decline is an unknown outcome to the terminal, and it reverses.",
+        "**A key is loaded while the server runs, and never written in clear.** The key file holds keys under the LMK and is read again on every lookup, so a new terminal needs no restart; a changed key takes effect at once, so change it when the other side does. Keys for card data at rest (unit s9) come from a key store or the HSM, never from configuration."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.7 Reference"
     },
     {
       "type": "para",
-      "text": "Here's an example of how to test the PIN encryption service using JUnit and Mockito:"
+      "text": "**The security participants of this unit:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Participant",
+        "Place in the chain",
+        "Properties (default)",
+        "On failure"
+      ],
+      "rows": [
+        [
+          "`VerifyMac`",
+          "first",
+          "`hsm` (`hsm`), `key-store` (`ks`)",
+          "`63`, `ABORTED`"
+        ],
+        [
+          "`TranslatePin`",
+          "after `VerifyMac`, before anything that sends",
+          "`hsm`, `key-store`, `network-key` (`zpk.visa`)",
+          "`96`, `ABORTED`"
+        ],
+        [
+          "`SignResponse`",
+          "right before `SendResponse`; an abort participant",
+          "`hsm`, `key-store`",
+          "logs the exception class; the answer leaves unsigned"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Key aliases used here:** `tpk.<terminal>`, `tak.<terminal>`, `zpk.<network>`. `SimpleKeyFile` stores each as `<alias>.key` (under the LMK), `.checkvalue`, `.type`, `.length` and `.class`, and reads the file again on every `getKey`."
+    },
+    {
+      "type": "para",
+      "text": "**QBeans:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Descriptor",
+        "Class",
+        "Registers",
+        "Logger"
+      ],
+      "rows": [
+        [
+          "`05_hsm.xml`",
+          "`org.jpos.q2.security.SMAdaptor`, `impl` `JCESecurityModule` (unit c7)",
+          "`hsm`",
+          "none: its realm, the element name `s-m-adaptor`, logs every call's parameters"
+        ],
+        [
+          "`06_keys.xml`",
+          "`org.jpos.q2.security.KeyStoreAdaptor`, `impl` `SimpleKeyFile`, property `key-file`",
+          "`ks`",
+          "none: its realm, the element name `key-store`, logs every key it returns"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Response codes used here (ISO 8583:1987):** `00` approved, `55` incorrect PIN, `63` security violation, `91` issuer or switch inoperative, `96` system malfunction."
+    },
+    {
+      "type": "para",
+      "text": "**Helpers from other units, as this page compiles them:** unit c7's `MacService` and unit s4's `Responses`."
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.jpos.security.jceadapter.JCESecurityModule;\n\nimport static org.junit.jupiter.api.Assertions.assertArrayEquals;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.ArgumentMatchers.anyByte;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass PINEncryptionServiceTest {\n\n    @Mock\n    private JCESecurityModule securityModule;\n\n    @Mock\n    private SecureDESKey zpk;\n\n    @InjectMocks\n    private PINEncryptionService pinEncryptionService;\n\n    @Test\n    void testEncryptPIN() throws SMException {\n        // Arrange\n        ISOMsg msg = new ISOMsg();\n        msg.set(2, \"1234567890123456\");\n        String clearPIN = \"1234\";\n        byte[] encryptedPINBlock = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};\n        EncryptedPIN pinUnderLmk = new EncryptedPIN(new byte[8], SMAdapter.FORMAT01, \"1234567890123456\");\n\n        when(securityModule.encryptPIN(any(), any())).thenReturn(pinUnderLmk);\n        when(securityModule.exportPIN(any(), any(), anyByte()))\n            .thenReturn(new EncryptedPIN(encryptedPINBlock, SMAdapter.FORMAT05, \"1234567890123456\"));\n\n        // Act\n        ISOMsg result = pinEncryptionService.encryptPIN(msg, clearPIN);\n\n        // Assert\n        assertArrayEquals(encryptedPINBlock, result.getBytes(52));\n    }\n}"
+      "text": "package com.example.jpos.client.security;\n\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/** MACs a message the way this unit's host specifies: the packed message up to field 64. */\npublic class MacService {\n    private final SMAdapter<SecureDESKey> hsm;\n    private final SecureDESKey macKey;\n\n    public MacService(SMAdapter<SecureDESKey> hsm, SecureDESKey macKey) {\n        this.hsm = hsm;\n        this.macKey = macKey;\n    }\n\n    static byte[] macInput(ISOMsg msg) throws ISOException {\n        ISOMsg copy = (ISOMsg) msg.clone();             // (1) never touch the caller's message\n        copy.set(64, new byte[8]);                      // (2) bit 64 is on in the bitmap\n        byte[] packed = copy.pack();\n        int macLength = ((ISOBasePackager) copy.getPackager())\n                .getFieldPackager(64).getMaxPackedLength();\n        return Arrays.copyOf(packed, packed.length - macLength);   // (3) without the MAC itself\n    }\n\n    public void sign(ISOMsg msg) throws ISOException, SMException {\n        msg.set(64, hsm.generateCBC_MAC(macInput(msg), macKey));\n    }\n\n    public boolean verify(ISOMsg msg) throws ISOException, SMException {\n        byte[] received = msg.getBytes(64);\n        if (received == null)\n            return false;                               // (4) no MAC is not a good MAC\n        byte[] expected = hsm.generateCBC_MAC(macInput(msg), macKey);\n        return MessageDigest.isEqual(expected, received);\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.participant;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\npublic final class Responses {\n    private Responses() { }\n\n    /** A reply to {@code request} carrying response code {@code rc} in field 39. */\n    public static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone();\n        r.setResponseMTI();\n        r.set(39, rc);\n        r.unset(14, 35, 45, 52, 55, 64);   // expiry, tracks, PIN block, chip data, the request's MAC\n        return r;\n    }\n}"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.8 Challenges"
     },
     {
       "type": "para",
-      "text": "This covers the main aspects of security and encryption in a jPOS server implementation. Remember that in a real-world scenario, you would need to implement additional security measures, such as:"
+      "text": "These have no single answer."
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Proper key storage and management",
-        "Regular security audits",
-        "Compliance with PCI DSS and other relevant standards",
-        "Implementing additional encryption for sensitive data fields",
-        "Secure coding practices to prevent common vulnerabilities"
+        "Terminal `29110002` gets a new TAK at 02:00, and its first purchase after that is MACed with the new key before your key file has it. What do you load first, what do you keep, and for how long?",
+        "`SignResponse` can't sign when the terminal has no TAK on file, and `VerifyMac` refuses that terminal anyway. Should the `63` go out unsigned, or not at all? What does the terminal do in each case?",
+        "A network changes its PIN key (`zpk.visa`) every day at 02:00. Purchases are in flight at that moment, some already translated under the old key. What do you load, when, and what does the network need to accept for a while?",
+        "A hardware module answers in 5 ms, and every PIN purchase now needs three calls to it. At what rate of purchases does the module become the bottleneck, and what would you measure first?"
       ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7.9 Design Note: Why the Server Keeps Keys It Can't Read"
+    },
+    {
+      "type": "para",
+      "text": "Every key in `cfg/keys` is useless to the server's own code. The code passes those bytes to the module, and only the module, holding the LMK, turns them into something that can decrypt. A server with thousands of terminals keeps thousands of keys this way, none of them in a form that the process, its heap dumps or its backups can use."
+    },
+    {
+      "type": "para",
+      "text": "The price is that every PIN and every MAC is a call to the module. A hardware module is a separate box with its own throughput and failure modes, and the server can't authorize a PIN purchase without it. The boundary also holds only while nothing copies what crosses it. The module's own log, which writes PIN blocks next to their keys and messages in hex, is such a copy, and one `logger` attribute decides whether it exists."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 7,
-    "paras": 8,
-    "code": 6,
-    "tables": 0,
-    "lists": 1,
+    "headings": 11,
+    "paras": 40,
+    "code": 18,
+    "tables": 2,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
     "quotes": 0,
-    "html": 0,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "542edf28f48b8371f49c7b1dbd7ce789069cd2afe0bbed0957dbba154cd162bd"
+  "content_sha256": "4498d6585d64105fbc5d98d491a149431bae2ce3ff0cac76d438b0f95acc91f1"
 }

@@ -1,81 +1,136 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s11.md",
   "kind": "code",
+  "quiz": "server-testing-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s11.md": "sha256:c7c2e4d3e9ed7e37562100271769ff865cec4733ea9135399379d3e0a49c8a07"
+    "src/s11.md": "sha256:b84a34cb2ab26d9f05a67fceca75b8af440b65701a7da2cc404e775d72d198de"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "flow-and-http-simulation",
-        "says": "Integration tests send a real message through a mux to the transaction manager, and Wiremock stands in for the external service over real HTTP.",
+        "id": "context-from-listener",
+        "says": "A participant test that builds its Context by hand can share the participant's wrong key; a Context from a real IncomingListener has the keys production uses.",
         "basis": [
-          "example:src/s11.md:3",
-          "example:src/s11.md:6",
-          "section:11.2 Integration Testing"
+          "section:11.1 A Participant Test Gets Its Context From `IncomingListener`"
         ],
-        "exercise": null,
-        "reason": "both need a live channel or an HTTP server on a port, and a graded run has no network"
-      },
-      {
-        "id": "mock-the-external-service",
-        "says": "A participant that calls an external service is tested with that service mocked, so each verdict, and the calls it should and should not receive, can be set up and checked without a network.",
-        "basis": [
-          "example:src/s11.md:4",
-          "example:src/s11.md:5",
-          "section:11.3 Mock Testing"
-        ],
-        "exercise": "screen-a-valid-amount",
+        "exercise": "server-testing-quiz",
         "reason": null
       },
       {
-        "id": "participant-in-isolation",
-        "says": "A participant is unit-tested on its own by handing prepare a fresh Context and checking both its answer and what it left in the context, for good input and for each kind of bad input.",
+        "id": "real-tm-decides",
+        "says": "A test that calls commit or abort by hand checks its author's idea of the TransactionManager; the vote decides who hears the outcome, so the whole vote is asserted and the abort path is tested through the real TransactionManager.",
         "basis": [
-          "example:src/s11.md:1",
-          "example:src/s11.md:2",
-          "section:11.1 Unit Testing"
+          "section:11.2 Only the Real TransactionManager Decides Who Hears the Outcome"
         ],
-        "exercise": "screen-a-valid-amount",
+        "exercise": "hold-funds-checks",
         "reason": null
       },
       {
-        "id": "throughput-under-load",
-        "says": "A performance test fires many concurrent requests at the server and measures transactions per second.",
+        "id": "shared-q2-state",
+        "says": "Tests that share a Q2 share its participants, the objects they found by name, the Space and the NameRegistrar, so each test brings its own data, and registering a new object does not reach a participant that already holds the old one.",
         "basis": [
-          "example:src/s11.md:7",
-          "section:11.5 Performance Testing"
+          "section:11.3 Tests That Share a Q2 Share Its State"
         ],
-        "exercise": null,
-        "reason": "it measures wall-clock throughput against a live server, which a graded offline run cannot rely on"
+        "exercise": "server-testing-quiz",
+        "reason": null
+      },
+      {
+        "id": "socket-test-framing",
+        "says": "Only a socket test on the shipped descriptors, with a client built from the network's specification, tests the server's port, channel and packager; a client copied from the descriptor agrees with it whatever it says.",
+        "basis": [
+          "section:11.4 Only a Socket Test With the Terminals' Framing Tests `50_server.xml`"
+        ],
+        "exercise": "server-testing-quiz",
+        "reason": null
+      },
+      {
+        "id": "two-in-flight",
+        "says": "State shared between sessions shows only when two transactions are in the participant at once, which a test forces by holding one inside a stand-in it controls; requests sent one after another never overlap.",
+        "basis": [
+          "section:11.5 Only Two Transactions in Flight Show What Sessions Share"
+        ],
+        "exercise": "in-flight-check",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "screen-a-valid-amount",
+        "name": "hold-funds-checks",
         "aspects": [
-          "mock-the-external-service",
-          "participant-in-isolation"
+          "real-tm-decides"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "in-flight-check",
+        "aspects": [
+          "two-in-flight"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "server-testing-quiz",
+        "aspects": [
+          "context-from-listener",
+          "shared-q2-state",
+          "socket-test-framing"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-11/practice-1"
+    "exercises/jpos-server/prose/unit-11/practice-1",
+    "exercises/jpos-server/prose/unit-11/practice-2",
+    "exercises/jpos-server/prose/unit-11/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-11/practice-1",
       "origin": {
         "path": "src/s11.md",
-        "section": "11.3 Mock Testing"
+        "section": "11.2 Only the Real TransactionManager Decides Who Hears the Outcome"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-11/practice-2",
+      "origin": {
+        "path": "src/s11.md",
+        "section": "11.5 Only Two Transactions in Flight Show What Sessions Share"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-11/practice-3:q-hand-built-key",
+      "origin": {
+        "path": "src/s11.md",
+        "section": "11.1 A Participant Test Gets Its Context From `IncomingListener`"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-11/practice-3:q-reset-by-registering",
+      "origin": {
+        "path": "src/s11.md",
+        "section": "11.3 Tests That Share a Q2 Share Its State"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-11/practice-3:q-client-from-descriptor",
+      "origin": {
+        "path": "src/s11.md",
+        "section": "11.4 Only a Socket Test With the Terminals' Framing Tests `50_server.xml`"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-11/practice-3:q-one-after-another",
+      "origin": {
+        "path": "src/s11.md",
+        "section": "11.5 Only Two Transactions in Flight Show What Sessions Share"
       }
     }
   ],

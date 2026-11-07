@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 2,
   "ordinal": 1,
-  "title": "Build each request type on one factory of common fields",
+  "title": "Know which requests never left",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/RequestFactory.java",
-  "test_file": "src/test/java/com/example/practice/RequestFactoryTest.java",
+  "main_file": "src/main/java/com/example/practice/Submitter.java",
+  "test_file": "src/test/java/com/example/practice/SubmitterTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.RequestFactoryTest#authorizationAndFinancialShareTheCommonFields",
+      "id": "com.example.practice.SubmitterTest#aRequestThatFitsIsAnswered",
       "kind": "main",
-      "says": "an authorization and a financial request carry their own MTI and fields plus the common date-time, terminal and consecutive trace numbers"
+      "says": "a request the link can carry is sent once and the caller gets the host's answer"
     },
     {
-      "id": "com.example.practice.RequestFactoryTest#aReversalPointsBackAtTheOriginal",
-      "kind": "main",
-      "says": "a reversal is an 0400 with the original's card, amount and currency, and field 90 built from the original's MTI, trace number and date-time"
-    },
-    {
-      "id": "com.example.practice.RequestFactoryTest#theTraceNumberWrapsPastSixNines",
+      "id": "com.example.practice.SubmitterTest#aRequestThatDoesNotFitNeverReachesTheHost",
       "kind": "edge",
-      "says": "after 999999 the trace number starts again at 000001, never 000000"
+      "says": "a request that cannot be packed is reported as not sent and is never queued for the host"
     },
     {
-      "id": "com.example.practice.RequestFactoryTest#aReversalGetsItsOwnTraceNumber",
+      "id": "com.example.practice.SubmitterTest#silenceIsNotTheSameAsNotSent",
       "kind": "edge",
-      "says": "a reversal takes a fresh trace number of its own instead of copying the original's"
+      "says": "a request that went out and got no answer is reported as unanswered, not as unsent"
+    },
+    {
+      "id": "com.example.practice.SubmitterTest#anyFieldThatDoesNotFitIsCaught",
+      "kind": "edge",
+      "says": "the check catches any field that does not fit, not only the one that failed before"
+    },
+    {
+      "id": "com.example.practice.SubmitterTest#theLinksOwnPackagerDecides",
+      "kind": "edge",
+      "says": "whether a request fits is decided by the packager of the link it goes to, not by the standard's"
     }
   ],
   "report": {
@@ -59,6 +64,6 @@
   },
   "origin": {
     "path": "src/c2.md",
-    "section": "2.3 Handling Different Message Types"
+    "section": "2.2 A Message That Doesn't Pack Fails on the Channel Thread"
   }
 }

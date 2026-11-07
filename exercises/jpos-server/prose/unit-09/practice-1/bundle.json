@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 9,
   "ordinal": 1,
-  "title": "Store every transaction from a participant",
+  "title": "Redeem a gift card inside the transaction",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/TransactionStorageParticipant.java",
-  "test_file": "src/test/java/com/example/practice/TransactionStorageParticipantTest.java",
+  "main_file": "src/main/java/com/example/practice/GiftCards.java",
+  "test_file": "src/test/java/com/example/practice/GiftCardsTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,14 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.TransactionStorageParticipantTest#aTransactionIsStoredOnceAndTheParticipantStaysOutOfTheCommit",
+      "id": "com.example.practice.GiftCardsTest#aRedemptionTheBalanceCoversIsApproved",
       "kind": "main",
-      "says": "a transaction is stored once, with its fields from the context, and prepare answers PREPARED, NO_JOIN and READONLY"
+      "says": "a redemption the balance covers is answered 00 and the amount comes off the card"
     },
     {
-      "id": "com.example.practice.TransactionStorageParticipantTest#anAmountThatIsNotANumberAbortsAndStoresNothing",
+      "id": "com.example.practice.GiftCardsTest#aRedemptionOverTheBalanceIsDeclined",
+      "kind": "main",
+      "says": "a redemption larger than the balance is answered 51 and the card keeps its balance"
+    },
+    {
+      "id": "com.example.practice.GiftCardsTest#aRedemptionTheFraudCheckDeclinesLeavesTheBalance",
       "kind": "edge",
-      "says": "a context whose amount is missing or not a number aborts the transaction instead of throwing, and nothing is stored"
+      "says": "a redemption a later participant declines takes nothing, because the debit went through Open's connection and was rolled back"
+    },
+    {
+      "id": "com.example.practice.GiftCardsTest#twoRedemptionsAtOnceSpendTheBalanceOnce",
+      "kind": "edge",
+      "says": "two redemptions at once can't both spend the same balance, because the check and the debit are one statement in prepare and the row stays locked until Close"
+    },
+    {
+      "id": "com.example.practice.GiftCardsTest#aDatabaseErrorIsAnswered96",
+      "kind": "edge",
+      "says": "a database failure while debiting becomes a 96 answer in prepare, not a transaction nobody answers"
     }
   ],
   "report": {
@@ -49,6 +64,6 @@
   },
   "origin": {
     "path": "src/s9.md",
-    "section": "9.5 Integrating with jPOS"
+    "section": "9.3 Write in `prepare`, So the Database Can Still Say No"
   }
 }

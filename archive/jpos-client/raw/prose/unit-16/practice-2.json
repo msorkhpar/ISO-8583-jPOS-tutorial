@@ -1,0 +1,155 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Hold an answer back without holding up the connection",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A `late=1500` rule is fine for a person trying things by hand, but an automated test that needs an answer to arrive *after* the client gave up depends on the machine being fast enough. On a loaded build server the test fails now and then. QA wants the host to keep an answer back until the test says \"now\", whatever the clock does."
+    },
+    {
+      "type": "para",
+      "text": "`HoldingHost` in `src/main/java/com/example/practice/HoldingHost.java` approves every request, and it is given the STANs whose answers the test wants to hold. Two methods are `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`hold(client, answer)`: keep the answer until the test releases it.",
+        "`release()`: the test calls it from its own thread. It sends the answers held so far and returns how many reached a client."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`process` is called the way `ISOServer` calls it. A test may hold several answers, from several clients, before it releases them, and a client may disconnect while its answer is held. The tests call `process` and `release` from different threads. About 12 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\n\n/**\n * A host simulator for automated tests: it approves every request, but holds back the answer to\n * the STANs it was given until the test calls {@link #release()}.\n */\npublic class HoldingHost implements ISORequestListener {\n    record Held(ISOSource client, ISOMsg answer) { }\n\n    private final Set<String> heldStans;\n    private final List<Held> held = new ArrayList<>();\n\n    public HoldingHost(Set<String> heldStans) {\n        this.heldStans = Set.copyOf(heldStans);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone();\n            answer.setResponseMTI();\n            answer.set(39, \"00\");\n            if (heldStans.contains(m.getString(11)))\n                hold(source, answer);\n            else\n                source.send(answer);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n\n    /** Keeps an answer back until the test releases it. Called on the client's session thread. */\n    void hold(ISOSource client, ISOMsg answer) {\n        synchronized (held) {\n            held.add(new Held(client, answer));\n        }\n    }\n\n    /**\n     * Sends the answers held so far, and returns how many reached a client. Called from the\n     * test's thread while sessions keep calling process.\n     */\n    public int release() {\n        List<Held> now;\n        synchronized (held) {\n            now = new ArrayList<>(held);\n            held.clear();\n        }\n        int sent = 0;\n        for (Held h : now) {\n            try {\n                if (h.client().isConnected()) {\n                    h.client().send(h.answer());\n                    sent++;\n                }\n            } catch (Exception gone) {\n                // the client left between the check and the send\n            }\n        }\n        return sent;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\n\n/**\n * A host simulator for automated tests: it approves every request, but holds back the answer to\n * the STANs it was given until the test calls {@link #release()}.\n */\npublic class HoldingHost implements ISORequestListener {\n    record Held(ISOSource client, ISOMsg answer) { }\n\n    private final Set<String> heldStans;\n\n    public HoldingHost(Set<String> heldStans) {\n        this.heldStans = Set.copyOf(heldStans);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone();\n            answer.setResponseMTI();\n            answer.set(39, \"00\");\n            if (heldStans.contains(m.getString(11)))\n                hold(source, answer);\n            else\n                source.send(answer);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n\n    /** Keeps an answer back until the test releases it. Called on the client's session thread. */\n    void hold(ISOSource client, ISOMsg answer) {\n        // TODO: Keep the answer until release(). Remember which thread is running this.\n        //       Add the field you need.\n        throw new IllegalStateException(\"TODO: hold\");\n    }\n\n    /**\n     * Sends the answers held so far, and returns how many reached a client. Called from the\n     * test's thread while sessions keep calling process.\n     */\n    public int release() {\n        // TODO: Answer what was held, the way the real host would have answered it.\n        throw new IllegalStateException(\"TODO: release\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "c402d2bcfb59d7e3252b3f2e386ffcef268b18bfe1a25128f821b018b63ea047",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Set;\n\n/**\n * A host simulator for automated tests: it approves every request, but holds back the answer to\n * the STANs it was given until the test calls {@link #release()}.\n */\npublic class HoldingHost implements ISORequestListener {\n    record Held(ISOSource client, ISOMsg answer) { }\n\n    private final Set<String> heldStans;\n\n    public HoldingHost(Set<String> heldStans) {\n        this.heldStans = Set.copyOf(heldStans);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!m.isRequest())\n                return false;\n            ISOMsg answer = (ISOMsg) m.clone();\n            answer.setResponseMTI();\n            answer.set(39, \"00\");\n            if (heldStans.contains(m.getString(11)))\n                hold(source, answer);\n            else\n                source.send(answer);\n            return true;\n        } catch (Exception e) {\n            return false;\n        }\n    }\n\n    /** Keeps an answer back until the test releases it. Called on the client's session thread. */\n    void hold(ISOSource client, ISOMsg answer) {\n        // TODO: Keep the answer until release(). Remember which thread is running this.\n        //       Add the field you need.\n        throw new IllegalStateException(\"TODO: hold\");\n    }\n\n    /**\n     * Sends the answers held so far, and returns how many reached a client. Called from the\n     * test's thread while sessions keep calling process.\n     */\n    public int release() {\n        // TODO: Answer what was held, the way the real host would have answered it.\n        throw new IllegalStateException(\"TODO: release\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-16/practice-2/src/main/java/com/example/practice/HoldingHost.java",
+    "test_path": "practice/jpos-client/prose/unit-16/practice-2/src/test/java/com/example/practice/HoldingHostTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HoldingHostTest#aRequestThatIsNotHeldIsAnsweredAtOnce",
+        "kind": "main",
+        "says": "a request whose STAN is not held is approved at once, and a release with nothing held sends nothing"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#aHeldAnswerArrivesAfterRelease",
+        "kind": "main",
+        "says": "the answer to a held request reaches the client once the test releases it"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#theSessionGoesOnWhileAnAnswerIsHeld",
+        "kind": "edge",
+        "says": "holding an answer returns from process at once, so the next request on the same connection is answered while the first waits"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#releaseAnswersInTheOrderTheRequestsArrived",
+        "kind": "edge",
+        "says": "release sends the held answers in the order their requests arrived, including two clients with the same STAN"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#aClientThatLeftDoesNotStopTheOthers",
+        "kind": "edge",
+        "says": "a held answer whose client has gone, before or during the send, is skipped, and the others are still sent and counted"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#answersHeldBySeveralSessionsAtOnceAreAllReleased",
+        "kind": "edge",
+        "says": "answers held by several sessions while the test releases from its own thread are each sent exactly once"
+      },
+      {
+        "id": "com.example.practice.HoldingHostTest#eachHeldAnswerIsSentOnce",
+        "kind": "edge",
+        "says": "a released answer is not sent again by a later release"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-16/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c16.md",
+      "section": "16.2 A Listener Runs on the Session's Thread, So a Late Answer Is Scheduled"
+    },
+    "concepts": [
+      "ISOServer calls listeners on the session's thread, so a listener that waits delays every later request on that connection; a late answer is handed off and process returns."
+    ]
+  }
+}

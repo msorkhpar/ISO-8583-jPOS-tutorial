@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Deliver completion advices without losing or reordering them",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Completions (0220 advices) report purchases that have already happened, so they must reach the host, however long that takes. This SAF keeps them in a database table, the `Store` at the bottom of `src/main/java/com/example/practice/AdviceSaf.java`, instead of a Space queue. The ideas of 12.7 still apply. Only the tools are different: the table has `oldest`, `update`, `delete` and `insert`, and no `push`."
+    },
+    {
+      "type": "para",
+      "text": "Finish the four places marked `TODO`. `sendOldest` is called again and again by a single sender. When you're done, an advice survives a process that dies while sending it, goes out as a repeat after an unanswered attempt, and never lets a later advice overtake it. About 10 lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests simulate a crash by giving `sendOldest` a MUX that throws in the middle of `request`, then building a new `AdviceSaf` on the same table."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them.\n */\npublic class AdviceSaf {\n    private final Store store;\n\n    public AdviceSaf(Store store) {\n        this.store = store;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        if (row == null || !mux.isConnected())\n            return false;\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        return store.oldest();\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        store.delete(row.id());\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        ISOMsg advice = row.msg();\n        if (!advice.isRetransmission()) {\n            advice = (ISOMsg) advice.clone();\n            advice.setRetransmissionMTI();\n        }\n        store.update(row.id(), advice, row.attempts());\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them.\n */\npublic class AdviceSaf {\n    private final Store store;\n\n    public AdviceSaf(Store store) {\n        this.store = store;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        // TODO: Some calls should not even try. Which, and what do they return? (one line)\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        // TODO: The oldest advice. The process may die while it is being sent. (one line)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        // TODO: Whatever field 39 says. (one line)\n        throw new IllegalStateException(\"TODO: answered\");\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        // TODO: The next attempt is a repeat, and this is still the oldest advice. (about 5 lines)\n        throw new IllegalStateException(\"TODO: notAnswered\");\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "45f6fb9390968bd98475c71eb572071ee1bad66457c9d2ca82c78401be0ee33c",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them.\n */\npublic class AdviceSaf {\n    private final Store store;\n\n    public AdviceSaf(Store store) {\n        this.store = store;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        // TODO: Some calls should not even try. Which, and what do they return? (one line)\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        // TODO: The oldest advice. The process may die while it is being sent. (one line)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        // TODO: Whatever field 39 says. (one line)\n        throw new IllegalStateException(\"TODO: answered\");\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        // TODO: The next attempt is a repeat, and this is still the oldest advice. (about 5 lines)\n        throw new IllegalStateException(\"TODO: notAnswered\");\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-12/practice-3/src/main/java/com/example/practice/AdviceSaf.java",
+    "test_path": "practice/jpos-client/prose/unit-12/practice-3/src/test/java/com/example/practice/AdviceSafTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AdviceSafTest#advicesReachTheHostOldestFirst",
+        "kind": "main",
+        "says": "answered advices leave the table and reach the host oldest first"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#anAdviceSurvivesAProcessThatDiesWhileSendingIt",
+        "kind": "edge",
+        "says": "an advice stays stored while it is being sent, so a process that dies mid-send loses nothing"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#aRepeatKeepsItsPlaceInLine",
+        "kind": "edge",
+        "says": "an unanswered advice stays at the front of the line, so a later advice never overtakes it"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#anUnansweredAdviceIsRepeatedAs0221",
+        "kind": "edge",
+        "says": "every attempt after an unanswered one goes out as a repeat, 0221"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#aDeclinedAdviceHasStillBeenDelivered",
+        "kind": "edge",
+        "says": "any answer means the host has seen the advice, whatever field 39 says"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#anAdviceHeldBackByADownLinkIsNotARepeat",
+        "kind": "edge",
+        "says": "nothing is sent while the link is down, and an advice that never went out is not a repeat"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-12/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c12.md",
+      "section": "12.7 A Reversal Must Outlive the Process and Wait Its Turn"
+    },
+    "concepts": [
+      "A store-and-forward queue keeps a message stored while it is sent, repeats it only after a real attempt, keeps its place, and counts any answer as delivery."
+    ]
+  }
+}

@@ -1,74 +1,121 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c9.md",
   "kind": "code",
+  "quiz": "failures-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c9.md": "sha256:209b27cd9db85b25472c85034e9e4267e4813158815b4117ad01dff3e15013be"
+    "src/c9.md": "sha256:4ea1f9268eb1fda7945c7d8265a008a7fcdbbbb5517b314419e00e4135434fd6"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 2,
+    "count": 4,
     "aspects": [
       {
-        "id": "central-failure-mapping",
-        "says": "One central handler turns each kind of client failure (ISO-8583, network, timeout, anything unexpected) into its own response type, message and status.",
+        "id": "callback-exception-drops-link",
+        "says": "An exception in a response or request listener ends in the adaptor's receiver thread and drops the link; a callback catches its own failures and hands them on.",
         "basis": [
-          "section:9.1 Types of Exceptions",
-          "example:src/c9.md:1",
-          "example:src/c9.md:2",
-          "section:9.2 Implementing Exception Handlers"
+          "section:9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
         ],
-        "exercise": "error-responses",
+        "exercise": "late-answers",
         "reason": null
       },
       {
-        "id": "declined-carries-code",
-        "says": "A decline is its own exception that carries the host's response code, so the answer to the caller can name it.",
+        "id": "field-39-who-acts",
+        "says": "Field 39 is read from the network's list: approvals other than 00, try later as a new transaction, format errors as the developers' problem.",
         "basis": [
-          "example:src/c9.md:4",
-          "example:src/c9.md:5",
-          "section:9.4 Custom Exceptions"
+          "section:9.3 Field 39 Says Who Acts Next"
         ],
-        "exercise": "error-responses",
+        "exercise": "answer-codes",
         "reason": null
       },
       {
-        "id": "log-exceptions",
-        "says": "Each handled exception is also logged, with its stack trace, for debugging and monitoring.",
+        "id": "four-endings",
+        "says": "A calling thread sees four endings: an ISOException and isConnected() false mean the host saw nothing, a response means it decided, and null means nobody knows.",
         "basis": [
-          "example:src/c9.md:3",
-          "section:9.3 Logging Exceptions"
+          "section:9.1 Your Thread Sees Four Endings, and Each Says What the Host Knows"
+        ],
+        "exercise": "failures-quiz",
+        "reason": null
+      },
+      {
+        "id": "ignore-iso-exceptions",
+        "says": "With ignore-iso-exceptions the link survives a packing error, but the bad message still ends as null after the full timeout.",
+        "basis": [
+          "section:9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+        ],
+        "exercise": "failures-quiz",
+        "reason": null
+      },
+      {
+        "id": "pack-fails-on-adaptor",
+        "says": "A field the packager refuses fails on the adaptor's sender thread, drops the link by default and reaches the caller only as null; packing a copy first turns it into a refusal before sending.",
+        "basis": [
+          "section:9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+        ],
+        "exercise": "preflight",
+        "reason": null
+      },
+      {
+        "id": "packager-checks-lengths",
+        "says": "A packager checks lengths, not content, so a value of the right length can still be wrong.",
+        "basis": [
+          "section:9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+        ],
+        "exercise": "preflight",
+        "reason": null
+      },
+      {
+        "id": "spring-advice-blind",
+        "says": "A Spring @ControllerAdvice never sees an exception on a jPOS thread, so the decision about a purchase is made in the code that called the MUX.",
+        "basis": [
+          "section:9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
         ],
         "exercise": null,
-        "reason": "a one-line logging call through SLF4J, which the corpus build does not carry; not practised"
+        "reason": "which threads Spring observes is not a behaviour an offline unit test can grade; the practices make the decision in the client, where it belongs"
       },
       {
-        "id": "reply-to-outcome",
-        "says": "The client raises a timeout when no reply comes and a decline when the response code is not 00, instead of returning every reply as a success.",
+        "id": "unreadable-answer-reversed",
+        "says": "An answer with no field 39 or with a code not on the list decides nothing, and is treated like no answer and reversed.",
         "basis": [
-          "example:src/c9.md:7",
-          "section:9.6 Integration with jPOS Client"
+          "section:9.3 Field 39 Says Who Acts Next",
+          "section:9.8 Design Note: Why Reverse an Answer You Can't Read?"
         ],
-        "exercise": "reply-outcomes",
+        "exercise": "answer-codes",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "error-responses",
+        "name": "preflight",
         "aspects": [
-          "central-failure-mapping",
-          "declined-carries-code"
+          "pack-fails-on-adaptor",
+          "packager-checks-lengths"
         ]
       },
       {
         "slot": 2,
-        "name": "reply-outcomes",
+        "name": "answer-codes",
         "aspects": [
-          "reply-to-outcome"
+          "field-39-who-acts",
+          "unreadable-answer-reversed"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "late-answers",
+        "aspects": [
+          "callback-exception-drops-link"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "failures-quiz",
+        "aspects": [
+          "four-endings",
+          "ignore-iso-exceptions"
         ]
       }
     ],
@@ -76,21 +123,58 @@
   },
   "shipped": [
     "exercises/jpos-client/prose/unit-09/practice-1",
-    "exercises/jpos-client/prose/unit-09/practice-2"
+    "exercises/jpos-client/prose/unit-09/practice-2",
+    "exercises/jpos-client/prose/unit-09/practice-3",
+    "exercises/jpos-client/prose/unit-09/practice-4"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-09/practice-1",
       "origin": {
         "path": "src/c9.md",
-        "section": "9.2 Implementing Exception Handlers"
+        "section": "9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
       }
     },
     {
       "exercise": "exercises/jpos-client/prose/unit-09/practice-2",
       "origin": {
         "path": "src/c9.md",
-        "section": "9.6 Integration with jPOS Client"
+        "section": "9.3 Field 39 Says Who Acts Next"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-09/practice-3",
+      "origin": {
+        "path": "src/c9.md",
+        "section": "9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-09/practice-4:q-ignore-iso-exceptions",
+      "origin": {
+        "path": "src/c9.md",
+        "section": "9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-09/practice-4:q-duplicate-key",
+      "origin": {
+        "path": "src/c9.md",
+        "section": "9.1 Your Thread Sees Four Endings, and Each Says What the Host Knows"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-09/practice-4:q-unlisted-code",
+      "origin": {
+        "path": "src/c9.md",
+        "section": "9.3 Field 39 Says Who Acts Next"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-09/practice-4:q-listener-throws",
+      "origin": {
+        "path": "src/c9.md",
+        "section": "9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
       }
     }
   ],

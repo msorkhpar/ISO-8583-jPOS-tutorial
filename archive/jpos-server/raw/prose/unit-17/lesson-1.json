@@ -1,0 +1,432 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "DirPoll and Operations",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "17. DirPoll and Operations"
+    },
+    {
+      "type": "para",
+      "text": "At 02:00 the terminal-management system copies each terminal's end-of-day batch into the server's `batch/request/` directory, and a processor checks the totals and answers. One morning reconciliation finds that terminal `29110001`'s batch was accepted with 102 records. The terminal sent 412, and the copy in the archive holds all 412. The log has no error."
+    },
+    {
+      "type": "para",
+      "text": "Files are the other way a payment server exchanges data: batch uploads, stop lists, clearing and settlement. jPOS handles \"drop a file, get a file back\" with `DirPoll`. Five rules, one per section heading from 17.2 to 17.6, cover the files and then the running node. Every output is from jPOS 2.1.7, compiled for Java 17."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.1 A Batch Directory Under Q2"
+    },
+    {
+      "type": "para",
+      "text": "`org.jpos.util.DirPoll` watches a base directory, and `org.jpos.q2.iso.DirPollAdaptor` runs it as a QBean. `deploy/60_batch.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<dir-poll name=\"batch-poll\" class=\"org.jpos.q2.iso.DirPollAdaptor\" logger=\"Q2\" realm=\"batch-poll\">\n  <attr name=\"path\">${batch.dir:batch}</attr>\n  <attr name=\"pollInterval\" type=\"java.lang.Long\">1000</attr>\n  <attr name=\"poolSize\" type=\"java.lang.Integer\">1</attr>\n  <attr name=\"priorities\">.req *</attr>\n  <attr name=\"processor\">com.example.jpos.server.batch.BatchTotalsProcessor</attr>\n  <property name=\"archive\" value=\"true\"/>\n  <property name=\"archive.timestamp\" value=\"true\"/>\n  <property name=\"response.suffix\" value=\".rsp\"/>\n</dir-poll>"
+    },
+    {
+      "type": "para",
+      "text": "On deploy the adaptor creates six directories under the path: `request`, `run`, `response`, `tmp`, `archive` and `bad` (17.3 explains `.req *`). It builds a pool of up to `poolSize` threads and creates the processor. The `<property>` elements go to DirPoll and, if the processor is `Configurable`, to the processor too, so the processor's own settings sit in the same descriptor. A processor that is a `LogSource` gets the adaptor's logger and realm."
+    },
+    {
+      "type": "para",
+      "text": "The processor reads a batch: a header `H|terminal|batch`, one `D|amount` per debit and one `C|amount` per credit in minor units, and a trailer `T|count|net` with net = debits − credits."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.batch;\n\nimport org.jpos.util.DirPoll;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogSource;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * A terminal's end-of-day batch: H|terminal|batch, then D|amount (debit) and C|amount (credit)\n * in minor units, then T|count|net with net = debits - credits. Answers with the totals.\n */\npublic class BatchTotalsProcessor extends SimpleLogSource implements DirPoll.Processor {\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (lines.size() < 2 || !lines.get(lines.size() - 1).startsWith(\"T|\"))\n            throw retry(name + \": no trailer yet\");           // the sender may still be writing\n\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw new DirPoll.DirPollException(name + \": no header\");\n        long debits = 0, credits = 0;                         // locals: one instance, many files\n        int count = 0;\n        for (String l : lines.subList(1, lines.size() - 1)) {\n            String[] f = l.split(\"\\\\|\");\n            count++;\n            if (f.length != 2 || !f[1].matches(\"\\\\d{1,12}\"))\n                throw new DirPoll.DirPollException(name + \": bad record \" + count);\n            switch (f[0]) {\n                case \"D\": debits += Long.parseLong(f[1]); break;\n                case \"C\": credits += Long.parseLong(f[1]); break;\n                default: throw new DirPoll.DirPollException(name + \": bad record \" + count);\n            }\n        }\n        String[] t = lines.get(lines.size() - 1).split(\"\\\\|\");\n        if (t.length != 3 || !t[1].equals(Integer.toString(count))\n                || !t[2].matches(\"-?\\\\d{1,13}\") || Long.parseLong(t[2]) != debits - credits)\n            throw new DirPoll.DirPollException(name + \": trailer does not match the records\");\n\n        String batch = h[1] + \"/\" + h[2];\n        LogEvent evt = new LogEvent(this, \"batch\");\n        evt.addMessage(name + \" \" + batch + \" records=\" + count);   // never a record's content\n        Logger.log(evt);\n        return String.format(\"ACCEPTED %s records=%d debits=%d credits=%d%n\",\n                batch, count, debits, credits).getBytes(StandardCharsets.US_ASCII);\n    }\n\n    private static DirPoll.DirPollException retry(String message) {\n        DirPoll.DirPollException e = new DirPoll.DirPollException(message);\n        e.setRetry(true);\n        return e;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The adaptor creates one processor, and DirPoll runs every file through it, on as many threads as the pool allows, so per-file totals live in local variables, as in a participant (unit s1). The log line names the file and the batch, never a record: `ProtectedLogListener` masks fields of a message, not text (unit c8). In the runs below, a subclass of this processor also prints when each call starts and how it ends."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.2 How the Processor Ends Decides Where the File Goes"
+    },
+    {
+      "type": "para",
+      "text": "Three files arrive together: `b1.req` is a good batch, `b2.req` has records but no trailer, and `b3.req` has a trailer that disagrees with its record. Where does each end up?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "t= 1007 ms  b3.req (41 bytes): b3.req: trailer does not match the records\nt= 1032 ms  b1.req (73 bytes): ACCEPTED 29110001/000041 records=3 debits=125000 credits=50000\nt= 1033 ms  b2.req (33 bytes): b2.req: no trailer yet, retry\nt=12007 ms  b2.req (33 bytes): b2.req: no trailer yet, retry\nt=22009 ms  b2.req (33 bytes): b2.req: no trailer yet, retry\nrequest:  \nrun:      b2.req\nresponse: b1.rsp\narchive:  b1.req.20261106150108\nbad:      b3.req.20261106150108\nb1.rsp: ACCEPTED 29110001/000041 records=3 debits=125000 credits=50000"
+    },
+    {
+      "type": "para",
+      "text": "The polling thread lists `request/`, moves each file to `run/`, and hands it to the pool:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**It returns bytes.** DirPoll writes them to `tmp/` and renames the result into `response/`, so whoever reads `response/` never sees half an answer. The request goes to `archive/` (with `archive=true`) or is deleted.",
+        "**It throws a `DirPollException` with `setRetry(true)`.** The pool thread waits ten poll intervals, here 10 seconds, and moves the file back to `request/`.",
+        "**It throws anything else**, a `NullPointerException` included. The file goes to `bad/` and the exception is logged under the adaptor's realm."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`b2.req` never gets its trailer, so it goes round every ten seconds, with a log event each time, until a person moves it. DirPoll keeps no count of attempts. The ten-second wait also happens on a pool thread. With `poolSize` 1, four good files arrive while `b2.req` waits:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "t=  212 ms  c0.req sent\nt= 1005 ms  c0.req (42 bytes): ACCEPTED 29110004/000000 records=1 debits=1000 credits=0\nt= 1025 ms  b2.req (33 bytes): b2.req: no trailer yet, retry\nt= 3215 ms  c1.req sent\nt= 6217 ms  c2.req sent\nt= 9218 ms  c3.req sent\nt=11026 ms  c1.req (42 bytes): ACCEPTED 29110005/000001 records=1 debits=1001 credits=0\nt=11027 ms  c2.req (42 bytes): ACCEPTED 29110006/000002 records=1 debits=1002 credits=0\nt=11028 ms  c3.req (42 bytes): ACCEPTED 29110007/000003 records=1 debits=1003 credits=0\nt=12002 ms  b2.req (33 bytes): b2.req: no trailer yet, retry\nt=22005 ms  b2.req (33 bytes): b2.req: no trailer yet, retry"
+    },
+    {
+      "type": "para",
+      "text": "`c1.req` waited eight seconds. On a night with three hundred terminal batches, one file that never completes adds up to ten seconds to every file behind it, for as long as it stays. Retry only a file that can still improve: a missing trailer, not a wrong one. Give the pool more than one thread, and alert when the same name keeps retrying."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.3 DirPoll Takes a File the Moment It Appears, Finished or Not"
+    },
+    {
+      "type": "para",
+      "text": "The terminal-management system writes straight into `request/`: a quarter of the file, then, 1.5 seconds later, the rest. Here it is against a processor that sums the records it finds and doesn't look for a trailer:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "t=   38 ms  sender has written 1552 of 6211 bytes into request/b4.req\nt= 1540 ms  sender has written the rest and closed the file\nrequest:  \nrun:      \nresponse: b4.rsp\narchive:  b4.req.20261106150035\nbad:      \nb4.rsp: ACCEPTED b4.req records=102 debits=107253 credits=0\nb4.req.20261106150035: 414 lines"
+    },
+    {
+      "type": "para",
+      "text": "DirPoll found the file at its next poll, moved it to `run/` and read the 1552 bytes that were there. The move didn't stop the sender: its open file follows a rename, so it went on writing into the file in `run/`, and after the archive step in `archive/`. The answer counts 102 records and the archived copy holds 414 lines, a header, 412 records and a trailer, so the archive hides the fault."
+    },
+    {
+      "type": "para",
+      "text": "`BatchTotalsProcessor` asks for a retry when the last line isn't a trailer:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "t=   14 ms  sender has written 1552 of 6211 bytes into request/b4.req\nt= 1005 ms  b4.req (1552 bytes): b4.req: no trailer yet, retry\nt= 1515 ms  sender has written the rest and closed the file\nt=12016 ms  b4.req (6211 bytes): ACCEPTED 29110001/000042 records=412 debits=497078 credits=0"
+    },
+    {
+      "type": "para",
+      "text": "The check caught it, but only because the sender writes the trailer last and finishes within ten seconds. The fix belongs to the sender: write the file in a directory of its own on the same file system, then rename it into `request/`. Within one file system a rename is atomic, so DirPoll sees no file or the whole file. A move from another file system is a copy, not a rename, and has the same problem."
+    },
+    {
+      "type": "para",
+      "text": "A sender that creates the file and fills it a moment later gives DirPoll zero bytes. With a single priority, or none, DirPoll lists everything in `request/`, and our 0-byte `b5.req` reached the processor. The filter that skips empty files (unless `zero-length` is true) and matches the extensions runs only with two or more priorities. `.req *` switches it on and still accepts every name: with it, `b5.req` was processed once it had content."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done"
+    },
+    {
+      "type": "para",
+      "text": "Five batches wait in `request/` when the node starts. The processor here also posts each batch to a ledger, which takes two seconds, and the pool has one thread; this node archives without timestamps. While `b3.req` is being posted, the node is killed with `kill -9`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "request:  \nrun:      b1.req b2.req b3.req b4.req \nresponse: b5.rsp \narchive:  b5.req \nbad:      "
+    },
+    {
+      "type": "para",
+      "text": "Only one file was in the processor's hands, yet four are in `run/`. The poller moved all five out of `request/` from its first listing, and the pool queued four of them in memory behind the busy thread. Nothing moves files back from `run/` at start-up: after a restart they were still there."
+    },
+    {
+      "type": "para",
+      "text": "Of those four, `b3.req` was posted and the other three never started, and the directory can't tell you which is which. Leave them, and three terminals' batches are never processed. Move all four back to `request/`, the obvious runbook step, and the ledger shows:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "15:05:52.847 b5.req posted 29110005/000045\n15:05:54.851 b3.req posted 29110003/000043\n15:05:56.331 b3.req posted 29110003/000043\n15:05:58.336 b1.req posted 29110001/000041\n15:06:00.338 b4.req posted 29110004/000044\n15:06:02.340 b2.req posted 29110002/000042"
+    },
+    {
+      "type": "para",
+      "text": "Terminal `29110003`'s merchant is paid twice."
+    },
+    {
+      "type": "para",
+      "text": "With `SIGTERM`, Q2's shutdown hook undeploys the adaptor, which stops the polling thread but doesn't wait for the pool. The pool went on taking files from its queue while Q2 shut down, finished `b3.req`, started `b1.req` and posted it, and the JVM exited before DirPoll could archive it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "first run exit status: 143\nrequest:  \nrun:      b1.req b2.req b4.req \nresponse: b3.rsp b5.rsp \narchive:  b3.req b5.req "
+    },
+    {
+      "type": "para",
+      "text": "So a file in `run/` may have been done or never started, and the processor has to make a second run harmless. Identify the batch by what is in it, here the terminal and batch number in the header, and record that identity in the same database transaction as the postings (unit s9). A batch already recorded gets its answer again and posts nothing. Never use the file name: a terminal may send `batch.req` every night. The runbook then moves `run/` back to `request/` before starting:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "15:06:41.249 b1.req posted 29110001/000041\n15:06:42.934 b1.req already posted, answered again: 29110001/000041"
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In a container**, the batch directory lives on a volume, or a restart discards `run/` and the files in it. A longer stop grace period doesn't help DirPoll, since nothing in it waits for the pool."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.5 A Command Sees Only the JVM It Runs In"
+    },
+    {
+      "type": "para",
+      "text": "Q2 has a command line: `--cli` gives an interactive `q2>` prompt, and `-c \"cmd; cmd\"` runs commands. With either and no `-d`, Q2 deploys `deploy-cli/` instead of `deploy/`. An operator runs it on the node's machine, in the node's directory, while the node is running:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "$ java -cp \"classes:lib/*\" org.jpos.q2.Q2 -c \"shownr; shutdown --force\"\nQ2        org.jpos.q2.Q2@74f4444f\nlogger.Q2 org.jpos.util.Logger@24f9db08\nShutting down."
+    },
+    {
+      "type": "para",
+      "text": "`shownr` lists the `NameRegistrar`, and it holds no MUX and no server. The command started a second JVM with its own registry (unit c1), which deployed the logger in `deploy-cli/` and nothing else, and the shutdown stopped only that JVM."
+    },
+    {
+      "type": "para",
+      "text": "To reach the running node, start it with Q2's SSH server: `-s`, port 2222 by default, user `admin`, public keys only, from `cfg/authorized_keys`. The same commands then run inside the node."
+    },
+    {
+      "type": "para",
+      "text": "A command of your own is a class implementing `CLICommand`. What you type is upper-cased and loaded as a class under the active prefixes. In 2.1.7 the top-level prefix is fixed at `org.jpos.q2.cli.`, but a subsystem names its own, so one small class goes into jPOS's package and the commands stay in yours:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package org.jpos.q2.cli;\n\nimport org.jpos.q2.CLIContext;\nimport org.jpos.q2.CLISubSystem;\n\n/** Entry point of the operations commands: the only class in jPOS's own CLI package. */\npublic class OPS implements CLISubSystem {\n    @Override\n    public String getPrompt(CLIContext ctx, String[] args) {\n        return \"ops> \";\n    }\n\n    @Override\n    public String[] getCompletionPrefixes(CLIContext ctx, String[] args) {\n        return new String[] { \"com.example.jpos.server.cli.\" };\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.server.cli;\n\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.CLICommand;\nimport org.jpos.q2.CLIContext;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/** muxstat: connected or DOWN for every MUX registered in this JVM. */\npublic class MUXSTAT implements CLICommand {\n    @Override\n    public void exec(CLIContext cli, String[] args) {\n        Map<String, MUX> muxes = new TreeMap<>();               // sorted: stable output\n        NameRegistrar.getAsMap().forEach((k, v) -> {\n            if (k.startsWith(\"mux.\") && v instanceof MUX)\n                muxes.put(k.substring(4), (MUX) v);\n        });\n        int down = 0;\n        for (Map.Entry<String, MUX> e : muxes.entrySet()) {\n            boolean up = e.getValue().isConnected();\n            down += up ? 0 : 1;\n            cli.println(String.format(\"%-12s %s\", e.getKey(), up ? \"connected\" : \"DOWN\"));\n        }\n        cli.println(muxes.isEmpty() ? \"no MUX in this JVM\" : down == 0 ? \"OK\" : down + \" link(s) down\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`ops:muxstat` enters the subsystem, runs the command, and leaves the subsystem at the end of the line, so a later command in the same `-c` list needs an `exit` first. In a 2.1.7 command, `args[0]` holds the whole command line and the arguments start at `args[1]`. The node runs `host-mux`, whose link is up, and `backup-mux`, whose host isn't listening:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "$ java -cp \"classes:lib/*\" org.jpos.q2.Q2 -c \"ops:muxstat; exit; shutdown --force\"\nno MUX in this JVM\n\n$ ssh -p 2222 admin@127.0.0.1 ops:muxstat\nbackup-mux   DOWN\nhost-mux     connected\n1 link(s) down"
+    },
+    {
+      "type": "para",
+      "text": "A readiness check or a runbook script built on `-c` reads an empty registry and reports nothing wrong while a link is down. Read the node over SSH, JMX, or a small QBean inside it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.6 `drift` Shows a Pause Only When It Covers the Monitor's Wake-Up"
+    },
+    {
+      "type": "para",
+      "text": "`SystemMonitor` (unit c8) sleeps for `sleepTime`, then measures how late it woke up and reports it as `drift`, in milliseconds. A late wake-up means the whole JVM was late: a garbage collection pause, or a process starved of CPU. With `sleepTime` 5000, we stopped the node with `SIGSTOP` for 3.01 seconds and then let it continue. The next dump:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "       uptime: 00:01:11.575 (14.957031)\n...\n       drift : 531\nmemory(t/u/f): 144/43/100"
+    },
+    {
+      "type": "para",
+      "text": "The pause lasted 3011 ms, and `drift` says 531. The monitor was due to wake 531 ms before the process resumed. The other 2.5 seconds of the pause fell inside its sleep, where nothing measures them. With the default `sleepTime` of an hour, a pause shows only if it happens to cover the moment of waking."
+    },
+    {
+      "type": "para",
+      "text": "Suppose a 3-second GC pause hits the node at noon. Requests whose timeout ran out during the pause return `null` (unit c12), the terminals send reversals, and the host was fine all along. The next dump says `drift : 0`. The record of every pause is the GC log, which the JVM writes with `-Xlog:gc*` (the Reference has the options). Compare its pause times with the times of the timeouts."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**How the processor ends decides where the file goes.** Bytes go to `response/` and the file to `archive/`; a retry waits ten poll intervals on a pool thread and returns the file to `request/`; anything else sends it to `bad/`. A file that can't improve and is retried anyway stalls every file behind it.",
+        "**DirPoll takes a file the moment it appears.** A sender writing into `request/` gets a partial file processed and archived complete. Senders write elsewhere and rename; processors check a trailer; `.req *` keeps empty files out.",
+        "**A stop or a crash leaves files in `run/`, done or never started.** The processor identifies each batch by its content and posts it once, so the runbook can move `run/` back.",
+        "**A command sees only its own JVM.** `-c` starts a second Q2 on `deploy-cli/`; the running node is read over its SSH CLI.",
+        "**`drift` shows a pause only when it covers the monitor's wake-up.** The GC log records every pause."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**DirPoll properties (2.1.7)**, as `<property>` elements of the adaptor:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Property",
+        "Default",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`archive`",
+          "`false`",
+          "keep processed files in `archive/` instead of deleting them"
+        ],
+        [
+          "`archive.timestamp`, `archive.dateformat`",
+          "`false`, `yyyyMMddHHmmss`",
+          "append `.` and a timestamp to the archived name, and to a name moved to `bad/`"
+        ],
+        [
+          "`archive.compress`",
+          "`false`",
+          "zip the archived file"
+        ],
+        [
+          "`response.suffix`",
+          "none",
+          "replace the request's extension in the response name (`b1.req` gives `b1.rsp`)"
+        ],
+        [
+          "`zero-length`",
+          "`false`",
+          "accept empty files; read only by the filter of two or more priorities"
+        ],
+        [
+          "`priority.regex`",
+          "`false`",
+          "treat each priority as a regular expression instead of a suffix"
+        ],
+        [
+          "`request.dir`, `response.dir`, `tmp.dir`, `run.dir`, `bad.dir`, `archive.dir`",
+          "the names",
+          "rename the subdirectories"
+        ],
+        [
+          "`shutdown-timeout`",
+          "60000",
+          "ms the adaptor waits for the polling thread to stop; it never waits for the pool"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Adaptor attributes:** `path`, `pollInterval` (ms, default 1000; a retry waits ten of them), `poolSize` (default 1), `priorities` (space-separated suffixes, `*` for any), `processor` (a `DirPoll.Processor`, given the name and the bytes, or a `DirPoll.FileProcessor`, given the `File` in `run/`, which reads it and writes any response itself)."
+    },
+    {
+      "type": "para",
+      "text": "**Q2 command line (2.1.7):** `--cli` (`-i`) interactive prompt; `-c \"cmd; cmd\"` run commands; `-s`, `-sp`, `-su`, `-sa`, `-sh` the SSH server's switch, port, user, authorized keys file and host key file. Commands in the jar include `shownr [-a] [name]`, `tmmon <txnmgr>`, `tail <logger>`, `sysmon`, `mem`, `uptime`, `version`, `tzcheck`, `deploy` (a sub-prompt to list, enable and disable descriptors) and `shutdown [--force]`; `man <command>` prints a command's help where one ships."
+    },
+    {
+      "type": "para",
+      "text": "**JVM options**, checked by starting a JVM with each:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Option",
+        "Why"
+      ],
+      "rows": [
+        [
+          "`-Xlog:gc*:file=log/gc.log:time,uptime,level,tags:filecount=10,filesize=20m`",
+          "a rotating GC log, the record of every pause"
+        ],
+        [
+          "`-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=log`",
+          "evidence after the fact; a heap dump holds every message in memory, card data included"
+        ],
+        [
+          "`-XX:+ExitOnOutOfMemoryError`",
+          "a node out of memory is in an unknown state; exiting lets the supervisor restart it"
+        ],
+        [
+          "`-XX:+UseConcMarkSweepGC`, `-XX:+CMSIncrementalMode`, `-XX:+AggressiveOpts`",
+          "removed: the JVM refuses to start"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.9 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your processor posts a batch in one database transaction that takes up to 30 seconds. Choose `poolSize` and `pollInterval` for 3,000 batches arriving between 02:00 and 02:20, and work out what one file stuck in retry costs with your choice.",
+        "Write the restart runbook for the batch directory as a script. Which checks does it run before it moves `run/` back, and what does it do with `bad/`?",
+        "Two nodes poll the same shared directory for availability. What happens when both scan `request/` at once, and what would you put in place instead?",
+        "Design a health check for a container platform that reports a link down within 30 seconds, without starting a second JVM."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.10 Design Note: Why Directories and Renames?"
+    },
+    {
+      "type": "para",
+      "text": "DirPoll's whole protocol is a set of directory names and the rename between them. A sender needs no jPOS: any system that can write a file and rename it can talk to the server. The state of every file is visible with `ls`, and an operator can move it by hand."
+    },
+    {
+      "type": "para",
+      "text": "The price is that a rename is the only atomic step. Nothing records why a file is in `run/`, how many times it was retried, or whether its work was committed. Everything this unit asks of the processor (a trailer, idempotent posting, a limit on retries) makes up for state the directories can't hold. A message queue or a database table would hold that state, and would cost every sender a client for it."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 11,
+    "paras": 36,
+    "code": 15,
+    "tables": 2,
+    "lists": 3,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 1,
+    "html": 3,
+    "disclosures": 0
+  },
+  "content_sha256": "9d58e8c6afca19786f5bca688052076e909c39c18cc8639b0e29a02fc46d0a69"
+}

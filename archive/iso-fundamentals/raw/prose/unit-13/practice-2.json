@@ -1,0 +1,150 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Rotate the key under a table of encrypted card numbers",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The disputes service keeps card numbers in a table, encrypted, and support finds a card's rows by a lookup value stored beside them. The key policy now says the data key changes every quarter, and the security team wants to retire the first key by the end of the year without stopping the service."
+    },
+    {
+      "type": "para",
+      "text": "`PanVault` in `src/main/java/com/example/practice/PanVault.java` holds the keys. `rotate` makes a new data key current, `retire` destroys an old one, and `seal` already encrypts under the current key. Finish the three methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`open(...)`: the card number in any record the table may hold;",
+        "`rewrap(...)`: what a background job stores in place of an old record;",
+        "`lookupValue(...)`: the value support searches by."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, rows written before any number of rotations still open, every row can be moved to the current key so that old keys can be retired, and support's searches keep finding the same rows through all of it. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests build their keys from fixed bytes. Real keys come from a keystore or an HSM."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.nio.charset.StandardCharsets;\nimport java.security.GeneralSecurityException;\nimport java.security.SecureRandom;\nimport java.util.Arrays;\nimport java.util.HashMap;\nimport java.util.Map;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.GCMParameterSpec;\n\nimport org.jpos.iso.ISOUtil;\n\n/** Keeps card numbers encrypted under data keys that are rotated, and finds them by a keyed value. */\npublic final class PanVault {\n\n    /** What is stored: the id of the key that opens it, then the IV and the ciphertext. */\n    public record Sealed(String keyId, byte[] ivAndCiphertext) { }\n\n    private static final int IV_BYTES = 12;\n    private final Map<String, SecretKey> dataKeys = new HashMap<>();\n    private final SecretKey lookupKey;\n    private final SecureRandom random = new SecureRandom();\n    private String current;\n\n    public PanVault(String keyId, SecretKey dataKey, SecretKey lookupKey) {\n        this.lookupKey = lookupKey;\n        rotate(keyId, dataKey);\n    }\n\n    /** From now on, new records are sealed under this key. Older keys stay until retired. */\n    public void rotate(String keyId, SecretKey dataKey) {\n        dataKeys.put(keyId, dataKey);\n        current = keyId;\n    }\n\n    /** Destroys a key that no record needs any more. */\n    public void retire(String keyId) {\n        if (keyId.equals(current))\n            throw new IllegalArgumentException(keyId + \" is the current key\");\n        dataKeys.remove(keyId);\n    }\n\n    public Sealed seal(String pan) throws GeneralSecurityException {\n        byte[] iv = new byte[IV_BYTES];\n        random.nextBytes(iv);\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.ENCRYPT_MODE, dataKey(current), new GCMParameterSpec(128, iv));\n        byte[] ct = c.doFinal(pan.getBytes(StandardCharsets.US_ASCII));\n        byte[] out = Arrays.copyOf(iv, IV_BYTES + ct.length);\n        System.arraycopy(ct, 0, out, IV_BYTES, ct.length);\n        return new Sealed(current, out);\n    }\n\n    /** The card number in a record, sealed under any key this vault still holds. */\n    public String open(Sealed s) throws GeneralSecurityException {\n        byte[] in = s.ivAndCiphertext();\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.DECRYPT_MODE, dataKey(s.keyId()), new GCMParameterSpec(128, in, 0, IV_BYTES));\n        return new String(c.doFinal(in, IV_BYTES, in.length - IV_BYTES), StandardCharsets.US_ASCII);\n    }\n\n    /** The same card number as a record the background job can store in place of the old one. */\n    public Sealed rewrap(Sealed s) throws GeneralSecurityException {\n        return seal(open(s));\n    }\n\n    /** The value support searches by: the same for a card every time, and useless without a key. */\n    public String lookupValue(String pan) throws GeneralSecurityException {\n        Mac mac = Mac.getInstance(\"HmacSHA256\");\n        mac.init(lookupKey);\n        return ISOUtil.hexString(mac.doFinal(pan.getBytes(StandardCharsets.US_ASCII)));\n    }\n\n    private SecretKey dataKey(String keyId) throws GeneralSecurityException {\n        SecretKey k = dataKeys.get(keyId);\n        if (k == null)\n            throw new GeneralSecurityException(\"no key \" + keyId);\n        return k;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.nio.charset.StandardCharsets;\nimport java.security.GeneralSecurityException;\nimport java.security.SecureRandom;\nimport java.util.Arrays;\nimport java.util.HashMap;\nimport java.util.Map;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.GCMParameterSpec;\n\nimport org.jpos.iso.ISOUtil;\n\n/** Keeps card numbers encrypted under data keys that are rotated, and finds them by a keyed value. */\npublic final class PanVault {\n\n    /** What is stored: the id of the key that opens it, then the IV and the ciphertext. */\n    public record Sealed(String keyId, byte[] ivAndCiphertext) { }\n\n    private static final int IV_BYTES = 12;\n    private final Map<String, SecretKey> dataKeys = new HashMap<>();\n    private final SecretKey lookupKey;\n    private final SecureRandom random = new SecureRandom();\n    private String current;\n\n    public PanVault(String keyId, SecretKey dataKey, SecretKey lookupKey) {\n        this.lookupKey = lookupKey;\n        rotate(keyId, dataKey);\n    }\n\n    /** From now on, new records are sealed under this key. Older keys stay until retired. */\n    public void rotate(String keyId, SecretKey dataKey) {\n        dataKeys.put(keyId, dataKey);\n        current = keyId;\n    }\n\n    /** Destroys a key that no record needs any more. */\n    public void retire(String keyId) {\n        if (keyId.equals(current))\n            throw new IllegalArgumentException(keyId + \" is the current key\");\n        dataKeys.remove(keyId);\n    }\n\n    public Sealed seal(String pan) throws GeneralSecurityException {\n        byte[] iv = new byte[IV_BYTES];\n        random.nextBytes(iv);\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.ENCRYPT_MODE, dataKey(current), new GCMParameterSpec(128, iv));\n        byte[] ct = c.doFinal(pan.getBytes(StandardCharsets.US_ASCII));\n        byte[] out = Arrays.copyOf(iv, IV_BYTES + ct.length);\n        System.arraycopy(ct, 0, out, IV_BYTES, ct.length);\n        return new Sealed(current, out);\n    }\n\n    /** The card number in a record, sealed under any key this vault still holds. */\n    public String open(Sealed s) throws GeneralSecurityException {\n        // TODO: a record sealed today, or one sealed before any number of rotations (about 4 lines)\n        throw new IllegalStateException(\"TODO: open\");\n    }\n\n    /** The same card number as a record the background job can store in place of the old one. */\n    public Sealed rewrap(Sealed s) throws GeneralSecurityException {\n        // TODO: once every record has been through this, the old keys can be retired (1 or 2 lines)\n        throw new IllegalStateException(\"TODO: rewrap\");\n    }\n\n    /** The value support searches by: the same for a card every time, and useless without a key. */\n    public String lookupValue(String pan) throws GeneralSecurityException {\n        // TODO: support's index must keep working across rotations of the data key (about 3 lines)\n        throw new IllegalStateException(\"TODO: lookupValue\");\n    }\n\n    private SecretKey dataKey(String keyId) throws GeneralSecurityException {\n        SecretKey k = dataKeys.get(keyId);\n        if (k == null)\n            throw new GeneralSecurityException(\"no key \" + keyId);\n        return k;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "591170cbd30f7e6fd9cf4f1fe7fccdcab5d0502a06c3a5af3d92c2589d069790",
+  "starting_code": "package com.example.practice;\n\nimport java.nio.charset.StandardCharsets;\nimport java.security.GeneralSecurityException;\nimport java.security.SecureRandom;\nimport java.util.Arrays;\nimport java.util.HashMap;\nimport java.util.Map;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.Mac;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.GCMParameterSpec;\n\nimport org.jpos.iso.ISOUtil;\n\n/** Keeps card numbers encrypted under data keys that are rotated, and finds them by a keyed value. */\npublic final class PanVault {\n\n    /** What is stored: the id of the key that opens it, then the IV and the ciphertext. */\n    public record Sealed(String keyId, byte[] ivAndCiphertext) { }\n\n    private static final int IV_BYTES = 12;\n    private final Map<String, SecretKey> dataKeys = new HashMap<>();\n    private final SecretKey lookupKey;\n    private final SecureRandom random = new SecureRandom();\n    private String current;\n\n    public PanVault(String keyId, SecretKey dataKey, SecretKey lookupKey) {\n        this.lookupKey = lookupKey;\n        rotate(keyId, dataKey);\n    }\n\n    /** From now on, new records are sealed under this key. Older keys stay until retired. */\n    public void rotate(String keyId, SecretKey dataKey) {\n        dataKeys.put(keyId, dataKey);\n        current = keyId;\n    }\n\n    /** Destroys a key that no record needs any more. */\n    public void retire(String keyId) {\n        if (keyId.equals(current))\n            throw new IllegalArgumentException(keyId + \" is the current key\");\n        dataKeys.remove(keyId);\n    }\n\n    public Sealed seal(String pan) throws GeneralSecurityException {\n        byte[] iv = new byte[IV_BYTES];\n        random.nextBytes(iv);\n        Cipher c = Cipher.getInstance(\"AES/GCM/NoPadding\");\n        c.init(Cipher.ENCRYPT_MODE, dataKey(current), new GCMParameterSpec(128, iv));\n        byte[] ct = c.doFinal(pan.getBytes(StandardCharsets.US_ASCII));\n        byte[] out = Arrays.copyOf(iv, IV_BYTES + ct.length);\n        System.arraycopy(ct, 0, out, IV_BYTES, ct.length);\n        return new Sealed(current, out);\n    }\n\n    /** The card number in a record, sealed under any key this vault still holds. */\n    public String open(Sealed s) throws GeneralSecurityException {\n        // TODO: a record sealed today, or one sealed before any number of rotations (about 4 lines)\n        throw new IllegalStateException(\"TODO: open\");\n    }\n\n    /** The same card number as a record the background job can store in place of the old one. */\n    public Sealed rewrap(Sealed s) throws GeneralSecurityException {\n        // TODO: once every record has been through this, the old keys can be retired (1 or 2 lines)\n        throw new IllegalStateException(\"TODO: rewrap\");\n    }\n\n    /** The value support searches by: the same for a card every time, and useless without a key. */\n    public String lookupValue(String pan) throws GeneralSecurityException {\n        // TODO: support's index must keep working across rotations of the data key (about 3 lines)\n        throw new IllegalStateException(\"TODO: lookupValue\");\n    }\n\n    private SecretKey dataKey(String keyId) throws GeneralSecurityException {\n        SecretKey k = dataKeys.get(keyId);\n        if (k == null)\n            throw new GeneralSecurityException(\"no key \" + keyId);\n        return k;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-13/practice-2/src/main/java/com/example/practice/PanVault.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-13/practice-2/src/test/java/com/example/practice/PanVaultTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-13/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-13/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PanVaultTest#aCardSealedTodayOpens",
+        "kind": "main",
+        "says": "a card number sealed under the current key opens again, is not stored in clear, and has a stable lookup value of its own"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#aCardSealedBeforeTheRotationStillOpens",
+        "kind": "edge",
+        "says": "a record sealed before one or more rotations opens under the key its label names, not the current one"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#aRewrappedCardOutlivesTheKeyItWasSealedUnder",
+        "kind": "edge",
+        "says": "a re-encrypted record names the current key, so it still opens after the old key is retired"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#theLookupValueSurvivesARotation",
+        "kind": "edge",
+        "says": "the lookup value of a card does not change when the data key is rotated"
+      },
+      {
+        "id": "com.example.practice.PanVaultTest#theLookupValueTakesTheLookupKey",
+        "kind": "edge",
+        "says": "the lookup value depends on the secret lookup key, so a plain hash of the card number will not do"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-13/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/13.md",
+      "section": "13.4. A Stored Card Number Names the Key That Opens It"
+    },
+    "concepts": [
+      "Each encrypted card number carries the id of its key, so new records use the new key, old ones open through their label until re-encrypted, and the lookup key rotates separately."
+    ]
+  }
+}

@@ -1,14 +1,13 @@
-At the end of a business day the network sends you a settlement file: the total it expects
-you to have processed and the ids of the transactions it counted. You have your own record
-of what you processed, id by id, with each amount.
+One approved message is a thin reference. Approved purchases differ among themselves: some cards
+have 19 digits, some terminals send an expiry date and others don't. Compared with one of them, a
+rejected purchase can show differences that the host accepts every day.
 
-Write `Reconciliation.check(BigDecimal expectedTotal, List<String> expectedIds,
-Map<String, BigDecimal> processed)`. It returns a `Result` with:
+So the support desk keeps the morning's approved purchases from the same release, and
+`Shapes.unseen(approved, rejected)` lists the fields of a rejected message whose shape none of them
+has. `unseen` is written. Finish the two methods marked `TODO` in
+`src/main/java/com/example/practice/Shapes.java`:
 
-- `balanced`: whether the processed amounts add up to the expected total;
-- `difference`: the expected total minus the processed total;
-- `missingIds`: the expected ids you have no record of, in ascending order.
+- `shape(...)`: one field described in one of the forms the comment above it lists;
+- `seen(...)`: every description a field has across the approved messages.
 
-Amounts are compared as numbers, so `100.0` and `100.00` are the same amount. Only an
-expected id can be missing: a transaction you processed that the network did not count is
-a different problem, and it is not reported here.
+About twelve lines in total. Some tests' messages carry a PIN block, which is binary.

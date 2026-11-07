@@ -1,0 +1,190 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: files in flight and a node you can't see into",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-retry-stalls-pool",
+        "stem": "A DirPollAdaptor has poolSize 1 and pollInterval 2000. Its processor answers a file whose header is missing by throwing a DirPollException with setRetry(true). Over the next hour, good files keep arriving in request/. What happens to them?",
+        "options": [
+          {
+            "id": "a",
+            "text": "They are processed as they arrive, since the retry wait runs on the polling thread and not in the pool",
+            "correct": false,
+            "says": "the wait of ten poll intervals runs on the pool thread that called the processor"
+          },
+          {
+            "id": "b",
+            "text": "They are held up to 20 seconds each, since the retry wait keeps the only pool thread busy",
+            "correct": true,
+            "says": "a retry waits pollInterval x 10 on the pool thread, and with one thread every file behind it waits; a missing header never improves"
+          },
+          {
+            "id": "c",
+            "text": "They are processed as they arrive, since DirPoll moves a file to bad/ after its third retry",
+            "correct": false,
+            "says": "DirPoll keeps no count of attempts; the file goes round until a person moves it"
+          },
+          {
+            "id": "d",
+            "text": "They are held until someone fixes the file, since DirPoll takes request/ in name order",
+            "correct": false,
+            "says": "the other files are processed between the retries, each delayed by up to ten poll intervals, not blocked for good"
+          }
+        ],
+        "origin": {
+          "path": "src/s17.md",
+          "section": "17.2 How the Processor Ends Decides Where the File Goes"
+        }
+      },
+      {
+        "id": "q-sigterm-run-dir",
+        "stem": "Seven settlement files were in request/ when the node started; each takes the single pool thread 20 seconds. Thirty seconds later the supervisor sends SIGTERM and allows 90 seconds before a kill. What do you find in run/ after the JVM has exited?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing, since Q2's shutdown hook lets the pool empty its queue before the JVM exits",
+            "correct": false,
+            "says": "the adaptor's stop ends the polling thread only; nothing waits for the pool or its queue"
+          },
+          {
+            "id": "b",
+            "text": "Nothing, since undeploying the adaptor moves unfinished files back to request/",
+            "correct": false,
+            "says": "nothing moves files out of run/, at stop or at start-up"
+          },
+          {
+            "id": "c",
+            "text": "Several files, since the pool keeps taking queued files until the JVM exits",
+            "correct": true,
+            "says": "the poller moved every file to run/ at once; the pool went on working during shutdown, so run/ holds files never started and possibly one already posted"
+          },
+          {
+            "id": "d",
+            "text": "Several files, since the pool stops at the signal and its current file is rolled back",
+            "correct": false,
+            "says": "the pool is not stopped; it starts new files during shutdown, and nothing rolls back work a processor has already committed"
+          }
+        ],
+        "origin": {
+          "path": "src/s17.md",
+          "section": "17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done"
+        }
+      },
+      {
+        "id": "q-probe-second-jvm",
+        "stem": "A container's health probe runs the node's own jar with -c \"ops:muxstat\" every 30 seconds inside the container, and marks the node unhealthy when the output contains DOWN. The link to the acquirer drops at 14:00. What does the probe report?",
+        "options": [
+          {
+            "id": "a",
+            "text": "DOWN within 30 seconds, since the command reads the node's MUXes through the NameRegistrar",
+            "correct": false,
+            "says": "the NameRegistrar belongs to one JVM; the probe's JVM has its own"
+          },
+          {
+            "id": "b",
+            "text": "DOWN within 30 seconds, since -c deploys the node's deploy/ files and their MUX cannot connect",
+            "correct": false,
+            "says": "with -c and no -d, Q2 deploys deploy-cli/, which has no MUX"
+          },
+          {
+            "id": "c",
+            "text": "Nothing wrong, since -c is refused while another Q2 runs in the same directory",
+            "correct": false,
+            "says": "-c runs its commands while the node runs in the same directory; it simply runs them in a JVM of its own"
+          },
+          {
+            "id": "d",
+            "text": "Nothing wrong, since the command runs in a new JVM whose registry holds no MUX",
+            "correct": true,
+            "says": "-c starts a second Q2 on deploy-cli/; the running node is read over its SSH CLI, JMX or a QBean inside it"
+          }
+        ],
+        "origin": {
+          "path": "src/s17.md",
+          "section": "17.5 A Command Sees Only the JVM It Runs In"
+        }
+      },
+      {
+        "id": "q-drift-misses-pause",
+        "stem": "SystemMonitor runs with sleepTime 600000 and wrote its last dump at 12:00:00. At 12:03 a garbage collection stops the JVM for 4 seconds. What drift does the 12:10 dump report?",
+        "options": [
+          {
+            "id": "a",
+            "text": "About 4000 ms, since the monitor adds up the stops of the JVM between two dumps",
+            "correct": false,
+            "says": "drift is only how late the monitor's own wake-up was; it adds nothing up"
+          },
+          {
+            "id": "b",
+            "text": "About 4000 ms, since the pause stretched the monitor's sleep and it woke that much late",
+            "correct": false,
+            "says": "the sleep ends at its due time; a pause that ends minutes before the wake-up does not delay it"
+          },
+          {
+            "id": "c",
+            "text": "About 0 ms, since the pause ended long before the monitor was due to wake",
+            "correct": true,
+            "says": "drift shows a pause only where it covers the moment of waking; the GC log records every pause"
+          },
+          {
+            "id": "d",
+            "text": "About 0 ms, since drift counts a starved CPU and leaves garbage collection out",
+            "correct": false,
+            "says": "any pause that covers the wake-up shows, a collection included"
+          }
+        ],
+        "origin": {
+          "path": "src/s17.md",
+          "section": "17.6 `drift` Shows a Pause Only When It Covers the Monitor's Wake-Up"
+        }
+      }
+    ],
+    "concepts": [
+      "A -c command runs in a second JVM on deploy-cli/ and sees only its own registry; the running node is read over its SSH CLI.",
+      "SystemMonitor's drift shows a pause only where it covers the monitor's wake-up; the GC log records every pause.",
+      "A retry waits on a pool thread and DirPoll counts no attempts, so a file that can never improve stalls every file behind it and should be refused instead.",
+      "A stop or a crash leaves files in run/, some done and some never started, and nothing moves them back."
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "ordinal": 3,
+  "title": "Check yourself: where did the log entry go",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-channel-without-logger",
+        "stem": "A teammate's 10_host_channel.xml has logger=\"Q2\" on <channel-adaptor> and no logger attribute on the <channel> inside it. 00_logger.xml has ProtectedLogListener first. The host rejected three purchases at 14:02. What does your log hold for those three exchanges?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Send and receive events under the adaptor's realm, since the adaptor's logger also serves the channel inside it",
+            "correct": false,
+            "says": "the adaptor's logger attribute covers only the adaptor's own events; the channel is a separate component"
+          },
+          {
+            "id": "b",
+            "text": "Send and receive events under the realm Q2.system, since an event that has no logger falls back to Q2",
+            "correct": false,
+            "says": "only an event with no source falls back to Q2; the channel is the source of its events, and with no logger it drops them"
+          },
+          {
+            "id": "c",
+            "text": "No events from the channel, since a channel that Q2 gave no logger discards everything it logs",
+            "correct": true,
+            "says": "Q2 calls setLogger only when the element has a logger attribute; without it the channel's events go nowhere"
+          },
+          {
+            "id": "d",
+            "text": "No events from the channel, since a channel writes events only when a send or a receive fails",
+            "correct": false,
+            "says": "a channel with a logger writes connect, send and receive events for every message, not only for failures"
+          }
+        ],
+        "origin": {
+          "path": "src/c8.md",
+          "section": "8.2 An Event Goes to Its Source's Logger, and a Channel Without One Writes Nothing"
+        }
+      },
+      {
+        "id": "q-realm-filter-deploy-error",
+        "stem": "To follow one link, you put a RealmLogFilter, with no dump-interval, after ProtectedLogListener with <enabled>host-channel client.sender</enabled>. An hour later a colleague deploys a 20_host_mux.xml with a typo in its class name. What does the log show about that deployment?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing, since the filter drops the Q2.system events for every listener that comes after it",
+            "correct": true,
+            "says": "Q2 reports deploy failures under Q2.system; the filter returns null for realms it doesn't name, and the chain stops"
+          },
+          {
+            "id": "b",
+            "text": "Nothing, since Q2 reports a descriptor that fails to deploy only while the node is starting",
+            "correct": false,
+            "says": "Q2 watches deploy/ and reports a failed deployment whenever it happens"
+          },
+          {
+            "id": "c",
+            "text": "The deploy error, since events in the Q2.system realm pass through any realm filter",
+            "correct": false,
+            "says": "the filter compares every realm with its list; Q2.system gets no exception"
+          },
+          {
+            "id": "d",
+            "text": "The deploy error, since a realm filter acts only on events that carry an ISO message",
+            "correct": false,
+            "says": "the filter looks only at the realm, whatever the event carries"
+          }
+        ],
+        "origin": {
+          "path": "src/c8.md",
+          "section": "8.5 A Realm Filter Narrows the Log and Drops Everything It Doesn't Name"
+        }
+      },
+      {
+        "id": "q-late-approval-evidence",
+        "stem": "Your request for STAN 018240 returned null after 30 seconds, and the host says it approved it at second 31. The QMUX has a queue configured for leftover messages and no request listener, and the channel has no logger attribute. Where on your side can you see that the approval arrived?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In an event under the QMUX's realm, since QMUX writes an event for every answer that arrives too late",
+            "correct": false,
+            "says": "QMUX writes no event for an unmatched answer; it only counts it (and with no channel logger nothing else logs it)"
+          },
+          {
+            "id": "b",
+            "text": "In an event under the sender's realm, since QMUX passes a late answer to the request it belonged to",
+            "correct": false,
+            "says": "the request already returned null; the late answer finds nobody waiting for its key"
+          },
+          {
+            "id": "c",
+            "text": "In a QMUX counter, since QMUX counts an answer that nobody waits for instead of logging it",
+            "correct": true,
+            "says": "the answer goes to the <unhandled> queue and rx_unhandled counts it; SystemMonitor (detailRequired) prints the counters"
+          },
+          {
+            "id": "d",
+            "text": "In a QMUX counter, since QMUX counts an answer that comes too late as an expired request",
+            "correct": false,
+            "says": "rx_expired counts requests that ended with no answer; a late answer goes to the unhandled queue and is counted in rx_unhandled"
+          }
+        ],
+        "origin": {
+          "path": "src/c8.md",
+          "section": "8.6 A Late Answer Is Counted, Not Logged, by the MUX"
+        }
+      },
+      {
+        "id": "q-library-warning",
+        "stem": "Your client runs on Java 21 with no SLF4J binding on the classpath and is started with java -cp \"lib/*\" org.jpos.q2.Q2. A library it uses logs a warning through SLF4J. Where does that warning end up?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In the Q2 log under a realm named after the library's logger, since Q2 binds SLF4J to its own logger when it starts",
+            "correct": false,
+            "says": "on a current JDK Q2's binding attempt fails with an InaccessibleObjectException unless the JVM opens java.lang"
+          },
+          {
+            "id": "b",
+            "text": "In the Q2 log under Q2's own system realm, since Q2 collects whatever the libraries in its JVM write",
+            "correct": false,
+            "says": "Q2 does not collect library output by itself; only its SLF4J binding would, under slf4j:: realms"
+          },
+          {
+            "id": "c",
+            "text": "Nowhere, since Q2's binding attempt fails and SLF4J then uses a logger that discards everything",
+            "correct": true,
+            "says": "Q2 swallows the exception and SLF4J uses its no-operation logger"
+          },
+          {
+            "id": "d",
+            "text": "Nowhere, since library output reaches the Q2 log only through a bridge listener that forwards it",
+            "correct": false,
+            "says": "a bridge listener carries jPOS events into SLF4J, the other direction"
+          }
+        ],
+        "origin": {
+          "path": "src/c8.md",
+          "section": "8.7 A Bridge to SLF4J Sits After the Filter and Keeps Each Event Whole"
+        }
+      }
+    ]
+  }
+}

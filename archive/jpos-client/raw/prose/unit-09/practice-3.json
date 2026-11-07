@@ -1,0 +1,146 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Collect late approvals without putting the link at risk",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Finance wants every purchase approval that arrived after its request had given up, so that reconciliation can check that each one was reversed. You're adding a request listener to the host's QMUX for this: `LateAnswers` in `src/main/java/com/example/practice/LateAnswers.java`. It hands each late approval to a `Ledger`, which writes to a database table."
+    },
+    {
+      "type": "para",
+      "text": "The first version ran for one morning in the test environment. It filled the ledger with entries that weren't approvals of purchases, the host's own messages stopped getting answers, and every time the ledger table was locked the link to the host dropped."
+    },
+    {
+      "type": "para",
+      "text": "Finish `process`. The QMUX gives it every message that no request is waiting for. Its return value says whether this listener took the message; whatever it doesn't take goes on to the next listener and then to the `<unhandled>` queue. About eight lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests run a real QMUX with your listener against a host on the far side of its queues. Some of them keep a second purchase waiting while a late answer arrives."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/**\n * A request listener on the host QMUX. It sees every message that no request is waiting for, and\n * hands the late approvals of purchases to the reconciliation ledger.\n */\npublic class LateAnswers implements ISORequestListener {\n\n    /** The reconciliation ledger. Like any database write, it can fail. */\n    public interface Ledger {\n        void lateApproval(ISOMsg response);\n    }\n\n    private final Ledger ledger;\n\n    public LateAnswers(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            boolean money = \"12\".indexOf(m.getMTI().charAt(1)) >= 0;      // 01xx and 02xx\n            if (!m.isResponse() || !money || !\"00\".equals(m.getString(39)))\n                return false;\n            ledger.lateApproval(m);\n            return true;\n        } catch (ISOException | RuntimeException e) {\n            return false;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/**\n * A request listener on the host QMUX. It sees every message that no request is waiting for, and\n * hands the late approvals of purchases to the reconciliation ledger.\n */\npublic class LateAnswers implements ISORequestListener {\n\n    /** The reconciliation ledger. Like any database write, it can fail. */\n    public interface Ledger {\n        void lateApproval(ISOMsg response);\n    }\n\n    private final Ledger ledger;\n\n    public LateAnswers(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: Hand the late approvals of purchases to the ledger and say whether you took the\n        //       message. Everything else this listener is given belongs to someone else.\n        //       (about eight lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f4bb0449c1bf3edeac33111a830042fc06ab863839bec28200ad92d927fbd8b1",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/**\n * A request listener on the host QMUX. It sees every message that no request is waiting for, and\n * hands the late approvals of purchases to the reconciliation ledger.\n */\npublic class LateAnswers implements ISORequestListener {\n\n    /** The reconciliation ledger. Like any database write, it can fail. */\n    public interface Ledger {\n        void lateApproval(ISOMsg response);\n    }\n\n    private final Ledger ledger;\n\n    public LateAnswers(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: Hand the late approvals of purchases to the ledger and say whether you took the\n        //       message. Everything else this listener is given belongs to someone else.\n        //       (about eight lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-09/practice-3/src/main/java/com/example/practice/LateAnswers.java",
+    "test_path": "practice/jpos-client/prose/unit-09/practice-3/src/test/java/com/example/practice/LateAnswersTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-09/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LateAnswersTest#aLateApprovalReachesTheLedger",
+        "kind": "main",
+        "says": "a purchase approval that arrives after its request gave up is handed to the ledger and taken"
+      },
+      {
+        "id": "com.example.practice.LateAnswersTest#aMessageTheHostStartsGoesOn",
+        "kind": "edge",
+        "says": "a message the host starts, such as an 0800, is not an answer at all and goes on to the unhandled queue"
+      },
+      {
+        "id": "com.example.practice.LateAnswersTest#aLateDeclineIsNotAnApproval",
+        "kind": "edge",
+        "says": "a late decline moved no money and does not reach the ledger"
+      },
+      {
+        "id": "com.example.practice.LateAnswersTest#aLateEchoAnswerMovedNoMoney",
+        "kind": "edge",
+        "says": "a late network answer with 39=00 is not a purchase approval"
+      },
+      {
+        "id": "com.example.practice.LateAnswersTest#aBrokenLedgerCostsNoOtherAnswer",
+        "kind": "edge",
+        "says": "a failing ledger never escapes the listener, so the answers behind it are still delivered"
+      },
+      {
+        "id": "com.example.practice.LateAnswersTest#aLateApprovalTheLedgerRefusedIsKept",
+        "kind": "edge",
+        "says": "a late approval the ledger could not take is passed on, not swallowed"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-09/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c9.md",
+      "section": "9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
+    },
+    "concepts": [
+      "An exception in a response or request listener ends in the adaptor's receiver thread and drops the link; a callback catches its own failures and hands them on."
+    ]
+  }
+}

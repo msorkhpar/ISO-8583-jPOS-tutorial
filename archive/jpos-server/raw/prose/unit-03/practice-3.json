@@ -1,0 +1,154 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Send a server-initiated message to the terminal it is meant for",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Before a store closes for the night, the server signs its terminals off: an `0800` with field 70 = `002`, addressed to one terminal through field 41. A batch job builds these messages and calls `TerminalDirectory.send` for each. Today half of the sign-offs arrive at the wrong till, and the till they were meant for keeps transacting."
+    },
+    {
+      "type": "para",
+      "text": "`TerminalDirectory` in `src/main/java/com/example/practice/TerminalDirectory.java` is a request listener that goes first in the QServer's chain. Finish its two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`process(source, m)`: called for every message the server receives;",
+        "`send(m)`: sends `m` to its terminal, and returns `false` when that terminal can't be reached now (the batch job retries those later)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Terminals reconnect during the day, and some are switched off without closing anything. About eight lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests play QServer: they offer each message to the directory and then to a stand-in for the rest of the chain, and their connections can be closed."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.io.IOException;\nimport java.util.Map;\nimport java.util.concurrent.ConcurrentHashMap;\n\n/**\n * First in the QServer's listener chain. Learns which connection each terminal uses, so that the\n * server can send a terminal the messages it starts itself (key changes, sign-offs, echoes).\n */\npublic class TerminalDirectory implements ISORequestListener {\n    private final Map<String, ISOSource> connections = new ConcurrentHashMap<>();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (m.hasField(41))\n            connections.put(m.getString(41), source);\n        return false;\n    }\n\n    /**\n     * Sends m to the terminal named in its field 41.\n     * @return true if it was sent, false if that terminal can't be reached now\n     */\n    public boolean send(ISOMsg m) throws IOException, ISOException {\n        ISOSource source = connections.get(m.getString(41));\n        if (source == null || !source.isConnected())\n            return false;\n        source.send(m);\n        return true;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.io.IOException;\nimport java.util.Map;\nimport java.util.concurrent.ConcurrentHashMap;\n\n/**\n * First in the QServer's listener chain. Learns which connection each terminal uses, so that the\n * server can send a terminal the messages it starts itself (key changes, sign-offs, echoes).\n */\npublic class TerminalDirectory implements ISORequestListener {\n    private final Map<String, ISOSource> connections = new ConcurrentHashMap<>();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: Every message from every connection passes through here first. Learn from it what\n        //       send() will need, and leave the message to the listeners after this one.\n        //       (three lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n\n    /**\n     * Sends m to the terminal named in its field 41.\n     * @return true if it was sent, false if that terminal can't be reached now\n     */\n    public boolean send(ISOMsg m) throws IOException, ISOException {\n        // TODO: Use what process() learned. A terminal that can't be reached now is not an error\n        //       here: say so with the return value. (about five lines)\n        throw new IllegalStateException(\"TODO: send\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "dba4d9adf49282262e4b5d5299c791a553310f2b06b11e4983097bd20b7b4a5d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.io.IOException;\nimport java.util.Map;\nimport java.util.concurrent.ConcurrentHashMap;\n\n/**\n * First in the QServer's listener chain. Learns which connection each terminal uses, so that the\n * server can send a terminal the messages it starts itself (key changes, sign-offs, echoes).\n */\npublic class TerminalDirectory implements ISORequestListener {\n    private final Map<String, ISOSource> connections = new ConcurrentHashMap<>();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: Every message from every connection passes through here first. Learn from it what\n        //       send() will need, and leave the message to the listeners after this one.\n        //       (three lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n\n    /**\n     * Sends m to the terminal named in its field 41.\n     * @return true if it was sent, false if that terminal can't be reached now\n     */\n    public boolean send(ISOMsg m) throws IOException, ISOException {\n        // TODO: Use what process() learned. A terminal that can't be reached now is not an error\n        //       here: say so with the return value. (about five lines)\n        throw new IllegalStateException(\"TODO: send\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-03/practice-3/src/main/java/com/example/practice/TerminalDirectory.java",
+    "test_path": "practice/jpos-server/prose/unit-03/practice-3/src/test/java/com/example/practice/TerminalDirectoryTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#aTerminalGetsAMessageAddressedToIt",
+        "kind": "main",
+        "says": "after a terminal has sent a message, a message addressed to it through field 41 is sent on its connection"
+      },
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#everyMessageGoesOnToTheRestOfTheChain",
+        "kind": "edge",
+        "says": "the directory returns false, so every request still reaches the listeners that answer it"
+      },
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#aTerminalThatReconnectedIsReachedOnItsNewConnection",
+        "kind": "edge",
+        "says": "a terminal that reconnected is reached on its newest connection"
+      },
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#aTerminalThatIsGoneIsReportedNotReached",
+        "kind": "edge",
+        "says": "a terminal whose connection is closed, or that never connected, is reported as not reached, without a send"
+      },
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#eachTerminalGetsOnlyWhatIsAddressedToIt",
+        "kind": "edge",
+        "says": "with two terminals connected, a message goes to the one it is addressed to, not to the one that connected last"
+      },
+      {
+        "id": "com.example.practice.TerminalDirectoryTest#aMessageWithoutATerminalIdStillGoesOn",
+        "kind": "edge",
+        "says": "a message without field 41 passes through the directory without an error"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-03/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s3.md",
+      "section": "3.5 The Server Picks the Connection for a Message It Starts"
+    },
+    "concepts": [
+      "A message the server starts goes to the connection the server chooses: QServer's in queue sends to the last connection, so a terminal is addressed through the source it last used, kept per terminal ID."
+    ]
+  }
+}

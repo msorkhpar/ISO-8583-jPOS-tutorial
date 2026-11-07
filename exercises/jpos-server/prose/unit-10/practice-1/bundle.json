@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 10,
   "ordinal": 1,
-  "title": "Turn every failure into an error response",
+  "title": "Make the ATM network's answers say what really happened",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ErrorHandlingParticipant.java",
-  "test_file": "src/test/java/com/example/practice/ErrorHandlingParticipantTest.java",
+  "main_file": "src/main/java/com/example/practice/AnswerFailures.java",
+  "test_file": "src/test/java/com/example/practice/AnswerFailuresTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ErrorHandlingParticipantTest#eachKindOfFailureGetsItsOwnCodeAndMessage",
+      "id": "com.example.practice.AnswerFailuresTest#aReportedCauseGetsTheNetworksCode",
       "kind": "main",
-      "says": "a parse, processing or network failure becomes an error response with code 01, 02 or 03 and the failure's message"
+      "says": "a failure a participant reported is answered, as a reply to its request, with the network's code for that cause"
     },
     {
-      "id": "com.example.practice.ErrorHandlingParticipantTest#theParticipantAbortsWithAnErrorResponseInsteadOfThrowing",
-      "kind": "main",
-      "says": "the participant prepares a good request, and for a missing request or a failing processing code aborts with the error response in the context"
-    },
-    {
-      "id": "com.example.practice.ErrorHandlingParticipantTest#anUnexpectedFailureSaysNothingAboutItsInternals",
+      "id": "com.example.practice.AnswerFailuresTest#aFailureNobodyPlannedForIsTheServersOwn",
       "kind": "edge",
-      "says": "an unexpected failure becomes code 99 with a generic message, never the failure's own text"
+      "says": "a thrown exception, or a cause the network's table doesn't list, is answered 96, never with a decline"
     },
     {
-      "id": "com.example.practice.ErrorHandlingParticipantTest#aRequestOfTheWrongTypeStillAbortsCleanly",
+      "id": "com.example.practice.AnswerFailuresTest#anApprovalThatAbortsDoesNotLeave",
       "kind": "edge",
-      "says": "a context holding something that is not an ISOMsg aborts with code 99 instead of throwing out of prepare"
+      "says": "an approval already in RESPONSE is replaced when a later participant aborts the transaction"
+    },
+    {
+      "id": "com.example.practice.AnswerFailuresTest#aPartialApprovalThatAbortsDoesNotLeave",
+      "kind": "edge",
+      "says": "a partial approval (10) is an approval too, and is replaced on the abort path"
+    },
+    {
+      "id": "com.example.practice.AnswerFailuresTest#aRefusalAlreadyBuiltIsKept",
+      "kind": "edge",
+      "says": "a refusal a participant built itself is the answer and is not replaced, while a failure with nothing built gets one"
     }
   ],
   "report": {
@@ -59,6 +64,6 @@
   },
   "origin": {
     "path": "src/s10.md",
-    "section": "10.2 Implementing Error Handling"
+    "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
   }
 }

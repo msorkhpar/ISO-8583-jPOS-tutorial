@@ -1,0 +1,145 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Pay through a pool without paying twice",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A chain of stores pays through a `MUXPool` over two links to its acquirer. Since the second link was added, two complaints have come in. On Tuesday a link dropped at noon, and a few cardholders were charged twice for one purchase, although the checkout showed a single approval. And during the nightly maintenance, when both links are down, every checkout hangs for a second before failing, and the reversal queue fills with purchases the acquirer has never seen."
+    },
+    {
+      "type": "para",
+      "text": "`Checkout.pay` in `src/main/java/com/example/practice/Checkout.java` already handles purchases the host answers. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`canSend()`: whether to send at all;",
+        "`onNoAnswer(...)`: what a purchase with no answer becomes."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Purchases that must be reversed go onto the `TO_REVERSE` queue of the space (`sp.out`), where the reversal sender takes them. About four lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests run a real round-robin `MUXPool` over two real QMUXes, with a test host behind each link."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\n/** Sends a store's purchases to the acquirer through a MUXPool over several links. */\npublic class Checkout {\n    public enum Outcome { APPROVED, DECLINED, UNAVAILABLE, UNKNOWN }\n\n    /** Purchases waiting to be reversed; the reversal sender of unit c12 takes them from here. */\n    public static final String TO_REVERSE = \"to-reverse\";\n\n    private final MUX pool;\n    private final Space<String, Object> sp;\n    private final long timeout;\n\n    public Checkout(MUX pool, Space<String, Object> sp, long timeout) {\n        this.pool = pool;\n        this.sp = sp;\n        this.timeout = timeout;\n    }\n\n    /** Sends one purchase and says what became of it. */\n    public Outcome pay(ISOMsg purchase) throws ISOException {\n        if (!canSend())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = pool.request(purchase, timeout);\n        if (response == null)\n            return onNoAnswer(purchase);\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** Whether the purchase should be sent at all. */\n    boolean canSend() {\n        return pool.isConnected();\n    }\n\n    /** The purchase went out and no answer came back in time. */\n    Outcome onNoAnswer(ISOMsg purchase) throws ISOException {\n        sp.out(TO_REVERSE, purchase);\n        return Outcome.UNKNOWN;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\n/** Sends a store's purchases to the acquirer through a MUXPool over several links. */\npublic class Checkout {\n    public enum Outcome { APPROVED, DECLINED, UNAVAILABLE, UNKNOWN }\n\n    /** Purchases waiting to be reversed; the reversal sender of unit c12 takes them from here. */\n    public static final String TO_REVERSE = \"to-reverse\";\n\n    private final MUX pool;\n    private final Space<String, Object> sp;\n    private final long timeout;\n\n    public Checkout(MUX pool, Space<String, Object> sp, long timeout) {\n        this.pool = pool;\n        this.sp = sp;\n        this.timeout = timeout;\n    }\n\n    /** Sends one purchase and says what became of it. */\n    public Outcome pay(ISOMsg purchase) throws ISOException {\n        if (!canSend())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = pool.request(purchase, timeout);\n        if (response == null)\n            return onNoAnswer(purchase);\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** Whether the purchase should be sent at all. */\n    boolean canSend() {\n        // TODO: Decide before anything goes out. A purchase that is never sent can be reported\n        //       to the cardholder at once and needs nothing afterwards.\n        throw new IllegalStateException(\"TODO: canSend\");\n    }\n\n    /** The purchase went out and no answer came back in time. */\n    Outcome onNoAnswer(ISOMsg purchase) throws ISOException {\n        // TODO: The purchase left on one of the links and nothing came back. Return the outcome\n        //       the store must show, and make sure the money ends up where it belongs.\n        throw new IllegalStateException(\"TODO: onNoAnswer\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "49b1776ad0fe34961cc9eda5e3093cf09efd241bf2e27dfb99c4dc893e2ac924",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\n/** Sends a store's purchases to the acquirer through a MUXPool over several links. */\npublic class Checkout {\n    public enum Outcome { APPROVED, DECLINED, UNAVAILABLE, UNKNOWN }\n\n    /** Purchases waiting to be reversed; the reversal sender of unit c12 takes them from here. */\n    public static final String TO_REVERSE = \"to-reverse\";\n\n    private final MUX pool;\n    private final Space<String, Object> sp;\n    private final long timeout;\n\n    public Checkout(MUX pool, Space<String, Object> sp, long timeout) {\n        this.pool = pool;\n        this.sp = sp;\n        this.timeout = timeout;\n    }\n\n    /** Sends one purchase and says what became of it. */\n    public Outcome pay(ISOMsg purchase) throws ISOException {\n        if (!canSend())\n            return Outcome.UNAVAILABLE;\n        ISOMsg response = pool.request(purchase, timeout);\n        if (response == null)\n            return onNoAnswer(purchase);\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** Whether the purchase should be sent at all. */\n    boolean canSend() {\n        // TODO: Decide before anything goes out. A purchase that is never sent can be reported\n        //       to the cardholder at once and needs nothing afterwards.\n        throw new IllegalStateException(\"TODO: canSend\");\n    }\n\n    /** The purchase went out and no answer came back in time. */\n    Outcome onNoAnswer(ISOMsg purchase) throws ISOException {\n        // TODO: The purchase left on one of the links and nothing came back. Return the outcome\n        //       the store must show, and make sure the money ends up where it belongs.\n        throw new IllegalStateException(\"TODO: onNoAnswer\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-14/practice-2/src/main/java/com/example/practice/Checkout.java",
+    "test_path": "practice/jpos-client/prose/unit-14/practice-2/src/test/java/com/example/practice/CheckoutTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CheckoutTest#answeredPurchasesAreApprovedOrDeclined",
+        "kind": "main",
+        "says": "a purchase the host answers is approved or declined by field 39 and leaves nothing to reverse"
+      },
+      {
+        "id": "com.example.practice.CheckoutTest#aPurchaseLeftUnansweredGoesToNoOtherLink",
+        "kind": "edge",
+        "says": "a purchase with no answer is an unknown outcome and is never handed to the pool again, where another link would take it"
+      },
+      {
+        "id": "com.example.practice.CheckoutTest#aPurchaseLeftUnansweredIsQueuedForReversal",
+        "kind": "edge",
+        "says": "a purchase with no answer may have been approved, so it is queued for reversal"
+      },
+      {
+        "id": "com.example.practice.CheckoutTest#withEveryLinkDownNothingIsSentOrReversed",
+        "kind": "edge",
+        "says": "with no usable link the purchase is reported unavailable before anything is sent, and nothing is queued for reversal"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-14/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c14.md",
+      "section": "14.5 With Nothing Usable, the Pool Spends the Request's Own Time"
+    },
+    "concepts": [
+      "A pool chooses a member once per request and never moves it, so a null from the pool is an unknown outcome to reverse; a retry through the pool lands on another link as a second purchase.",
+      "With nothing usable the pool polls once a second inside the request's own budget and returns null with nothing sent, so the caller checks isConnected first."
+    ]
+  }
+}

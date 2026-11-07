@@ -1,25 +1,17 @@
-A cardholder's PIN must never travel, or sit in memory longer than it has to, in the clear.
-The server hands it to a security module, which returns it encrypted under the module's own
-Local Master Key (LMK). That block is only good inside the module's domain: nobody else holds
-the LMK, so the next hop could never read it. Before it goes on the wire, the module
-re-encrypts (exports) the PIN under the Zone PIN Key (ZPK) the two parties share, in the
-PIN block format they agreed on. That exported block is what goes into field 52. Because the
-application only talks to the `SMAdapter` interface, the module behind it can be jPOS's
-software `JCESecurityModule` or a hardware HSM, and in a test a mock.
+An acquirer forwards every terminal request to its network. On the morning of the security test,
+the testers report three findings: a purchase whose amount they changed on the way was approved, a
+purchase they sent with no MAC was approved, and every PIN purchase from a new terminal comes back
+from the network as `55`, incorrect PIN, though the cardholders typed the right one.
 
-Write `PinEncryptionService`, built from an `SMAdapter<SecureDESKey>`, the ZPK (a
-`SecureDESKey`) and the PIN block format (a `byte`, such as `SMAdapter.FORMAT05`), with
-`ISOMsg encryptPIN(ISOMsg msg, String clearPin)`. It:
+`TerminalGate` in `src/main/java/com/example/practice/TerminalGate.java` is the first participant of
+the chain. `prepare` already decides what happens; finish the two methods it calls, marked `TODO`:
 
-- asks the module to encrypt the PIN with the card number from field 2, through
-  `encryptPIN(pin, accountNumber)`. Pass the whole card number; jPOS takes the digits it needs;
-- exports that result under the ZPK in the service's format, through
-  `exportPIN(pinUnderLmk, zpk, format)`;
-- puts the exported block (`EncryptedPIN.getPINBlock()`) into field 52 and returns the same message;
-- never puts the clear PIN into any field.
+- `macVerifies`: whether this request really comes from the terminal it names;
+- `forNetwork`: what the network receives in place of the terminal's request.
 
-Watch for:
+`QueryHost` comes later in the chain and sends whatever `forNetwork` returned. `macInput`, `hsm()`
+and `keys()` are given. About twelve lines in total.
 
-- field 52 is binary: it holds the block's 8 bytes themselves, not their hex digits as text;
-- a message with no card number cannot have a PIN block. Throw `IllegalArgumentException`
-  before asking the module anything.
+The tests deploy a real TransactionManager with a real `QueryHost` and QMUX in the test's own JVM,
+with a real software security module and key file. Two terminals and the network hold their own
+copies of the keys.

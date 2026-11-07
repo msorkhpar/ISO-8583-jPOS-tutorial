@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 6,
   "ordinal": 1,
-  "title": "Answer a request without spoiling it",
+  "title": "Hand the terminal's chip data and PIN block to the host intact",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ResponseMaker.java",
-  "test_file": "src/test/java/com/example/practice/ResponseMakerTest.java",
+  "main_file": "src/main/java/com/example/practice/TerminalBridge.java",
+  "test_file": "src/test/java/com/example/practice/TerminalBridgeTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ResponseMakerTest#aPurchaseIsAnsweredWithItsFieldsAndAResponseCode",
+      "id": "com.example.practice.TerminalBridgeTest#aPurchaseCarriesThePinBlockTheCardholderTyped",
       "kind": "main",
-      "says": "a 0200 request is answered with a 0210 that echoes its fields, carries the response code in field 39 and drops the EMV data in field 55"
+      "says": "a purchase reaches the host with the PIN block the cardholder typed"
     },
     {
-      "id": "com.example.practice.ResponseMakerTest#anAuthorizationIsAnsweredWith0110",
-      "kind": "edge",
-      "says": "the response MTI follows the request's MTI, so a 0100 is answered with a 0110"
+      "id": "com.example.practice.TerminalBridgeTest#theHostsChipDataReachesTheTerminalAsHex",
+      "kind": "main",
+      "says": "chip data in the host's response reaches the terminal as hex text"
     },
     {
-      "id": "com.example.practice.ResponseMakerTest#theRequestIsLeftUntouched",
+      "id": "com.example.practice.TerminalBridgeTest#chipDataGoesOutAsTheBytesTheChipProduced",
       "kind": "edge",
-      "says": "the request is left exactly as it came in"
+      "says": "the host receives the chip's bytes, not the hex text the terminal handed over, on an ASCII link and on a binary one"
+    },
+    {
+      "id": "com.example.practice.TerminalBridgeTest#eachRequestKeepsItsOwnPinBlock",
+      "kind": "edge",
+      "says": "a request keeps its own PIN block after the PIN pad reuses its buffer for the next cardholder"
+    },
+    {
+      "id": "com.example.practice.TerminalBridgeTest#chipDataFromAnAsciiLinkReachesTheTerminalAsHex",
+      "kind": "edge",
+      "says": "chip data unpacked as text by an ASCII packager still reaches the terminal as the hex of its bytes"
+    },
+    {
+      "id": "com.example.practice.TerminalBridgeTest#aResponseWithoutChipDataGivesTheTerminalNothing",
+      "kind": "edge",
+      "says": "a response without field 55 gives the terminal null rather than an exception"
     }
   ],
   "report": {
@@ -54,6 +69,6 @@
   },
   "origin": {
     "path": "src/c6.md",
-    "section": "6.1 ISOMsg"
+    "section": "6.2 Binary Data Goes In as Bytes"
   }
 }

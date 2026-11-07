@@ -1,0 +1,151 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Probe a link without trusting the next frame",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Operations want a command-line check for a new acquirer link: connect a channel, send one echo, and print `UP`, `NO_ANSWER` or `LINK_DOWN`. The first version reported `UP` on a night when the host was answering nothing, and on a busy afternoon it sat for twenty minutes before it printed anything."
+    },
+    {
+      "type": "para",
+      "text": "Write the probe in `src/main/java/com/example/practice/EchoProbe.java`: the two methods marked `TODO`. `check` gets a connected channel, a STAN, and a time budget measured by the `clock` it was given. It must report within the budget what became of that one echo:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`UP`: the host answered this echo;",
+        "`NO_ANSWER`: the host is connected but this echo got no answer;",
+        "`LINK_DOWN`: the host closed the connection."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About 13 lines in total. The tests use a channel with no socket that plays a script: the host's messages, silences and hang-ups, each at a set moment on the clock."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.net.SocketTimeoutException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        long deadline = clock.getAsLong() + budgetMillis;\n        try {\n            channel.send(echo(stan));\n            while (clock.getAsLong() < deadline) {\n                if (isAnswerTo(channel.receive(), stan))\n                    return Result.UP;\n            }\n            return Result.NO_ANSWER;\n        } catch (SocketTimeoutException e) {\n            return Result.NO_ANSWER;\n        } catch (IOException e) {\n            return Result.LINK_DOWN;\n        }\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        return \"0810\".equals(m.getMTI()) && stan.equals(m.getString(11));\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        // TODO: send echo(stan) on the channel and decide which Result it ends with. The operator\n        //       runs this against a live link, and must get an answer within budgetMillis\n        //       (as measured by clock), whatever the host does meanwhile. (about 12 lines)\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        // TODO: one line\n        throw new IllegalStateException(\"TODO: isAnswerTo\");\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "72283875f38c29ab141a1c1f302a9eb20333d9c05686f0cdd678ea8ca7a55077",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        // TODO: send echo(stan) on the channel and decide which Result it ends with. The operator\n        //       runs this against a live link, and must get an answer within budgetMillis\n        //       (as measured by clock), whatever the host does meanwhile. (about 12 lines)\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        // TODO: one line\n        throw new IllegalStateException(\"TODO: isAnswerTo\");\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-03/practice-2/src/main/java/com/example/practice/EchoProbe.java",
+    "test_path": "practice/jpos-client/prose/unit-03/practice-2/src/test/java/com/example/practice/EchoProbeTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-03/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-03/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.EchoProbeTest#anAnsweredEchoMeansTheLinkIsUp",
+        "kind": "main",
+        "says": "an echo the host answers reports the link up"
+      },
+      {
+        "id": "com.example.practice.EchoProbeTest#theHostsOwnEchoIsNotTheAnswer",
+        "kind": "edge",
+        "says": "a message the host sends on its own is not the answer, even when it arrives first and carries the probe's STAN"
+      },
+      {
+        "id": "com.example.practice.EchoProbeTest#anAnswerToAnEarlierEchoIsNotTheAnswer",
+        "kind": "edge",
+        "says": "an answer is the probe's only when it carries the probe's STAN, so a late answer to an earlier echo does not count"
+      },
+      {
+        "id": "com.example.practice.EchoProbeTest#aBusyHostDoesNotStretchTheBudget",
+        "kind": "edge",
+        "says": "the read timeout measures silence, so a host that keeps talking needs a deadline of the probe's own"
+      },
+      {
+        "id": "com.example.practice.EchoProbeTest#silenceMeansNoAnswer",
+        "kind": "edge",
+        "says": "receive() never returns null: silence ends in SocketTimeoutException, which means no answer"
+      },
+      {
+        "id": "com.example.practice.EchoProbeTest#aHostThatHangsUpHasTakenTheLinkDown",
+        "kind": "edge",
+        "says": "a closed connection ends in EOFException, which is a link down rather than a missing answer"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-03/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c3.md",
+      "section": "3.3 `receive()` Returns the Next Frame, Not Your Answer"
+    },
+    "concepts": [
+      "receive() returns the next frame, not your answer, never returns null, and its read timeout measures silence; silence and a closed connection are different exceptions."
+    ]
+  }
+}

@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 12,
   "ordinal": 1,
-  "title": "Bridge an ISO-8583 request to a gateway and back",
+  "title": "Send the gateway the charge the cardholder agreed to",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/GatewayBridge.java",
-  "test_file": "src/test/java/com/example/practice/GatewayBridgeTest.java",
+  "main_file": "src/main/java/com/example/practice/ChargeMapper.java",
+  "test_file": "src/test/java/com/example/practice/ChargeMapperTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,44 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.GatewayBridgeTest#mapsARequestIntoTheGatewaysFormat",
+      "id": "com.example.practice.ChargeMapperTest#aEuroSaleBecomesACharge",
       "kind": "main",
-      "says": "a purchase request becomes a gateway request with a decimal amount, an MM/YY expiry, its type and a full date"
+      "says": "a euro purchase becomes a sale charge with its decimal amount, its currency and its full local date and time"
     },
     {
-      "id": "com.example.practice.GatewayBridgeTest#answersTheRequestFromTheGatewaysReply",
+      "id": "com.example.practice.ChargeMapperTest#aPoundRefundBecomesARefundCharge",
       "kind": "main",
-      "says": "a success becomes a 00 response with the gateway's transaction id, a failure a 05 response with its error text"
+      "says": "a pound refund becomes a refund charge"
     },
     {
-      "id": "com.example.practice.GatewayBridgeTest#aDayStillAheadBelongsToLastYear",
+      "id": "com.example.practice.ChargeMapperTest#eachCurrencyPlacesItsOwnDecimalPoint",
       "kind": "edge",
-      "says": "a transaction date later in the year than today is given last year"
+      "says": "the currency's exponent places the decimal point: none for Chilean pesos, three for Kuwaiti dinars"
     },
     {
-      "id": "com.example.practice.GatewayBridgeTest#refusesAProcessingCodeTheGatewayHasNoTypeFor",
+      "id": "com.example.practice.ChargeMapperTest#aCurrencyOutsideTheContractIsRefused",
       "kind": "edge",
-      "says": "a processing code with no gateway transaction type is refused, not guessed"
+      "says": "a currency outside the gateway's list is refused, even one jPOS knows, such as 999 or 840"
+    },
+    {
+      "id": "com.example.practice.ChargeMapperTest#aPurchaseFromLastYearMappedAfterNewYearKeepsItsYear",
+      "kind": "edge",
+      "says": "a purchase from 29 December mapped on 3 January keeps the old year"
+    },
+    {
+      "id": "com.example.practice.ChargeMapperTest#aTerminalClockAheadAtNewYearIsAlreadyInTheNewYear",
+      "kind": "edge",
+      "says": "a purchase stamped just after midnight on 1 January, mapped seconds before midnight, gets the new year"
+    },
+    {
+      "id": "com.example.practice.ChargeMapperTest#aRefundThatNamesAnAccountIsStillARefund",
+      "kind": "edge",
+      "says": "the transaction type decides the kind, whatever account types the processing code names"
+    },
+    {
+      "id": "com.example.practice.ChargeMapperTest#aTransactionTheGatewayHasNoKindForIsRefused",
+      "kind": "edge",
+      "says": "a cash advance, a transfer or a cash-back purchase is refused rather than sent as a sale"
     }
   ],
   "report": {
@@ -59,6 +79,6 @@
   },
   "origin": {
     "path": "src/12.md",
-    "section": "12.2. Mapping ISO-8583 to API calls"
+    "section": "12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
   }
 }

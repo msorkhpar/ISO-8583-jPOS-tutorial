@@ -8,7 +8,7 @@
   "unit": 11,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Connection Management",
   "blocks": [
     {
@@ -18,139 +18,623 @@
     },
     {
       "type": "para",
-      "text": "Connection management is crucial for maintaining efficient and reliable communication between the client and server in ISO-8583 message processing. In jPOS, connection management is primarily handled through the `ISOClientSocketFactory` interface and its implementations."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "11.1 Overview of ISOClientSocketFactory"
+      "text": "The acquirer's host restarts at 03:10. The ChannelAdaptor of unit c3 waits its reconnect delay and connects again. The ready entry is back, `mux.isConnected()` says `true`, and the first purchase of the morning comes back declined. So does every purchase after it, until someone at the acquirer looks at the log at 07:30."
     },
     {
       "type": "para",
-      "text": "The `ISOClientSocketFactory` is an interface in jPOS that defines methods for creating and managing socket connections. It allows for customization of socket creation, including setting up SSL/TLS connections, connection pooling, and handling reconnection attempts."
+      "text": "The host wanted a sign-on on the new connection, and nothing in jPOS 2.1.7 sends one. The unit has six rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "11.2 Key Features of Connection Management"
+      "text": "11.1 A Connected Link Is Not a Signed-On Link"
+    },
+    {
+      "type": "para",
+      "text": "The examples run a real Q2 with the descriptors of units c3 and c4 against a small host on 127.0.0.1. Like hosts that want a sign-on, it keeps a signed-on flag per connection and declines every purchase on an unsigned connection with response code 91. It can also drop its connections, hang, refuse sign-ons and send echoes of its own. The adaptor's `reconnect-delay` is 3 seconds, to keep the runs short."
+    },
+    {
+      "type": "para",
+      "text": "The 03:10 restart, compressed: a purchase on a fresh connection, a sign-on by hand, another purchase, then the host drops the connection and we try again:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host: 0200 11=000701 on connection 1 -> 39=91\n   0.0 s  isConnected true, purchase -> 0210 39=91\n   0.0 s  host: 0800 70=001 on connection 1 -> 39=00\n   0.0 s  0800 70=001 -> 0810 39=00\n   0.0 s  host: 0200 11=000703 on connection 1 -> 39=00\n   0.0 s  purchase -> 0210 39=00\n   0.0 s  host: dropped its connections\n   4.0 s  host: connection 2 accepted\n   4.0 s  host: 0200 11=000704 on connection 2 -> 39=91\n   4.0 s  isConnected true, purchase -> 0210 39=91"
+    },
+    {
+      "type": "para",
+      "text": "`isConnected()` was true every time. It reads the adaptor's ready entry (unit c4), which says only that a TCP connection exists. Whether the host will take traffic on it is settled at the ISO 8583 level, with network management messages: MTI 0800, the function in field 70:"
     },
     {
       "type": "list",
-      "ordered": true,
+      "ordered": false,
       "items": [
-        "Connection Pooling: Reuse existing connections to reduce overhead.",
-        "Reconnection Strategies: Automatically attempt to reconnect in case of network failures.",
-        "SSL/TLS Support: Secure communication between client and server.",
-        "Timeout Handling: Manage connection and read timeouts."
+        "**001, sign-on.** \"I am here and ready to send you traffic.\" Many hosts refuse financial messages on a connection until it has signed on.",
+        "**301, echo.** \"Are you still there?\" Sent every few minutes.",
+        "**002, sign-off.** \"I am about to stop.\" Sent before a planned disconnect."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The host answers each with an 0810, `39=00` when it agrees. The sign-on is per connection: when the connection goes, the session goes with it, and the reconnect starts unsigned."
+    },
+    {
+      "type": "para",
+      "text": "jPOS 2.1.7 has no component that sends these messages. The `org.jpos.tutorial.LogonManager` of the jpos.org tutorial is tutorial code, not a class in the 2.1.7 jar. We write our own in 11.3."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** Some hosts decline unsigned traffic, some drop it without an answer, some close the connection. Some also require a key exchange after sign-on (unit c15). The client's side of the problem is the same."
+        }
       ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "11.3 Implementing Connection Management"
+      "text": "11.2 Only an Echo Proves the Host Is Answering"
     },
     {
       "type": "para",
-      "text": "Let's implement a custom `ISOClientSocketFactory` that includes connection pooling and reconnection strategies. We'll use Apache Commons Pool for connection pooling."
+      "text": "Two settings have \"alive\" in their name, and a team that has switched both on may think the link is watched. Neither proves what an echo proves:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Mechanism",
+        "Configured as",
+        "What goes on the wire",
+        "What an answer proves"
+      ],
+      "rows": [
+        [
+          "network echo",
+          "an 0800 / 301 that your code sends",
+          "a real request, answered by the host application",
+          "the host application is taking messages"
+        ],
+        [
+          "adaptor keep-alive",
+          "`<keep-alive>yes</keep-alive>` on the ChannelAdaptor",
+          "an empty frame when nothing was sent for `reconnect-delay` ms",
+          "nothing: the adaptor neither expects nor checks an answer"
+        ],
+        [
+          "TCP keep-alive",
+          "channel property `keep-alive` = `true`",
+          "operating system probes on an idle socket, often after two hours",
+          "the far side's TCP stack is there"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "First, add the necessary dependencies to your `pom.xml`:"
+      "text": "Hang the host's application while its process keeps reading the socket. Read timeout 5 seconds, one echo every 5 seconds by hand:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  the host application hangs (read timeout 5 s, keep-alive no)\n   2.0 s  isConnected true, echo -> null\n   7.0 s  isConnected true, echo -> null\n   7.0 s  host: connection 2 accepted\n  12.0 s  isConnected true, echo -> null\n  13.0 s  host: connection 3 accepted\n  ...\n  38.0 s  host: connection 7 accepted"
+    },
+    {
+      "type": "para",
+      "text": "Each time the read timeout fires, the adaptor reconnects, and the host's process accepts a new connection that is just as dead: accepting is not the application's job. Seven connections in 40 seconds, and `isConnected()` was true at almost every check."
+    },
+    {
+      "type": "para",
+      "text": "The same run with `<keep-alive>yes</keep-alive>` and a reconnect delay of 1 second:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  the host application hangs (read timeout 5 s, keep-alive yes)\n   2.0 s  isConnected true, echo -> null\n  ...\n  27.0 s  host: connection 2 accepted\n  ...\n  40.0 s  tx=9, rx=1, tx_expired=0, tx_pending=0, rx_expired=8, rx_pending=0, rx_unhandled=0, rx_forwarded=0, connected=true, last=1793989451917, idle=40010ms"
+    },
+    {
+      "type": "para",
+      "text": "One reconnect in 40 seconds instead of six. The 2.1.7 `ASCIIChannel`, at either end, answers an empty frame with an empty frame inside its own read loop, before any application code sees it. So the hung host's channel kept answering, and the read timeout seldom saw five seconds of silence."
+    },
+    {
+      "type": "para",
+      "text": "Only the echoes showed it: eight sent, eight expired (`rx_expired=8` in the QMUX counters). Every purchase sent in that time would also have expired, each an unknown outcome to reverse (unit c12). A failed echo has to take the link out of service, which the sign-on manager in 11.3 does."
+    },
+    {
+      "type": "para",
+      "text": "Echoes also keep a quiet link from tripping the read timeout or an idle firewall, as long as they come more often than either fires. Unit c12 sizes all the timeouts together."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.3 A Sign-On Belongs to One Connection"
+    },
+    {
+      "type": "para",
+      "text": "Each connection needs exactly one sign-on, made after it opens and before it carries traffic. How does a manager know that the connection it signed on is the one that is up now?"
+    },
+    {
+      "type": "para",
+      "text": "The adaptor puts a **new** `Date` object under `host-channel.ready` for every connection (unit c3), so that object names the connection. Store the same object when the sign-on succeeds, and the question becomes one comparison: is the object I signed on the one there now? After a reconnect it is not, whatever happened in between."
+    },
+    {
+      "type": "para",
+      "text": "A boolean \"signed on\" flag, cleared when the manager sees the link down, can't tell. The manager below runs one loop for all its links, and one unanswered exchange blocks that loop for `timeout` (30 seconds by default), while the adaptor reconnects within `reconnect-delay` (10 seconds). A link can drop and come back while the loop is busy elsewhere, and the flag still says \"signed on\" about a connection that never was."
+    },
+    {
+      "type": "para",
+      "text": "The manager keeps its whole state in the Space, as marks next to the ready entry:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Space key",
+        "Value",
+        "Written when",
+        "Lives for"
+      ],
+      "rows": [
+        [
+          "`host-mux.logon`",
+          "the ready object of the connection that signed on",
+          "a sign-on is answered with 00",
+          "`logon-interval`, e.g. 24 hours"
+        ],
+        [
+          "`host-mux.echo`",
+          "`Boolean.TRUE`",
+          "a sign-on or an echo is answered with 00",
+          "`echo-interval`, e.g. 5 minutes"
+        ],
+        [
+          "`host-mux.enabled`",
+          "the same ready object",
+          "a sign-on is answered with 00",
+          "until the manager sees the link down, an echo fails or the manager stops"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Self-expiring entries replace timers. When the echo mark has expired, an echo is due. When the logon mark has expired, or holds another connection's object, a sign-on is due."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.link;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.QBeanSupport;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.Date;\nimport java.util.TimeZone;\n\n/** Course code, not a jPOS class: signs on and echoes one or more QMUXes. */\npublic class LogonManager extends QBeanSupport implements Runnable {\n    public enum Action { WAIT, LOGON, ECHO, IDLE }\n\n    protected Space<String, Object> sp;\n    private Space<String, Object> stanSpace;\n    private String stanKey;\n    protected String[] muxNames;\n    private long timeout, echoInterval, logonInterval;\n\n    @Override\n    protected void initService() {\n        sp = SpaceFactory.getSpace(cfg.get(\"space\", \"\"));\n        stanSpace = SpaceFactory.getSpace(cfg.get(\"stan-space\", \"\"));\n        stanKey = cfg.get(\"stan-key\", \"stan.host\");\n        muxNames = cfg.getAll(\"mux\");\n        timeout = cfg.getLong(\"timeout\", 30000L);\n        echoInterval = cfg.getLong(\"echo-interval\", 300000L);\n        logonInterval = cfg.getLong(\"logon-interval\", 86400000L);\n    }\n\n    @Override\n    protected void startService() {\n        new Thread(this, getName()).start();\n    }\n\n    @Override\n    public void run() {\n        while (running()) {\n            for (String name : muxNames)\n                step(name);\n            ISOUtil.sleep(1000);\n        }\n    }\n\n    /** The decision, kept pure so that a test can call it without Q2. */\n    public static Action decide(Object ready, Object logonMark, Object echoMark) {\n        if (ready == null)\n            return Action.WAIT;                         // link down\n        if (logonMark != ready)\n            return Action.LOGON;                        // (1) a new connection, or the logon expired\n        if (echoMark == null)\n            return Action.ECHO;                         // (2) the echo interval has passed\n        return Action.IDLE;\n    }\n\n    private void step(String name) {\n        Object ready = sp.rdp(readyKey(name));\n        switch (decide(ready, sp.rdp(name + \".logon\"), sp.rdp(name + \".echo\"))) {\n            case WAIT:\n                SpaceUtil.wipe(sp, name + \".enabled\");\n                break;\n            case LOGON:\n                SpaceUtil.wipe(sp, name + \".enabled\");\n                if (exchange(name, \"001\")) {\n                    sp.put(name + \".logon\", ready, logonInterval);      // (3) put replaces\n                    sp.put(name + \".echo\", Boolean.TRUE, echoInterval);\n                    sp.put(name + \".enabled\", ready);                 // (4) the ready object itself\n                }\n                break;\n            case ECHO:\n                if (exchange(name, \"301\")) {\n                    sp.put(name + \".echo\", Boolean.TRUE, echoInterval);\n                } else {\n                    SpaceUtil.wipe(sp, name + \".enabled\");            // (5) out of the pool,\n                    SpaceUtil.wipe(sp, name + \".logon\");              //     and sign on again\n                }\n                break;\n            default:\n                break;\n        }\n    }\n\n    /** Sends an 0800 with the given network management code; true if answered with 00. */\n    protected boolean exchange(String muxName, String code) {\n        try {\n            MUX mux = QMUX.getMUX(muxName);\n            ISOMsg m = new ISOMsg(\"0800\");\n            m.set(7, ISODate.getDateTime(new Date(), TimeZone.getTimeZone(\"UTC\")));\n            long n = SpaceUtil.nextLong(stanSpace, stanKey);    // the link's own STAN sequence\n            m.set(11, ISOUtil.zeropad(((n - 1) % 999999) + 1, 6));\n            m.set(70, code);\n            ISOMsg r = mux.request(m, timeout);\n            return r != null && \"00\".equals(r.getString(39));\n        } catch (ISOException | NameRegistrar.NotFoundException e) {\n            getLog().warn(muxName + \" \" + code, e);\n            return false;\n        }\n    }\n\n    protected String readyKey(String muxName) {\n        try {\n            String[] ready = ((QMUX) QMUX.getMUX(muxName)).getReadyIndicatorNames();\n            return ready != null && ready.length > 0 ? ready[0] : muxName + \".ready\";\n        } catch (NameRegistrar.NotFoundException e) {\n            return muxName + \".ready\";\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "**(1) Identity, not equality.** `!=` compares objects. Two connections opened in the same millisecond have equal `Date`s, and `equals` would call them one connection."
+    },
+    {
+      "type": "para",
+      "text": "**(2) An echo is due when its mark has expired**, and only on a connection that signed on."
+    },
+    {
+      "type": "para",
+      "text": "**(3) `put`, not `out`.** `out` adds a second entry, and `rdp` keeps returning the first one. `put` replaces it."
+    },
+    {
+      "type": "para",
+      "text": "**(4) The enabled mark is the ready object.** 11.4 shows who reads it."
+    },
+    {
+      "type": "para",
+      "text": "**(5) A failed echo starts over.** The link leaves the pool at once, and the next pass signs on again. Against the hung host of 11.2 that sign-on gets no answer either, so the link stays out until the host recovers. Unit c15 discusses when one failed echo is too few."
+    },
+    {
+      "type": "para",
+      "text": "The STAN comes from the same sequence as the link's purchases (unit c4), so the host never sees two messages from this link with the same STAN. An 0800 carries no field 41, so QMUX's key for it is the out queue, the MTI and field 11, and only this client's own 0800s compete for it. Field 7 is in UTC, as the standard wants."
+    },
+    {
+      "type": "para",
+      "text": "Q2 deploys the manager from `deploy/30_host_logon.xml`, after the channels and QMUXes it names:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<dependency>\n    <groupId>org.apache.commons</groupId>\n    <artifactId>commons-pool2</artifactId>\n    <version>2.11.1</version>\n</dependency>"
+      "text": "<logon-manager name=\"host-logon\" class=\"com.example.jpos.client.link.LogonManager\" logger=\"Q2\">\n  <property name=\"mux\" value=\"host-mux\"/>\n  <property name=\"stan-space\" value=\"je:stan\"/>\n  <property name=\"stan-key\" value=\"stan.host\"/>\n  <property name=\"timeout\" value=\"30000\"/>\n  <property name=\"echo-interval\" value=\"300000\"/>\n  <property name=\"logon-interval\" value=\"86400000\"/>\n</logon-manager>"
     },
     {
       "type": "para",
-      "text": "Now, let's create our custom `PooledISOClientSocketFactory`:"
+      "text": "A repeated `mux` property becomes the array that `cfg.getAll(\"mux\")` returns."
+    },
+    {
+      "type": "para",
+      "text": "Deployed with a 4-second echo interval (and `tspace:stan`, to keep the run free of files), with the host dropping the connection after 9.5 seconds:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host: 0800 70=001 on connection 1 -> 39=00\n   0.0 s  host-mux.enabled is the ready object: true\n   4.0 s  host: 0800 70=301 on connection 1 -> 39=00\n   9.0 s  host: 0800 70=301 on connection 1 -> 39=00\n   9.5 s  host: dropped its connections\n  12.5 s  host: connection 2 accepted\n  13.0 s  host: 0800 70=001 on connection 2 -> 39=00\n  13.0 s  host-mux.enabled is the new ready object: true"
+    },
+    {
+      "type": "para",
+      "text": "Half a second after the reconnect, the next pass of the loop saw a ready object it had never signed on, and signed on. Nothing had told it about the reconnect."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.4 A Pool Uses a Link Only While It Is Signed On"
+    },
+    {
+      "type": "para",
+      "text": "Two links, A and B, sit behind a round-robin `MUXPool` (unit c4), with one manager for both. Host B drops its connection, and when the adaptor reconnects, host B refuses the first three sign-ons. Eight purchases come in, one every half second from the moment B reconnects. Where do they go?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host B: dropped its connections\n   4.0 s  host B: connection 2 accepted\n   4.0 s  host B: 0200 11=000702 on connection 2 -> 39=91\n   4.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   5.0 s  host B: 0200 11=000704 on connection 2 -> 39=91\n   5.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   6.0 s  host B: 0200 11=000706 on connection 2 -> 39=91\n   6.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   7.0 s  host B: 0200 11=000708 on connection 2 -> 39=91\n   7.5 s  host B: 0800 70=001 on connection 2 -> 39=00\n   7.5 s  host A approved 4; host B approved 0, declined 4"
+    },
+    {
+      "type": "para",
+      "text": "Half went to B and were declined. The pool asks each member only `isConnected()`, B's adaptor is connected, and the manager has no way to tell the pool otherwise. Add one property to the pool:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux name=\"host-pool\" class=\"org.jpos.q2.iso.MUXPool\" logger=\"Q2\">\n  <muxes>host-mux host-mux-b</muxes>\n  <strategy>round-robin</strategy>\n  <property name=\"check-enabled\" value=\"true\"/>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "and run the same morning again:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host B: dropped its connections\n   3.0 s  host B: connection 2 accepted\n   3.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   4.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   5.5 s  host B: 0800 70=001 on connection 2 -> 39=91\n   6.5 s  host B: 0800 70=001 on connection 2 -> 39=00\n   6.5 s  host B: 0200 11=000707 on connection 2 -> 39=00\n   7.5 s  host A approved 7; host B approved 1, declined 0"
+    },
+    {
+      "type": "para",
+      "text": "With `check-enabled`, the 2.1.7 pool counts a QMUX that has one `<ready>` name as usable only when it is connected **and** the Space entry `<mux name>.enabled` is the same object as its ready entry. The test is `==`, made on every request. B's enabled mark held the ready object of connection 1, so it stopped matching when connection 2 brought a new one, before the manager had noticed the reconnect. B came back into rotation with its first successful sign-on."
+    },
+    {
+      "type": "para",
+      "text": "The `==` test also rejects `Boolean.TRUE` as the enabled mark, a natural choice for \"enabled\": TRUE is never the ready `Date`. One link behind a pool with `check-enabled`; after the first purchase we put the ready `Date` there by hand:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host-mux.enabled = TRUE; pool isConnected false\n   3.0 s  purchase -> null\n   3.0 s  host-mux.enabled = the ready Date; pool isConnected true\n   3.0 s  purchase -> 0210 39=00"
+    },
+    {
+      "type": "para",
+      "text": "With `Boolean.TRUE` the link is never used. Every purchase waits its full timeout and comes back `null` without leaving the pool, while the host is signed on and waiting. The caller can't tell that `null` from a lost answer, so under unit c12's policy it would reverse purchases the host never saw."
+    },
+    {
+      "type": "para",
+      "text": "A client without a pool has no `check-enabled` and has to ask the same question itself before it sends."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**One link, several addresses.** The channel properties `alternate-host` and `alternate-port`, repeated in pairs, give one adaptor more addresses to try when a connect fails, the primary first: failover at connect time, one connection at a time, no pool. Each new connection still needs its sign-on, which the manager handles the same way. Unit c14 compares this with a pool."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.5 Take a Link Out of Service Before You Sign It Off"
+    },
+    {
+      "type": "para",
+      "text": "Every Tuesday night, operations take link A out for maintenance. Each link has its own manager (`host-logon-a`, `host-logon-b`), and the plan is to remove `30_host_logon_a.xml` from `deploy/`, which makes Q2 call the manager's `stopService`. A first version:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.isoclient.connection;\n\nimport org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.apache.commons.pool2.impl.GenericObjectPoolConfig;\nimport org.jpos.iso.ISOClientSocketFactory;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\nimport java.io.IOException;\nimport java.net.Socket;\n\n@Component\npublic class PooledISOClientSocketFactory implements ISOClientSocketFactory {\n\n    private final GenericObjectPool<Socket> socketPool;\n\n    public PooledISOClientSocketFactory() {\n        GenericObjectPoolConfig<Socket> config = new GenericObjectPoolConfig<>();\n        config.setMaxTotal(10);\n        config.setMaxIdle(5);\n        config.setMinIdle(2);\n        config.setTestOnBorrow(true);\n        config.setTestOnReturn(true);\n        config.setTestWhileIdle(true);\n        config.setMinEvictableIdleTimeMillis(60000);\n        config.setTimeBetweenEvictionRunsMillis(30000);\n\n        socketPool = new GenericObjectPool<>(new SocketFactory(), config);\n    }\n\n    @Override\n    public Socket createSocket(String host, int port) throws IOException {\n        try {\n            return socketPool.borrowObject();\n        } catch (Exception e) {\n            throw new IOException(\"Failed to create socket\", e);\n        }\n    }\n\n    @Override\n    public void setLogger(org.jpos.util.Logger logger, String realm) {\n        // Implementation for logging if needed\n    }\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        // Implementation for configuration if needed\n    }\n\n    private class SocketFactory extends BasePooledObjectFactory<Socket> {\n\n        @Override\n        public Socket create() throws Exception {\n            // Replace with actual host and port\n            return new Socket(\"iso.example.com\", 8583);\n        }\n\n        @Override\n        public PooledObject<Socket> wrap(Socket socket) {\n            return new DefaultPooledObject<>(socket);\n        }\n\n        @Override\n        public boolean validateObject(PooledObject<Socket> p) {\n            Socket socket = p.getObject();\n            return socket.isConnected() && !socket.isClosed();\n        }\n\n        @Override\n        public void destroyObject(PooledObject<Socket> p) throws Exception {\n            Socket socket = p.getObject();\n            if (!socket.isClosed()) {\n                socket.close();\n            }\n        }\n    }\n\n    // Method to close the pool when shutting down the application\n    public void closePool() {\n        socketPool.close();\n    }\n}"
+      "text": "    @Override\n    protected void stopService() {\n        for (String name : muxNames) {\n            exchange(name, \"002\");                      // (1) sign off\n            SpaceUtil.wipe(sp, name + \".enabled\");      // (2) then take the link out of the pool\n        }\n    }"
     },
     {
       "type": "para",
-      "text": "This implementation uses Apache Commons Pool to manage a pool of Socket objects. It includes features like:"
+      "text": "Purchases flow through the pool, one every quarter second, and the host takes a second to answer the 002. Later the manager is deployed again. What goes wrong?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   1.0 s  stopping host-logon-a\n   2.0 s  host A: 0800 70=002 on connection 1 -> 39=00\n   2.0 s  host A: 0200 11=000706 on connection 1 -> 39=91\n   4.0 s  host A: approved 2, declined 1\n   4.0 s  host-logon-a deployed again\n   4.0 s  host A: 0800 70=301 on connection 1 -> 39=00\n   8.0 s  host A: 0800 70=301 on connection 1 -> 39=00\n  12.0 s  host A: 0800 70=301 on connection 1 -> 39=00\n  14.0 s  host-mux.enabled absent; host A approved 2, declined 1"
+    },
+    {
+      "type": "para",
+      "text": "**A purchase was lost to the sign-off.** Between (1) and (2) the link was still enabled: the host had already processed the 002, and the pool kept routing purchases to A while the 0810 was on its way. One cardholder was declined; on a busy link that second costs dozens."
+    },
+    {
+      "type": "para",
+      "text": "**The link never came back.** The redeployed manager found a logon mark that still matched the ready object, because the connection was the same one. `decide` said \"signed on, echo due\", the echoes were answered, and nothing wrote an enabled mark again. In production link A stays out of the pool until the logon mark expires, a day later, while the host has been told the client left."
+    },
+    {
+      "type": "para",
+      "text": "The order follows from what each mark means:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "the enabled mark is what routes traffic, so it goes **first**;",
+        "the 002 goes only to a connection that actually signed on: the ready entry is there and is the very object in the logon mark. A link that is down, or that reconnected since, has no session to end;",
+        "the logon mark goes **last**, whether or not the host answered, because the session is over either way."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "With that order, the same night:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   1.0 s  stopping host-logon-a\n   2.0 s  host A: 0800 70=002 on connection 1 -> 39=00\n   4.0 s  host A: approved 2, declined 0\n   4.0 s  host-logon-a deployed again\n   4.0 s  host A: 0800 70=001 on connection 1 -> 39=00\n   4.0 s  host A: 0200 11=000717 on connection 1 -> 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The pool sent everything to B while A signed off, and A rejoined with its first sign-on."
+    },
+    {
+      "type": "para",
+      "text": "Requests already waiting on A still finish or time out there; unit c15 drains them before the"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Connection pooling with configurable pool size and idle connections.",
-        "Validation of connections before borrowing and after returning to the pool.",
-        "Periodic eviction of idle connections."
+        "Q2's stop only asks the loop thread to end: a pass in the middle of a 30-second sign-on can still write an enabled mark after `stopService` removed it. Check `running()` before writing, or wait for the thread to end."
+      ],
+      "start": 2
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.6 The Host's Own Echo Is a Request, and Someone Must Answer It"
+    },
+    {
+      "type": "para",
+      "text": "A host may check the link from its side too: it sends an 0800 / 301 every few minutes and drops the connection after a few go unanswered. One arriving at a QMUX configured as in unit c4:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host: sent 0800 70=301 11=000042\n   0.0 s  host-mux-unhandled: 0800 70=301 11=000042"
+    },
+    {
+      "type": "para",
+      "text": "QMUX found no waiting request for it and put it on the `<unhandled>` queue, where it expires after two minutes. Neither QMUX nor the channel answers an 0800 by itself, so the host gives up and drops a healthy link."
+    },
+    {
+      "type": "para",
+      "text": "Messages that match no waiting request go first to the QMUX's request listeners, in order, and only reach `<unhandled>` when none of them takes the message:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.link;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.io.IOException;\n\n/** Answers the host's own 0800 echoes with 0810 / 00. Unit c15 handles the other codes. */\npublic class NetworkManagementResponder implements ISORequestListener {\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!\"0800\".equals(m.getMTI()) || !\"301\".equals(m.getString(70)))\n                return false;                   // the next listener, or <unhandled>, gets it\n            ISOMsg reply = (ISOMsg) m.clone(0, 7, 11, 70);\n            reply.setResponseMTI();\n            reply.set(39, \"00\");\n            source.send(reply);                 // through the channel it came in on\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Add it to `20_host_mux.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux class=\"org.jpos.q2.iso.QMUX\" name=\"host-mux\" logger=\"Q2\">\n  <in>host-receive</in>\n  <out>host-send</out>\n  <ready>host-channel.ready</ready>\n  <unhandled>host-mux-unhandled</unhandled>\n  <request-listener class=\"com.example.jpos.client.link.NetworkManagementResponder\"/>\n</mux>"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   0.0 s  host: got 0810 39=00 on connection 1\n   0.0 s  host: sent 0800 70=301 11=000042\n   2.0 s  host-mux-unhandled: empty"
+    },
+    {
+      "type": "para",
+      "text": "The `source` a listener receives is the channel that read the message: the 2.1.7 `BaseChannel` marks every message it receives with itself, so the reply leaves through the channel the echo came in on. QMUX passes itself only for a message that carries no source."
+    },
+    {
+      "type": "para",
+      "text": "The reply copies only the fields an 0810 needs. `clone(int...)` copies exactly the fields you name, so field 0, the MTI, has to be in the list. Without it `getMTI` throws, the listener returns `false`, and the echo lands on `<unhandled>`. Return `false` for anything you don't handle, so that late answers to your own requests still reach `<unhandled>` (unit c12)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A connected link is not a signed-on link.** The ready entry says that TCP is up. A host that wants a sign-on declines or drops everything on a new connection until it gets one.",
+        "**Only an echo proves the host is answering.** Adaptor and TCP keep-alives are answered below the application, so a hung host passes them; an 0800 / 301 that expires is the signal to take the link out.",
+        "**A sign-on belongs to one connection**, and the adaptor's ready object names it. Store that object in the logon mark and compare with `==`; a boolean flag misses a reconnect that happened while the loop was busy.",
+        "**A pool uses a link only while it is signed on**: with `check-enabled`, the enabled mark must be the very ready object. A reconnect takes the link out by itself, and `Boolean.TRUE` keeps it out for good.",
+        "**Disable, sign off, forget.** Remove the enabled mark before the 002, send the 002 only to the connection that signed on, and remove the logon mark whatever the answer, or the link stays out of the pool after the next deploy.",
+        "**Answer the host's echo** with a request listener on the QMUX, through the `source` it is given. Unanswered echoes end on `<unhandled>`, and the host drops the link."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Network management (0800 / 0810) codes used here,** in field 70:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Code",
+        "Meaning",
+        "Sent by"
+      ],
+      "rows": [
+        [
+          "`001`",
+          "sign-on",
+          "the client after each new connection; some hosts too"
+        ],
+        [
+          "`002`",
+          "sign-off",
+          "the side about to stop"
+        ],
+        [
+          "`301`",
+          "echo test",
+          "either side, while the link is quiet"
+        ]
       ]
     },
     {
       "type": "para",
-      "text": "To use this `PooledISOClientSocketFactory` in your jPOS client configuration, you can create a Spring configuration class:"
+      "text": "**The sign-on manager's marks** (in the Space the pool and the adaptor use):"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "package com.example.isoclient.config;\n\nimport com.example.isoclient.connection.PooledISOClientSocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.iso.QMUX;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOClientConfig {\n\n    @Bean\n    public NACChannel nacChannel(PooledISOClientSocketFactory socketFactory) {\n        NACChannel channel = new NACChannel();\n        channel.setSocketFactory(socketFactory);\n        channel.setHost(\"iso.example.com\");\n        channel.setPort(8583);\n        return channel;\n    }\n\n    @Bean\n    public QMUX qmux(NACChannel channel) {\n        QMUX qmux = new QMUX();\n        qmux.setInQueue(\"tx-request\");\n        qmux.setOutQueue(\"tx-response\");\n        qmux.addChannel(channel);\n        return qmux;\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Key",
+        "Value",
+        "Lifetime"
+      ],
+      "rows": [
+        [
+          "`<mux>.logon`",
+          "the ready object of the connection that signed on",
+          "`logon-interval`"
+        ],
+        [
+          "`<mux>.echo`",
+          "`Boolean.TRUE`",
+          "`echo-interval`"
+        ],
+        [
+          "`<mux>.enabled`",
+          "the same ready object",
+          "until the manager sees the link down, an echo fails, or the manager stops"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "This configuration sets up a `NACChannel` using our custom `PooledISOClientSocketFactory` and configures a `QMUX` for handling ISO messages."
+      "text": "**`LogonManager` properties:** `mux` (repeatable), `space` (default space if empty), `stan-space`, `stan-key` (default `stan.host`), `timeout` (default 30000 ms per exchange), `echo-interval` (default 300000 ms), `logon-interval` (default 86400000 ms)."
+    },
+    {
+      "type": "para",
+      "text": "**`MUXPool` usability in 2.1.7** (`isUsable`, checked on every request):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Configuration",
+        "A QMUX member is usable when"
+      ],
+      "rows": [
+        [
+          "no `check-enabled`",
+          "`isConnected()`"
+        ],
+        [
+          "`check-enabled`, one `<ready>` name",
+          "`isConnected()` and `<mux>.enabled` `==` the ready entry"
+        ],
+        [
+          "`check-enabled`, several `<ready>` names",
+          "`isConnected()` and `<mux>.enabled` exists"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Counters for watching a link** (JMX through Q2, or the methods directly):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Component",
+        "Counter",
+        "Read it as"
+      ],
+      "rows": [
+        [
+          "ChannelAdaptor",
+          "`getConnectsCounter()`",
+          "connections made; a steady rise is a flapping link"
+        ],
+        [
+          "ChannelAdaptor",
+          "`getTXCounter()`, `getRXCounter()`, `getIdleTimeInMillis()`",
+          "messages sent and received, time since the last message received"
+        ],
+        [
+          "QMUX",
+          "`getCountersAsString()`: `tx`, `rx`, `tx_expired`, `tx_pending`, `rx_expired`, `rx_pending`, `rx_unhandled`, `rx_forwarded`, `connected`, `last`, `idle`",
+          "`rx_expired` counts requests that got no answer; `rx_unhandled` counts late answers and host messages nobody took; `rx_forwarded` counts messages offered to request listeners"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Keep-alive settings:** `<keep-alive>yes</keep-alive>` on the ChannelAdaptor writes an empty frame when no message was sent for `reconnect-delay` ms. The channel property `keep-alive` sets the socket's `SO_KEEPALIVE`. The channel property `timeout` is the read timeout (unit c3)."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "11.4 Testing the Connection Management"
-    },
-    {
-      "type": "para",
-      "text": "To test our connection management implementation, we can create a JUnit test:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "package com.example.isoclient.connection;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.q2.iso.QMUX;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.test.context.junit.jupiter.SpringExtension;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@ExtendWith(SpringExtension.class)\n@SpringBootTest\npublic class ConnectionManagementTest {\n\n    @Autowired\n    private QMUX qmux;\n\n    @Autowired\n    private NACChannel channel;\n\n    @Autowired\n    private PooledISOClientSocketFactory socketFactory;\n\n    @BeforeEach\n    public void setup() throws Exception {\n        channel.connect();\n    }\n\n    @Test\n    public void testConnectionPooling() throws Exception {\n        // Simulate multiple requests\n        for (int i = 0; i < 5; i++) {\n            ISOMsg request = new ISOMsg();\n            request.setMTI(\"0800\");\n            request.set(11, String.format(\"%06d\", i));  // Stan\n\n            ISOMsg response = qmux.request(request, 30000);  // 30 seconds timeout\n\n            assertThat(response).isNotNull();\n            assertThat(response.getMTI()).isEqualTo(\"0810\");\n            assertThat(response.getString(39)).isEqualTo(\"00\");  // Assuming \"00\" is a successful response\n        }\n    }\n\n    // Add more tests as needed\n}"
-    },
-    {
-      "type": "para",
-      "text": "This test simulates multiple requests to verify that the connection pooling is working correctly. You may need to adjust the test based on your specific ISO-8583 message format and expected responses."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "11.5 Considerations and Best Practices"
+      "text": "11.9 Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Error Handling: Implement robust error handling for network issues, timeouts, and other potential problems.",
-        "Monitoring: Add logging and metrics to monitor the health and performance of your connection pool.",
-        "Configuration: Make pool settings configurable through external configuration files.",
-        "SSL/TLS: If using secure connections, implement proper SSL/TLS handling in the socket factory.",
-        "Reconnection Strategy: Implement a reconnection strategy for handling network failures."
+        "Your host answers a sign-on in 200 ms but sometimes takes 25 seconds to answer an echo under load. Choose the manager's `timeout`, `echo-interval` and the read timeout, and say what a 25-second echo does to the other links served by the same manager thread.",
+        "A host requires a sign-on per connection and also a daily sign-on at its cutover, 00:00 host time, on every open connection. Which mark would you change, and how, so that the existing `decide` handles it?",
+        "Two client instances each run their own adaptor to the same host, one connection each, and share a terminal ID. Does each need its own manager? What do they have to share, and what must they never share?",
+        "Measure how long a link stays in the pool after its host application hangs, with an echo interval of 5 minutes, a manager `timeout` of 30 seconds and the loop of 11.3. How would you shorten it without echoing every few seconds?"
       ]
     },
     {
+      "type": "heading",
+      "level": 2,
+      "text": "11.10 Design Note: Why Marks in the Space and Not a State Machine?"
+    },
+    {
       "type": "para",
-      "text": "By implementing effective connection management, you can improve the reliability and efficiency of your ISO-8583 client application. The pooled connection approach helps in reusing connections, reducing the overhead of creating new connections for each request, and managing the number of open connections to the server."
+      "text": "A sign-on lifecycle is a state machine, and the obvious code keeps the state in a field: DOWN, CONNECTED, SIGNED_ON. This manager keeps no state in fields. Everything it knows sits in the Space, as entries that expire by themselves or stop matching when another component writes something new."
+    },
+    {
+      "type": "para",
+      "text": "The state is not the manager's. The connection belongs to the adaptor, which can replace it at any moment without telling anyone. A field in the manager is a copy of the adaptor's state, wrong from the moment the original changes until it is next refreshed. Storing the adaptor's own object removes that window: a stale mark stops matching the moment the adaptor writes a new ready entry, and the pool, which reads the same entries, sees the change at the same moment. Expiry replaces the timers a state machine would need for \"echo due\" and \"sign-on expired\", each one more thing to cancel correctly on every path."
+    },
+    {
+      "type": "para",
+      "text": "The price is that the logic is spread over keys rather than written in one place, and a mistake in one of them shows up somewhere else: a mark that is never removed keeps a link out of the pool (11.5). Unit c15 draws the same lifecycle as a state diagram, so the two views can be checked against each other."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 6,
-    "paras": 11,
-    "code": 4,
-    "tables": 0,
-    "lists": 3,
+    "headings": 11,
+    "paras": 59,
+    "code": 17,
+    "tables": 6,
+    "lists": 5,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "c9858fa76ce2b0e7d58082e928c340b122267c1d6fabd7a92faf704df6b2c86f"
+  "content_sha256": "7896657e0119b8213b70f7294b4dfc384f1d2795b9bfafd7b31f2010d589bb96"
 }

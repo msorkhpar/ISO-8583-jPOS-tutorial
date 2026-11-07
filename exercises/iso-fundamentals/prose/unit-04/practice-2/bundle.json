@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 4,
   "ordinal": 2,
-  "title": "Decide what a response says about its request",
+  "title": "Hand each answer to the message it answers",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/Exchange.java",
-  "test_file": "src/test/java/com/example/practice/ExchangeTest.java",
+  "main_file": "src/main/java/com/example/practice/Inbox.java",
+  "test_file": "src/test/java/com/example/practice/InboxTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ExchangeTest#readsTheOutcomeOfAResponseThatAnswersItsRequest",
+      "id": "com.example.practice.InboxTest#anAnswerReachesTheMessageItAnswers",
       "kind": "main",
-      "says": "a response that answers its request is approved on response code 00 and declined on any other; a message that is not an answer, or has no response code, is refused"
+      "says": "an authorization, a purchase and an echo each receive their own answer, and the sent messages stay unchanged"
     },
     {
-      "id": "com.example.practice.ExchangeTest#aResponseOfAnotherClassIsNotTheAnswer",
-      "kind": "edge",
-      "says": "a response of another message class, such as 0210 to an 0100, does not answer the request"
+      "id": "com.example.practice.InboxTest#aMessageNobodyWaitsForReachesNobody",
+      "kind": "main",
+      "says": "an answer with another STAN, or the host's own request, reaches no waiting message"
     },
     {
-      "id": "com.example.practice.ExchangeTest#aResponseWithAnotherStanIsNotTheAnswer",
+      "id": "com.example.practice.InboxTest#anAnswerOfAnotherClassIsNotTheAnswer",
       "kind": "edge",
-      "says": "a response that carries a different STAN answers some other request"
+      "says": "a response of another class, such as an 0210 with the STAN of a waiting 0100, answers some other message"
+    },
+    {
+      "id": "com.example.practice.InboxTest#anAdviceIsAnsweredByAnAdviceResponse",
+      "kind": "edge",
+      "says": "an advice is answered by an advice response, so an 0220 takes an 0230 and not an 0210"
+    },
+    {
+      "id": "com.example.practice.InboxTest#aRepeatIsAnsweredLikeTheOriginal",
+      "kind": "edge",
+      "says": "a repeat is answered like the message it repeats, so an 0421 takes an 0430"
+    },
+    {
+      "id": "com.example.practice.InboxTest#anotherTerminalsAnswerIsNotYours",
+      "kind": "edge",
+      "says": "two terminals with the same STAN each receive their own answer, because the terminal ID is part of the match"
     }
   ],
   "report": {
@@ -54,6 +69,6 @@
   },
   "origin": {
     "path": "src/4.md",
-    "section": "4.1. Authorization messages"
+    "section": "4.1. The Third Digit Pairs Every Message With Its Answer"
   }
 }

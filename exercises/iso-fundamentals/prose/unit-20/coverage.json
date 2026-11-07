@@ -1,0 +1,188 @@
+{
+  "coverage_api": 2,
+  "page": "src/20.md",
+  "kind": "code",
+  "quiz": "check-yourself",
+  "case": "code-no-tests",
+  "digests": {
+    "src/20.md": "sha256:7d14a76e67701543553cd78c7ddbc0c90606675871646b33af8a8efd0ddd1b69"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 4,
+    "aspects": [
+      {
+        "id": "at-least-once",
+        "says": "Delivery is at least once because a sender can't tell a lost message from a lost acknowledgement, and the repeat period couples sender and receiver.",
+        "basis": [
+          "section:20.10. Design Note: Why Delivery Is at Least Once"
+        ],
+        "exercise": null,
+        "reason": "a design argument about why the protocol repeats; the receiver practice exercises its consequence"
+      },
+      {
+        "id": "never-withdrawn",
+        "says": "A queued reversal leaves only when the receiver answers it; a late approval does not withdraw it.",
+        "basis": [
+          "section:20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged"
+        ],
+        "exercise": "store-before-answering",
+        "reason": null
+      },
+      {
+        "id": "order-per-link",
+        "says": "One sender per link takes only the head, so entries about one transaction reach the receiver in the order they were decided.",
+        "basis": [
+          "section:20.5. One Sender per Link Delivers Entries in the Order They Were Decided",
+          "example:src/20.md:5"
+        ],
+        "exercise": "retry-schedule",
+        "reason": null
+      },
+      {
+        "id": "park-not-delete",
+        "says": "At the network's limit, in attempts or time from the first attempt, an entry is parked in its stored form and reported, and the next entry goes.",
+        "basis": [
+          "section:20.4. After the Network's Limit an Entry Is Parked and Reported, Never Deleted"
+        ],
+        "exercise": "retry-schedule",
+        "reason": null
+      },
+      {
+        "id": "receiver-applies-once",
+        "says": "The receiver identifies a message by what its repeats share, posts it once, applies a reversal once, and remembers a reversal that found nothing so its late original is never posted.",
+        "basis": [
+          "section:20.6. The Receiver Applies Each Advice Once, by an Identity Its Repeats Share",
+          "example:src/20.md:6",
+          "example:src/20.md:7"
+        ],
+        "exercise": "apply-each-advice-once",
+        "reason": null
+      },
+      {
+        "id": "repeat-and-backoff",
+        "says": "Later attempts are repeats; the wait doubles from a base up to a cap, and a reconnect makes the head due at once without resetting its count.",
+        "basis": [
+          "section:20.3. Every Later Attempt Is a Repeat, and the Wait Grows Until a Reconnect Cuts It Short",
+          "example:src/20.md:4"
+        ],
+        "exercise": "retry-schedule",
+        "reason": null
+      },
+      {
+        "id": "saf-holds-advices",
+        "says": "A SAF stores advices (0120, 0220, 0420) in their first form, never a request, a response or a repeat, and nothing that proves the card; a request that can't be sent fails at once.",
+        "basis": [
+          "section:20.1. A SAF Holds Reports of Decisions Already Taken, Never a Request",
+          "example:src/20.md:1",
+          "example:src/20.md:2"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "store-before-tell",
+        "says": "The reversal is stored, in the same transaction as its journal record, before the terminal is told the purchase failed.",
+        "basis": [
+          "section:20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged",
+          "example:src/20.md:3"
+        ],
+        "exercise": "store-before-answering",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "store-before-answering",
+        "aspects": [
+          "never-withdrawn",
+          "store-before-tell"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "retry-schedule",
+        "aspects": [
+          "order-per-link",
+          "park-not-delete",
+          "repeat-and-backoff"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "apply-each-advice-once",
+        "aspects": [
+          "receiver-applies-once"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "check-yourself",
+        "aspects": [
+          "saf-holds-advices"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/iso-fundamentals/prose/unit-20/practice-1",
+    "exercises/iso-fundamentals/prose/unit-20/practice-2",
+    "exercises/iso-fundamentals/prose/unit-20/practice-3",
+    "exercises/iso-fundamentals/prose/unit-20/practice-4"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-1",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-2",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.4. After the Network's Limit an Entry Is Parked and Reported, Never Deleted"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-3",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.6. The Receiver Applies Each Advice Once, by an Identity Its Repeats Share"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-4:q-link-down-purchase",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.1. A SAF Holds Reports of Decisions Already Taken, Never a Request"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-4:q-tell-order",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-4:q-flapping-link",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.3. Every Later Attempt Is a Repeat, and the Wait Grows Until a Reconnect Cuts It Short"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-20/practice-4:q-reversal-first",
+      "origin": {
+        "path": "src/20.md",
+        "section": "20.6. The Receiver Applies Each Advice Once, by an Identity Its Repeats Share"
+      }
+    }
+  ],
+  "shortfalls": []
+}

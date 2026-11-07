@@ -8,8 +8,8 @@
   "unit": 3,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Write a field value the way its format says",
+  "ingested": "2026-11-05",
+  "title": "Write fields a strict receiver can split",
   "blocks": [
     {
       "type": "heading",
@@ -18,26 +18,24 @@
     },
     {
       "type": "para",
-      "text": "Every data element has a format, written the way the data element tables write it: `n6`, `an12`, `n..19`, `ans..999`. The format is all a receiver has to find where one field ends and the next begins, so a value written in any other shape breaks the rest of the message."
+      "text": "The certification team tests a new receiver by feeding it raw ISO 8583 messages that a small tool writes by hand, without a packager. The receiver is strict: anything it can't read exactly as its specification says, it rejects, and a message the tool gets wrong costs a test slot. The tool's `FieldWriter` in `src/main/java/com/example/practice/FieldWriter.java` writes one field at a time, from the format as the specification gives it (`n4`, `ans15`, `n..28`, `ans...300`) and the value."
     },
     {
       "type": "para",
-      "text": "Write `FieldEncoder.encode(String format, String value)`, which returns the field as it goes on the wire."
+      "text": "It already parses the format. Finish the three methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "The format is a type followed by either a length (`n6`: fixed, exactly 6 characters) or `..` and a maximum (`n..19`: variable, up to 19).",
-        "The types are `n` (digits), `a` (letters), `an` (letters and digits), `ans` (any printable ASCII character, space included) and `z` (track 2: digits and `=`). A value with a character outside its type is refused.",
-        "A fixed field is padded to its full length. Numeric fields are padded with zeros on the left; every other type with spaces on the right.",
-        "A variable field is not padded. It is preceded by its length, written with as many digits as the maximum has: two for `n..19` or `ans..40`, three for `ans..999`.",
-        "A value longer than the field allows is refused."
+        "`allowed`: whether the receiver would accept the value's characters for that type;",
+        "`fixed`: a fixed field, as the receiver will take it;",
+        "`variable`: a variable field, as the receiver will take it."
       ]
     },
     {
       "type": "para",
-      "text": "Refuse with an `IllegalArgumentException`. You may assume the format itself is well formed."
+      "text": "When the receiver would reject a value, `write` must refuse it with an `IllegalArgumentException` rather than send something else. About 15 lines in total."
     },
     {
       "type": "heading",
@@ -52,7 +50,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n|z)(\\\\.\\\\.)?(\\\\d+)\");\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        Matcher parts = FORMAT.matcher(format);\n        if (!parts.matches()) {\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        }\n        String type = parts.group(1);\n        boolean variable = parts.group(2) != null;\n        String length = parts.group(3);\n        int most = Integer.parseInt(length);\n        if (!value.matches(allowed(type) + \"*\")) {\n            throw new IllegalArgumentException(\"a character outside type \" + type);\n        }\n        if (value.length() > most) {\n            throw new IllegalArgumentException(\"longer than \" + most + \" characters\");\n        }\n        if (variable) {\n            return pad(String.valueOf(value.length()), length.length(), '0', true) + value;\n        }\n        return \"n\".equals(type) ? pad(value, most, '0', true) : pad(value, most, ' ', false);\n    }\n\n    private static String allowed(String type) {\n        switch (type) {\n            case \"n\": return \"[0-9]\";\n            case \"a\": return \"[A-Za-z]\";\n            case \"an\": return \"[A-Za-z0-9]\";\n            case \"z\": return \"[0-9=]\";\n            default: return \"[\\\\x20-\\\\x7E]\";\n        }\n    }\n\n    private static String pad(String value, int width, char filler, boolean left) {\n        StringBuilder fill = new StringBuilder();\n        while (fill.length() + value.length() < width) {\n            fill.append(filler);\n        }\n        return left ? fill + value : value + fill;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        String chars = switch (type) {\n            case \"n\" -> \"[0-9]*\";\n            case \"a\" -> \"[A-Za-z]*\";\n            case \"an\" -> \"[A-Za-z0-9]*\";\n            default -> \"[\\\\x20-\\\\x7E]*\";\n        };\n        return value.matches(chars);\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        if (value.length() > f.length())\n            throw new IllegalArgumentException(\"longer than \" + f.length() + \": \" + value);\n        String fill = (f.type().equals(\"n\") ? \"0\" : \" \").repeat(f.length() - value.length());\n        return f.type().equals(\"n\") ? fill + value : value + fill;\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        if (value.length() > f.length())\n            throw new IllegalArgumentException(\"longer than \" + f.length() + \": \" + value);\n        String len = String.valueOf(value.length());\n        return \"0\".repeat(f.prefixDigits() - len.length()) + len + value;\n    }\n}\n"
         }
       ]
     },
@@ -64,7 +62,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        throw new UnsupportedOperationException(\"write encode\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        // TODO: the receiver rejects a field holding a character its type doesn't allow.\n        //       Say whether this value is one it accepts.\n        throw new IllegalStateException(\"TODO: allowed\");\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        // TODO: the receiver takes exactly f.length() characters here and must read back the\n        //       value that was meant.\n        throw new IllegalStateException(\"TODO: fixed\");\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        // TODO: the receiver reads a length of f.prefixDigits() digits, then that many characters.\n        throw new IllegalStateException(\"TODO: variable\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -83,11 +81,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "6d2f227cbc5139cb5f53fdc29895f4c58c15f3fc7e3e50139b80af32ae632e5c",
-  "starting_code": "package com.example.practice;\n\n/** Writes a data element's value the way its format says. */\npublic final class FieldEncoder {\n\n    private FieldEncoder() {\n    }\n\n    /** The field as it goes on the wire, for a format such as n6, an12 or ans..40. */\n    public static String encode(String format, String value) {\n        throw new UnsupportedOperationException(\"write encode\");\n    }\n}\n",
+  "content_sha256": "51022a79551685fed52ac8e80e25703de875d04df04ac5110484a135f2232f14",
+  "starting_code": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        // TODO: the receiver rejects a field holding a character its type doesn't allow.\n        //       Say whether this value is one it accepts.\n        throw new IllegalStateException(\"TODO: allowed\");\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        // TODO: the receiver takes exactly f.length() characters here and must read back the\n        //       value that was meant.\n        throw new IllegalStateException(\"TODO: fixed\");\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        // TODO: the receiver reads a length of f.prefixDigits() digits, then that many characters.\n        throw new IllegalStateException(\"TODO: variable\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/com/example/practice/FieldEncoder.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/test/java/com/example/practice/FieldEncoderTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/com/example/practice/FieldWriter.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/test/java/com/example/practice/FieldWriterTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -108,19 +106,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.FieldEncoderTest#writesEachFieldAsItsFormatSays",
+        "id": "com.example.practice.FieldWriterTest#writesFieldsTheReceiverCanSplit",
         "kind": "main",
-        "says": "pads a fixed field to its width, prefixes a variable field with its length, and refuses characters outside the field's type"
+        "says": "fields that already fit their formats are written so that a receiver splits them back into the same values"
       },
       {
-        "id": "com.example.practice.FieldEncoderTest#numericFieldsArePaddedOnTheLeftWithZeros",
+        "id": "com.example.practice.FieldWriterTest#numbersKeepTheirValue",
         "kind": "edge",
-        "says": "a short numeric value is padded on the left with zeros, so the number does not change"
+        "says": "a short numeric value is filled on the left with zeros, so the number the receiver reads is the one that was meant"
       },
       {
-        "id": "com.example.practice.FieldEncoderTest#refusesAValueTooLongInsteadOfCuttingIt",
+        "id": "com.example.practice.FieldWriterTest#tooLongIsRefusedNotCut",
         "kind": "edge",
-        "says": "a value longer than its field allows is refused, never cut short"
+        "says": "a value longer than its field allows is refused, fixed or variable, never cut to fit"
+      },
+      {
+        "id": "com.example.practice.FieldWriterTest#variableFieldCarriesOnlyItsValue",
+        "kind": "edge",
+        "says": "a variable field is its length and its own characters, never filled to its maximum"
+      },
+      {
+        "id": "com.example.practice.FieldWriterTest#threeDotsMeanAThreeDigitLength",
+        "kind": "edge",
+        "says": "an LLLVAR field's length has three digits, whatever the value's length"
+      },
+      {
+        "id": "com.example.practice.FieldWriterTest#charactersOutsideTheTypeAreRefused",
+        "kind": "edge",
+        "says": "a value with a character its type doesn't allow is refused, since the length alone proves nothing"
       }
     ],
     "report": {
@@ -129,12 +142,11 @@
     },
     "origin": {
       "path": "src/3.md",
-      "section": "3.2. Fixed-length vs. Variable-length fields"
+      "section": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
     },
     "concepts": [
-      "A fixed-length field always occupies its full width, so a shorter value is padded with a filler character.",
-      "A field's format, such as n6, an12 or ans..40, names its data type, whether it is fixed or variable, and its length or maximum.",
-      "A variable-length field is written as a fixed-width length indicator followed by exactly that many characters."
+      "Nothing in the bytes marks where a field ends: a fixed field takes its width and a variable one its length prefix, two digits for LLVAR and three for LLLVAR.",
+      "A short fixed value is padded (numbers with zeros on the left, text with spaces on the right) and a value that is too long is refused, never cut."
     ]
   }
 }

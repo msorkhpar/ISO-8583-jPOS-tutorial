@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 4,
   "ordinal": 3,
-  "title": "Build the reversal of an earlier transaction",
+  "title": "Find the request a reversal cancels",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/Reversals.java",
-  "test_file": "src/test/java/com/example/practice/ReversalsTest.java",
+  "main_file": "src/main/java/com/example/practice/Journal.java",
+  "test_file": "src/test/java/com/example/practice/JournalTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ReversalsTest#aReversalCarriesWhatIdentifiesTheOriginal",
+      "id": "com.example.practice.JournalTest#aReversalCancelsTheRequestItNames",
       "kind": "main",
-      "says": "the reversal is an 0400 that carries exactly the original's identifying fields that it has, and nothing else"
+      "says": "a reversal is acknowledged and cancels the one recorded request its field 90 names, not the others"
     },
     {
-      "id": "com.example.practice.ReversalsTest#leavesTheOriginalAsItWas",
-      "kind": "edge",
-      "says": "building the reversal does not change the original message"
+      "id": "com.example.practice.JournalTest#aReversalOfSomethingNeverSeenIsAcknowledged",
+      "kind": "main",
+      "says": "a reversal of a request the issuer never saw is acknowledged and cancels nothing"
     },
     {
-      "id": "com.example.practice.ReversalsTest#refusesWhatIsNotATransactionRequest",
+      "id": "com.example.practice.JournalTest#theSameStanOnAnotherDayIsAnotherRequest",
       "kind": "edge",
-      "says": "only an authorization or financial request can be reversed; a response or a network message is refused"
+      "says": "two requests with the same STAN on different days are different requests; field 90's date and time tell them apart"
+    },
+    {
+      "id": "com.example.practice.JournalTest#shortInstitutionIdsStillName",
+      "kind": "edge",
+      "says": "field 90 carries the institution IDs zero-filled to eleven digits, and eleven zeros for an absent one"
+    },
+    {
+      "id": "com.example.practice.JournalTest#aRepeatFindsTheOriginalToo",
+      "kind": "edge",
+      "says": "a repeated reversal (0421) cancels the original like the first attempt would have"
     }
   ],
   "report": {
@@ -54,6 +64,6 @@
   },
   "origin": {
     "path": "src/4.md",
-    "section": "4.3. Reversal messages"
+    "section": "4.4. A Request Without an Answer Is Reversed, Never Sent Again"
   }
 }

@@ -1,74 +1,178 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c1.md",
-  "kind": "quiz",
+  "kind": "code",
+  "quiz": "setup-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c1.md": "sha256:e22430a3bf70c413495f66e0b89347b3d0d5ffd24ef0c81eaa0a45f11baade99"
+    "src/c1.md": "sha256:e80779aff1d91c1255940e2265cb77a30fe50a314cb18ebdf40e38934c6cad9c"
   },
   "plan": {
     "plan_api": 2,
     "tier": "introductory",
-    "count": 0,
+    "count": 3,
     "aspects": [
       {
-        "id": "echo-test",
-        "says": "The setup is verified end to end by sending an 0800 network-management request and expecting an 0810 back.",
+        "id": "lookup-when-used",
+        "says": "Code finds the multiplexer by name in the JVM that runs Q2 each time it uses it; a kept reference stops receiving answers after a redeploy.",
         "basis": [
-          "example:src/c1.md:9",
-          "section:1.7 Testing the Setup"
+          "section:1.5 Your Code Finds the Multiplexer by Name, Inside Q2's JVM, When It Needs It",
+          "section:1.5.1 Spot the Problem: The Cached Multiplexer"
         ],
-        "exercise": null,
-        "reason": "it needs a running server to answer, and a graded run is offline"
+        "exercise": "link-status",
+        "reason": null
       },
       {
-        "id": "mux-found-by-name",
-        "says": "Application code does not build the mux; it looks up the one Q2 deployed, by the name given in the mux's deploy file.",
+        "id": "mask-first",
+        "says": "ProtectedLogListener masks the log event only for the listeners listed after it, and never changes the message that is sent.",
         "basis": [
-          "example:src/c1.md:2",
-          "example:src/c1.md:7",
-          "section:1.1 Spring Configuration"
+          "section:1.6 The Log Is Masked Before Anything Writes It"
+        ],
+        "exercise": "setup-quiz",
+        "reason": null
+      },
+      {
+        "id": "null-and-link-check",
+        "says": "request returns null when no answer comes in time, and on a dead link it queues the message and waits, so a client checks isConnected() first to tell a down link from a silent host.",
+        "basis": [
+          "section:1.4 `request` Returns `null` When Nothing Comes Back"
+        ],
+        "exercise": "link-status",
+        "reason": null
+      },
+      {
+        "id": "property-substitution",
+        "says": "A ${name:default} value in a descriptor comes from the environment, a system property or cfg/default.yml, and the default only when all are missing.",
+        "basis": [
+          "section:1.2 The Channel and the Multiplexer Share Only Two Queues, and the Queues Cross"
         ],
         "exercise": null,
-        "reason": "standard jPOS convention (the mux looked up by its deploy name); general knowledge answers it without the page, so no quiz makes the page necessary (register ruling on ISO-M10/12)"
+        "reason": "the lookup order is observed only by starting Q2 with different environments, which a graded offline run does not do; the page shows the three runs"
+      },
+      {
+        "id": "q2-deploys-and-replaces",
+        "says": "Q2 creates, starts and stops the client's components from the files in deploy/, in file-name order, and replaces a component with a new object when its file changes.",
+        "basis": [
+          "section:1.1 Q2 Builds the Client From the Files in `deploy/`"
+        ],
+        "exercise": "link-status",
+        "reason": null
       },
       {
         "id": "queues-cross",
-        "says": "The channel adaptor and the mux talk through named queues that cross: what the mux writes is what the channel sends, and what the channel receives is what the mux reads.",
+        "says": "The multiplexer writes requests to the queue the adaptor reads and reads the queue the adaptor writes; with the names copied instead of crossed, every request waits out its timeout and the host sees nothing.",
         "basis": [
-          "example:src/c1.md:6",
-          "example:src/c1.md:7",
-          "section:1.5 Setting up the QMUX"
+          "section:1.2 The Channel and the Multiplexer Share Only Two Queues, and the Queues Cross"
         ],
-        "exercise": null,
-        "reason": "standard jPOS convention (a channel adaptor's in/out queues crossed with the mux's); general knowledge answers it without the page, so no quiz makes the page necessary (register ruling on ISO-M10/12)"
+        "exercise": "second-link",
+        "reason": null
       },
       {
-        "id": "service-over-mux",
-        "says": "The client service sends a request through the mux and waits a bounded time for its answer.",
+        "id": "ready-entry",
+        "says": "isConnected() looks only for the ready entry named in <ready>, the adaptor's name plus .ready; without it a dead link reports connected.",
         "basis": [
-          "example:src/c1.md:8",
-          "section:1.6 Creating a Simple ISO-8583 Client Service"
+          "section:1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
         ],
-        "exercise": null,
-        "reason": "sending is page 4's subject and is practised there"
+        "exercise": "second-link",
+        "reason": null
       },
       {
-        "id": "spring-inside-q2",
-        "says": "Q2 and Spring run together: Q2 deploys the application as a QBean, and that QBean starts the Spring context from the application context file.",
+        "id": "spring-at-the-edge",
+        "says": "A Spring application only starts and stops Q2 as a lifecycle bean; services look the multiplexer up when called, because a constructor lookup runs before Q2 has started.",
         "basis": [
-          "example:src/c1.md:3",
-          "example:src/c1.md:4",
-          "section:1.2 Q2 Configuration"
+          "section:1.5.2 Spring Starts and Stops Q2, and Nothing Else"
+        ],
+        "exercise": "setup-quiz",
+        "reason": null
+      },
+      {
+        "id": "versions-licence",
+        "says": "The course runs on jPOS 2.1.7, Java 17 and Maven; 2.1.x is the maintenance line and jPOS is AGPL v3 with a commercial licence.",
+        "basis": [
+          "section:1.1 Q2 Builds the Client From the Files in `deploy/`",
+          "section:1.8 Reference"
         ],
         "exercise": null,
-        "reason": "configuration wiring, not an idea a reader is checked on"
+        "reason": "background on versions and licensing, with no behaviour to grade"
       }
     ],
-    "exercises": [],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "second-link",
+        "aspects": [
+          "queues-cross",
+          "ready-entry"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "link-status",
+        "aspects": [
+          "lookup-when-used",
+          "null-and-link-check",
+          "q2-deploys-and-replaces"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "setup-quiz",
+        "aspects": [
+          "mask-first",
+          "spring-at-the-edge"
+        ]
+      }
+    ],
     "nothing_checkable": null
   },
-  "shipped": [],
-  "accounts": [],
+  "shipped": [
+    "exercises/jpos-client/prose/unit-01/practice-1",
+    "exercises/jpos-client/prose/unit-01/practice-2",
+    "exercises/jpos-client/prose/unit-01/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-1",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-2",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.5.1 Spot the Problem: The Cached Multiplexer"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-3:q-kept-mux-after-edit",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.5.1 Spot the Problem: The Cached Multiplexer"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-3:q-console-before-masking",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.6 The Log Is Masked Before Anything Writes It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-3:q-dead-link-without-ready",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-01/practice-3:q-spring-constructor-lookup",
+      "origin": {
+        "path": "src/c1.md",
+        "section": "1.5.2 Spring Starts and Stops Q2, and Nothing Else"
+      }
+    }
+  ],
   "shortfalls": []
 }

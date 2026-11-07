@@ -1,0 +1,138 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Tell the cashier at once when the link is not signed on",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A small merchant site runs the checkout client of unit c4 on a single link: one QMUX, no pool. The host restarted at 03:10, the adaptor reconnected a few seconds later, and until the sign-on manager got through, every purchase went to the host and came back declined. The merchant would rather tell the cashier \"host unavailable\" straight away and keep the card for a second try."
+    },
+    {
+      "type": "para",
+      "text": "`CheckoutClient.authorize` in `src/main/java/com/example/practice/CheckoutClient.java` already asks `signedOn()` before it sends anything. Write `signedOn()`. The client gets the same Space as the sign-on manager, and the constructor has already worked out the two entry names you need. Two or three lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests run a real QMUX against a host that approves everything, and they play the adaptor and the sign-on manager themselves by writing to the Space."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\n/**\n * Authorizes purchases over one link to a host that wants a sign-on on every connection. The\n * sign-on manager of the deployment keeps its marks in {@code sp}, as on the page.\n */\npublic class CheckoutClient {\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER, HOST_UNAVAILABLE }\n\n    private final QMUX mux;\n    private final Space<String, Object> sp;\n    private final long timeout;\n    private final String readyKey;      // the adaptor's ready entry, e.g. \"host-channel.ready\"\n    private final String enabledKey;    // the sign-on manager's mark for this QMUX\n\n    public CheckoutClient(QMUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.timeout = timeout;\n        this.readyKey = mux.getReadyIndicatorNames()[0];\n        this.enabledKey = mux.getName() + \".enabled\";\n    }\n\n    public Outcome authorize(ISOMsg purchase) throws ISOException {\n        if (!signedOn())\n            return Outcome.HOST_UNAVAILABLE;           // nothing left our side\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Outcome.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** True only when a purchase sent now would reach a host that takes it. */\n    boolean signedOn() {\n        Object ready = sp.rdp(readyKey);\n        return ready != null && sp.rdp(enabledKey) == ready;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\n/**\n * Authorizes purchases over one link to a host that wants a sign-on on every connection. The\n * sign-on manager of the deployment keeps its marks in {@code sp}, as on the page.\n */\npublic class CheckoutClient {\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER, HOST_UNAVAILABLE }\n\n    private final QMUX mux;\n    private final Space<String, Object> sp;\n    private final long timeout;\n    private final String readyKey;      // the adaptor's ready entry, e.g. \"host-channel.ready\"\n    private final String enabledKey;    // the sign-on manager's mark for this QMUX\n\n    public CheckoutClient(QMUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.timeout = timeout;\n        this.readyKey = mux.getReadyIndicatorNames()[0];\n        this.enabledKey = mux.getName() + \".enabled\";\n    }\n\n    public Outcome authorize(ISOMsg purchase) throws ISOException {\n        if (!signedOn())\n            return Outcome.HOST_UNAVAILABLE;           // nothing left our side\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Outcome.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** True only when a purchase sent now would reach a host that takes it. */\n    boolean signedOn() {\n        // TODO: Today this question is answered nowhere, and the cashier waits for a decline.\n        //       Answer it from what the space holds right now, so that the host never sees a\n        //       purchase it would refuse, and the cashier hears \"host unavailable\" at once.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "7059ea263474c0e72e5279ff87f631d1ea30158b53ba01e9813c027ca6c16b2e",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\n/**\n * Authorizes purchases over one link to a host that wants a sign-on on every connection. The\n * sign-on manager of the deployment keeps its marks in {@code sp}, as on the page.\n */\npublic class CheckoutClient {\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER, HOST_UNAVAILABLE }\n\n    private final QMUX mux;\n    private final Space<String, Object> sp;\n    private final long timeout;\n    private final String readyKey;      // the adaptor's ready entry, e.g. \"host-channel.ready\"\n    private final String enabledKey;    // the sign-on manager's mark for this QMUX\n\n    public CheckoutClient(QMUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.timeout = timeout;\n        this.readyKey = mux.getReadyIndicatorNames()[0];\n        this.enabledKey = mux.getName() + \".enabled\";\n    }\n\n    public Outcome authorize(ISOMsg purchase) throws ISOException {\n        if (!signedOn())\n            return Outcome.HOST_UNAVAILABLE;           // nothing left our side\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Outcome.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** True only when a purchase sent now would reach a host that takes it. */\n    boolean signedOn() {\n        // TODO: Today this question is answered nowhere, and the cashier waits for a decline.\n        //       Answer it from what the space holds right now, so that the host never sees a\n        //       purchase it would refuse, and the cashier hears \"host unavailable\" at once.\n        throw new IllegalStateException(\"TODO: signedOn\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-11/practice-1/src/main/java/com/example/practice/CheckoutClient.java",
+    "test_path": "practice/jpos-client/prose/unit-11/practice-1/src/test/java/com/example/practice/CheckoutClientTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-11/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-11/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CheckoutClientTest#aSignedOnLinkCarriesThePurchase",
+        "kind": "main",
+        "says": "on a link signed on for its current connection the purchase goes to the host and is approved"
+      },
+      {
+        "id": "com.example.practice.CheckoutClientTest#aFreshConnectionIsNotSignedOn",
+        "kind": "edge",
+        "says": "a connection that is up but not signed on carries nothing, so a connected link is not enough"
+      },
+      {
+        "id": "com.example.practice.CheckoutClientTest#aMarkLeftByThePreviousConnectionDoesNotCount",
+        "kind": "edge",
+        "says": "a sign-on belongs to the connection it was made on; a mark left by an earlier connection does not count"
+      },
+      {
+        "id": "com.example.practice.CheckoutClientTest#aReconnectInTheSameMillisecondIsStillANewConnection",
+        "kind": "edge",
+        "says": "connections are told apart by the ready object itself, so an equal Date from a new connection is still a new connection"
+      },
+      {
+        "id": "com.example.practice.CheckoutClientTest#aLinkThatIsDownIsUnavailableAtOnce",
+        "kind": "edge",
+        "says": "with the link down and no marks at all, nothing is sent: two missing entries are not a match"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-11/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c11.md",
+      "section": "11.4 A Pool Uses a Link Only While It Is Signed On"
+    },
+    "concepts": [
+      "A host that wants a sign-on declines or drops traffic on a new connection until it gets one, while isConnected() is already true.",
+      "With check-enabled a pool uses a link only while its enabled mark is the very ready object, so a client without a pool must make the same identity check before it sends."
+    ]
+  }
+}

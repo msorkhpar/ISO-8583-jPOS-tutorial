@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 4,
   "ordinal": 1,
-  "title": "Write the participants of a card-network flow",
+  "title": "Count a card's purchases only when they go through",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/NetworkRouting.java",
-  "test_file": "src/test/java/com/example/practice/NetworkRoutingTest.java",
+  "main_file": "src/main/java/com/example/practice/VelocityLimit.java",
+  "test_file": "src/test/java/com/example/practice/VelocityLimitTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,24 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.NetworkRoutingTest#visaAndMastercardCardsBothCommitThroughTheSameFlow",
+      "id": "com.example.practice.VelocityLimitTest#aPurchaseIsApprovedAndCounted",
       "kind": "main",
-      "says": "a Visa card and a Mastercard card each go through validator, Visa and Mastercard participants, commit, and are marked with their own network"
+      "says": "an approved purchase is answered 00 and counts once for its card"
     },
     {
-      "id": "com.example.practice.NetworkRoutingTest#anIncompleteTransactionIsAbortedBeforeAnyNetworkSeesIt",
-      "kind": "edge",
-      "says": "a transaction with no amount aborts at the validator, carries an error, and no network ever marks or sends it"
+      "id": "com.example.practice.VelocityLimitTest#aPurchaseOverTheDailyCountIsRefused",
+      "kind": "main",
+      "says": "a card that has had its purchases for the day is refused with 65, and the refusal is answered"
     },
     {
-      "id": "com.example.practice.NetworkRoutingTest#onlyTheCardsOwnNetworkIsCommitted",
+      "id": "com.example.practice.VelocityLimitTest#purchasesTheAuthorizerDeclinedDoNotUseUpTheDay",
       "kind": "edge",
-      "says": "a network participant that stepped aside is not committed, so the card is sent to its own network only"
+      "says": "a purchase a later participant declines is given back, because the participant that counted it joined and hears the abort"
+    },
+    {
+      "id": "com.example.practice.VelocityLimitTest#aRefusedPurchaseDoesNotFreeAPlaceForTheNextOne",
+      "kind": "edge",
+      "says": "the participant's own refusal counted nothing, so its abort, if it gets one, gives nothing back"
     }
   ],
   "report": {
@@ -54,6 +59,6 @@
   },
   "origin": {
     "path": "src/s4.md",
-    "section": "4.3 Custom Participants for Visa/Mastercard Logic"
+    "section": "4.2 A Participant Hears the Outcome Only If It Joined"
   }
 }

@@ -29,7 +29,8 @@ public final class Fields {
 
         // Data element 2 is variable length: two digits of length, then that many.
         int length = Integer.parseInt(message.substring(at, at += 2));
-        System.out.println("DE 2  PAN      " + message.substring(at, at += length)
+        // Never print a card number in clear: keep the first six and last four digits.
+        System.out.println("DE 2  PAN      " + protect(message.substring(at, at += length))
             + "  (LLVAR, " + length + " digits)");
 
         // Data elements 3 and 4 are fixed length, so nothing announces them.
@@ -39,6 +40,17 @@ public final class Fields {
         if (at != message.length()) {
             System.out.println("and " + (message.length() - at) + " character(s) nobody read");
         }
+    }
+
+    /**
+     * Mask the middle of a card number for display, as jPOS's {@code ISOUtil.protect} does:
+     * the first six and the last four digits stay, every other digit becomes {@code _}.
+     */
+    static String protect(String pan) {
+        if (pan.length() <= 10) {
+            return "_".repeat(pan.length());
+        }
+        return pan.substring(0, 6) + "_".repeat(pan.length() - 10) + pan.substring(pan.length() - 4);
     }
 
     public static void main(String[] args) {

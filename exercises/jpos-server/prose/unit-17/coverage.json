@@ -1,0 +1,181 @@
+{
+  "coverage_api": 2,
+  "page": "src/s17.md",
+  "kind": "code",
+  "quiz": "ops-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/s17.md": "sha256:5bfad247ad1c3fffb0923f937298f49807fbfdcde052afbd2dc777450d526a94"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 3,
+    "aspects": [
+      {
+        "id": "cli-own-jvm",
+        "says": "A -c command runs in a second JVM on deploy-cli/ and sees only its own registry; the running node is read over its SSH CLI.",
+        "basis": [
+          "section:17.5 A Command Sees Only the JVM It Runs In",
+          "example:src/s17.md:11",
+          "example:src/s17.md:14"
+        ],
+        "exercise": "ops-quiz",
+        "reason": null
+      },
+      {
+        "id": "drift-wakeup-only",
+        "says": "SystemMonitor's drift shows a pause only where it covers the monitor's wake-up; the GC log records every pause.",
+        "basis": [
+          "section:17.6 `drift` Shows a Pause Only When It Covers the Monitor's Wake-Up",
+          "example:src/s17.md:15"
+        ],
+        "exercise": "ops-quiz",
+        "reason": null
+      },
+      {
+        "id": "ending-decides-destination",
+        "says": "How a DirPoll processor ends decides where the file goes: returned bytes to response/ and the file to archive/, a retry exception back to request/ after ten poll intervals, any other exception to bad/.",
+        "basis": [
+          "section:17.2 How the Processor Ends Decides Where the File Goes",
+          "example:src/s17.md:2",
+          "example:src/s17.md:3"
+        ],
+        "exercise": "payout-endings",
+        "reason": null
+      },
+      {
+        "id": "idempotent-by-content",
+        "says": "Processing must be idempotent, keyed by the batch's identity in its content and recorded with the postings, never by the file name.",
+        "basis": [
+          "section:17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done",
+          "example:src/s17.md:8",
+          "example:src/s17.md:10"
+        ],
+        "exercise": "payout-replay",
+        "reason": null
+      },
+      {
+        "id": "one-processor-many-files",
+        "says": "One processor instance handles every file, so nothing about one file is kept in fields.",
+        "basis": [
+          "section:17.1 A Batch Directory Under Q2",
+          "example:src/s17.md:2"
+        ],
+        "exercise": "payout-endings",
+        "reason": null
+      },
+      {
+        "id": "retry-holds-pool",
+        "says": "A retry waits on a pool thread and DirPoll counts no attempts, so a file that can never improve stalls every file behind it and should be refused instead.",
+        "basis": [
+          "section:17.2 How the Processor Ends Decides Where the File Goes",
+          "example:src/s17.md:4"
+        ],
+        "exercise": "ops-quiz",
+        "reason": null
+      },
+      {
+        "id": "run-dir-after-stop",
+        "says": "A stop or a crash leaves files in run/, some done and some never started, and nothing moves them back.",
+        "basis": [
+          "section:17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done",
+          "example:src/s17.md:7",
+          "example:src/s17.md:9"
+        ],
+        "exercise": "ops-quiz",
+        "reason": null
+      },
+      {
+        "id": "unfinished-file",
+        "says": "DirPoll takes a file the moment it appears, so a processor treats a missing trailer or an empty file as not finished, and the sender writes elsewhere and renames.",
+        "basis": [
+          "section:17.3 DirPoll Takes a File the Moment It Appears, Finished or Not",
+          "example:src/s17.md:5",
+          "example:src/s17.md:6"
+        ],
+        "exercise": "payout-endings",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "payout-endings",
+        "aspects": [
+          "ending-decides-destination",
+          "one-processor-many-files",
+          "unfinished-file"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "payout-replay",
+        "aspects": [
+          "idempotent-by-content"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "ops-quiz",
+        "aspects": [
+          "cli-own-jvm",
+          "drift-wakeup-only",
+          "retry-holds-pool",
+          "run-dir-after-stop"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-server/prose/unit-17/practice-1",
+    "exercises/jpos-server/prose/unit-17/practice-2",
+    "exercises/jpos-server/prose/unit-17/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-1",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.3 DirPoll Takes a File the Moment It Appears, Finished or Not"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-2",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-3:q-retry-stalls-pool",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.2 How the Processor Ends Decides Where the File Goes"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-3:q-sigterm-run-dir",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.4 A Stop or a Crash Leaves Files in `run/`, Some of Them Already Done"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-3:q-probe-second-jvm",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.5 A Command Sees Only the JVM It Runs In"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-17/practice-3:q-drift-misses-pause",
+      "origin": {
+        "path": "src/s17.md",
+        "section": "17.6 `drift` Shows a Pause Only When It Covers the Monitor's Wake-Up"
+      }
+    }
+  ],
+  "shortfalls": []
+}

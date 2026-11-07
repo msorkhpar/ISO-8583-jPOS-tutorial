@@ -1,0 +1,147 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Stop requests whose entry mode contradicts their card data",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your gateway sits between a few hundred terminals of different makes and the acquirer. The acquirer's fraud team has written to you: some of your requests say one thing in field 22 and another in the card fields after it, and they want those stopped at the gateway, answered with response code 30, instead of reaching their host. The first example they attached is a chip read with no chip data. It is not the only kind."
+    },
+    {
+      "type": "para",
+      "text": "`EntryModeScreen.screen` in `src/main/java/com/example/practice/EntryModeScreen.java` already answers the terminal when there is a problem. Finish `problem(...)`, marked `TODO`, so that it finds every request whose read and card data disagree, and only those. The codes the acquirer's specification lists are constants at the top of the class. Your terminals are not all alike: some have a PIN pad and some don't."
+    },
+    {
+      "type": "para",
+      "text": "About ten lines."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        String entry = m.getString(22);\n        if (entry == null || entry.length() != 3)\n            return \"no entry mode\";\n        switch (entry.substring(0, 2)) {\n            case KEYED:\n                return m.hasField(14) && !m.hasField(35) && !m.hasField(55) ? null : \"keyed, but card fields disagree\";\n            case STRIPE:\n                return m.hasField(35) && !m.hasField(55) ? null : \"stripe read, but card fields disagree\";\n            case CHIP:\n            case CONTACTLESS_CHIP:\n                return m.hasField(35) && m.hasField(55) ? null : \"chip read, but card fields disagree\";\n            default:\n                return \"entry mode \" + entry + \" is not in the specification\";\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        // TODO: Return null only when the card fields the request carries (14, 35, 55) are the\n        //       ones the read named in field 22 produces, and nothing else. Anything this\n        //       acquirer's specification doesn't list is a problem too. The text you return is\n        //       for the gateway's log; the tests only look at whether there is one.\n        throw new IllegalStateException(\"TODO: problem\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "fb193f25751b7f4c8902506354a4f137d931f425b3f5b5dee2c4a18a001ac460",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        // TODO: Return null only when the card fields the request carries (14, 35, 55) are the\n        //       ones the read named in field 22 produces, and nothing else. Anything this\n        //       acquirer's specification doesn't list is a problem too. The text you return is\n        //       for the gateway's log; the tests only look at whether there is one.\n        throw new IllegalStateException(\"TODO: problem\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-05/practice-2/src/main/java/com/example/practice/EntryModeScreen.java",
+    "test_path": "practice/jpos-client/prose/unit-05/practice-2/src/test/java/com/example/practice/EntryModeScreenTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-05/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-05/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aChipPurchaseWithItsChipDataGoesUpstream",
+        "kind": "main",
+        "says": "a chip read that carries a track and chip data goes upstream"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aKeyedPurchaseWithItsExpiryGoesUpstream",
+        "kind": "main",
+        "says": "a keyed card that carries its expiry date goes upstream"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aChipCodeWithOnlyATrackIsRefused",
+        "kind": "main",
+        "says": "a request that claims a chip read but carries no chip data is answered at the gateway with response code 30"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aTerminalWithoutAPinPadIsNotRefused",
+        "kind": "edge",
+        "says": "the third digit of field 22 describes the terminal, not the read, so a terminal without a PIN pad is not refused"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aContactlessCodeWithOnlyATrackIsRefused",
+        "kind": "edge",
+        "says": "a contactless chip read needs chip data just like a contact chip read"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aKeyedCodeCarryingATrackIsRefused",
+        "kind": "edge",
+        "says": "a keyed card that also carries track 2 contradicts itself: a field the read cannot produce is a problem too"
+      },
+      {
+        "id": "com.example.practice.EntryModeScreenTest#aCodeTheSpecificationDoesNotListIsRefused",
+        "kind": "edge",
+        "says": "an entry mode the acquirer's specification does not list is refused rather than passed on"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-05/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c5.md",
+      "section": "5.3 How the Card Was Read Decides the Card Fields"
+    },
+    "concepts": [
+      "Field 22 and the card fields 14, 35 and 55 come from one value describing how the card was read, so a request never claims a read its data contradicts."
+    ]
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: error handling",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-hsm-timeout",
+        "stem": "A participant that verifies PINs calls an HSM. When the HSM call times out it catches the exception, logs it and returns FAIL. AnswerFailures from this unit stands right before SendResponse. What does the terminal receive for those purchases?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A 96, since the timeout left no failure in the Result for AnswerFailures to map",
+            "correct": true,
+            "says": "rcFor finds no failure in the Result and falls back to 96, system malfunction"
+          },
+          {
+            "id": "b",
+            "text": "A 55, since the timeout is recorded in the Result as a PIN failure by FAIL",
+            "correct": false,
+            "says": "FAIL is only a vote; nothing is recorded in the Result unless the participant calls fail, and the PIN was never checked"
+          },
+          {
+            "id": "c",
+            "text": "No answer, since a timeout answered with FAIL leaves AnswerFailures nothing to do",
+            "correct": false,
+            "says": "AnswerFailures answers every abort that reaches it without a refusal already built"
+          },
+          {
+            "id": "d",
+            "text": "A 91, since the timeout is recorded in the Result as an unreachable host",
+            "correct": false,
+            "says": "91 comes only from a HOST_UNREACHABLE failure someone recorded; FAIL is only a vote and records nothing, so the code is 96"
+          }
+        ],
+        "origin": {
+          "path": "src/s10.md",
+          "section": "10.1 A Response Code Says Who Failed, and One Participant Chooses It"
+        }
+      },
+      {
+        "id": "q-fraud-after-approval",
+        "stem": "A chain runs Authorize, which puts a 00 response in the Context, then a new fraud-scoring participant, then AnswerFailures in unit s5's version, then SendResponse. The scoring service is down and the scoring participant throws. What does the terminal receive?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A 96, since AnswerFailures replaces the 00 in the Context once the transaction aborts",
+            "correct": false,
+            "says": "s5's AnswerFailures sees a response already in the Context and leaves it; SendResponse sends whatever RESPONSE holds"
+          },
+          {
+            "id": "b",
+            "text": "No answer, since SendResponse drops the 00 in the Context once the transaction aborts",
+            "correct": false,
+            "says": "SendResponse sends RESPONSE from abort as from commit"
+          },
+          {
+            "id": "c",
+            "text": "A 00, since SendResponse sends the 00 in the Context once the transaction aborts",
+            "correct": true,
+            "says": "the approval stays in RESPONSE, s5's version keeps any response, and SendResponse sends it on the abort path"
+          },
+          {
+            "id": "d",
+            "text": "A 05, since the TransactionManager overwrites the 00 in the Context once the transaction aborts",
+            "correct": false,
+            "says": "the TransactionManager never touches RESPONSE; it logs the exception and counts an ABORTED vote"
+          }
+        ],
+        "origin": {
+          "path": "src/s10.md",
+          "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+        }
+      },
+      {
+        "id": "q-placement",
+        "stem": "A team moves the grown AnswerFailures to the top of the chain, before CheckFields, 'so that it sees every transaction'. A purchase now fails CheckFields with a missing field. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The terminal gets 30, since AnswerFailures is asked on the abort path wherever it stands",
+            "correct": false,
+            "says": "prepareForAbort reaches only the abort participants after the one that aborted; this one was prepared earlier and said NO_JOIN"
+          },
+          {
+            "id": "b",
+            "text": "The terminal gets 96, since AnswerFailures answered before CheckFields could report a cause",
+            "correct": false,
+            "says": "AnswerFailures answers nothing in prepare; it is never asked again, so it builds no 96 either"
+          },
+          {
+            "id": "c",
+            "text": "The terminal gets no answer, since AnswerFailures was prepared earlier and is not asked again",
+            "correct": true,
+            "says": "it voted NO_JOIN in prepare, and prepareForAbort goes only to abort participants after CheckFields"
+          },
+          {
+            "id": "d",
+            "text": "The terminal gets no answer, since CheckFields stops the chain before SendResponse is called",
+            "correct": false,
+            "says": "SendResponse is an abort participant after CheckFields and is still called; it finds no RESPONSE"
+          }
+        ],
+        "origin": {
+          "path": "src/s10.md",
+          "section": "10.3 On the Abort Path `SendResponse` Sends Whatever `RESPONSE` Holds"
+        }
+      },
+      {
+        "id": "q-repeat-reversal",
+        "stem": "Terminal 29110044 sends a purchase with STAN 004210, which the server approves and records. The acquirer then sends an 0420 with STAN 004211, and after a lost answer an 0421 with STAN 004211. The server looks the original up by terminal, STAN and field 7. Which handling leaves the card's daily total right?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Look up STAN 004211 and field 7 of each message, since they are the fields the reversal itself carries",
+            "correct": false,
+            "says": "a reversal is a new message with its own STAN; the original's STAN and time are in field 90, so this finds nothing"
+          },
+          {
+            "id": "b",
+            "text": "Look up STAN 004210 from field 90 and remove the record, since a repeat must find nothing left to undo",
+            "correct": true,
+            "says": "field 90 names the original, and taking the record means the 0421 gives nothing back a second time"
+          },
+          {
+            "id": "c",
+            "text": "Look up STAN 004210 from field 90 and keep the record, since the 0421 must find the same purchase again",
+            "correct": false,
+            "says": "the repeat then gives the amount back a second time, and the total goes below what was spent"
+          },
+          {
+            "id": "d",
+            "text": "Look up STAN 004211 and decline the 0421, since a repeat of a reversal already answered is a duplicate",
+            "correct": false,
+            "says": "a repeat is answered like the first; a refusal leaves the acquirer's reversal open"
+          }
+        ],
+        "origin": {
+          "path": "src/s10.md",
+          "section": "10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once"
+        }
+      }
+    ],
+    "concepts": [
+      "prepareForAbort reaches only abort participants after the one that aborted, so an answering participant placed earlier answers nothing."
+    ]
+  }
+}

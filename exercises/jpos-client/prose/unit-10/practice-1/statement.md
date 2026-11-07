@@ -1,21 +1,14 @@
-A client test that needs a real host is slow, depends on a network, and cannot make the host
-decline on demand. Everything the client does passes through its `MUX`, so the client can be
-tested against a stand-in that answers in the same process, the way the host would, and
-whose answers the test controls.
+The payments team tests its clients against `ScriptedMux`, a stand-in host in
+`src/main/java/com/example/practice/ScriptedMux.java`. A test scripts the next answers with
+`then(...)`: a response code such as `"00"` or `"51"`, or `ScriptedMux.SILENT` for a host that
+says nothing. Once the script runs out, the host approves.
 
-Write `SimulatedHost`, a jPOS `MUX` built from an amount limit in minor units (cents). Its
-`request(ISOMsg request, long timeout)` answers at once with a reply that:
+Last month two bugs reached production although tests had been written for both. A client that
+sent every unanswered authorization a second time passed the test that was meant to catch it, and
+a client that kept the 0100 it sent, to build a reversal from it later, found an 0110 there
+instead. Both times the fake was the culprit, and its answering part is now blank.
 
-- has the response MTI of the request (`0100` is answered with `0110`, `0800` with `0810`);
-- echoes every field the request carried;
-- sets field 39 to `51` (insufficient funds) when the amount in field 4 is over the limit,
-  and to `00` otherwise.
-
-The other `MUX` methods: `isConnected()` is always true, `send` accepts a message and answers
-nothing, and the asynchronous `request` hands the same reply straight to the listener.
-
-Edge cases:
-
-- The reply is a new message. The client still holds its request, and a test may still
-  check it, so answering must not change it.
-- A request that carries no amount, such as a network echo test, is approved.
+Finish the three methods marked `TODO`: both forms of `request`, and `answer`, which builds the
+response. When you're done, a client tested against `ScriptedMux` meets the same behaviour it will
+meet behind a real QMUX, for authorizations, reversals and anything else it sends. About a dozen
+lines in total.

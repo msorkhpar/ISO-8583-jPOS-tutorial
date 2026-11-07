@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 8,
   "ordinal": 1,
-  "title": "Build a PIN block bound to the card",
+  "title": "Read the PIN out of a clear PIN block",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/PinBlock.java",
-  "test_file": "src/test/java/com/example/practice/PinBlockTest.java",
+  "main_file": "src/main/java/com/example/practice/PinBlockReader.java",
+  "test_file": "src/test/java/com/example/practice/PinBlockReaderTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.PinBlockTest#buildsThePinFieldThePanFieldAndTheirXor",
+      "id": "com.example.practice.PinBlockReaderTest#readsTheFormatZeroBlocksOfACard",
       "kind": "main",
-      "says": "builds the PIN field, the PAN field without its check digit, and the PIN block that XORs them"
+      "says": "the PIN typed on a format 0 device is read back from the clear block and the card number"
     },
     {
-      "id": "com.example.practice.PinBlockTest#aTwelveDigitPinHasLengthC",
-      "kind": "edge",
-      "says": "a twelve-digit PIN has its length written as the single hexadecimal digit C"
+      "id": "com.example.practice.PinBlockReaderTest#refusesAFormatTheLabDoesNotUse",
+      "kind": "main",
+      "says": "a block in a format the lab's devices don't send, or with a card number its format can't use, is refused"
     },
     {
-      "id": "com.example.practice.PinBlockTest#refusesAPinOutsideFourToTwelveDigits",
+      "id": "com.example.practice.PinBlockReaderTest#readsACardWhoseLastDigitsDiffer",
       "kind": "edge",
-      "says": "a PIN shorter than four, longer than twelve, or not all digits is refused"
+      "says": "the card number contributes the 12 digits before its check digit, which matters on a card whose last digits differ"
+    },
+    {
+      "id": "com.example.practice.PinBlockReaderTest#readsATwelveDigitPin",
+      "kind": "edge",
+      "says": "the PIN length is one hexadecimal digit, so PINs of ten to twelve digits are read too"
+    },
+    {
+      "id": "com.example.practice.PinBlockReaderTest#refusesABlockReadAgainstAnotherCard",
+      "kind": "edge",
+      "says": "a block read with another card's number is refused because its fill is wrong, even when the digits look like a PIN"
+    },
+    {
+      "id": "com.example.practice.PinBlockReaderTest#readsFormatThreeWithItsRandomFill",
+      "kind": "edge",
+      "says": "format 3 is read like format 0 but its fill is any of A to F"
+    },
+    {
+      "id": "com.example.practice.PinBlockReaderTest#readsFormatOneWithoutTheCardNumber",
+      "kind": "edge",
+      "says": "format 1 carries no card number, so nothing is XORed out of it"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/8.md",
-    "section": "8.1. PIN block formats"
+    "section": "8.3. Format 0 Gives the Same Block Every Time, So Format 3 Adds Random Fill"
   }
 }

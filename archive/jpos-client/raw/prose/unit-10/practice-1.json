@@ -8,8 +8,8 @@
   "unit": 10,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Stand in for the host so client tests run offline",
+  "ingested": "2026-11-05",
+  "title": "Make the fake host keep the promises QMUX keeps",
   "blocks": [
     {
       "type": "heading",
@@ -18,36 +18,15 @@
     },
     {
       "type": "para",
-      "text": "A client test that needs a real host is slow, depends on a network, and cannot make the host decline on demand. Everything the client does passes through its `MUX`, so the client can be tested against a stand-in that answers in the same process, the way the host would, and whose answers the test controls."
+      "text": "The payments team tests its clients against `ScriptedMux`, a stand-in host in `src/main/java/com/example/practice/ScriptedMux.java`. A test scripts the next answers with `then(...)`: a response code such as `\"00\"` or `\"51\"`, or `ScriptedMux.SILENT` for a host that says nothing. Once the script runs out, the host approves."
     },
     {
       "type": "para",
-      "text": "Write `SimulatedHost`, a jPOS `MUX` built from an amount limit in minor units (cents). Its `request(ISOMsg request, long timeout)` answers at once with a reply that:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "has the response MTI of the request (`0100` is answered with `0110`, `0800` with `0810`);",
-        "echoes every field the request carried;",
-        "sets field 39 to `51` (insufficient funds) when the amount in field 4 is over the limit, and to `00` otherwise."
-      ]
+      "text": "Last month two bugs reached production although tests had been written for both. A client that sent every unanswered authorization a second time passed the test that was meant to catch it, and a client that kept the 0100 it sent, to build a reversal from it later, found an 0110 there instead. Both times the fake was the culprit, and its answering part is now blank."
     },
     {
       "type": "para",
-      "text": "The other `MUX` methods: `isConnected()` is always true, `send` accepts a message and answers nothing, and the asynchronous `request` hands the same reply straight to the listener."
-    },
-    {
-      "type": "para",
-      "text": "Edge cases:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "The reply is a new message. The client still holds its request, and a test may still check it, so answering must not change it.",
-        "A request that carries no amount, such as a network echo test, is approved."
-      ]
+      "text": "Finish the three methods marked `TODO`: both forms of `request`, and `answer`, which builds the response. When you're done, a client tested against `ScriptedMux` meets the same behaviour it will meet behind a real QMUX, for authorizations, reversals and anything else it sends. About a dozen lines in total."
     },
     {
       "type": "heading",
@@ -62,7 +41,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    private final long limit;\n\n    public SimulatedHost(long limitInMinorUnits) {\n        this.limit = limitInMinorUnits;\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        ISOMsg reply = (ISOMsg) request.clone();\n        reply.setResponseMTI();\n        boolean over = request.hasField(4) && Long.parseLong(request.getString(4)) > limit;\n        reply.set(39, over ? \"51\" : \"00\");\n        return reply;\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        listener.responseReceived(request(request, timeout), handBack);\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n    }\n\n    @Override\n    public boolean isConnected() {\n        return true;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\n/**\n * A host for client tests. The test scripts the next answers: a response code such as \"00\" or\n * \"51\", or SILENT for no answer. Once the script runs out, every request is approved.\n */\npublic class ScriptedMux implements MUX {\n    public static final String SILENT = \"silent\";\n\n    private final Deque<String> script = new ArrayDeque<>();\n    private final List<ISOMsg> sent = new ArrayList<>();\n    private boolean connected = true;\n\n    /** Adds answers for the next requests, in order. */\n    public synchronized ScriptedMux then(String... answers) {\n        script.addAll(List.of(answers));\n        return this;\n    }\n\n    public synchronized ScriptedMux down() {\n        connected = false;\n        return this;\n    }\n\n    /** Every message the client sent, in order. */\n    public synchronized List<ISOMsg> sent() {\n        return new ArrayList<>(sent);\n    }\n\n    synchronized String nextAnswer() {\n        return script.isEmpty() ? \"00\" : script.poll();\n    }\n\n    @Override\n    public synchronized ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        sent.add(m);\n        String code = nextAnswer();\n        if (SILENT.equals(code))\n            return null;\n        return answer(m, code);\n    }\n\n    ISOMsg answer(ISOMsg request, String code) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        response.set(39, code);\n        return response;\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        ISOMsg response = request(m, timeout);\n        if (response != null)\n            listener.responseReceived(response, handBack);\n        else\n            listener.expired(handBack);\n    }\n\n    @Override\n    public synchronized void send(ISOMsg m) {\n        sent.add(m);\n    }\n\n    @Override\n    public synchronized boolean isConnected() {\n        return connected;\n    }\n}\n"
         }
       ]
     },
@@ -74,7 +53,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    public SimulatedHost(long limitInMinorUnits) {\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n\n    @Override\n    public boolean isConnected() {\n        throw new UnsupportedOperationException(\"write isConnected\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\n/**\n * A host for client tests. The test scripts the next answers: a response code such as \"00\" or\n * \"51\", or SILENT for no answer. Once the script runs out, every request is approved.\n */\npublic class ScriptedMux implements MUX {\n    public static final String SILENT = \"silent\";\n\n    private final Deque<String> script = new ArrayDeque<>();\n    private final List<ISOMsg> sent = new ArrayList<>();\n    private boolean connected = true;\n\n    /** Adds answers for the next requests, in order. */\n    public synchronized ScriptedMux then(String... answers) {\n        script.addAll(List.of(answers));\n        return this;\n    }\n\n    public synchronized ScriptedMux down() {\n        connected = false;\n        return this;\n    }\n\n    /** Every message the client sent, in order. */\n    public synchronized List<ISOMsg> sent() {\n        return new ArrayList<>(sent);\n    }\n\n    synchronized String nextAnswer() {\n        return script.isEmpty() ? \"00\" : script.poll();\n    }\n\n    @Override\n    public synchronized ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        // TODO: play the host for one request, following the script. A test must be able to\n        //       check afterwards what the client sent, including requests nobody answered.\n        throw new IllegalStateException(\"TODO: request\");\n    }\n\n    /** The host's response to a request, carrying the given response code. */\n    ISOMsg answer(ISOMsg request, String code) throws ISOException {\n        // TODO: build the response the way a real host and QMUX would hand it to the client.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        // TODO: the listener form of request: the client hears once, whatever happened.\n        throw new IllegalStateException(\"TODO: request with listener\");\n    }\n\n    @Override\n    public synchronized void send(ISOMsg m) {\n        sent.add(m);\n    }\n\n    @Override\n    public synchronized boolean isConnected() {\n        return connected;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -82,10 +61,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
+    "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -93,11 +72,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "32420054d77e45968444fdc99375b871bfc00d27b6760a5957224c474b998d5c",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\n/** A host that answers in-process, so a client can be tested without one. */\npublic final class SimulatedHost implements MUX {\n\n    public SimulatedHost(long limitInMinorUnits) {\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg request, long timeout) throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void request(ISOMsg request, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        throw new UnsupportedOperationException(\"write request\");\n    }\n\n    @Override\n    public void send(ISOMsg message) {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n\n    @Override\n    public boolean isConnected() {\n        throw new UnsupportedOperationException(\"write isConnected\");\n    }\n}\n",
+  "content_sha256": "1b3ecf1dd9a3734234ac98da52ae14b5b8c427fb2fae7fd6be84ccbfd9d8eb19",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\nimport java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Deque;\nimport java.util.List;\n\n/**\n * A host for client tests. The test scripts the next answers: a response code such as \"00\" or\n * \"51\", or SILENT for no answer. Once the script runs out, every request is approved.\n */\npublic class ScriptedMux implements MUX {\n    public static final String SILENT = \"silent\";\n\n    private final Deque<String> script = new ArrayDeque<>();\n    private final List<ISOMsg> sent = new ArrayList<>();\n    private boolean connected = true;\n\n    /** Adds answers for the next requests, in order. */\n    public synchronized ScriptedMux then(String... answers) {\n        script.addAll(List.of(answers));\n        return this;\n    }\n\n    public synchronized ScriptedMux down() {\n        connected = false;\n        return this;\n    }\n\n    /** Every message the client sent, in order. */\n    public synchronized List<ISOMsg> sent() {\n        return new ArrayList<>(sent);\n    }\n\n    synchronized String nextAnswer() {\n        return script.isEmpty() ? \"00\" : script.poll();\n    }\n\n    @Override\n    public synchronized ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        // TODO: play the host for one request, following the script. A test must be able to\n        //       check afterwards what the client sent, including requests nobody answered.\n        throw new IllegalStateException(\"TODO: request\");\n    }\n\n    /** The host's response to a request, carrying the given response code. */\n    ISOMsg answer(ISOMsg request, String code) throws ISOException {\n        // TODO: build the response the way a real host and QMUX would hand it to the client.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        // TODO: the listener form of request: the client hears once, whatever happened.\n        throw new IllegalStateException(\"TODO: request with listener\");\n    }\n\n    @Override\n    public synchronized void send(ISOMsg m) {\n        sent.add(m);\n    }\n\n    @Override\n    public synchronized boolean isConnected() {\n        return connected;\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-10/practice-1/src/main/java/com/example/practice/SimulatedHost.java",
-    "test_path": "practice/jpos-client/prose/unit-10/practice-1/src/test/java/com/example/practice/SimulatedHostTest.java",
+    "main_path": "practice/jpos-client/prose/unit-10/practice-1/src/main/java/com/example/practice/ScriptedMux.java",
+    "test_path": "practice/jpos-client/prose/unit-10/practice-1/src/test/java/com/example/practice/ScriptedMuxTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -118,24 +97,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.SimulatedHostTest#aRequestWithinTheLimitIsApprovedWithItsFieldsEchoed",
+        "id": "com.example.practice.ScriptedMuxTest#theScriptDecidesEachAnswer",
         "kind": "main",
-        "says": "a request within the limit is answered with the response MTI, its own fields echoed and response code 00"
+        "says": "each request gets the scripted answer in order, a silent step gives null, and after the script every request is approved"
       },
       {
-        "id": "com.example.practice.SimulatedHostTest#aRequestOverTheLimitIsDeclinedWith51",
+        "id": "com.example.practice.ScriptedMuxTest#theListenerGetsTheAnswer",
         "kind": "main",
-        "says": "a request whose amount is over the limit is answered with response code 51"
+        "says": "the listener form hands an answered request's response to responseReceived with the hand-back"
       },
       {
-        "id": "com.example.practice.SimulatedHostTest#theRequestItselfIsLeftUntouched",
+        "id": "com.example.practice.ScriptedMuxTest#aRequestNobodyAnsweredWasStillSent",
         "kind": "edge",
-        "says": "answering leaves the client's own request message unchanged"
+        "says": "a request the host left unanswered is still recorded as sent, so a test can tell a resend from a single attempt"
       },
       {
-        "id": "com.example.practice.SimulatedHostTest#aRequestWithoutAnAmountIsApproved",
+        "id": "com.example.practice.ScriptedMuxTest#theClientKeepsItsRequestUnchanged",
         "kind": "edge",
-        "says": "a request that carries no amount, such as an echo test, is approved"
+        "says": "the response is a new message and the client's request is left unchanged, as with QMUX"
+      },
+      {
+        "id": "com.example.practice.ScriptedMuxTest#theResponseMtiFollowsTheRequest",
+        "kind": "edge",
+        "says": "the response MTI is derived from the request's: an 0100 is answered by an 0110 and an 0420 by an 0430"
+      },
+      {
+        "id": "com.example.practice.ScriptedMuxTest#theListenerHearsExpiredWhenNobodyAnswers",
+        "kind": "edge",
+        "says": "with no answer the listener form calls expired once and never passes null to responseReceived"
+      },
+      {
+        "id": "com.example.practice.ScriptedMuxTest#theResponseCarriesTheRequestsFields",
+        "kind": "edge",
+        "says": "the response echoes the request's fields, as a host's answer does, besides adding field 39"
       }
     ],
     "report": {
@@ -144,10 +138,10 @@
     },
     "origin": {
       "path": "src/c10.md",
-      "section": "10.3 Simulating Server Responses"
+      "section": "10.1.1 Spot the Problem: The Fake That Answered With the Request"
     },
     "concepts": [
-      "A client is tested without a real host by a stand-in that answers its requests the way the host would, including the declines a test needs."
+      "A fake MUX lets a test decide every answer, and it must answer as QMUX does: a new message with the response MTI and the request's fields, null for silence, expired on the listener form, and a record of everything sent."
     ]
   }
 }

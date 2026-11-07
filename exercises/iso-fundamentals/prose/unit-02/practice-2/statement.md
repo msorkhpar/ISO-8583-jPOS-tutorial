@@ -1,16 +1,16 @@
-The receiving side of a link never sees your `ISOMsg`: it sees bytes, and the bitmap is how it
-learns which data elements follow. Reading it wrongly shifts every field after the mistake, so
-the whole message parses as nonsense.
+Support pastes messages captured on hex-ASCII links into tickets. The first questions are always
+the same: which fields does the sender say it sent, and where do they begin? Today someone answers
+them with a pencil, and gets them wrong about once a week.
 
-Write `BitmapReader.present(String bitmapHex)`. It takes the bitmap part of a message as
-hexadecimal digits (either case) and returns, in ascending order, every data element it says is
-present.
+`DumpReader` in `src/main/java/com/example/practice/DumpReader.java` takes one capture, from the
+MTI on, exactly as the link carried it. Its constructor and `mti()` already work. Write the three
+methods marked `TODO`:
 
-- The first sixteen digits are the primary bitmap. Bit *n*, counted from 1, most significant
-  first, stands for data element *n*, from 2 to 64.
-- Bit 1 of the primary bitmap is not a data element. When it is set, a secondary bitmap of
-  sixteen more digits follows, and its bit *n* stands for data element 64 + *n*, from 65 to 128.
-  Only the primary's bit 1 is a flag: there is no tertiary bitmap here.
-- The length must agree with bit 1: sixteen digits when it is clear, thirty-two when it is set.
-  Anything else, including a digit that is not hexadecimal, is refused with an
-  `IllegalArgumentException`.
+- `bit(from, n)`, which the other two use;
+- `fields()`, every field the capture says is present, in ascending order;
+- `dataStart()`, the index in the capture where the first field's characters begin.
+
+The tool reads at most two bitmaps. A capture that announces a third one must not be reported as
+something it isn't: `fields()` refuses it with an `IllegalArgumentException`.
+
+About fifteen lines in total.

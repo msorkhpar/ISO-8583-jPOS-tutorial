@@ -1,0 +1,222 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: packagers in depth",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-pan-prefix",
+        "stem": "A host's specification gives field 2 as n..19, LLVAR, with a BCD length. Your layout uses IFB_LLCHAR for it and the host's uses IFB_LLNUM. You send a purchase with the PAN 5555555555554444 and the usual fields after it. How does the host read it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It reads the PAN as sent, since both classes write the length 16 as the same BCD byte",
+            "correct": false,
+            "says": "the prefix byte is the same, but IFB_LLNUM reads 16 digits (eight bytes) where IFB_LLCHAR wrote sixteen ASCII bytes"
+          },
+          {
+            "id": "b",
+            "text": "It reads the PAN as sent, since a BCD field packager turns the ASCII digits it gets into BCD",
+            "correct": false,
+            "says": "no field packager checks or converts content; the host takes eight of the sixteen bytes as the PAN digits"
+          },
+          {
+            "id": "c",
+            "text": "It takes eight bytes as the PAN and reads the next field from the rest of it, since its length counts digits",
+            "correct": true,
+            "says": "a BCD prefix counts digits for IFB_LLNUM and bytes for IFB_LLCHAR, so every field after the PAN is read from the wrong place, possibly with no error"
+          },
+          {
+            "id": "d",
+            "text": "It takes eight bytes as the PAN and stops with an error at the next field, since its length counts bytes",
+            "correct": false,
+            "says": "the host's IFB_LLNUM length counts digits, and it read field 3 from the rest of the PAN without any error; the misread can even leave bytes over and still succeed"
+          }
+        ],
+        "origin": {
+          "path": "src/c13.md",
+          "section": "13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which"
+        }
+      },
+      {
+        "id": "q-track2-filler",
+        "stem": "On a binary link your layout has pad=\"true\" on field 35 (IFB_LLNUM) and the host's has pad=\"false\". Which of your swiped purchases does the host misread?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Those whose track 2 has an even number of characters, since that count decides whether a filler nibble is added",
+            "correct": false,
+            "says": "an even count fills its bytes exactly and has no filler, so either setting reads it the same"
+          },
+          {
+            "id": "b",
+            "text": "Those whose track 2 has an odd number of characters, since that count decides whether a filler nibble is added",
+            "correct": true,
+            "says": "only an odd number of digits needs a filler nibble, so only those tracks come out shifted by one digit"
+          },
+          {
+            "id": "c",
+            "text": "Those whose PAN inside track 2 has an odd number of digits, since the filler nibble goes in right after the PAN",
+            "correct": false,
+            "says": "the filler belongs to the whole field and depends on its total digit count, not on the PAN inside it"
+          },
+          {
+            "id": "d",
+            "text": "Those whose PAN inside track 2 has an even number of digits, since the filler nibble goes in right after the PAN",
+            "correct": false,
+            "says": "the filler belongs to the whole field and depends on its total digit count, not on the PAN inside it"
+          }
+        ],
+        "origin": {
+          "path": "src/c13.md",
+          "section": "13.4 An Odd Number of BCD Digits Needs a Filler, on the Same Side at Both Ends"
+        }
+      },
+      {
+        "id": "q-config-path",
+        "stem": "The channel's packager-config is jar:packager/switch.xml, and the file is in src/main/resources/packager/ of the service's jar. The service manager starts the process from /, and the server has no Internet access. What happens when Q2 deploys the channel?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The channel comes up with the layout, since the name is read from the classpath, wherever the process starts",
+            "correct": true,
+            "says": "a name with the jar: prefix is a classpath resource, so the working directory doesn't matter"
+          },
+          {
+            "id": "b",
+            "text": "The channel comes up with the layout, since Q2 reads the name from its deploy directory, wherever the process starts",
+            "correct": false,
+            "says": "Q2 doesn't resolve the name against its deploy directory; jar: makes it a classpath resource"
+          },
+          {
+            "id": "c",
+            "text": "The channel fails to configure, since the name is looked for under /, where the file isn't",
+            "correct": false,
+            "says": "only a plain name without jar: is a file path relative to the working directory"
+          },
+          {
+            "id": "d",
+            "text": "The channel fails to configure, since the DTD its DOCTYPE names has to be fetched from the Internet",
+            "correct": false,
+            "says": "jPOS resolves the DTD from a copy inside its own jar; loading works offline"
+          }
+        ],
+        "origin": {
+          "path": "src/c13.md",
+          "section": "13.6.1 Where the File Comes From"
+        }
+      },
+      {
+        "id": "q-which-row",
+        "stem": "A response from the host won't unpack, and the error ends 'unpacking field=62, consumed=212'. Before the error the packager read fields 3, 4, 11, 38, 39 and 41, and you have the host's trace of the same message. Which row of your layout do you check first?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The row of the field the error names, since the trace shows where that field should start",
+            "correct": false,
+            "says": "the error names the field where the bytes ran out; the cause is earlier"
+          },
+          {
+            "id": "b",
+            "text": "The row of the last field read before the error, since the trace shows where that field should end",
+            "correct": false,
+            "says": "the last field read is shifted like the others; the cause is the first field that differs"
+          },
+          {
+            "id": "c",
+            "text": "The row of the earliest field whose value differs from the trace, since a wrong row spoils every field after it",
+            "correct": true,
+            "says": "one wrong length shifts every later field, so the first value that differs points at the row to fix"
+          },
+          {
+            "id": "d",
+            "text": "The row of the field whose value differs most from the trace, since a wrong row spoils its own field worst",
+            "correct": false,
+            "says": "the size of a difference says nothing; every field after the faulty row is misread, often worse than the faulty one"
+          }
+        ],
+        "origin": {
+          "path": "src/c13.md",
+          "section": "13.7 An Unpack Error Points Past the Field That Is Wrong"
+        }
+      },
+      {
+        "id": "q-chip-length",
+        "stem": "Your layout declares field 55 as IFB_LLLBINARY with length 255. A terminal hands over 300 bytes of chip data, and you set them on a purchase. What happens when the purchase is packed?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Packing fails with an ISOException, since the 300 bytes exceed the 255 the field allows",
+            "correct": false,
+            "says": "a variable binary field packager doesn't check its maximum; only text, numeric and fixed binary fields do"
+          },
+          {
+            "id": "b",
+            "text": "Packing fails with an ISOException, since a length prefix sized for 255 has no room for 300",
+            "correct": false,
+            "says": "the LLL prefix has three digits whatever the declared length, so 300 fits; the page's run packed all 300 bytes, 302 with the prefix"
+          },
+          {
+            "id": "c",
+            "text": "It goes out with all 300 bytes, since the field packager doesn't compare them with the 255",
+            "correct": true,
+            "says": "the 2.1.7 binary field packager checks the length only of fixed fields, so the host receives more than its specification allows"
+          },
+          {
+            "id": "d",
+            "text": "It goes out cut down to 255 bytes, since a field packager trims a value to the field's length",
+            "correct": false,
+            "says": "packagers never cut a value; the 300 bytes went out whole, 302 bytes with the prefix"
+          }
+        ],
+        "origin": {
+          "path": "src/c13.md",
+          "section": "13.3 A Length Prefix Counts Digits or Bytes, and Only the Specification Says Which"
+        }
+      }
+    ],
+    "concepts": [
+      "Variable-length binary field packagers don't check their maximum, and a BCD prefix too short for the length is written wrong without an error.",
+      "A packager name with jar: is read from the classpath; a plain name is a file path relative to the directory the JVM started in."
+    ]
+  }
+}

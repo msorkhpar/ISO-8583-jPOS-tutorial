@@ -8,7 +8,7 @@
   "unit": 12,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Integration with Payment Gateways",
   "blocks": [
     {
@@ -17,135 +17,437 @@
       "text": "12. Integration with Payment Gateways"
     },
     {
+      "type": "para",
+      "text": "A gateway sits between web shops that call its REST API with JSON and an acquirer's ISO 8583 link. It also forwards some terminals' purchases to a third-party gateway that speaks only REST. Its first month in production brought four tickets:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Ticket",
+        "What happened"
+      ],
+      "rows": [
+        [
+          "1",
+          "A Tokyo shop's terminal sold an item for 2500 yen, and the third-party gateway charged 25 yen"
+        ],
+        [
+          "2",
+          "An advice for a purchase on 30 December, delivered on 2 January, was dated 30 December of the new year"
+        ],
+        [
+          "3",
+          "A debit terminal refunded 25.00, and the cardholder was charged 25.00"
+        ],
+        [
+          "4",
+          "A web shop's HTTP client timed out, retried, and the customer paid twice"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Every mapping had passed its tests. The fixes come down to five rules, one per section heading."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.1. Each Endpoint Maps Into One Internal Format and Out of It"
+    },
+    {
+      "type": "para",
+      "text": "Every message that enters the gateway is mapped into one internal format first. The business logic works only on that format, and each destination maps out of it. Here the internal format is a record of full values:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.iso.gateway;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDateTime;\n\n/** The gateway's internal format: full values, no wire formats. */\npublic record Payment(Type type, BigDecimal amount, String currency, LocalDateTime localTime, String terminal) {\n    public enum Type { PURCHASE, REFUND }\n}"
+    },
+    {
+      "type": "para",
+      "text": "A refund arrives from a 1987 terminal as fields 3, 4, 12, 13, 41 and 49 (`200000`, `000000002500`, `183000`, `1230`, `29110001`, `840`), mapped two seconds later on a UTC clock. The same refund arrives from a web shop as JSON (`\"refund\"`, `\"25.00\"`, `\"USD\"`, `\"2026-12-30T18:30:00\"`, `\"29110001\"`). Each goes through its own mapping:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "from the 0200: Payment[type=REFUND, amount=25.00, currency=USD, localTime=2026-12-30T18:30, terminal=29110001]\nfrom the JSON: Payment[type=REFUND, amount=25.00, currency=USD, localTime=2026-12-30T18:30, terminal=29110001]\nequal: true"
+    },
+    {
+      "type": "para",
+      "text": "The two wire forms can't be compared with each other, and every rule the gateway applies (limits, routing, the duplicate check of 12.5) would otherwise have to read both. In the record, the decisions of 12.2 to 12.4 have been taken: where the decimal point goes, which year it is, which kind of transaction."
+    },
+    {
+      "type": "para",
+      "text": "Suppose the gateway has four kinds of source (1987 terminals, the REST API, a 1993 network link, a batch file) and three destinations. Mapped pair by pair, that is twelve mappings, each deciding amounts, dates and codes for itself. A fix for ticket 1 has to be found and repeated in every mapping that carries yen, and the one nobody remembers keeps charging a hundredth of the price. With an internal format there are seven mappings, one per endpoint, and a new endpoint adds one."
+    },
+    {
+      "type": "para",
+      "text": "jPOS publishes its own internal format, the **Common Message Format** (CMF), based on the 2003 edition and released under a Creative Commons licence; 2.1.7 ships its packager as `jar:packager/cmf.xml`. Whether you adopt it or write your own, packagers and channels only move bytes, and the integration work is in the mappings, whether the other side speaks JSON, XML or SOAP."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**CMF version 3**, an early-access draft at the time of writing, follows the dataset model of ISO 8583:2023 (unit 17)."
+        }
+      ]
+    },
+    {
       "type": "heading",
       "level": 3,
-      "text": "12.1. Common gateway interfaces"
+      "text": "12.2. An Amount Is Minor Units, and the Currency Says Where the Point Goes"
     },
     {
       "type": "para",
-      "text": "Payment gateways often provide modern API interfaces that differ from the traditional ISO-8583 format. The two most common types of interfaces are:"
+      "text": "Field 4 holds the amount in the currency's smallest unit, with no decimal point. The currency code in field 49 says how many of those digits are decimals: two for US dollars, none for yen, three for Bahraini dinars. jPOS's `ISOCurrency` knows the exponent of each currency:"
     },
     {
-      "type": "heading",
-      "level": 4,
-      "text": "12.1.1. RESTful APIs"
+      "type": "code",
+      "lang": "java",
+      "text": "BigDecimal assumed = new BigDecimal(de4).movePointLeft(2);\nBigDecimal byCurrency = ISOCurrency.parseFromISO87String(de4, de49);"
     },
     {
-      "type": "para",
-      "text": "RESTful APIs use HTTP methods (GET, POST, PUT, DELETE) to perform operations on resources. They typically use JSON for data exchange."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "12.1.2. SOAP web services"
+      "type": "code",
+      "lang": "text",
+      "text": "4=000000002500 49=840   two decimals assumed: 25.00   by currency: 25.00\n4=000000002500 49=392   two decimals assumed: 25.00   by currency: 2500\n4=000000002500 49=048   two decimals assumed: 25.00   by currency: 2.500"
     },
     {
       "type": "para",
-      "text": "SOAP (Simple Object Access Protocol) web services use XML for message formatting and can be more complex but offer strong typing and built-in error handling."
+      "text": "Ticket 1 is the middle line: the original mapping divided every amount by 100. It also charges a dinar purchase ten times its price."
+    },
+    {
+      "type": "para",
+      "text": "In the other direction, a JSON amount becomes field 4. Read into a `double`, it loses cents:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "\"amount\": 19.99  double: 1998   BigDecimal: 000000001999\n\"amount\": 0.29   double: 28   BigDecimal: 000000000029\n\"amount\": 1.15   double: 114   BigDecimal: 000000000115\n19.99 in 392: Rounding necessary"
+    },
+    {
+      "type": "para",
+      "text": "The double nearest to 19.99 is a little less than 19.99, so 100 times it is a little less than 1999, and the cast to `long` drops the fraction. Keep the amount a `BigDecimal` from the JSON parser to the field. `ISOCurrency.toISO87String` then refuses an amount with more decimals than the currency has: 19.99 yen is an error, not 1999 yen or 20."
+    },
+    {
+      "type": "para",
+      "text": "`ISOCurrency` takes most of its table from the JDK, which also lists codes that are not money. Field 49 = `999` means \"no currency\", with an exponent of -1:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "49=999   by currency: 25000"
+    },
+    {
+      "type": "para",
+      "text": "So the currencies a gateway accepts are its own list, checked before the amount is read (12.4)."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "12.2. Mapping ISO-8583 to API calls"
+      "text": "12.3. A Date Without a Year Takes the Year Nearest to the Clock You Pass In"
     },
     {
       "type": "para",
-      "text": "To integrate ISO-8583 messages with modern payment gateways, we need to map the ISO-8583 fields to the corresponding API request parameters."
+      "text": "Field 13, the local transaction date, is `MMDD`, and field 12 is `hhmmss`. Field 7, the transmission time, has no year either. A REST API wants a full date, so the mapping has to choose the year. Three ways to choose it, applied to two messages from a terminal on UTC:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "13+12=1230183000, mapped at 2027-01-02T09:00:00Z\n  year of now          2027-12-30T18:30\n  ahead -> last year   2026-12-30T18:30\n  ISODate, nearest     2026-12-30T18:30\n13+12=0101000005, mapped at 2026-12-31T23:59:58Z\n  year of now          2026-01-01T00:00:05\n  ahead -> last year   2026-01-01T00:00:05\n  ISODate, nearest     2027-01-01T00:00:05"
+    },
+    {
+      "type": "para",
+      "text": "The first message is ticket 2: an advice that waited in the terminal's store-and-forward queue (unit 20) since 30 December. The year of the clock dates it 362 days in the future. A third-party gateway that refuses future dates refuses the advice, and the terminal repeats it until someone fixes the year. A gateway that accepts it books the purchase in the wrong year, where reconciliation (unit 19) can't find it."
+    },
+    {
+      "type": "para",
+      "text": "\"A date still ahead of now is last year\" fixes the first message and keeps the second wrong. The terminal's clock runs seven seconds ahead, so it stamps a purchase 00:00:05 on 1 January while the gateway's clock still says 31 December. The year of the clock puts it in the past year, and the rule, seeing a date seven seconds ahead, moves it there too."
+    },
+    {
+      "type": "para",
+      "text": "`ISODate.parseISODate(mmddhhmmss, nowMillis, timeZone)` tries the previous, the current and the next year, and keeps the one nearest to `now`. It is wrong only for a date more than six months away, which an online message doesn't carry. Fields 12 and 13 are the terminal's local time, so compare in the terminal's time zone."
+    },
+    {
+      "type": "para",
+      "text": "Pass the clock in instead of reading it inside the mapping, so a test can map a message at 23:59:58 on 31 December."
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "12.2.1. Field mapping strategies"
+      "level": 3,
+      "text": "12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
     },
     {
       "type": "para",
-      "text": "Let's create a service that maps ISO-8583 messages to a RESTful API call for a fictional payment gateway."
+      "text": "Codes map through explicit tables: the processing code, the currency, the third-party gateway's status. A value a table lacks is refused. Here are the first version and the table that replaced it, on five processing codes:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.springframework.stereotype.Service;\nimport org.springframework.web.client.RestTemplate;\n\n@Service\npublic class PaymentGatewayService {\n\n    private final RestTemplate restTemplate;\n\n    public PaymentGatewayService(RestTemplate restTemplate) {\n        this.restTemplate = restTemplate;\n    }\n\n    public GatewayResponse processPayment(ISOMsg isoMsg) {\n        PaymentRequest paymentRequest = mapIsoMsgToPaymentRequest(isoMsg);\n        return restTemplate.postForObject(\"https://api.paymentgateway.com/process\", paymentRequest, GatewayResponse.class);\n    }\n\n    private PaymentRequest mapIsoMsgToPaymentRequest(ISOMsg isoMsg) {\n        PaymentRequest request = new PaymentRequest();\n        request.setAmount(isoMsg.getString(4));\n        request.setCardNumber(isoMsg.getString(2));\n        request.setExpirationDate(isoMsg.getString(14));\n        request.setTransactionType(mapTransactionType(isoMsg.getString(3)));\n        return request;\n    }\n\n    private String mapTransactionType(String processingCode) {\n        switch (processingCode) {\n            case \"000000\":\n                return \"PURCHASE\";\n            case \"200000\":\n                return \"REFUND\";\n            default:\n                throw new UnsupportedOperationException(\"Unsupported processing code: \" + processingCode);\n        }\n    }\n}"
+      "text": "static Payment.Type firstVersion(String pcode) {\n    return \"200000\".equals(pcode) ? Payment.Type.REFUND : Payment.Type.PURCHASE;\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "private static final Map<String, Payment.Type> TYPES = Map.of(\n        \"00\", Payment.Type.PURCHASE,\n        \"20\", Payment.Type.REFUND);\n\nPayment.Type type = TYPES.get(m.getString(3).substring(0, 2));\nif (type == null)\n    throw new ISOException(\"no mapping for processing code \" + m.getString(3));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "field 3  meaning                      first version  table\n000000   purchase                     PURCHASE       PURCHASE\n200000   refund                       REFUND         REFUND\n200020   refund to a cheque account   PURCHASE       REFUND\n010000   cash advance                 PURCHASE       refused\n310000   balance inquiry              PURCHASE       refused"
     },
     {
       "type": "para",
-      "text": "In this example, we're mapping key ISO-8583 fields to a `PaymentRequest` object that can be sent to the RESTful API."
+      "text": "Field 3 has three parts: two digits for the transaction type, two for the account the money comes from, two for the account it goes to. A debit terminal that names the cardholder's cheque account sends its refund as `200020`. The first version compared all six digits, found no match, and sent a sale. That is ticket 3. The cardholder was charged 25.00 instead of credited, a difference of 50.00, while the merchant's report says \"refunded\". The cash advance and the balance inquiry went out as sales too."
+    },
+    {
+      "type": "para",
+      "text": "The table keys on the transaction type and refuses the rest. The terminal gets a decline (`12`, invalid transaction), and the cash advance waits until someone adds an entry for it."
+    },
+    {
+      "type": "para",
+      "text": "The reply comes back through a table too. The third-party gateway's statuses map to field 39 through a table built from both specifications, as unit 9 does for response codes. A status the table lacks gets `96`, and the payment is cancelled at the gateway, since it may have been an approval. Copy none of the gateway's error text into the response: free-text fields such as 44 reach the terminal and the acquirer's logs, and the text can hold a stack trace, an SQL error or a card number."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "12.2.2. Data transformation"
+      "level": 3,
+      "text": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
     },
     {
       "type": "para",
-      "text": "Sometimes, data formats in ISO-8583 messages don't match the expected format of the payment gateway API. Let's create a utility class to handle these transformations:"
+      "text": "A web shop's call to `POST /payments` times out. The shop can't tell whether the payment happened, just like the ISO sender in unit 4. The usual answer in REST payment APIs is the **idempotency key**: the shop makes a unique value for each payment, sends it in a header such as `Idempotency-Key`, and sends the same value when it retries. The gateway applies the first call with a key and answers every later one with the stored outcome:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import java.time.LocalDate;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Locale;\n\npublic class DataTransformationUtil {\n\n    public static String transformExpirationDate(String isoDate) {\n        // ISO-8583 format: YYMM\n        // API expected format: MM/YY\n        return isoDate.substring(2, 4) + \"/\" + isoDate.substring(0, 2);\n    }\n\n    public static String transformAmount(String isoAmount) {\n        // ISO-8583 format: Amount in cents without decimal point\n        // API expected format: Amount with decimal point\n        long amountInCents = Long.parseLong(isoAmount);\n        return String.format(Locale.ROOT, \"%.2f\", amountInCents / 100.0);\n    }\n\n    public static String transformDate(String isoDate) {\n        // ISO-8583 format: MMDD\n        // API expected format: YYYY-MM-DD\n        LocalDate currentDate = LocalDate.now();\n        int currentYear = currentDate.getYear();\n        int month = Integer.parseInt(isoDate.substring(0, 2));\n        int day = Integer.parseInt(isoDate.substring(2, 4));\n        \n        LocalDate transactionDate = LocalDate.of(currentYear, month, day);\n        if (transactionDate.isAfter(currentDate)) {\n            transactionDate = transactionDate.minusYears(1);\n        }\n        \n        return transactionDate.format(DateTimeFormatter.ISO_DATE);\n    }\n}"
+      "text": "Result pay(String key, Payment p) throws ISOException {\n    Entry mine = new Entry(p);\n    Entry earlier = byKey.putIfAbsent(key, mine);     // (1) one caller wins the key\n    if (earlier != null) {\n        if (!earlier.payment.equals(p))                // (2) same key, another payment\n            return new Result(\"REFUSED\", null);\n        return earlier.result;                         // (3) what the first call got\n    }\n    mine.result = send(p);                             // (4) one 0200, with the link's next STAN\n    return mine.result;\n}"
     },
     {
       "type": "para",
-      "text": "Now, let's update our `PaymentGatewayService` to use these transformations:"
+      "text": "In each run the host approves the 0200 for 25.00, the answer to the shop is lost, and the shop retries:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "private PaymentRequest mapIsoMsgToPaymentRequest(ISOMsg isoMsg) {\n    PaymentRequest request = new PaymentRequest();\n    request.setAmount(DataTransformationUtil.transformAmount(isoMsg.getString(4)));\n    request.setCardNumber(isoMsg.getString(2));\n    request.setExpirationDate(DataTransformationUtil.transformExpirationDate(isoMsg.getString(14)));\n    request.setTransactionType(mapTransactionType(isoMsg.getString(3)));\n    request.setTransactionDate(DataTransformationUtil.transformDate(isoMsg.getString(13)));\n    return request;\n}"
+      "lang": "text",
+      "text": "no key, retry:        Result[status=APPROVED, approvalCode=A00002]  host approved 2\nkey k-41c9, retry:    Result[status=APPROVED, approvalCode=A00001]  host approved 1\nkey k-41c9, 30.00:    Result[status=REFUSED, approvalCode=null]  host approved 1"
     },
     {
       "type": "para",
-      "text": "To ensure our integration works correctly, let's create a test class:"
+      "text": "Without a key, the retry is a second purchase. That is ticket 4. With the key, the retry gets the first call's approval code, and the host saw one purchase."
+    },
+    {
+      "type": "para",
+      "text": "Unit 4 forbade resending an 0200 because an ISO host makes no promise about a second copy. With a key, the receiver makes that promise: it remembers each key and what came of it. So the shop may retry, and the gateway behind it still never resends the 0200."
+    },
+    {
+      "type": "para",
+      "text": "**(1) Claim the key atomically.** If two retries arrive at the same moment, and each looks for the key before either saves it, both go to the host:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.web.client.RestTemplate;\n\nimport static org.mockito.Mockito.*;\nimport static org.junit.jupiter.api.Assertions.*;\n\n@ExtendWith(MockitoExtension.class)\nclass PaymentGatewayServiceTest {\n\n    @Mock\n    private RestTemplate restTemplate;\n\n    private PaymentGatewayService paymentGatewayService;\n\n    @BeforeEach\n    void setUp() {\n        paymentGatewayService = new PaymentGatewayService(restTemplate);\n    }\n\n    @Test\n    void testProcessPayment() throws Exception {\n        // Arrange\n        ISOMsg isoMsg = new ISOMsg();\n        isoMsg.set(2, \"4111111111111111\");\n        isoMsg.set(3, \"000000\");\n        isoMsg.set(4, \"100000\"); // $1000.00\n        isoMsg.set(13, \"0531\"); // May 31st\n        isoMsg.set(14, \"2405\"); // Expires May 2024\n\n        GatewayResponse mockResponse = new GatewayResponse();\n        mockResponse.setStatus(\"SUCCESS\");\n        mockResponse.setTransactionId(\"123456\");\n\n        when(restTemplate.postForObject(eq(\"https://api.paymentgateway.com/process\"), any(PaymentRequest.class), eq(GatewayResponse.class)))\n                .thenReturn(mockResponse);\n\n        // Act\n        GatewayResponse result = paymentGatewayService.processPayment(isoMsg);\n\n        // Assert\n        assertNotNull(result);\n        assertEquals(\"SUCCESS\", result.getStatus());\n        assertEquals(\"123456\", result.getTransactionId());\n\n        LocalDate may31 = LocalDate.now().withMonth(5).withDayOfMonth(31);\n        String expectedDate = (may31.isAfter(LocalDate.now()) ? may31.minusYears(1) : may31).toString();\n\n        verify(restTemplate).postForObject(eq(\"https://api.paymentgateway.com/process\"), argThat((PaymentRequest request) -> {\n            assertEquals(\"1000.00\", request.getAmount());\n            assertEquals(\"4111111111111111\", request.getCardNumber());\n            assertEquals(\"05/24\", request.getExpirationDate());\n            assertEquals(\"PURCHASE\", request.getTransactionType());\n            assertEquals(expectedDate, request.getTransactionDate());\n            return true;\n        }), eq(GatewayResponse.class));\n    }\n}"
+      "lang": "text",
+      "text": "look, then save:  0200s sent 2\nclaim atomically: 0200s sent 1"
     },
     {
       "type": "para",
-      "text": "This test ensures that our `PaymentGatewayService` correctly maps ISO-8583 fields to the expected API request format and handles the response properly."
+      "text": "An `Entry` starts with the status `IN_PROGRESS`, so a retry that finds the key while the first call still waits gets that answer and tries again later. In a database, a unique constraint on the key column makes the claim."
     },
     {
       "type": "para",
-      "text": "To complete the integration, we need to handle the API response and map it back to an ISO-8583 response message. Let's add this functionality to our `PaymentGatewayService`:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public ISOMsg processPaymentAndCreateResponse(ISOMsg requestMsg) throws ISOException {\n    GatewayResponse gatewayResponse = processPayment(requestMsg);\n    return mapGatewayResponseToISOMsg(requestMsg, gatewayResponse);\n}\n\nprivate ISOMsg mapGatewayResponseToISOMsg(ISOMsg requestMsg, GatewayResponse gatewayResponse) throws ISOException {\n    ISOMsg responseMsg = (ISOMsg) requestMsg.clone();\n    responseMsg.setResponseMTI();\n\n    if (\"SUCCESS\".equals(gatewayResponse.getStatus())) {\n        responseMsg.set(39, \"00\"); // Approval code\n        responseMsg.set(38, gatewayResponse.getTransactionId());\n    } else {\n        responseMsg.set(39, \"05\"); // Do not honor\n        responseMsg.set(63, gatewayResponse.getErrorMessage());\n    }\n\n    return responseMsg;\n}"
+      "text": "**(2) Same key, another payment: refused.** A shop that reuses a key by mistake would otherwise get the first payment's approval for a payment that was never sent."
     },
     {
       "type": "para",
-      "text": "This completes our basic integration between ISO-8583 messages and a RESTful payment gateway API. The service now can:"
+      "text": "**(3) The stored outcome, whatever it was.** When the host doesn't answer at step (4), the gateway reverses the 0200 (unit 4) and stores \"failed\" under the key. A retry gets \"failed\", not a second 0200. To try again, the shop sends a new payment with a new key."
+    },
+    {
+      "type": "para",
+      "text": "Store the key with what the network knows the transaction by: the STAN (field 11), the retrieval reference number (field 37), the terminal and the time. A reversal, a refund or a dispute will need them."
+    },
+    {
+      "type": "para",
+      "text": "When your switch is the REST client, for the terminals behind the third-party gateway, the same rule applies from the other side. Send a key with each payment, keep it with the ISO request, and after a timeout repeat the call with the same key: the stored outcome tells you what happened. A gateway API with no idempotency key and no way to cancel a payment leaves no safe move after a timeout. Check for both before you integrate with it. Unit c1 shows a Spring application that starts Q2 and sends through its MUX."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.6. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Each endpoint maps into one internal format and out of it.** Decisions about amounts, dates and codes are taken once per endpoint. Pairwise mappings repeat them, and a fix misses one path.",
+        "**An amount is minor units, and the currency says where the point goes.** Two decimals assumed turns 2500 yen into 25; a `double` loses cents; `999` has an exponent of -1.",
+        "**A date without a year takes the year nearest to the clock you pass in.** The year of the clock dates a delayed advice a year ahead, and \"ahead means last year\" dates a fast terminal's message a year back.",
+        "**A value with no entry in the table is refused.** A default branch turned a refund into a charge. An unknown reply status gets `96` and a cancellation, and the gateway's error text stays out of the response.",
+        "**A retried call carries the same idempotency key.** The gateway claims each key atomically, refuses it for another payment and answers retries with the stored outcome, failures included. Toward the host it still sends one 0200 per key."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.7. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**Fields a gateway converts (1987 edition):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Wire form",
+        "Internal value",
+        "Watch for"
+      ],
+      "rows": [
+        [
+          "3 processing code",
+          "n 6: type, from account, to account",
+          "a transaction type",
+          "map on the first two digits; refuse unknown types"
+        ],
+        [
+          "4 amount",
+          "n 12, minor units",
+          "`BigDecimal` with the currency's scale",
+          "exponent from field 49; never `double`"
+        ],
+        [
+          "7 transmission date and time",
+          "n 10, `MMDDhhmmss`, UTC",
+          "an instant",
+          "no year"
+        ],
+        [
+          "12 local time",
+          "n 6, `hhmmss`",
+          "part of a local date-time",
+          "the terminal's time zone"
+        ],
+        [
+          "13 local date",
+          "n 4, `MMDD`",
+          "part of a local date-time",
+          "no year: nearest to the clock"
+        ],
+        [
+          "14 expiration date",
+          "n 4, `YYMM`",
+          "a year and a month",
+          "many APIs want `MM/YY`"
+        ],
+        [
+          "49 currency code",
+          "n 3, numeric",
+          "an ISO 4217 currency",
+          "accept only the gateway's list"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Currency exponents from `ISOCurrency` (jPOS 2.1.7, JDK data):** `840` USD 2, `978` EUR 2, `392` JPY 0, `152` CLP 0, `048` BHD 3, `414` KWD 3, `999` XXX -1."
+    },
+    {
+      "type": "para",
+      "text": "**REST operations and their ISO 8583 counterparts:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "REST call",
+        "ISO 8583",
+        "Retried how"
+      ],
+      "rows": [
+        [
+          "`POST /payments` with an idempotency key",
+          "`0100` or `0200`",
+          "same key; the gateway never resends"
+        ],
+        [
+          "cancel a payment whose outcome is unknown",
+          "`0420` reversal",
+          "repeated as `0421` until acknowledged"
+        ],
+        [
+          "refund",
+          "`0200` with processing code `20xxxx`",
+          "a new key, a new STAN"
+        ],
+        [
+          "capture of an authorized amount",
+          "clearing, or `0220` on some links",
+          "per network"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.8. Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Receive an ISO-8583 message",
-        "Map and transform the data to the API's expected format",
-        "Send the request to the payment gateway",
-        "Receive the response from the payment gateway",
-        "Map the response back to an ISO-8583 message"
+        "Your gateway keeps idempotency keys for 24 hours. A shop's nightly job retries every failed call from the past week with its original key. What does the job get on the second night, and what should the gateway answer?",
+        "The business wants cash-back purchases (`09` in field 3) next month. What has to change in the internal format, in the table of 12.4, and on the third-party gateway's side?",
+        "Two of the shop's servers, behind a load balancer, send the same key 50 ms apart. Trace both calls through a gateway whose keys live in a database with a unique constraint, including the moment the second call arrives.",
+        "Field 7 is in UTC, and field 13 is the terminal's local date. For a terminal in Auckland, when do the two disagree about the day, and which one should the internal format keep?"
       ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "12.9. Design Note: Why REST Retries and ISO 8583 Reverses"
+    },
+    {
+      "type": "para",
+      "text": "Both protocols face a sender that got no answer and doesn't know whether the money moved. They keep the record that settles it on different sides."
+    },
+    {
+      "type": "para",
+      "text": "ISO 8583 puts it on the sender. A host promises nothing about a second copy of a request, so the sender undoes instead of asking again. It has to keep each request until it knows the outcome, build a reversal that points back through field 90, and keep that reversal in a queue until the host acknowledges it (units 4 and 20). The host stays simple, and every sender carries the machinery."
+    },
+    {
+      "type": "para",
+      "text": "REST with idempotency keys puts it on the receiver. The receiver keeps every key and its outcome for as long as retries may come, under a unique constraint, so a sender only needs to remember the key. The receiver's key store grows with its traffic."
+    },
+    {
+      "type": "para",
+      "text": "A gateway between the two carries both. It keeps keys for the shops in front and reverses toward the acquirer behind, and it stores one record per payment: the key, the outcome, and the STAN the reversal will need."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 7,
-    "paras": 12,
-    "code": 5,
-    "tables": 0,
-    "lists": 1,
+    "headings": 10,
+    "paras": 39,
+    "code": 13,
+    "tables": 3,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "0b368e02375e70b21e17397030b04d36852f99b59fcbfce6212eaeed62e22fc6"
+  "content_sha256": "19821254e6082a9b636800380bf431613a75a638e813c5a4fdc5f1757f15ec47"
 }

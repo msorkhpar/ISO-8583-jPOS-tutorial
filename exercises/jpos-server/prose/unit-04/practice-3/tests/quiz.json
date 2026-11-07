@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "ordinal": 3,
+  "title": "Check yourself: after the votes, and while the session waits",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-voucher-no-join",
+        "stem": "A participant marks the cardholder's discount voucher as redeemed in prepare and returns PREPARED | NO_JOIN. A participant after it declines the purchase with 51. What becomes of the voucher?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is free again, since a participant that did not join still gets abort when a later one declines",
+            "correct": false,
+            "says": "NO_JOIN means no abort call: only participants that joined hear the outcome"
+          },
+          {
+            "id": "b",
+            "text": "It stays redeemed, since a participant that did not join gets neither a commit nor an abort call",
+            "correct": true,
+            "says": "NO_JOIN means no commit and no abort call, so nothing undoes what prepare changed outside the Context"
+          },
+          {
+            "id": "c",
+            "text": "It is free again, since the TransactionManager undoes what a participant that did not join changed",
+            "correct": false,
+            "says": "the TransactionManager knows nothing about what a participant changed; only that participant's abort can undo it"
+          },
+          {
+            "id": "d",
+            "text": "It stays redeemed, since a participant that did not join is told only when a purchase commits",
+            "correct": false,
+            "says": "a participant that did not join gets no commit call either; it hears neither outcome"
+          }
+        ],
+        "origin": {
+          "path": "src/s4.md",
+          "section": "4.2 A Participant Hears the Outcome Only If It Joined"
+        }
+      },
+      {
+        "id": "q-audit-after-pin",
+        "stem": "An audit participant joins every transaction and writes one row in commit and one in abort. It is declared after the PIN check, which votes ABORTED on a wrong PIN, and it implements only TransactionParticipant. After a morning with forty wrong PINs, how many audit rows describe them?",
+        "options": [
+          {
+            "id": "a",
+            "text": "None of them, since after the ABORTED vote the audit participant is never prepared and never joins",
+            "correct": true,
+            "says": "after an abort only AbortParticipants are offered prepareForAbort; a plain participant later in the chain never joins, so its abort is never called"
+          },
+          {
+            "id": "b",
+            "text": "None of them, since abort is called only when a commit has failed on one of the participants",
+            "correct": false,
+            "says": "abort is the other outcome of the votes, not a reaction to a failed commit; a failed commit is only logged"
+          },
+          {
+            "id": "c",
+            "text": "All forty, since abort is called on every participant in the chain once the transaction aborts",
+            "correct": false,
+            "says": "abort goes only to participants that joined, and a plain participant after the abort never got the chance to join"
+          },
+          {
+            "id": "d",
+            "text": "All forty, since prepare runs on every participant before the TransactionManager counts the votes",
+            "correct": false,
+            "says": "the votes are not collected first: once one participant votes ABORTED, plain participants after it are skipped"
+          }
+        ],
+        "origin": {
+          "path": "src/s4.md",
+          "section": "4.3 After an Abort, Only Abort Participants Are Asked"
+        }
+      },
+      {
+        "id": "q-points-commit",
+        "stem": "Every participant votes PREPARED on a purchase of 18.40. Then the participant that credits loyalty points calls the points service in its commit, the service is down, and the call throws. SendResponse is declared last. What does the terminal receive?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A decline, since the exception turns the transaction into an abort and SendResponse sends the abort answer",
+            "correct": false,
+            "says": "once every participant has voted PREPARED there is no way back; an exception in commit is only a warning"
+          },
+          {
+            "id": "b",
+            "text": "No answer, since the exception ends the round of commit calls before SendResponse is reached",
+            "correct": false,
+            "says": "the TransactionManager logs the exception and calls the next participant's commit"
+          },
+          {
+            "id": "c",
+            "text": "The approval, since SendResponse sent the response in its prepare, before any commit ran",
+            "correct": false,
+            "says": "SendResponse sends in its commit or abort, as the 4.4 trace shows: it answered after RecordApproval's commit failed"
+          },
+          {
+            "id": "d",
+            "text": "The approval, since the exception is logged as a warning and SendResponse's commit still runs",
+            "correct": true,
+            "says": "commit cannot change the outcome: the warning is logged, the next commit runs, and the approval goes out without the points"
+          }
+        ],
+        "origin": {
+          "path": "src/s4.md",
+          "section": "4.4 Commit Cannot Change the Outcome"
+        }
+      },
+      {
+        "id": "q-ten-sessions",
+        "stem": "A TransactionManager runs ten sessions, and its participant waits for a host that takes 500 ms per request. Requests arrive at 30 a second, all day, and IncomingListener's timeout is 15 seconds. What do terminals see after the first few minutes?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Answers in about half a second, since ten sessions at 500 ms each can take all 30 a second",
+            "correct": false,
+            "says": "each session is held for the whole 500 ms, so ten of them finish only 20 transactions a second"
+          },
+          {
+            "id": "b",
+            "text": "Answers in about half a second, since ten sessions hand their 500 ms waits to the host's threads",
+            "correct": false,
+            "says": "a blocking call holds the session's own thread for as long as the host takes"
+          },
+          {
+            "id": "c",
+            "text": "Waits that grow, then requests that expire, since ten sessions at 500 ms each finish 20 a second",
+            "correct": true,
+            "says": "throughput is sessions over the time each transaction holds one; 30 a second against 20 grows the queue until the listener's timeout drops Contexts"
+          },
+          {
+            "id": "d",
+            "text": "Waits that grow, then requests that expire, since IncomingListener holds each request 15 s first",
+            "correct": false,
+            "says": "IncomingListener queues the Context at once; its timeout is how long the Context may wait in the queue, and the queue grows because ten sessions held 500 ms each finish only 20 a second"
+          }
+        ],
+        "origin": {
+          "path": "src/s4.md",
+          "section": "4.6 A Session Is Busy for the Whole Transaction"
+        }
+      }
+    ]
+  }
+}

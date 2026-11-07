@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "ordinal": 3,
+  "title": "Check yourself: one builder, many networks",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-swipe-after-chip",
+        "stem": "A grocery chain's terminals all send field 22 as 051. At one lane a card's chip can't be read, so the cashier swipes it, and the integration fills the card fields from what the terminal actually read. What does the request carry?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Entry mode 051 with track 2 and no field 55, since field 22 and the card fields come from different places",
+            "correct": true,
+            "says": "the entry mode is fixed while the card fields follow the swipe, so the request claims a chip read and carries no chip data"
+          },
+          {
+            "id": "b",
+            "text": "Entry mode 051 with track 2 and field 55, since the failed chip read still produced its chip data",
+            "correct": false,
+            "says": "the stem says the card fields follow what the terminal read, a swipe, and a swipe produces track 2 and no chip data"
+          },
+          {
+            "id": "c",
+            "text": "Entry mode 901 with track 2 and no field 55, since jPOS corrects field 22 to match the fields present",
+            "correct": false,
+            "says": "jPOS doesn't rewrite fields to agree with each other; only one value that drives both field 22 and the card fields keeps them in step"
+          },
+          {
+            "id": "d",
+            "text": "Entry mode 901 with track 2 and no field 55, since the packager refuses 051 without field 55",
+            "correct": false,
+            "says": "a packager checks lengths when it packs, not whether fields agree with each other; the contradictory request packs and leaves"
+          }
+        ],
+        "origin": {
+          "path": "src/c5.md",
+          "section": "5.3 How the Card Was Read Decides the Card Fields"
+        }
+      },
+      {
+        "id": "q-forum-layout",
+        "stem": "Your team will connect directly to a card scheme next quarter, and the licensed documents arrive in three weeks. To start testing now, a developer fills field 48 from a subelement layout found in a public forum post. What is the risk once that code goes live?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Little, since ISO 8583 defines the subelements of field 48 for the networks",
+            "correct": false,
+            "says": "ISO 8583 gives the private-use fields a number and a maximum length only; each network defines what goes inside"
+          },
+          {
+            "id": "b",
+            "text": "Little, since a host passes over subelements it doesn't recognise",
+            "correct": false,
+            "says": "a host reads the field by its own layout; a guessed layout is rejected or misread, not skipped"
+          },
+          {
+            "id": "c",
+            "text": "A rejection or a misread field, since only the network that owns the field decides its content",
+            "correct": true,
+            "says": "the layout lives in the licensed specification and nowhere else; a guess fails certification or is misread and surfaces later"
+          },
+          {
+            "id": "d",
+            "text": "A rejection or a warning in the host's log, since the host compares the field with the ISO standard",
+            "correct": false,
+            "says": "a rejection is possible, but ISO 8583 has no layout to compare the field with, and a guessed field the host can parse is accepted and misread"
+          }
+        ],
+        "origin": {
+          "path": "src/c5.md",
+          "section": "5.4 Private Fields Come From the Network's Specification, Behind One Hook"
+        }
+      },
+      {
+        "id": "q-other-link-up",
+        "stem": "A gateway has visa-mux and mc-mux, each on its own link to its network's host. At 13:05 isConnected() is false on mc-mux and true on visa-mux, and a Mastercard purchase for 42.00 arrives from terminal 29110031. What should the gateway do with it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Send it through visa-mux, since QMUX reads the card number and forwards the request to its network",
+            "correct": false,
+            "says": "QMUX writes every request to its one out queue; it doesn't look at the card and doesn't route"
+          },
+          {
+            "id": "b",
+            "text": "Send it through visa-mux, since the Visa host passes other networks' cards on to them",
+            "correct": false,
+            "says": "a network's host has no business with another network's card and acquirer ID; a decline is the good outcome"
+          },
+          {
+            "id": "c",
+            "text": "Report the Mastercard host unavailable at once, since nothing went out and nothing needs undoing",
+            "correct": true,
+            "says": "the purchase is checked against its own network's link before anything is sent, so the caller can be told at once"
+          },
+          {
+            "id": "d",
+            "text": "Report the Mastercard host unavailable and queue a reversal, since the purchase's outcome is unknown",
+            "correct": false,
+            "says": "nothing was sent, so the outcome is known: no purchase happened, and there is nothing to reverse"
+          }
+        ],
+        "origin": {
+          "path": "src/c5.md",
+          "section": "5.5 Each Network Is a Destination of Its Own"
+        }
+      },
+      {
+        "id": "q-wrong-frame",
+        "stem": "A direct link's specification says each message is preceded by a 2-byte binary length and nothing else. The client was deployed with VAPChannel and Base1Packager because \"it's the Visa link\". What does the host make of the client's first echo?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It unpacks the echo normally, since both frames start with the same 2-byte length",
+            "correct": false,
+            "says": "the length matches, but VAPChannel follows it with two zero bytes and a 22-byte header that this host doesn't expect"
+          },
+          {
+            "id": "b",
+            "text": "It unpacks the echo normally, since a host skips a header it didn't ask for",
+            "correct": false,
+            "says": "the host doesn't know a header is there; it reads every byte after the length as the message"
+          },
+          {
+            "id": "c",
+            "text": "It fails to unpack the echo, since the zero bytes and the header reach it as message bytes",
+            "correct": true,
+            "says": "the frame doesn't match the specification, so the host unpacks VAPChannel's padding and header as if they were the message"
+          },
+          {
+            "id": "d",
+            "text": "It fails to unpack the echo, since VAPChannel writes the length as four ASCII digits",
+            "correct": false,
+            "says": "VAPChannel writes a 2-byte binary length, as the captured frame shows; the trouble is what follows it"
+          }
+        ],
+        "origin": {
+          "path": "src/c5.md",
+          "section": "5.5.1 The Link Speaks the Network's Framing"
+        }
+      }
+    ]
+  }
+}

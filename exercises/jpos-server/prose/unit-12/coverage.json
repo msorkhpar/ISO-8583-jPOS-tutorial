@@ -1,0 +1,181 @@
+{
+  "coverage_api": 2,
+  "page": "src/s12.md",
+  "kind": "code",
+  "quiz": "space-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/s12.md": "sha256:b5e1117621a62b69d2319b0a15f1f6fd0a801b408c6ceb4027663102cd4c0ebb"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "core",
+    "count": 4,
+    "aspects": [
+      {
+        "id": "copy-or-object",
+        "says": "A transient space hands back the stored object and a persistent one a copy, so a change is made to a clone and written back.",
+        "basis": [
+          "section:12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy",
+          "example:src/s12.md:11",
+          "example:src/s12.md:12"
+        ],
+        "exercise": "batch-number",
+        "reason": null
+      },
+      {
+        "id": "key-holds-queue",
+        "says": "A key holds a list of entries: out appends behind the oldest, push inserts at the head, put replaces them all, and readers get the head.",
+        "basis": [
+          "section:12.1 A Key Holds a Queue: `out` Adds, `put` Replaces, `push` Goes First",
+          "example:src/s12.md:2"
+        ],
+        "exercise": "space-quiz",
+        "reason": null
+      },
+      {
+        "id": "lease",
+        "says": "An entry nobody takes stays until it is taken, so marks and claims carry a lease.",
+        "basis": [
+          "section:12.2 A Wait Without a Timeout and an Entry Without a Lease Both Last Forever",
+          "example:src/s12.md:6"
+        ],
+        "exercise": "terminal-lock",
+        "reason": null
+      },
+      {
+        "id": "listener-thread",
+        "says": "A listener runs on the writer's thread and does not take the entry: slow work goes to another thread, and a consumer takes with inp and accepts null.",
+        "basis": [
+          "section:12.4 A Listener Runs on the Writer's Thread and Takes Nothing",
+          "example:src/s12.md:9",
+          "example:src/s12.md:10"
+        ],
+        "exercise": "reversal-forwarder",
+        "reason": null
+      },
+      {
+        "id": "read-then-write",
+        "says": "Each Space operation is atomic but a read followed by a write is not; the two steps go under the space's lock, with outIfEmpty, nextLong or synchronized on the space.",
+        "basis": [
+          "section:12.3 The Space's Own Operations Are Atomic, and a Read Followed by a Write Is Not",
+          "example:src/s12.md:7",
+          "example:src/s12.md:8"
+        ],
+        "exercise": "terminal-lock",
+        "reason": null
+      },
+      {
+        "id": "serializable-only",
+        "says": "A persistent space refuses a value that is not Serializable when it is written, while a transient one accepts it.",
+        "basis": [
+          "section:12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy"
+        ],
+        "exercise": null,
+        "reason": "observable only in a real persistent space, which writes files a graded run should not depend on; the lesson shows the error"
+      },
+      {
+        "id": "untimed-wait",
+        "says": "An in or rd without a timeout waits until an entry arrives, so a consumer loop that uses one cannot be stopped.",
+        "basis": [
+          "section:12.2 A Wait Without a Timeout and an Entry Without a Lease Both Last Forever",
+          "example:src/s12.md:4",
+          "example:src/s12.md:5"
+        ],
+        "exercise": "space-quiz",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "terminal-lock",
+        "aspects": [
+          "lease",
+          "read-then-write"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "reversal-forwarder",
+        "aspects": [
+          "listener-thread"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "batch-number",
+        "aspects": [
+          "copy-or-object"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "space-quiz",
+        "aspects": [
+          "key-holds-queue",
+          "untimed-wait"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-server/prose/unit-12/practice-1",
+    "exercises/jpos-server/prose/unit-12/practice-2",
+    "exercises/jpos-server/prose/unit-12/practice-3",
+    "exercises/jpos-server/prose/unit-12/practice-4"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-1",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.3 The Space's Own Operations Are Atomic, and a Read Followed by a Write Is Not"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-2",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.4 A Listener Runs on the Writer's Thread and Takes Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-3",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-4:q-failover-mode",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.1 A Key Holds a Queue: `out` Adds, `put` Replaces, `push` Goes First"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-4:q-undeploy",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.2 A Wait Without a Timeout and an Entry Without a Lease Both Last Forever"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-4:q-audit-listener",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.4 A Listener Runs on the Writer's Thread and Takes Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-12/practice-4:q-velocity-count",
+      "origin": {
+        "path": "src/s12.md",
+        "section": "12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy"
+      }
+    }
+  ],
+  "shortfalls": []
+}

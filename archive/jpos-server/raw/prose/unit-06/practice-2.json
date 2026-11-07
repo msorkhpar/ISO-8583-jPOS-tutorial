@@ -1,0 +1,159 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Refuse requests sent too long ago, all year round",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A card network asks its acquirers to stop processing requests whose transmission time (field 7) is more than five minutes away from their own clock: replays, and requests from terminals whose clocks have drifted. Such a request is answered with `30` and goes no further. The participant that does it is `TransmissionWindow`, in `src/main/java/com/example/practice/TransmissionWindow.java`. It also leaves the sending time in the Context under `SENT_AT`, for the participants after it."
+    },
+    {
+      "type": "para",
+      "text": "`prepare` already works. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`sentAt(...)`: the moment field 7 names;",
+        "`withinWindow(...)`: whether that moment is close enough to the clock."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, the server refuses exactly the requests the network wants refused, on every day of the year and wherever it is deployed, and answers each one. About five lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests give the participant a fixed clock, and some of them change the JVM's default zone."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        if (field7 == null || field7.length() != 10 || !ISOUtil.isNumeric(field7, 10))\n            return null;\n        return ISODate.parseISODate(field7, clock.millis(), TimeZone.getTimeZone(\"GMT\")).toInstant();\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        return Duration.between(sent, clock.instant()).abs().compareTo(WINDOW) <= 0;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        // TODO: The moment field 7 names, on any day of the year and on any server. null when the\n        //       field can't name one. Use the clock this participant was given.\n        throw new IllegalStateException(\"TODO: sentAt\");\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        // TODO: Sent no further than WINDOW from the clock.\n        throw new IllegalStateException(\"TODO: withinWindow\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "cacd6145e85e3e9bca5df63dd832f004baecb28cbc74f694329ddb216940c4cb",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        // TODO: The moment field 7 names, on any day of the year and on any server. null when the\n        //       field can't name one. Use the clock this participant was given.\n        throw new IllegalStateException(\"TODO: sentAt\");\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        // TODO: Sent no further than WINDOW from the clock.\n        throw new IllegalStateException(\"TODO: withinWindow\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-06/practice-2/src/main/java/com/example/practice/TransmissionWindow.java",
+    "test_path": "practice/jpos-server/prose/unit-06/practice-2/src/test/java/com/example/practice/TransmissionWindowTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-06/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.TransmissionWindowTest#aRecentRequestPassesWithItsSendingTime",
+        "kind": "main",
+        "says": "a request sent a couple of minutes ago passes, with the moment field 7 names recorded in the Context"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#anOldRequestIsRefused",
+        "kind": "main",
+        "says": "a request sent half an hour ago is refused with a 30 response"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#aRequestFromJustBeforeNewYearPasses",
+        "kind": "edge",
+        "says": "a request sent just before midnight on 31 December and received after it is seconds old, because field 7 takes the year closest to the clock"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#aServerOutsideUtcReadsTheSameMoment",
+        "kind": "edge",
+        "says": "field 7 is read in GMT whatever the JVM's default zone is"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#aRequestFromTheFutureIsRefused",
+        "kind": "edge",
+        "says": "a request dated beyond the window ahead of the clock is refused too"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#anUnreadableField7IsAnsweredWithAFormatError",
+        "kind": "edge",
+        "says": "a field 7 that is not ten digits gets a 30 response instead of an exception from the date parser"
+      },
+      {
+        "id": "com.example.practice.TransmissionWindowTest#aMissingField7IsAnsweredWithAFormatError",
+        "kind": "edge",
+        "says": "a request without field 7 gets a 30 response instead of an exception, since the missing field reads as null"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-06/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s6.md",
+      "section": "6.4 A Date Without a Year Takes the Year Closest to the Clock, Read in GMT"
+    },
+    "concepts": [
+      "Field 7 has no year and is in GMT: it takes the year closest to the clock and is read in GMT, whatever the JVM's default zone."
+    ]
+  }
+}

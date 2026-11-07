@@ -1,80 +1,165 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c5.md",
   "kind": "code",
+  "quiz": "networks-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c5.md": "sha256:9ce6ec7b4ee2e265e690109a87b6e1682fae6e21215659768ac0adaf0b429ea7"
+    "src/c5.md": "sha256:7a184758a1283aa02407c7ed2cad470b74a2b9c27d8ee96e08588bfa21fce068"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "network-differences-are-data",
-        "says": "What differs between the Visa and the Mastercard requests is data, such as the acquiring institution in field 32 and the point-of-service data Mastercard adds in field 61, not the shape of the request.",
+        "id": "channel-framing",
+        "says": "A direct network link needs the channel whose frame matches the specification; VAPChannel adds two zero bytes and a 22-byte BASE I header after the length.",
         "basis": [
-          "example:src/c5.md:3",
-          "example:src/c5.md:4",
-          "section:5.2 Mastercard Transaction Service"
+          "section:5.5.1 The Link Speaks the Network's Framing",
+          "example:src/c5.md:20"
         ],
-        "exercise": "card-network-requests",
+        "exercise": "networks-quiz",
         "reason": null
       },
       {
-        "id": "processing-code-names-the-transaction",
-        "says": "One authorization MTI carries every transaction type, and the processing code in field 3 is what tells a purchase, a cash advance, a refund and a balance inquiry apart, with a refund pointing at its original by retrieval reference number and a balance inquiry carrying no amount.",
+        "id": "field-43-positions",
+        "says": "Field 43 is read by position, so each part is cut and padded to the width the specification gives it.",
         "basis": [
-          "example:src/c5.md:2",
-          "example:src/c5.md:4",
-          "section:5.1 Visa Transaction Service"
+          "section:5.2.2 Field 43 Has Positions, Not Separators",
+          "example:src/c5.md:9"
         ],
-        "exercise": "card-network-requests",
+        "exercise": "network-config",
         "reason": null
       },
       {
-        "id": "route-by-card-network",
-        "says": "The processing service picks the network's request builder from the card network's name and refuses a network it does not support instead of guessing.",
+        "id": "missing-config-refused",
+        "says": "Per-network values such as the acquirer ID come from configuration, and a missing one must stop the request, because ISOMsg.set with null silently removes the field.",
         "basis": [
+          "section:5.2 The Network Shows Up as Configuration, and a Missing Value Stops the Request",
+          "section:5.2.1 Spot the Problem: The Mastercard Launch",
           "example:src/c5.md:5",
-          "section:5.3 Using the Transaction Services"
+          "example:src/c5.md:7"
         ],
-        "exercise": "card-network-requests",
+        "exercise": "network-config",
         "reason": null
       },
       {
-        "id": "send-through-the-mux",
-        "says": "The built request is sent through a MUX, which waits a bounded time for the matching response.",
+        "id": "network-is-destination",
+        "says": "A QMUX does not route; each network's requests go through that network's MUX only, and a down link means host unavailable, never another network's link.",
         "basis": [
-          "example:src/c5.md:5"
+          "section:5.5 Each Network Is a Destination of Its Own",
+          "example:src/c5.md:18",
+          "example:src/c5.md:19"
         ],
-        "exercise": null,
-        "reason": "the MUX needs a live channel and a peer to answer, and a graded run is offline with no peer"
+        "exercise": "networks-quiz",
+        "reason": null
+      },
+      {
+        "id": "one-builder-shared-fields",
+        "says": "The fields ISO 8583 defines read the same on every network, so one builder makes them with the network as a parameter; per-network copies drift.",
+        "basis": [
+          "section:5.1 One Builder Makes What Every Network Shares"
+        ],
+        "exercise": "network-config",
+        "reason": null
+      },
+      {
+        "id": "private-fields-from-spec",
+        "says": "Private-use fields are defined only by each network's licensed specification and are kept behind one hook per network, never filled from a guess.",
+        "basis": [
+          "section:5.4 Private Fields Come From the Network's Specification, Behind One Hook"
+        ],
+        "exercise": "networks-quiz",
+        "reason": null
+      },
+      {
+        "id": "read-decides-card-fields",
+        "says": "Field 22 and the card fields 14, 35 and 55 come from one value describing how the card was read, so a request never claims a read its data contradicts.",
+        "basis": [
+          "section:5.3 How the Card Was Read Decides the Card Fields",
+          "example:src/c5.md:11",
+          "example:src/c5.md:12"
+        ],
+        "exercise": "entry-mode-check",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "card-network-requests",
+        "name": "network-config",
         "aspects": [
-          "network-differences-are-data",
-          "processing-code-names-the-transaction",
-          "route-by-card-network"
+          "field-43-positions",
+          "missing-config-refused",
+          "one-builder-shared-fields"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "entry-mode-check",
+        "aspects": [
+          "read-decides-card-fields"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "networks-quiz",
+        "aspects": [
+          "channel-framing",
+          "network-is-destination",
+          "private-fields-from-spec"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-05/practice-1"
+    "exercises/jpos-client/prose/unit-05/practice-1",
+    "exercises/jpos-client/prose/unit-05/practice-2",
+    "exercises/jpos-client/prose/unit-05/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-05/practice-1",
       "origin": {
         "path": "src/c5.md",
-        "section": "5. Visa and Mastercard Specific Requests"
+        "section": "5.2.2 Field 43 Has Positions, Not Separators"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-05/practice-2",
+      "origin": {
+        "path": "src/c5.md",
+        "section": "5.3 How the Card Was Read Decides the Card Fields"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-05/practice-3:q-swipe-after-chip",
+      "origin": {
+        "path": "src/c5.md",
+        "section": "5.3 How the Card Was Read Decides the Card Fields"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-05/practice-3:q-forum-layout",
+      "origin": {
+        "path": "src/c5.md",
+        "section": "5.4 Private Fields Come From the Network's Specification, Behind One Hook"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-05/practice-3:q-other-link-up",
+      "origin": {
+        "path": "src/c5.md",
+        "section": "5.5 Each Network Is a Destination of Its Own"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-05/practice-3:q-wrong-frame",
+      "origin": {
+        "path": "src/c5.md",
+        "section": "5.5.1 The Link Speaks the Network's Framing"
       }
     }
   ],

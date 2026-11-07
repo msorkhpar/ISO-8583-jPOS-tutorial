@@ -1,0 +1,133 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Give a second link its own multiplexer",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer is adding a second network link. Its ChannelAdaptor descriptor is ready, and `LinkDescriptors.channelAdaptor(...)` in `src/main/java/com/example/practice/LinkDescriptors.java` builds it. Nobody has written the multiplexer that goes on top of it yet, and the operations team has three complaints about the last link someone set up by hand: requests timed out with the host up, the dashboard said \"connected\" during an outage, and messages from the host that nobody was waiting for ended up mixed with another link's."
+    },
+    {
+      "type": "para",
+      "text": "Finish `muxFor(adaptor, muxName)` so that it returns the QMUX descriptor for the link that `adaptor` describes, as the `20_` file in `deploy/` would hold it. The adaptors in the tests use names and queues of their own, so read them from `adaptor` (`getAttributeValue`, `getChildText`). About 8 lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy what you return as a real QMUX, put a stand-in for the adaptor on its queues, and send through it. A host behind the stand-in answers every request."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jdom2.Element;\n\n/** Builds the deploy descriptors of one link to a host: its ChannelAdaptor, and the QMUX on top. */\npublic class LinkDescriptors {\n\n    /** The ChannelAdaptor descriptor for a link, as its 10_ file in deploy/ would hold it. */\n    public static Element channelAdaptor(String name, String sendQueue, String receiveQueue,\n                                         String host, int port) {\n        Element channel = new Element(\"channel\")\n                .setAttribute(\"class\", \"org.jpos.iso.channel.ASCIIChannel\")\n                .setAttribute(\"packager\", \"org.jpos.iso.packager.GenericPackager\")\n                .setAttribute(\"logger\", \"Q2\");\n        channel.addContent(property(\"host\", host));\n        channel.addContent(property(\"port\", Integer.toString(port)));\n        channel.addContent(property(\"packager-config\", \"jar:packager/iso87ascii.xml\"));\n        return new Element(\"channel-adaptor\")\n                .setAttribute(\"name\", name)\n                .setAttribute(\"class\", \"org.jpos.q2.iso.ChannelAdaptor\")\n                .setAttribute(\"logger\", \"Q2\")\n                .addContent(channel)\n                .addContent(new Element(\"in\").setText(sendQueue))\n                .addContent(new Element(\"out\").setText(receiveQueue))\n                .addContent(new Element(\"reconnect-delay\").setText(\"10000\"));\n    }\n\n    /**\n     * The QMUX descriptor, as its 20_ file in deploy/ would hold it, for the multiplexer named\n     * {@code muxName} that sends requests over {@code adaptor} and matches the answers.\n     */\n    public static Element muxFor(Element adaptor, String muxName) {\n        String name = adaptor.getAttributeValue(\"name\");\n        return new Element(\"mux\")\n                .setAttribute(\"name\", muxName)\n                .setAttribute(\"class\", \"org.jpos.q2.iso.QMUX\")\n                .setAttribute(\"logger\", \"Q2\")\n                .addContent(new Element(\"in\").setText(adaptor.getChildText(\"out\")))\n                .addContent(new Element(\"out\").setText(adaptor.getChildText(\"in\")))\n                .addContent(new Element(\"ready\").setText(name + \".ready\"))\n                .addContent(new Element(\"unhandled\").setText(name + \"-unhandled\"));\n    }\n\n    private static Element property(String name, String value) {\n        return new Element(\"property\").setAttribute(\"name\", name).setAttribute(\"value\", value);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jdom2.Element;\n\n/** Builds the deploy descriptors of one link to a host: its ChannelAdaptor, and the QMUX on top. */\npublic class LinkDescriptors {\n\n    /** The ChannelAdaptor descriptor for a link, as its 10_ file in deploy/ would hold it. */\n    public static Element channelAdaptor(String name, String sendQueue, String receiveQueue,\n                                         String host, int port) {\n        Element channel = new Element(\"channel\")\n                .setAttribute(\"class\", \"org.jpos.iso.channel.ASCIIChannel\")\n                .setAttribute(\"packager\", \"org.jpos.iso.packager.GenericPackager\")\n                .setAttribute(\"logger\", \"Q2\");\n        channel.addContent(property(\"host\", host));\n        channel.addContent(property(\"port\", Integer.toString(port)));\n        channel.addContent(property(\"packager-config\", \"jar:packager/iso87ascii.xml\"));\n        return new Element(\"channel-adaptor\")\n                .setAttribute(\"name\", name)\n                .setAttribute(\"class\", \"org.jpos.q2.iso.ChannelAdaptor\")\n                .setAttribute(\"logger\", \"Q2\")\n                .addContent(channel)\n                .addContent(new Element(\"in\").setText(sendQueue))\n                .addContent(new Element(\"out\").setText(receiveQueue))\n                .addContent(new Element(\"reconnect-delay\").setText(\"10000\"));\n    }\n\n    /**\n     * The QMUX descriptor, as its 20_ file in deploy/ would hold it, for the multiplexer named\n     * {@code muxName} that sends requests over {@code adaptor} and matches the answers.\n     */\n    public static Element muxFor(Element adaptor, String muxName) {\n        // TODO: Q2 will deploy what you return as the multiplexer of this link. Requests sent\n        //       through it must reach the host over {@code adaptor}, and their answers must come\n        //       back to the thread that waits. isConnected() must tell whether this link, and no\n        //       other, is up. A message from this link that nobody waits for must stay where an\n        //       operator can tell which link it came from. Read what you need from {@code adaptor}.\n        throw new IllegalStateException(\"TODO: muxFor\");\n    }\n\n    private static Element property(String name, String value) {\n        return new Element(\"property\").setAttribute(\"name\", name).setAttribute(\"value\", value);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b94d7277d54ec1f0f81399937dc5fa6f1ec02401d6aa8cbd58bedd563bf7a867",
+  "starting_code": "package com.example.practice;\n\nimport org.jdom2.Element;\n\n/** Builds the deploy descriptors of one link to a host: its ChannelAdaptor, and the QMUX on top. */\npublic class LinkDescriptors {\n\n    /** The ChannelAdaptor descriptor for a link, as its 10_ file in deploy/ would hold it. */\n    public static Element channelAdaptor(String name, String sendQueue, String receiveQueue,\n                                         String host, int port) {\n        Element channel = new Element(\"channel\")\n                .setAttribute(\"class\", \"org.jpos.iso.channel.ASCIIChannel\")\n                .setAttribute(\"packager\", \"org.jpos.iso.packager.GenericPackager\")\n                .setAttribute(\"logger\", \"Q2\");\n        channel.addContent(property(\"host\", host));\n        channel.addContent(property(\"port\", Integer.toString(port)));\n        channel.addContent(property(\"packager-config\", \"jar:packager/iso87ascii.xml\"));\n        return new Element(\"channel-adaptor\")\n                .setAttribute(\"name\", name)\n                .setAttribute(\"class\", \"org.jpos.q2.iso.ChannelAdaptor\")\n                .setAttribute(\"logger\", \"Q2\")\n                .addContent(channel)\n                .addContent(new Element(\"in\").setText(sendQueue))\n                .addContent(new Element(\"out\").setText(receiveQueue))\n                .addContent(new Element(\"reconnect-delay\").setText(\"10000\"));\n    }\n\n    /**\n     * The QMUX descriptor, as its 20_ file in deploy/ would hold it, for the multiplexer named\n     * {@code muxName} that sends requests over {@code adaptor} and matches the answers.\n     */\n    public static Element muxFor(Element adaptor, String muxName) {\n        // TODO: Q2 will deploy what you return as the multiplexer of this link. Requests sent\n        //       through it must reach the host over {@code adaptor}, and their answers must come\n        //       back to the thread that waits. isConnected() must tell whether this link, and no\n        //       other, is up. A message from this link that nobody waits for must stay where an\n        //       operator can tell which link it came from. Read what you need from {@code adaptor}.\n        throw new IllegalStateException(\"TODO: muxFor\");\n    }\n\n    private static Element property(String name, String value) {\n        return new Element(\"property\").setAttribute(\"name\", name).setAttribute(\"value\", value);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-01/practice-1/src/main/java/com/example/practice/LinkDescriptors.java",
+    "test_path": "practice/jpos-client/prose/unit-01/practice-1/src/test/java/com/example/practice/LinkDescriptorsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-01/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-01/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LinkDescriptorsTest#aRequestThroughTheNewMuxIsAnswered",
+        "kind": "main",
+        "says": "a request sent through the new multiplexer reaches the host over the link's adaptor and its answer comes back"
+      },
+      {
+        "id": "com.example.practice.LinkDescriptorsTest#theMuxSaysNotConnectedWhileItsLinkIsDown",
+        "kind": "edge",
+        "says": "while the link has never connected, the multiplexer reports that it is not connected"
+      },
+      {
+        "id": "com.example.practice.LinkDescriptorsTest#theMuxSaysConnectedOnlyWhileItsOwnLinkIsUp",
+        "kind": "edge",
+        "says": "the multiplexer reports connected while its own adaptor is connected, and not when only another link is"
+      },
+      {
+        "id": "com.example.practice.LinkDescriptorsTest#aMessageNobodyWaitsForStaysWithItsLink",
+        "kind": "edge",
+        "says": "a message from the host that no request waits for is kept in a queue of this link's own"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-01/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c1.md",
+      "section": "1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
+    },
+    "concepts": [
+      "The multiplexer writes requests to the queue the adaptor reads and reads the queue the adaptor writes; with the names copied instead of crossed, every request waits out its timeout and the host sees nothing.",
+      "isConnected() looks only for the ready entry named in <ready>, the adaptor's name plus .ready; without it a dead link reports connected."
+    ]
+  }
+}

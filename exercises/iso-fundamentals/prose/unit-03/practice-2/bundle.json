@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 3,
   "ordinal": 2,
-  "title": "Write a field value the way its format says",
+  "title": "Write fields a strict receiver can split",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/FieldEncoder.java",
-  "test_file": "src/test/java/com/example/practice/FieldEncoderTest.java",
+  "main_file": "src/main/java/com/example/practice/FieldWriter.java",
+  "test_file": "src/test/java/com/example/practice/FieldWriterTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.FieldEncoderTest#writesEachFieldAsItsFormatSays",
+      "id": "com.example.practice.FieldWriterTest#writesFieldsTheReceiverCanSplit",
       "kind": "main",
-      "says": "pads a fixed field to its width, prefixes a variable field with its length, and refuses characters outside the field's type"
+      "says": "fields that already fit their formats are written so that a receiver splits them back into the same values"
     },
     {
-      "id": "com.example.practice.FieldEncoderTest#numericFieldsArePaddedOnTheLeftWithZeros",
+      "id": "com.example.practice.FieldWriterTest#numbersKeepTheirValue",
       "kind": "edge",
-      "says": "a short numeric value is padded on the left with zeros, so the number does not change"
+      "says": "a short numeric value is filled on the left with zeros, so the number the receiver reads is the one that was meant"
     },
     {
-      "id": "com.example.practice.FieldEncoderTest#refusesAValueTooLongInsteadOfCuttingIt",
+      "id": "com.example.practice.FieldWriterTest#tooLongIsRefusedNotCut",
       "kind": "edge",
-      "says": "a value longer than its field allows is refused, never cut short"
+      "says": "a value longer than its field allows is refused, fixed or variable, never cut to fit"
+    },
+    {
+      "id": "com.example.practice.FieldWriterTest#variableFieldCarriesOnlyItsValue",
+      "kind": "edge",
+      "says": "a variable field is its length and its own characters, never filled to its maximum"
+    },
+    {
+      "id": "com.example.practice.FieldWriterTest#threeDotsMeanAThreeDigitLength",
+      "kind": "edge",
+      "says": "an LLLVAR field's length has three digits, whatever the value's length"
+    },
+    {
+      "id": "com.example.practice.FieldWriterTest#charactersOutsideTheTypeAreRefused",
+      "kind": "edge",
+      "says": "a value with a character its type doesn't allow is refused, since the length alone proves nothing"
     }
   ],
   "report": {
@@ -54,6 +69,6 @@
   },
   "origin": {
     "path": "src/3.md",
-    "section": "3.2. Fixed-length vs. Variable-length fields"
+    "section": "3.2. A Short Value Is Padded, a Long One Is Refused, and Nothing Else Is Checked"
   }
 }

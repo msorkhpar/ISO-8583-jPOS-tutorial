@@ -1,0 +1,131 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Stop a slow card check from holding up the terminal's connection",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A merchant group says its busiest tills time out on purchases several times an hour, while quieter tills on the same server never do. The server answers purchases in `CardCheckListener`, which looks every card up in the blocked-card table. Under load a lookup takes a few seconds."
+    },
+    {
+      "type": "para",
+      "text": "The table can't be made faster this quarter. Change `CardCheckListener` in `src/main/java/com/example/practice/CardCheckListener.java` so that a slow lookup no longer keeps a terminal waiting longer than its own purchase takes. The answer each terminal gets stays exactly what it is today, and `answer(...)` already builds and sends it."
+    },
+    {
+      "type": "para",
+      "text": "Finish the two places marked `TODO`, in `process` and `newWorkers`. About five lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests call `process` the way a QServer session would and use a card table whose lookups they can hold and release. One test keeps two lookups running at once on one connection."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        workers.execute(() -> answer(source, m));\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        return Executors.newFixedThreadPool(16);\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        // TODO: This is what the listener does today, and on busy connections purchases time\n        //       out. Keep the answer the same, and stop making the connection wait for the\n        //       lookup. (two or three lines)\n        answer(source, m);\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        // TODO: One listener object serves every connection of the server, and lookups take\n        //       seconds. (one line)\n        throw new IllegalStateException(\"TODO: newWorkers\");\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "daa08b10c7c1b3fdef45c720ca3319078979370194aadf978832f1d9dae91855",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        // TODO: This is what the listener does today, and on busy connections purchases time\n        //       out. Keep the answer the same, and stop making the connection wait for the\n        //       lookup. (two or three lines)\n        answer(source, m);\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        // TODO: One listener object serves every connection of the server, and lookups take\n        //       seconds. (one line)\n        throw new IllegalStateException(\"TODO: newWorkers\");\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-03/practice-2/src/main/java/com/example/practice/CardCheckListener.java",
+    "test_path": "practice/jpos-server/prose/unit-03/practice-2/src/test/java/com/example/practice/CardCheckListenerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-03/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.CardCheckListenerTest#everyPurchaseIsAnsweredOnItsConnection",
+        "kind": "main",
+        "says": "every purchase is answered on its connection, 00 for a good card and 62 for a blocked one"
+      },
+      {
+        "id": "com.example.practice.CardCheckListenerTest#theConnectionIsFreeWhileTheLookupRuns",
+        "kind": "edge",
+        "says": "process returns while the lookup is still running, so the session can read the connection's next message"
+      },
+      {
+        "id": "com.example.practice.CardCheckListenerTest#aQuickLookupIsNotStuckBehindASlowOne",
+        "kind": "edge",
+        "says": "a purchase whose lookup is quick is answered while an earlier, slow lookup is still running"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-03/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s3.md",
+      "section": "3.3 A Listener Holds Up Its Own Connection"
+    },
+    "concepts": [
+      "A listener runs on its connection's only reader thread, so slow work in it delays every later message on that connection but not other connections; slow work is handed off."
+    ]
+  }
+}

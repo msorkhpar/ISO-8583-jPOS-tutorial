@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Reverse upstream what the switch sent, when a terminal reverses",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Another acquirer joins the switch. Its terminals don't send field 90: a reversal names the purchase it undoes by the terminal's ID (41) and the retrieval reference number (37) the terminal gave the purchase. Each terminal makes its RRN from the date and its own counter. The fuel-card network behind the switch keeps an approved amount on the cardholder's account until a reversal it can match to the purchase arrives, and it ignores a reversal it can't match."
+    },
+    {
+      "type": "para",
+      "text": "`src/main/java/com/example/practice/ReversalRecords.java` holds the participants of the forwarding group and of the reversal group, and the builder of the upstream reversal. Finish `remember` and `reverse`, marked `TODO`, so that a terminal's reversal frees the amount the network holds for the purchase. Something else sends what you put on the `reversal.<link>` queues. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager, a real `QueryHost` and two real QMUXes with Q2, in the test's own JVM, with a network behind each QMUX that approves everything. They look at what the switch queued for each network and at what it keeps between a purchase and its reversal."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\n\n/**\n * The switch's memory of what it sent upstream. This acquirer's terminals name the purchase they\n * reverse by their terminal ID (41) and the retrieval reference number (37) they gave it; their\n * reversals carry no field 90.\n */\npublic class ReversalRecords {\n    /** What was sent upstream, and on which link. */\n    record Sent(String link, ISOMsg message) implements Serializable { }\n\n    static final Space<String, Object> SPACE = SpaceFactory.getSpace(\"tspace:switch-records\");\n    static final long LEASE = 60_000L;\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** Before QueryHost: the copy the network receives, numbered by the switch, remembered. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) {\n            acquirerId = cfg.get(\"acquirer-id\", \"12345678901\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ISOMsg out = (ISOMsg) request.clone();\n                out.set(11, nextStan(link));\n                out.set(32, acquirerId);\n                remember(request, link, out);\n                ctx.put(\"OUTBOUND\", out);\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: the network's approval, as the terminal's reply. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(\"HOST_RESPONSE\");\n            if (answer == null || !\"00\".equals(answer.getString(39)))\n                return FAIL;\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    replyTo(ctx.get(ContextConstants.REQUEST.toString()), answer.getString(38)));\n                return PREPARED | NO_JOIN;\n            } catch (ISOException e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** A terminal's reversal (0420, 0421): reverses upstream what was sent, and answers 00. */\n    public static class ReverseFromTerminal implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n            try {\n                reverse(reversal.getString(41), reversal.getString(37));\n                ctx.put(ContextConstants.RESPONSE.toString(), replyTo(reversal, null));\n            } catch (Exception e) {\n                ctx.log(e);\n            }\n            return PREPARED | NO_JOIN;\n        }\n    }\n\n    /** Before the request leaves: keeps what {@code link}'s network will see, for a later reversal. */\n    static void remember(ISOMsg request, String link, ISOMsg outbound) throws ISOException {\n        ISOMsg kept = (ISOMsg) outbound.clone();\n        kept.unset(35, 45, 52, 55);\n        SPACE.put(\"sent.\" + request.getString(41) + \".\" + request.getString(37), new Sent(link, kept), LEASE);\n    }\n\n    /**\n     * Queues, on \"reversal.\" + link, one reversal of what was sent upstream for the terminal's\n     * purchase. Returns false when there is nothing to reverse.\n     */\n    static boolean reverse(String terminal, String rrn) throws ISOException {\n        Sent sent = (Sent) SPACE.inp(\"sent.\" + terminal + \".\" + rrn);\n        if (sent == null)\n            return false;\n        SPACE.out(\"reversal.\" + sent.link(), reversalOf(sent.message(), nextStan(sent.link())));\n        return true;\n    }\n\n    /** A reversal of {@code original}: a new message on the link, pointing back through field 90. */\n    static ISOMsg reversalOf(ISOMsg original, String stan) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, stan);\n        rev.set(90, original.getMTI()\n            + ISOUtil.zeropad(original.getString(11), 6)\n            + ISOUtil.zeropad(original.getString(7), 10)\n            + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n            + ISOUtil.zeropad(\"\", 11));\n        return rev;\n    }\n\n    /** One STAN sequence per upstream link. */\n    static String nextStan(String link) {\n        long n = SpaceUtil.nextLong(SPACE, \"stan.\" + link);\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n\n    /** An answer to the terminal's own request: approval code {@code authCode}, or none. */\n    static ISOMsg replyTo(ISOMsg request, String authCode) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        if (authCode != null)\n            r.set(38, authCode);\n        return r;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\n\n/**\n * The switch's memory of what it sent upstream. This acquirer's terminals name the purchase they\n * reverse by their terminal ID (41) and the retrieval reference number (37) they gave it; their\n * reversals carry no field 90.\n */\npublic class ReversalRecords {\n    /** What was sent upstream, and on which link. */\n    record Sent(String link, ISOMsg message) implements Serializable { }\n\n    static final Space<String, Object> SPACE = SpaceFactory.getSpace(\"tspace:switch-records\");\n    static final long LEASE = 60_000L;\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** Before QueryHost: the copy the network receives, numbered by the switch, remembered. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) {\n            acquirerId = cfg.get(\"acquirer-id\", \"12345678901\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ISOMsg out = (ISOMsg) request.clone();\n                out.set(11, nextStan(link));\n                out.set(32, acquirerId);\n                remember(request, link, out);\n                ctx.put(\"OUTBOUND\", out);\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: the network's approval, as the terminal's reply. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(\"HOST_RESPONSE\");\n            if (answer == null || !\"00\".equals(answer.getString(39)))\n                return FAIL;\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    replyTo(ctx.get(ContextConstants.REQUEST.toString()), answer.getString(38)));\n                return PREPARED | NO_JOIN;\n            } catch (ISOException e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** A terminal's reversal (0420, 0421): reverses upstream what was sent, and answers 00. */\n    public static class ReverseFromTerminal implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n            try {\n                reverse(reversal.getString(41), reversal.getString(37));\n                ctx.put(ContextConstants.RESPONSE.toString(), replyTo(reversal, null));\n            } catch (Exception e) {\n                ctx.log(e);\n            }\n            return PREPARED | NO_JOIN;\n        }\n    }\n\n    /** Before the request leaves: keeps what {@code link}'s network will see, for a later reversal. */\n    static void remember(ISOMsg request, String link, ISOMsg outbound) throws ISOException {\n        // TODO: Keep, in SPACE and for LEASE milliseconds, what reverse() will need to find this\n        //       purchase when the terminal reverses it. What is kept stays on disk in production.\n        throw new IllegalStateException(\"TODO: remember\");\n    }\n\n    /**\n     * Queues, on \"reversal.\" + link, one reversal of what was sent upstream for the terminal's\n     * purchase. Returns false when there is nothing to reverse.\n     */\n    static boolean reverse(String terminal, String rrn) throws ISOException {\n        // TODO: The network must be able to find the purchase, and undoes it once however often\n        //       the terminal repeats its reversal. reversalOf and nextStan build the message.\n        throw new IllegalStateException(\"TODO: reverse\");\n    }\n\n    /** A reversal of {@code original}: a new message on the link, pointing back through field 90. */\n    static ISOMsg reversalOf(ISOMsg original, String stan) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, stan);\n        rev.set(90, original.getMTI()\n            + ISOUtil.zeropad(original.getString(11), 6)\n            + ISOUtil.zeropad(original.getString(7), 10)\n            + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n            + ISOUtil.zeropad(\"\", 11));\n        return rev;\n    }\n\n    /** One STAN sequence per upstream link. */\n    static String nextStan(String link) {\n        long n = SpaceUtil.nextLong(SPACE, \"stan.\" + link);\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n\n    /** An answer to the terminal's own request: approval code {@code authCode}, or none. */\n    static ISOMsg replyTo(ISOMsg request, String authCode) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        if (authCode != null)\n            r.set(38, authCode);\n        return r;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "fb9cce5f6a1da08477e81841216452ccf79db31fc6e8bae86945f19d06248649",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\n\n/**\n * The switch's memory of what it sent upstream. This acquirer's terminals name the purchase they\n * reverse by their terminal ID (41) and the retrieval reference number (37) they gave it; their\n * reversals carry no field 90.\n */\npublic class ReversalRecords {\n    /** What was sent upstream, and on which link. */\n    record Sent(String link, ISOMsg message) implements Serializable { }\n\n    static final Space<String, Object> SPACE = SpaceFactory.getSpace(\"tspace:switch-records\");\n    static final long LEASE = 60_000L;\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** Before QueryHost: the copy the network receives, numbered by the switch, remembered. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) {\n            acquirerId = cfg.get(\"acquirer-id\", \"12345678901\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ISOMsg out = (ISOMsg) request.clone();\n                out.set(11, nextStan(link));\n                out.set(32, acquirerId);\n                remember(request, link, out);\n                ctx.put(\"OUTBOUND\", out);\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: the network's approval, as the terminal's reply. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(\"HOST_RESPONSE\");\n            if (answer == null || !\"00\".equals(answer.getString(39)))\n                return FAIL;\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    replyTo(ctx.get(ContextConstants.REQUEST.toString()), answer.getString(38)));\n                return PREPARED | NO_JOIN;\n            } catch (ISOException e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** A terminal's reversal (0420, 0421): reverses upstream what was sent, and answers 00. */\n    public static class ReverseFromTerminal implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n            try {\n                reverse(reversal.getString(41), reversal.getString(37));\n                ctx.put(ContextConstants.RESPONSE.toString(), replyTo(reversal, null));\n            } catch (Exception e) {\n                ctx.log(e);\n            }\n            return PREPARED | NO_JOIN;\n        }\n    }\n\n    /** Before the request leaves: keeps what {@code link}'s network will see, for a later reversal. */\n    static void remember(ISOMsg request, String link, ISOMsg outbound) throws ISOException {\n        // TODO: Keep, in SPACE and for LEASE milliseconds, what reverse() will need to find this\n        //       purchase when the terminal reverses it. What is kept stays on disk in production.\n        throw new IllegalStateException(\"TODO: remember\");\n    }\n\n    /**\n     * Queues, on \"reversal.\" + link, one reversal of what was sent upstream for the terminal's\n     * purchase. Returns false when there is nothing to reverse.\n     */\n    static boolean reverse(String terminal, String rrn) throws ISOException {\n        // TODO: The network must be able to find the purchase, and undoes it once however often\n        //       the terminal repeats its reversal. reversalOf and nextStan build the message.\n        throw new IllegalStateException(\"TODO: reverse\");\n    }\n\n    /** A reversal of {@code original}: a new message on the link, pointing back through field 90. */\n    static ISOMsg reversalOf(ISOMsg original, String stan) throws ISOException {\n        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 49);\n        rev.setMTI(\"0420\");\n        rev.set(11, stan);\n        rev.set(90, original.getMTI()\n            + ISOUtil.zeropad(original.getString(11), 6)\n            + ISOUtil.zeropad(original.getString(7), 10)\n            + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n            + ISOUtil.zeropad(\"\", 11));\n        return rev;\n    }\n\n    /** One STAN sequence per upstream link. */\n    static String nextStan(String link) {\n        long n = SpaceUtil.nextLong(SPACE, \"stan.\" + link);\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n\n    /** An answer to the terminal's own request: approval code {@code authCode}, or none. */\n    static ISOMsg replyTo(ISOMsg request, String authCode) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        if (authCode != null)\n            r.set(38, authCode);\n        return r;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-16/practice-2/src/main/java/com/example/practice/ReversalRecords.java",
+    "test_path": "practice/jpos-server/prose/unit-16/practice-2/src/test/java/com/example/practice/ReversalRecordsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-16/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-16/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ReversalRecordsTest#anApprovedPurchaseAndItsReversal",
+        "kind": "main",
+        "says": "a terminal's reversal of an approved purchase is answered 00 and leaves one reversal for the network"
+      },
+      {
+        "id": "com.example.practice.ReversalRecordsTest#aReversalOfNothingIsAnsweredAndSendsNothing",
+        "kind": "main",
+        "says": "a reversal of a purchase the switch never forwarded is answered 00 and sends nothing upstream"
+      },
+      {
+        "id": "com.example.practice.ReversalRecordsTest#theNetworkCanFindWhatItIsAskedToUndo",
+        "kind": "edge",
+        "says": "the upstream reversal names, in field 90, the STAN and time of the message the network received, not the terminal's"
+      },
+      {
+        "id": "com.example.practice.ReversalRecordsTest#repeatsAreSentUpstreamOnce",
+        "kind": "edge",
+        "says": "a reversal and its repeat leave one reversal for the network, because the record is taken, not read"
+      },
+      {
+        "id": "com.example.practice.ReversalRecordsTest#whatTheSwitchKeepsHoldsNoCardSecrets",
+        "kind": "edge",
+        "says": "the record kept for a reversal holds no track data, PIN block or chip data, although the network was sent them"
+      },
+      {
+        "id": "com.example.practice.ReversalRecordsTest#twoTerminalsGiveTheSameRrn",
+        "kind": "edge",
+        "says": "two terminals that give their purchases the same RRN each get their own purchase reversed"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-16/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s16.md",
+      "section": "16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record"
+    },
+    "concepts": [
+      "The record is taken, not read, so a repeated reversal goes upstream once, and it is kept without track data, PIN block or chip data.",
+      "A source's reversal names the source's original, which the destination never saw; the switch finds the upstream message through its own record and reverses that, so field 90 names what the destination received."
+    ]
+  }
+}

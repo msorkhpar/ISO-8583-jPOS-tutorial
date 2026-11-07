@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 6,
   "ordinal": 1,
-  "title": "Answer a request with a response built from it",
+  "title": "Pay out only what the ATM's notes can make",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/DataElementHandler.java",
-  "test_file": "src/test/java/com/example/practice/DataElementHandlerTest.java",
+  "main_file": "src/main/java/com/example/practice/CashWithdrawal.java",
+  "test_file": "src/test/java/com/example/practice/CashWithdrawalTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,49 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.DataElementHandlerTest#aRequestIsAnsweredWithAnApprovedCopyOfItself",
+      "id": "com.example.practice.CashWithdrawalTest#aWithdrawalInNotesIsApproved",
       "kind": "main",
-      "says": "a request is answered by a response under the response MTI, carrying the request's fields plus 39 and 38"
+      "says": "a withdrawal the euro notes can make, within the maximum, is approved"
     },
     {
-      "id": "com.example.practice.DataElementHandlerTest#theRequestItselfIsLeftAsItWas",
-      "kind": "edge",
-      "says": "the request in the Context is not changed: the response is a separate message"
+      "id": "com.example.practice.CashWithdrawalTest#anAmountTheNotesCannotMakeIsRefused",
+      "kind": "main",
+      "says": "an amount that is not a whole number of the smallest note is refused with 13"
     },
     {
-      "id": "com.example.practice.DataElementHandlerTest#aMessageThatIsAlreadyAResponseAborts",
+      "id": "com.example.practice.CashWithdrawalTest#aWithdrawalOverTheMaximumIsRefused",
+      "kind": "main",
+      "says": "an amount above the currency's maximum is refused with 61"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#aCurrencyWithoutACassetteIsRefused",
+      "kind": "main",
+      "says": "a currency the ATM holds no notes for is refused with 57"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#aWithdrawalWithoutACurrencyIsAFormatError",
       "kind": "edge",
-      "says": "a message that is already a response cannot be answered: the participant aborts with the exception in the Context"
+      "says": "a request without field 49 gets a 30 response instead of an exception, since a missing field reads as null"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#aSignedAmountIsAFormatError",
+      "kind": "edge",
+      "says": "a field 4 with a sign is not twelve digits and gets 30, though BigDecimal would accept it"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#wonHaveNoMinorUnit",
+      "kind": "edge",
+      "says": "field 4 in won counts whole won, since the won has no minor unit"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#dinarsHaveThreeDecimals",
+      "kind": "edge",
+      "says": "field 4 in Kuwaiti dinars has three decimals, taken from the currency rather than assumed"
+    },
+    {
+      "id": "com.example.practice.CashWithdrawalTest#anUnknownCurrencyCodeIsAFormatError",
+      "kind": "edge",
+      "says": "a currency code ISOCurrency doesn't know gets 30 instead of an exception"
     }
   ],
   "report": {
@@ -54,6 +84,6 @@
   },
   "origin": {
     "path": "src/s6.md",
-    "section": "6.3 Integrating Data Element Handling in a jPOS Server"
+    "section": "6.3 An Amount Counts the Minor Units of the Currency in Field 49"
   }
 }

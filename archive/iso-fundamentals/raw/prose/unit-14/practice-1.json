@@ -8,8 +8,8 @@
   "unit": 14,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Read the EMV tags out of field 55",
+  "ingested": "2026-11-05",
+  "title": "Issue tokens that nobody can mistake for cards or trace back to them",
   "blocks": [
     {
       "type": "heading",
@@ -18,24 +18,26 @@
     },
     {
       "type": "para",
-      "text": "A chip card authorization reaches your host with the card's EMV data in field 55, the ICC system related data. The field is binary: one tag-length-value item after another, with no separators. Before your risk rules can look at the Application Interchange Profile (tag `82`) or the Terminal Verification Results (tag `95`), something has to split the field into its items, and a mistake there silently feeds the rules the wrong bytes."
-    },
-    {
-      "type": "para",
-      "text": "Write `ChipData.tags(ISOMsg message)`. It returns a map from each tag to its value, both as upper-case hexadecimal, in the order the items appear in field 55. Each item is:"
+      "text": "The gateway's token vault went live last week, and the incident list is already long:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "the tag: one byte, unless the low five bits of that byte are all set (`0x1F`), in which case the tag is two bytes, so `9F 26` is the single tag `9F26`;",
-        "the length: one byte, the number of value bytes that follow;",
-        "the value: exactly that many bytes."
+        "the checkout's card-number check refuses nine tokens in ten;",
+        "a token reached a card issuer's authorization system, as if it were a card;",
+        "a customer who shops at a café and at a garage has the same token at both;",
+        "on Tuesday a customer paid with his saved card, and another customer's card was charged;",
+        "the assessor found card numbers in clear among the things the vault keeps."
       ]
     },
     {
       "type": "para",
-      "text": "A message without field 55 is not an error: it simply has no chip data, and you return an empty map. A field whose last item claims more bytes than are left is damaged; refuse it with an `ISOException` rather than return a value cut short."
+      "text": "`tokenize` and `detokenize` in `src/main/java/com/example/practice/TokenVault.java` already work. Finish the three methods marked `TODO`: `key`, `issue` and `newToken`. The comment on each says what it is for. Tokens are 16 digits, like the cards they replace. Draw each digit with `random.nextInt(10)`, one at a time and in order, because the tests script those digits. About twelve lines in total."
+    },
+    {
+      "type": "para",
+      "text": "`detokenize` still hands a card number to anyone who asks. The next practice deals with that."
     },
     {
       "type": "heading",
@@ -50,7 +52,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.LinkedHashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        Map<String, String> found = new LinkedHashMap<>();\n        if (!message.hasField(55)) {\n            return found;\n        }\n        byte[] data = message.getBytes(55);\n        int at = 0;\n        while (at < data.length) {\n            int tagStart = at;\n            int tagLength = (data[at] & 0x1F) == 0x1F ? 2 : 1;\n            if (at + tagLength + 1 > data.length) {\n                throw new ISOException(\"field 55 ends inside an item at byte \" + at);\n            }\n            String tag = ISOUtil.hexString(data, tagStart, tagLength).toUpperCase();\n            at += tagLength;\n            int length = data[at++] & 0xFF;\n            if (at + length > data.length) {\n                throw new ISOException(\"tag \" + tag + \" claims \" + length + \" bytes past the end of field 55\");\n            }\n            found.put(tag, ISOUtil.hexString(data, at, length).toUpperCase());\n            at += length;\n        }\n        return found;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token. The next practice makes this safe. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        return sealer.open(byToken.get(token).sealedPan());\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        return requestor + \":\" + sealer.lookup(pan);\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        String token = newToken();\n        while (byToken.putIfAbsent(token, entry) != null) {\n            token = newToken();\n        }\n        return token;\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        StringBuilder sb = new StringBuilder(tokenBin);\n        while (sb.length() < 15) {\n            sb.append(random.nextInt(10));\n        }\n        return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();\n    }\n}\n"
         }
       ]
     },
@@ -62,7 +64,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write tags\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token. The next practice makes this safe. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        return sealer.open(byToken.get(token).sealedPan());\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        // TODO: The same requestor presenting the same card again must find its token here, and\n        //       nobody else may find it. byRequestorAndCard is part of what the vault keeps.\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        // TODO: Return a token from newToken() and record the entry under it in byToken. A token\n        //       that already leads to a card must keep leading to that card.\n        throw new IllegalStateException(\"TODO: issue\");\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        // TODO: Every system that handles card numbers must accept the token, and no system may\n        //       mistake it for a card. Draw the digits one at a time, in order.\n        throw new IllegalStateException(\"TODO: newToken\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -81,11 +83,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "abff1a35c338055fbf3e1ceb480faf50de010475c184f49282c2afa752906991",
-  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Splits the EMV data in field 55 into its tag-length-value items. */\npublic final class ChipData {\n\n    private ChipData() {\n    }\n\n    /** Every tag in field 55 with its value, both upper-case hex, in the order they appear. */\n    public static Map<String, String> tags(ISOMsg message) throws ISOException {\n        throw new UnsupportedOperationException(\"write tags\");\n    }\n}\n",
+  "content_sha256": "7af097783afb7b0feee0eb41a9dc6040ff9097d6a47849e83d17cf0e0cd1b6e8",
+  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.Random;\nimport java.util.Set;\nimport java.util.concurrent.ConcurrentHashMap;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\n/** Issues tokens that stand in for card numbers, and turns them back for the station. */\npublic final class TokenVault {\n\n    /** Encryption and a keyed lookup value for card numbers. The vault never sees the keys. */\n    public interface Sealer {\n        String seal(String pan);\n\n        String open(String sealed);\n\n        String lookup(String pan);\n    }\n\n    record Entry(String requestor, String sealedPan) {\n    }\n\n    private final String tokenBin;\n    private final Random random;\n    private final Sealer sealer;\n    private final Map<String, Entry> byToken = new ConcurrentHashMap<>();\n    private final Map<String, String> byRequestorAndCard = new ConcurrentHashMap<>();\n\n    /** tokenBin: the range the network reserved for this vault's tokens, 6 to 8 digits. */\n    public TokenVault(String tokenBin, Random random, Sealer sealer) {\n        this.tokenBin = tokenBin;\n        this.random = random;\n        this.sealer = sealer;\n    }\n\n    /** The requestor's token for this card: the one it already has, or a new one. */\n    public String tokenize(String requestor, String pan) {\n        return byRequestorAndCard.computeIfAbsent(key(requestor, pan),\n            k -> issue(new Entry(requestor, sealer.seal(pan))));\n    }\n\n    /** The card number behind a token. The next practice makes this safe. */\n    public String detokenize(Set<String> callerPermissions, String requestor, String token) throws ISOException {\n        return sealer.open(byToken.get(token).sealedPan());\n    }\n\n    /** What the vault files a requestor's token for this card under. */\n    String key(String requestor, String pan) {\n        // TODO: The same requestor presenting the same card again must find its token here, and\n        //       nobody else may find it. byRequestorAndCard is part of what the vault keeps.\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** A token nobody holds yet, recorded for this entry. */\n    String issue(Entry entry) {\n        // TODO: Return a token from newToken() and record the entry under it in byToken. A token\n        //       that already leads to a card must keep leading to that card.\n        throw new IllegalStateException(\"TODO: issue\");\n    }\n\n    /** A candidate token: 16 digits, each drawn with random.nextInt(10) after the range. */\n    String newToken() {\n        // TODO: Every system that handles card numbers must accept the token, and no system may\n        //       mistake it for a card. Draw the digits one at a time, in order.\n        throw new IllegalStateException(\"TODO: newToken\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/com/example/practice/ChipData.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/test/java/com/example/practice/ChipDataTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/com/example/practice/TokenVault.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-14/practice-1/src/test/java/com/example/practice/TokenVaultTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -106,19 +108,39 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ChipDataTest#readsEveryTagWithItsValueInOrder",
+        "id": "com.example.practice.TokenVaultTest#aCardGetsATokenThatLeadsBackToIt",
         "kind": "main",
-        "says": "reads every one-byte tag of field 55 with its value, in the order they arrive, and an absent field 55 gives no tags"
+        "says": "a card gets a 16-digit token, the same requestor gets the same token again, another card gets another, and each token leads back to its card"
       },
       {
-        "id": "com.example.practice.ChipDataTest#readsTwoByteTags",
+        "id": "com.example.practice.TokenVaultTest#tokensPassTheCardNumberCheck",
         "kind": "edge",
-        "says": "a tag whose first byte ends in five set bits (such as 9F26 or 5F2A) is two bytes long"
+        "says": "every token ends with the Luhn check digit of its first fifteen digits, so checks built for card numbers accept it"
       },
       {
-        "id": "com.example.practice.ChipDataTest#refusesAValueThatRunsPastTheEnd",
+        "id": "com.example.practice.TokenVaultTest#tokensComeFromTheTokenRange",
         "kind": "edge",
-        "says": "a length that runs past the end of field 55 is refused with an ISOException instead of read short"
+        "says": "every token starts with the range reserved for tokens, so it can never be a real card number"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#eachRequestorGetsItsOwnToken",
+        "kind": "edge",
+        "says": "the same card presented by two requestors gets two different tokens"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#aTokenSaysNothingAboutTheCard",
+        "kind": "edge",
+        "says": "apart from the range and the check digit, a token's digits are drawn at random; none are copied from the card"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#aTokenAlreadyIssuedIsNotIssuedAgain",
+        "kind": "edge",
+        "says": "a new draw that equals an issued token is drawn again, so the issued token keeps leading to its own card"
+      },
+      {
+        "id": "com.example.practice.TokenVaultTest#theVaultKeepsNoClearCardNumber",
+        "kind": "edge",
+        "says": "nothing the vault keeps holds a clear card number: it files tokens under the keyed lookup value"
       }
     ],
     "report": {
@@ -127,10 +149,11 @@
     },
     "origin": {
       "path": "src/14.md",
-      "section": "14.1.1. EMV data in ISO-8583 messages"
+      "section": "14.4. A Token Belongs to the Requestor It Was Issued To"
     },
     "concepts": [
-      "A chip card's EMV data travels in field 55 as a run of tag-length-value items, and a tag may take more than one byte."
+      "A token is issued per requestor and found through the keyed lookup value, never the card number, so a token leaked from one merchant is useless at another.",
+      "A token's digits are random, not derived from the card; it has sixteen digits and a correct check digit so card-number systems accept it, and a reserved BIN so it can never be a real card; a draw already taken is drawn again."
     ]
   }
 }

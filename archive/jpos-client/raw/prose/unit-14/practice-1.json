@@ -1,0 +1,137 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Alert on the links the pool is not using",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Last night one of the acquirer's two links reconnected at 02:10 and was refused its sign-on until 06:00. For four hours every purchase went over the other link, and nobody was paged: the alert watches the pool's `isConnected()`, and the adaptor's connection counter looked healthy too."
+    },
+    {
+      "type": "para",
+      "text": "`PoolMonitor` in `src/main/java/com/example/practice/PoolMonitor.java` is the new alert. It is built with the same space and the same `check-enabled` setting as the pool it watches, and `skipped()` names the links the pool will not send to right now. Finish `inUse`, the one method marked `TODO`. When you're done, the alert names a link exactly when the pool would pass it over, whatever state its connection and sign-on are in. About six lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests run real QMUXes and a real `MUXPool` in one JVM. They play the adaptor and the sign-on manager by writing to the space."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        if (!member.isConnected())\n            return false;\n        if (!checkEnabled)\n            return true;\n        Object ready = sp.rdp(member.getReadyIndicatorNames()[0]);\n        return sp.rdp(member.getName() + \".enabled\") == ready;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        // TODO: Answer the way the pool decides, so that the alert and the pool never disagree.\n        //       The pool was deployed with the same space and the same check-enabled setting\n        //       as this monitor. member.getReadyIndicatorNames()[0] is the key its adaptor\n        //       writes when it connects.\n        throw new IllegalStateException(\"TODO: inUse\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "82bf6fecce9f0c59c8b970ad79d9d45e74280fec1d7b12f123e4b171fa61600f",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        // TODO: Answer the way the pool decides, so that the alert and the pool never disagree.\n        //       The pool was deployed with the same space and the same check-enabled setting\n        //       as this monitor. member.getReadyIndicatorNames()[0] is the key its adaptor\n        //       writes when it connects.\n        throw new IllegalStateException(\"TODO: inUse\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-14/practice-1/src/main/java/com/example/practice/PoolMonitor.java",
+    "test_path": "practice/jpos-client/prose/unit-14/practice-1/src/test/java/com/example/practice/PoolMonitorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PoolMonitorTest#signedOnLinksAreInUseAndADroppedOneIsNamed",
+        "kind": "main",
+        "says": "with every link connected and signed on nothing is named, and a link that drops is named"
+      },
+      {
+        "id": "com.example.practice.PoolMonitorTest#aConnectedLinkThatHasNotSignedOnIsNamed",
+        "kind": "edge",
+        "says": "with check-enabled a link that is connected but not signed on is not in use"
+      },
+      {
+        "id": "com.example.practice.PoolMonitorTest#aLinkThatReconnectedIsNamedUntilItSignsOnAgain",
+        "kind": "edge",
+        "says": "a sign-on belongs to one connection: after a reconnect the old mark no longer counts"
+      },
+      {
+        "id": "com.example.practice.PoolMonitorTest#aMarkThatOnlyEqualsTheConnectionDoesNotCount",
+        "kind": "edge",
+        "says": "the enabled mark must be the very ready object; an equal copy does not count"
+      },
+      {
+        "id": "com.example.practice.PoolMonitorTest#withoutCheckEnabledEveryConnectedLinkIsInUse",
+        "kind": "edge",
+        "says": "without check-enabled a connected link is in use with no sign-on mark at all"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-14/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c14.md",
+      "section": "14.3 A Link Is Usable When It Is Connected and Signed On"
+    },
+    "concepts": [
+      "With check-enabled a member is usable only while its enabled mark is the very ready object of its current connection; without it a connected member is usable."
+    ]
+  }
+}

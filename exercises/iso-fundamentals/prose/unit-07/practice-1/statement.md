@@ -1,17 +1,15 @@
-The acquirer does not talk to the issuer directly. It hands the authorization request to a
-jPOS `MUX`, which sends it on and matches the answer that comes back, and it waits only so
-long. What the acquirer does with that answer, or with its absence, decides what the
-cardholder is told at the terminal.
+You run the issuer's authorization host for a credit card programme. `Account` keeps one
+cardholder's account, and its `authorize` already answers the network's `0100`s. Two kinds of
+complaint keep reaching the call centre:
 
-Write `Authorizer.authorize(MUX mux, ISOMsg request)`. It sends the request with
-`mux.request(request, Authorizer.TIMEOUT_MILLIS)` (30 seconds) and returns a `Decision`:
+- after a stay or a fill-up, part of what the merchant first asked for still shows as blocked,
+  long after the final charge has posted;
+- after last Saturday's outage, cardholders whose purchases went through during it got further
+  approvals afterwards, and their accounts ended up below zero once everything cleared.
 
-- `approved`: whether the issuer approved, which it does only with `00` in field 39;
-- `responseCode`: the code the issuer returned in field 39, so a decline such as `05` or
-  `51` can be passed on.
+Finish `standIn` and `clear` in `src/main/java/com/example/practice/Account.java`. When you're
+done, `ledger()` and `available()` match what each cardholder has really spent and committed to,
+whoever approved the purchase and whatever the clearing file says. About six lines in total.
 
-Edge case to handle:
-
-- When the MUX gives back no response (it returns `null`, which is how a timeout arrives),
-  the issuer has **not** declined: nobody knows what it decided. Throw an `IOException`
-  saying there was no response; never turn it into a declined `Decision`.
+The tests use other cards, amounts and approval codes than the lesson, including a purchase a
+terminal approved on its own.

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 9,
+  "ordinal": 3,
+  "title": "Check yourself: a database inside the TransactionManager",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-close-after-send",
+        "stem": "A colleague moves Close below SendResponse in the descriptor and leaves Open as it is, so Open still puts the connection under TX. The test suite sends one purchase the server approves and one it declines. What do the tests see?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Both purchases are answered, since Close still commits or rolls back before the transaction ends",
+            "correct": false,
+            "says": "in 2.1.7 commit and abort run in declaration order, so SendResponse runs first, while TX is still in the Context, and refuses to send"
+          },
+          {
+            "id": "b",
+            "text": "Neither purchase is answered, since SendResponse runs while TX is still in the Context",
+            "correct": true,
+            "says": "SendResponse won't send while TX is set, and with Close declared after it, TX is still set on both paths"
+          },
+          {
+            "id": "c",
+            "text": "Only the approval is answered, since a successful commit removes TX before the response goes out",
+            "correct": false,
+            "says": "Close's commit runs after SendResponse's commit, so the approval is refused before TX is removed"
+          },
+          {
+            "id": "d",
+            "text": "Only the decline is answered, since a rollback removes TX before the response goes out",
+            "correct": false,
+            "says": "abort also runs in declaration order, so SendResponse refuses the decline before Close's abort removes TX"
+          }
+        ],
+        "origin": {
+          "path": "src/s9.md",
+          "section": "9.4 The Answer Waits for the Commit"
+        }
+      },
+      {
+        "id": "q-pool-and-pause",
+        "stem": "A server runs 12 sessions and a pool of 12 connections whose connection-timeout is 1 second. Between Open and Close sits a fraud-scoring participant that returns PAUSE and is resumed when the score arrives, 3 seconds later. Thirty purchases arrive within one second. What happens to them?",
+        "options": [
+          {
+            "id": "a",
+            "text": "All thirty are approved after about 3 seconds, since the pool has one connection for every session",
+            "correct": false,
+            "says": "a paused transaction gives its session back but keeps its connection, so more transactions start than there are connections"
+          },
+          {
+            "id": "b",
+            "text": "All thirty are approved, some after about 6 seconds, since Open waits until a paused transaction gives a connection back",
+            "correct": false,
+            "says": "Open waits only for the pool's connection-timeout of 1 second, well before any paused transaction gives its connection back"
+          },
+          {
+            "id": "c",
+            "text": "Some are answered 96 after about a second, since paused transactions keep their connections while new transactions start",
+            "correct": true,
+            "says": "PAUSE frees the session, the Context keeps the connection, and Open gives up after the pool's timeout and answers 96"
+          },
+          {
+            "id": "d",
+            "text": "Some wait in the queue until a session is free, since paused transactions keep their sessions while the score is computed",
+            "correct": false,
+            "says": "PAUSE gives the session back; the shortage is of connections, and Open answers 96 when the pool times out"
+          }
+        ],
+        "origin": {
+          "path": "src/s9.md",
+          "section": "9.5 A Transaction Holds Its Connection From `Open` to `Close`"
+        }
+      },
+      {
+        "id": "q-row-lock-wait",
+        "stem": "ReserveTerminalLimit runs as in this unit, and a host call that takes 4 seconds sits between it and Close. Two purchases from terminal 29110077 arrive 100 ms apart, and the terminal's limit has room for both. What happens to the second purchase?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is approved after about 4 seconds, since its UPDATE reads the committed row and goes on",
+            "correct": false,
+            "says": "the first transaction's UPDATE locked the row, and the lock lasts until Close commits, so the second UPDATE waits"
+          },
+          {
+            "id": "b",
+            "text": "It is approved after about 8 seconds, since its UPDATE waits for the first transaction's Close",
+            "correct": true,
+            "says": "the row lock is held until Close, so the second UPDATE waits out the first host call, then makes its own"
+          },
+          {
+            "id": "c",
+            "text": "It is declined with 61 after about 4 seconds, since its UPDATE counts the first amount as already used",
+            "correct": false,
+            "says": "the second UPDATE waits for the first to commit and then finds room for its amount, because the limit covers both"
+          },
+          {
+            "id": "d",
+            "text": "It is declined with 96 at once, since its UPDATE finds the row locked by another transaction",
+            "correct": false,
+            "says": "an UPDATE on a locked row waits for the lock, as the second purchase in the unit's run did"
+          }
+        ],
+        "origin": {
+          "path": "src/s9.md",
+          "section": "9.3 Write in `prepare`, So the Database Can Still Say No"
+        }
+      },
+      {
+        "id": "q-stolen-backup",
+        "stem": "A server's tranlog keeps, for each purchase, a SHA-256 of the card number to search by, the last four digits for display, and the card number encrypted with AES-GCM under a key held in an HSM. A backup of the database is stolen. What can the thief learn about the cards?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The full card numbers, since six unknown digits leave few enough candidates to hash every one",
+            "correct": true,
+            "says": "the card range gives the first six digits and the table the last four; the check digit leaves 100,000 candidates, hashed in a fraction of a second"
+          },
+          {
+            "id": "b",
+            "text": "The full card numbers, since the IV stored with each ciphertext is enough to decrypt it",
+            "correct": false,
+            "says": "the IV is not secret and decrypts nothing without the key, which stays in the HSM"
+          },
+          {
+            "id": "c",
+            "text": "Only the last four digits, since the encryption key never leaves the HSM",
+            "correct": false,
+            "says": "the unkeyed SHA-256 column gives the numbers away without touching the encrypted copy"
+          },
+          {
+            "id": "d",
+            "text": "Only which purchases share a card, since a SHA-256 can't be turned back into its input",
+            "correct": false,
+            "says": "a hash of a card number is reversed by hashing the few candidates that fit the known digits"
+          }
+        ],
+        "origin": {
+          "path": "src/s9.md",
+          "section": "9.7 A Stored Card Number Can Be Found Only With a Key"
+        }
+      }
+    ]
+  }
+}

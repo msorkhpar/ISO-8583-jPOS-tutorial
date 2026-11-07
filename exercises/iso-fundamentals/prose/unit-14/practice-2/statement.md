@@ -1,20 +1,15 @@
-Your acquirer wants card numbers out of every system that does not strictly need them. Messages
-leaving the secure zone should carry a token in field 2 instead of the PAN, and only the vault,
-inside the secure zone, may turn a token back into the card number. The token has to look like
-a card number, because routing, logging and receipts downstream still expect one.
+This picks up where the previous practice ended: `src/main/java/com/example/practice/TokenVault.java`
+already contains its solution. The vault issues good tokens now, but a penetration test of the
+whole platform reported this:
 
-Write the class `PanVault` with two methods, each working on field 2 of the message in place:
+- with the pharmacy app's own credentials, the testers got card numbers back for every token in
+  its database;
+- the cinema's integration sent a pharmacy token with a cinema purchase, and the pharmacy's
+  customer was charged;
+- a made-up token ended in a `NullPointerException` instead of a refusal the station could
+  answer;
+- a customer who removed his saved card was charged with it weeks later.
 
-- `protect(ISOMsg message)` replaces the PAN with a token: the same length, digits only, the
-  first six digits (the BIN, which routing needs) and the last four (what the cardholder sees
-  on a receipt) kept, the digits between replaced. A token equal to the card number protects
-  nothing, so never hand one out.
-- `reveal(ISOMsg message)` replaces a token this vault issued with the card number it stands for.
-
-Why the edges matter:
-
-- The same card must always get the same token, or reports and fraud checks downstream see
-  one card as many.
-- A token the vault never issued is refused with an `ISOException`, and field 2 is left
-  exactly as it was. Passing along an empty or unchanged field 2 would send a message on
-  with no real card number in it.
+Finish `detokenize` and `revoke`, the two methods marked `TODO`. The comments say what each must
+achieve. The station, the component that builds the request for the network, calls `detokenize`
+with its permissions and the requestor it is acting for. About ten lines in total.

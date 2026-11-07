@@ -1,0 +1,190 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: Building a Switch",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-cmf-code-to-terminal",
+        "stem": "The switch adds a destination built on jPOS's Common Message Format. Your terminals speak ISO 8583:1987 over a link packed with iso87ascii.xml. The new destination declines a purchase with action code 1001, and the switch copies that field 39 into the terminal's reply unchanged. What does the terminal receive?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A reply with 39=1001, since the switch sends field 39 exactly as the destination wrote it",
+            "correct": false,
+            "says": "the reply is packed for the terminal's link, where field 39 holds two characters, so it never leaves"
+          },
+          {
+            "id": "b",
+            "text": "No reply, since the four-digit code does not fit the link's two-character field 39",
+            "correct": true,
+            "says": "packing fails with 'Field length 4 too long. Max: 2'; SendResponse only notes it in the Context, and the terminal times out"
+          },
+          {
+            "id": "c",
+            "text": "A reply with 39=54, since the link's packager converts the CMF code into its 1987 equivalent",
+            "correct": false,
+            "says": "a packager packs values and knows nothing of response codes; translating them is the switch's job"
+          },
+          {
+            "id": "d",
+            "text": "No reply, since the link's packager refuses any code that ISO 8583:1987 does not define",
+            "correct": false,
+            "says": "the packager checks the length of field 39, not its value; a two-character code it doesn't know would pack"
+          }
+        ],
+        "origin": {
+          "path": "src/s16.md",
+          "section": "16.3 A Destination's Code Becomes a Cause, and Each Source's Table Answers It"
+        }
+      },
+      {
+        "id": "q-partial-approval",
+        "stem": "Your switch's table for one network lists the codes 00, 05, 51 and 54. That network answers a purchase with 10, which its specification calls a partial approval. What should the switch do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Answer the terminal 05 and send nothing upstream, since a code missing from the table counts as a refusal",
+            "correct": false,
+            "says": "an unlisted code may be an approval; taken for a refusal, the network keeps the cardholder's money for a purchase the terminal declined"
+          },
+          {
+            "id": "b",
+            "text": "Answer the terminal 10 and send nothing upstream, since the code already fits the terminal's two-character field",
+            "correct": false,
+            "says": "the switch never passes a destination's code through; the source's own table decides what the terminal hears"
+          },
+          {
+            "id": "c",
+            "text": "Answer the terminal 96 and reverse the purchase upstream, since the network may have taken the money",
+            "correct": true,
+            "says": "a code the table lacks leaves the outcome unknown, like silence, so the switch reverses what it sent and answers 96"
+          },
+          {
+            "id": "d",
+            "text": "Answer the terminal 96 and send the purchase again, since the network may not have understood it",
+            "correct": false,
+            "says": "the page reverses what was sent when the outcome is unknown; it never sends the request again"
+          }
+        ],
+        "origin": {
+          "path": "src/s16.md",
+          "section": "16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent"
+        }
+      },
+      {
+        "id": "q-continuations-off",
+        "stem": "In the switch's forwarding group, QueryHost has continuations set to false. The participant after it, which reverses what was sent when no answer came, is a plain participant. A network approves a purchase, and its answer is lost on the way back. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The terminal gets 91 and no reversal is queued, since the reversing participant is not asked once QueryHost has failed the transaction",
+            "correct": true,
+            "says": "without continuations QueryHost votes FAIL on a timeout; after an abort only abort participants are asked, so the plain participant never runs"
+          },
+          {
+            "id": "b",
+            "text": "The terminal gets 91 and a reversal is queued, since the reversing participant still runs after QueryHost on the abort path",
+            "correct": false,
+            "says": "the page says MapResponse never runs once QueryHost has voted FAIL: after an abort a plain participant is not asked"
+          },
+          {
+            "id": "c",
+            "text": "The terminal gets nothing and a reversal is queued, since without continuations QueryHost holds the session until the terminal gives up",
+            "correct": false,
+            "says": "QueryHost waits its own timeout, then fails the transaction with HOST_UNREACHABLE, which the answering participant turns into 91"
+          },
+          {
+            "id": "d",
+            "text": "The terminal gets nothing and no reversal is queued, since without continuations QueryHost waits for the answer forever",
+            "correct": false,
+            "says": "the timeout still applies without continuations; the transaction aborts and the terminal gets 91"
+          }
+        ],
+        "origin": {
+          "path": "src/s16.md",
+          "section": "16.4 A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent"
+        }
+      },
+      {
+        "id": "q-record-after-answer",
+        "stem": "To keep fewer records, a developer moves the line that records what was sent upstream from before QueryHost to after it, guarded so that it runs only when HOST_RESPONSE is in the Context. Which purchases can the switch then no longer reverse upstream?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Purchases the destination declined, since the guard skips a response that carries a decline code",
+            "correct": false,
+            "says": "a decline is a response, so the guarded line still records it"
+          },
+          {
+            "id": "b",
+            "text": "Purchases that timed out upstream, since the guard skips a response that arrives after the timeout",
+            "correct": true,
+            "says": "after a timeout HOST_RESPONSE is absent, so the moved line records nothing, and neither the switch nor the terminal's reversal finds the purchase"
+          },
+          {
+            "id": "c",
+            "text": "Purchases the destination approved, since the guard skips a response once the reply has gone out",
+            "correct": false,
+            "says": "the guard runs before any reply is sent, and only a reversal takes the record"
+          },
+          {
+            "id": "d",
+            "text": "Purchases sent on a second link, since the guard skips a response that came through another QMUX",
+            "correct": false,
+            "says": "every QMUX's answer lands under HOST_RESPONSE the same way; the records are the switch's, keyed by the source's request"
+          }
+        ],
+        "origin": {
+          "path": "src/s16.md",
+          "section": "16.2 A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record"
+        }
+      }
+    ],
+    "concepts": [
+      "A destination's response code is translated into a cause and each source's table turns the cause into its own code; passed through, a code from another format can make the reply unsendable.",
+      "A plain participant after QueryHost runs only while the transaction is prepared; with continuations off, a timeout aborts first and nothing reverses the silent purchase.",
+      "The record is written before the request leaves, because the purchase that most needs a reversal is the one whose answer never came.",
+      "A code the destination's table lacks leaves the outcome unknown, like silence, so the switch reverses what it sent, once, and answers 96 or 91 rather than a decline."
+    ]
+  }
+}

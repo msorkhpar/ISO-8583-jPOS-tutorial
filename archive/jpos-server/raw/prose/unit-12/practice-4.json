@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what the Space does with your entries",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-failover-mode",
+        "stem": "A switch keeps the host link's routing mode, primary or standby, under one Space key. The failover QBean writes the new mode with push each time it switches, and participants read the mode with rdp. Over a year without a restart the link switches 3,000 times. What do the participants read, and what does the key hold?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The latest mode, since push puts it at the head, and the key holds an entry for every switch",
+            "correct": true,
+            "says": "push inserts at the head without removing anything, so readers see the newest and the old entries pile up"
+          },
+          {
+            "id": "b",
+            "text": "The latest mode, since push replaces what the key held, and the key holds a single entry",
+            "correct": false,
+            "says": "only put replaces the entries under a key; push adds one at the head"
+          },
+          {
+            "id": "c",
+            "text": "The first mode ever written, since rdp returns the oldest entry, and the key holds an entry for every switch",
+            "correct": false,
+            "says": "rdp returns the head, and push puts each new mode there"
+          },
+          {
+            "id": "d",
+            "text": "The first mode ever written, since push adds behind it, and the key holds a single entry",
+            "correct": false,
+            "says": "out adds behind the oldest entry; push adds in front of it, and nothing removes the old ones"
+          }
+        ],
+        "origin": {
+          "path": "src/s12.md",
+          "section": "12.1 A Key Holds a Queue: `out` Adds, `put` Replaces, `push` Goes First"
+        }
+      },
+      {
+        "id": "q-undeploy",
+        "stem": "A QBean's thread loops on sp.in(\"settlement.jobs\") with no timeout, and its stopService clears the loop's running flag. The QBean is undeployed at 18:00 while the queue is empty and deployed again at 18:05. At 19:00 a job is queued. What happens to it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The new deployment's thread takes it, since the old thread ended when its flag was cleared",
+            "correct": false,
+            "says": "a thread waiting inside an untimed in never gets back to the loop to see the flag"
+          },
+          {
+            "id": "b",
+            "text": "The new deployment's thread takes it, since Q2 interrupts the threads of a QBean it undeploys",
+            "correct": false,
+            "says": "the old thread was still waiting after the stop; nothing ended its wait"
+          },
+          {
+            "id": "c",
+            "text": "Either thread may take it, since the old thread is still waiting in in on the same key",
+            "correct": true,
+            "says": "the undeployed component's thread outlives the undeploy and competes with the new one"
+          },
+          {
+            "id": "d",
+            "text": "Both threads may take a copy of it, since in hands the entry to every thread waiting on the key",
+            "correct": false,
+            "says": "in takes the entry; one waiting thread gets it and the other keeps waiting"
+          }
+        ],
+        "origin": {
+          "path": "src/s12.md",
+          "section": "12.2 A Wait Without a Timeout and an Entry Without a Lease Both Last Forever"
+        }
+      },
+      {
+        "id": "q-audit-listener",
+        "stem": "To keep an audit trail, a team registers a SpaceListener on the txnmgr queue. Its notify writes one row to an audit database, and under load each row takes about 200 ms. What happens to the answers terminals get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Each comes about 200 ms later, since notify runs on the session thread that wrote the Context",
+            "correct": true,
+            "says": "the listener runs inside out on the writer's thread, here the QServer session, which reads nothing more meanwhile"
+          },
+          {
+            "id": "b",
+            "text": "Each comes about 200 ms later, since the TransactionManager waits for every listener before taking the Context",
+            "correct": false,
+            "says": "the TransactionManager knows nothing of listeners; the delay is in the writer's call to out"
+          },
+          {
+            "id": "c",
+            "text": "They come as fast as before, since listeners run on a thread that belongs to the space",
+            "correct": false,
+            "says": "TSpace calls listeners on the thread that wrote the entry"
+          },
+          {
+            "id": "d",
+            "text": "They come as fast as before, since a listener works on a copy after the Context has gone",
+            "correct": false,
+            "says": "the listener is called during out, before the writer can go on"
+          }
+        ],
+        "origin": {
+          "path": "src/s12.md",
+          "section": "12.4 A Listener Runs on the Writer's Thread and Takes Nothing"
+        }
+      },
+      {
+        "id": "q-velocity-count",
+        "stem": "A participant keeps each terminal's purchase count for the day in a Serializable object under count.<terminal>. For each purchase it reads the object with rdp and adds one to its field. The tests use tspace:default and pass; production uses je:velocity. After a terminal's 50th purchase today, what does the stored count say?",
+        "options": [
+          {
+            "id": "a",
+            "text": "50, since a read returns the stored object in either kind of space",
+            "correct": false,
+            "says": "that holds only for tspace:; je: deserializes a new copy on every read"
+          },
+          {
+            "id": "b",
+            "text": "50, since je: writes a changed object back when the participant returns",
+            "correct": false,
+            "says": "nothing writes the copy back; only an explicit out, put or push stores it"
+          },
+          {
+            "id": "c",
+            "text": "Its starting count, since each read from je: returns a copy that is then dropped",
+            "correct": true,
+            "says": "the change reached only a copy, so the stored object never moves"
+          },
+          {
+            "id": "d",
+            "text": "Its starting count, since je: refuses changes to an object once it is stored",
+            "correct": false,
+            "says": "je: refuses nothing here; the change is made to a copy, which is then thrown away"
+          }
+        ],
+        "origin": {
+          "path": "src/s12.md",
+          "section": "12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy"
+        }
+      }
+    ],
+    "concepts": [
+      "A key holds a list of entries: out appends behind the oldest, push inserts at the head, put replaces them all, and readers get the head.",
+      "An in or rd without a timeout waits until an entry arrives, so a consumer loop that uses one cannot be stopped."
+    ]
+  }
+}

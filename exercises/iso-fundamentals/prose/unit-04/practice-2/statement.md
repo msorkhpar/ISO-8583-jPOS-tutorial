@@ -1,15 +1,11 @@
-Every request on this page has its response: 0100 is answered by 0110, 0200 by 0210, 0400 by
-0410, 0800 by 0810. Before you act on a response's field 39, you must be sure it answers the
-request you sent; approving a purchase on somebody else's "00" is how money goes missing.
+An acquirer's link carries the messages of many terminals at once, and the host sends a few of
+its own. `Inbox` keeps every message the acquirer has sent and not yet seen answered. When
+something arrives, `deliver` hands it to the sent message it answers, or returns `null` so the
+caller can log it.
 
-Write `Exchange.outcome(ISOMsg request, ISOMsg response)`. It returns `Outcome.APPROVED` when
-the response's field 39 is `00` and `Outcome.DECLINED` for any other response code, but only
-once the response is known to answer the request:
+`deliver` already works. Finish `answers(sent, incoming)` in
+`src/main/java/com/example/practice/Inbox.java`. When you're done, every answer reaches the
+message it belongs to, including answers to advices and to their repeats, and nothing else
+reaches anyone. About ten lines.
 
-- The request's third MTI digit must say it is a request (`0`), and the response's MTI must be
-  the request's with that digit changed to response (`1`). Nothing else in the MTI changes.
-- The response must carry the same STAN (field 11) as the request.
-- The response must carry a response code (field 39).
-
-Anything else is refused with an `IllegalArgumentException`. `Outcome` is the nested enum in the
-starter.
+The tests send messages from several terminals with STANs that sometimes coincide.

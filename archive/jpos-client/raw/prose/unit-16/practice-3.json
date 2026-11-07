@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Let the lab's simulator stand in only when it may",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The test lab has one proxy that every tester's client connects to. During the booked slots it forwards to the acquirer's certification host. Outside them that link is down, and the testers want the lab's own simulator to answer instead, so that they can keep working."
+    },
+    {
+      "type": "para",
+      "text": "The first version did that \"whenever the certification host had no answer\". After the last slot, the acquirer sent its log of the purchases it had received. For some of them the testers' logs show an answer with `LAB001`, the simulator's approval code, instead of the acquirer's decision, and no reversal from the client."
+    },
+    {
+      "type": "para",
+      "text": "Finish `answerFor` in `src/main/java/com/example/practice/LabProxy.java`. It returns the answer the tester's client gets, or `null` when the client must get none. `certHost` is the QMUX to the certification host, and `simulator` gives the lab's answer to a request. Slots end on the minute, sometimes while a purchase is waiting, and some clients send a purchase again while the first try still waits. The tests run a real QMUX, with a test host on its queues that answers, declines, or says nothing. About 5 lines."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\n\nimport java.util.function.UnaryOperator;\n\n/**\n * The test lab's proxy. Testers' clients connect to it; it forwards each request to the\n * acquirer's certification host through {@code certHost}, and it can ask the lab's own simulator\n * ({@code simulator}: request in, answer out) instead.\n */\npublic class LabProxy implements ISORequestListener {\n    private final MUX certHost;\n    private final UnaryOperator<ISOMsg> simulator;\n    private final long timeout;\n\n    public LabProxy(MUX certHost, UnaryOperator<ISOMsg> simulator, long timeout) {\n        this.certHost = certHost;\n        this.simulator = simulator;\n        this.timeout = timeout;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg answer = answerFor(request);\n            if (answer != null)\n                source.send(answer);\n        } catch (Exception e) {\n            // logged in the real proxy\n        }\n        return true;\n    }\n\n    /** The answer the tester's client gets, or null when it must get none. */\n    ISOMsg answerFor(ISOMsg request) throws ISOException {\n        if (!certHost.isConnected())\n            return simulator.apply(request);\n        return certHost.request(request, timeout);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\n\nimport java.util.function.UnaryOperator;\n\n/**\n * The test lab's proxy. Testers' clients connect to it; it forwards each request to the\n * acquirer's certification host through {@code certHost}, and it can ask the lab's own simulator\n * ({@code simulator}: request in, answer out) instead.\n */\npublic class LabProxy implements ISORequestListener {\n    private final MUX certHost;\n    private final UnaryOperator<ISOMsg> simulator;\n    private final long timeout;\n\n    public LabProxy(MUX certHost, UnaryOperator<ISOMsg> simulator, long timeout) {\n        this.certHost = certHost;\n        this.simulator = simulator;\n        this.timeout = timeout;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg answer = answerFor(request);\n            if (answer != null)\n                source.send(answer);\n        } catch (Exception e) {\n            // logged in the real proxy\n        }\n        return true;\n    }\n\n    /** The answer the tester's client gets, or null when it must get none. */\n    ISOMsg answerFor(ISOMsg request) throws ISOException {\n        // TODO: The certification host is reachable only during booked slots, and outside them\n        //       the testers want the lab's simulator to answer. Decide who answers, and when\n        //       nobody may.\n        throw new IllegalStateException(\"TODO: answerFor\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "6e0a2441b2ce0173bedc03b5082e103d5f6a012f779a05da7ca0489e79fbe3e8",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\n\nimport java.util.function.UnaryOperator;\n\n/**\n * The test lab's proxy. Testers' clients connect to it; it forwards each request to the\n * acquirer's certification host through {@code certHost}, and it can ask the lab's own simulator\n * ({@code simulator}: request in, answer out) instead.\n */\npublic class LabProxy implements ISORequestListener {\n    private final MUX certHost;\n    private final UnaryOperator<ISOMsg> simulator;\n    private final long timeout;\n\n    public LabProxy(MUX certHost, UnaryOperator<ISOMsg> simulator, long timeout) {\n        this.certHost = certHost;\n        this.simulator = simulator;\n        this.timeout = timeout;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg answer = answerFor(request);\n            if (answer != null)\n                source.send(answer);\n        } catch (Exception e) {\n            // logged in the real proxy\n        }\n        return true;\n    }\n\n    /** The answer the tester's client gets, or null when it must get none. */\n    ISOMsg answerFor(ISOMsg request) throws ISOException {\n        // TODO: The certification host is reachable only during booked slots, and outside them\n        //       the testers want the lab's simulator to answer. Decide who answers, and when\n        //       nobody may.\n        throw new IllegalStateException(\"TODO: answerFor\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-16/practice-3/src/main/java/com/example/practice/LabProxy.java",
+    "test_path": "practice/jpos-client/prose/unit-16/practice-3/src/test/java/com/example/practice/LabProxyTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-16/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.LabProxyTest#anAnsweredRequestIsRelayed",
+        "kind": "main",
+        "says": "a request the certification host answers is forwarded once and the host's own answer reaches the client"
+      },
+      {
+        "id": "com.example.practice.LabProxyTest#noAnswerFromTheCertificationHostMeansNoAnswer",
+        "kind": "edge",
+        "says": "when the certification host does not answer in time, the client gets nothing and the simulator is not asked"
+      },
+      {
+        "id": "com.example.practice.LabProxyTest#outsideASlotTheSimulatorAnswersAndNothingIsForwarded",
+        "kind": "edge",
+        "says": "when the certification link is down, nothing is forwarded and the lab's simulator answers"
+      },
+      {
+        "id": "com.example.practice.LabProxyTest#theCertificationHostsAnswerReachesTheClientAsSent",
+        "kind": "edge",
+        "says": "the certification host's answer reaches the client unchanged, card number included"
+      },
+      {
+        "id": "com.example.practice.LabProxyTest#aLinkThatDropsWhileWaitingStillMeansNoAnswer",
+        "kind": "edge",
+        "says": "a purchase that reached the certification host gets no answer from the lab even if the link goes down while it waits"
+      },
+      {
+        "id": "com.example.practice.LabProxyTest#aRepeatWhileTheFirstWaitsIsNotAnsweredByTheLab",
+        "kind": "edge",
+        "says": "a repeat that QMUX refuses while the first attempt waits is not answered by the lab's simulator"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-16/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c16.md",
+      "section": "16.4.1 Spot the Problem: The Proxy That Helped"
+    },
+    "concepts": [
+      "A proxy answers locally only for a request that never left; when the upstream host doesn't answer in time it sends nothing, and it relays the host's answer unchanged.",
+      "The proxy's record is the log event holding the messages, masked by the logger, while the messages it forwards stay clear."
+    ]
+  }
+}

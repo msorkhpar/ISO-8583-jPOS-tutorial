@@ -8,7 +8,7 @@
   "unit": 2,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "ISO-8583 Message Structure",
   "blocks": [
     {
@@ -18,219 +18,324 @@
     },
     {
       "type": "para",
-      "text": "ISO-8583 messages are structured in a specific way to ensure standardized communication between financial systems. The message structure consists of three main parts: the Message Type Indicator (MTI), Bitmaps, and Data Elements."
+      "text": "A terminal vendor sends its first test purchase, and the host's log says it could not unpack the message: \"Problem unpacking field 42\". The vendor's message has no field 42. Unit 1 showed what a message is made of: an MTI, a bitmap, and the fields the bitmap announces. To answer the ticket you read those parts by hand, bit by bit, with four rules, one per section heading. Every output below comes from jPOS 2.1.7 and its 1987 packagers, `iso87ascii.xml` and `iso87binary.xml`."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "2.1. Message Type Indicator (MTI)"
+      "text": "2.1. The MTI's Four Digits Say Edition, Class, Function and Origin"
     },
     {
       "type": "para",
-      "text": "The Message Type Indicator (MTI) is a four-digit code that defines the overall purpose and characteristics of the ISO-8583 message."
+      "text": "The four digits are read one at a time. In `0430`, `0` is the 1987 edition (unit 1), `4` the reversal class, `3` an advice response (an advice reports something that already happened), and the last `0` says it comes from the acquirer. A receiver routes on the MTI before it reads any field."
+    },
+    {
+      "type": "para",
+      "text": "A response adds 1 to the third digit, and a repeat sets the fourth: an `0420` that got no acknowledgement goes again as `0421`. A repeat is answered like the original, so both get `0430`. Unit 4 shows how jPOS derives these MTIs and which messages may be repeated."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.2. Bit n Says Field n Is Present, Counted From 1 at the Leftmost Bit"
+    },
+    {
+      "type": "para",
+      "text": "The primary bitmap has 64 bits. Bit 1 is the most significant bit of the first byte, and bit 64 the least significant bit of the last. A purchase with fields 2, 3, 4, 11 and 41, byte by byte:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.structure;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\nimport java.util.BitSet;\n\n/** The primary bitmap of a purchase, byte by byte. */\npublic class BitCount {\n    public static void main(String[] args) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        for (int f : new int[] { 2, 3, 4, 11, 41 }) m.set(f, \"0\");\n        m.pack();                                           // computes the bitmap\n        BitSet bits = (BitSet) m.getValue(-1);\n        byte[] bytes = ISOUtil.bitSet2byte(bits, 8);\n        for (int b = 0; b < 8; b++) {\n            String binary = String.format(\"%8s\", Integer.toBinaryString(bytes[b] & 0xFF)).replace(' ', '0');\n            StringBuilder fields = new StringBuilder();\n            for (int bit = b * 8 + 1; bit <= b * 8 + 8; bit++)\n                if (bits.get(bit)) fields.append(' ').append(bit);\n            System.out.printf(\"bits %2d-%-2d  %s %s  %s%n\", b * 8 + 1, b * 8 + 8,\n                    binary.substring(0, 4), binary.substring(4), ISOUtil.hexString(bytes, b, 1) + fields);\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "bits  1-8   0111 0000  70 2 3 4\nbits  9-16  0010 0000  20 11\nbits 17-24  0000 0000  00\nbits 25-32  0000 0000  00\nbits 33-40  0000 0000  00\nbits 41-48  1000 0000  80 41\nbits 49-56  0000 0000  00\nbits 57-64  0000 0000  00"
+    },
+    {
+      "type": "para",
+      "text": "Fields 2, 3 and 4 are the second, third and fourth bits of the first byte, `0111 0000`, which is `70` in hex. Field 11 is the third bit of the second byte, `20`. Each byte becomes two hex digits, and the bitmap reads `7020000000800000`. jPOS computes it from the fields you set when it packs the message, and keeps it as field -1."
     },
     {
       "type": "heading",
       "level": 4,
-      "text": "2.1.1. Four-digit structure"
+      "text": "2.2.1. Spot the Problem: The Vendor's First Purchase"
     },
     {
       "type": "para",
-      "text": "The MTI is always a four-digit numeric value. Each digit has a specific meaning:"
+      "text": "The vendor's purchase carries the same five fields: the test card `4111111111111111` behind its length prefix `16`, processing code `000000`, an amount of 25.00, STAN `000417` and terminal `29110001`. Its bitmap is `3810000000400000`. Which bits does it set?"
     },
     {
-      "type": "list",
-      "ordered": true,
-      "items": [
-        "First digit: Version",
-        "Second digit: Message Class",
-        "Third digit: Message Function",
-        "Fourth digit: Message Origin"
+      "type": "para",
+      "text": "`38` is `0011 1000`: bits 3, 4 and 5. `10` is bit 12, and `40` in the sixth byte is bit 42. Every field moved one bit to the right, because the vendor's code counts bits from 0. The host trusts the bitmap and reads each field with the definition of the next one. A program packed the purchase correctly, swapped in the vendor's bitmap, and unpacked it field by field:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "bitmap sent: 3810000000400000\nfield 3  164111\nfield 4  111111111111\nfield 5  000000000000\nfield 12 002500\nfield 42 fails: 14 characters left\nwith field 37: unpacked, 77 of 82 characters read, field 4 = 111111111111"
+    },
+    {
+      "type": "para",
+      "text": "The length prefix and the first digits of the card number became a processing code, and the card number became an amount of 1,111,111,111.11. The host noticed only because it ran out of characters at field 42, which is 15 long. The last line is the same purchase with a retrieval reference number (field 37) added: it unpacks without an error, and the five characters left over raise nothing."
+    },
+    {
+      "type": "para",
+      "text": "With a new sender, check the bitmap of its first messages by hand against the fields it says it sends."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
+    },
+    {
+      "type": "para",
+      "text": "Fields 65 to 128 need a second, *secondary* bitmap of 64 more bits. Bit 1 of the primary bitmap says whether it follows. An echo test carries field 70, the network management code:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.structure;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** An echo test needs field 70, so it carries two bitmaps. */\npublic class Secondary {\n    public static void main(String[] args) throws Exception {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        ISOMsg echo = new ISOMsg(\"0800\");\n        echo.setPackager(packager);\n        echo.set(7, \"1106093000\");\n        echo.set(11, \"000418\");\n        echo.set(70, \"301\");\n        String wire = new String(echo.pack());\n        System.out.println(wire.substring(0, 4) + \" \" + wire.substring(4, 20) + \" \"\n                + wire.substring(20, 36) + \" \" + wire.substring(36));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0800 8220000000000000 0400000000000000 1106093000000418301"
+    },
+    {
+      "type": "para",
+      "text": "`82` is `1000 0010`: bit 1, so a second bitmap follows, and bit 7. In the second bitmap, `04` is its sixth bit, field 64 + 6 = 70. A receiver that ignored bit 1 would read `0400000000` as field 7."
+    },
+    {
+      "type": "para",
+      "text": "Field 64 still fits the primary bitmap, so a message whose last field is 64, often the MAC, has one bitmap."
+    },
+    {
+      "type": "para",
+      "text": "Tables of the 1987 edition list field 1 as the secondary bitmap, and some developers set it to ask for one. In jPOS that sets bit 1 and writes no second bitmap:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.structure;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** Setting field 1 by hand: bit 1 goes out, the second bitmap does not. */\npublic class FieldOne {\n    public static void main(String[] args) throws Exception {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.setPackager(packager);\n        m.set(1, \"1\");                       // \"a secondary bitmap follows\"\n        m.set(3, \"000000\");\n        m.set(4, \"000000002500\");\n        m.set(11, \"000419\");\n        m.set(41, \"29110001\");\n        byte[] wire = m.pack();\n        String s = new String(wire);\n        System.out.println(s.substring(0, 4) + \" \" + s.substring(4, 20) + \" \" + s.substring(20));\n\n        ISOMsg received = new ISOMsg();\n        received.setPackager(packager);\n        try {\n            received.unpack(wire);\n        } catch (Exception e) {\n            System.out.println(e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0200 B020000000800000 00000000000000250000041929110001\norg.jpos.iso.IFA_NUMERIC: Problem unpacking field 4 (java.lang.RuntimeException: Required 12 but just got 10 bytes) unpacking field=4, consumed=42"
+    },
+    {
+      "type": "para",
+      "text": "`B0` sets bit 1, so the receiver took the next sixteen characters, field 3 and most of the amount, as the secondary bitmap, and ran out of characters in field 4. Never set field 1: the packager sets bit 1 from the fields the message carries."
+    },
+    {
+      "type": "para",
+      "text": "Bit 65, the first bit of the secondary bitmap, works like bit 1: on the few networks that use fields 129 to 192, it announces a third, *tertiary* bitmap, and field 65 carries no data."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**jPOS 2.1.7's iso87 packagers stop at two bitmaps.** `iso87ascii.xml` defines field 65 as an ordinary one-byte field and sets bit 65 only when you put something in it. A network with a tertiary bitmap needs a packager configured for one (unit c13)."
+        }
       ]
     },
     {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
       "type": "heading",
-      "level": 4,
-      "text": "2.1.2. Version, Message Class, Message Function, Message Origin"
+      "level": 3,
+      "text": "2.4. The Same Bits Travel as 8 Bytes or as 16 Characters"
+    },
+    {
+      "type": "para",
+      "text": "A specification lists the bitmap as `b 64`: 64 bits. A link sends them either as 8 raw bytes or as 16 hexadecimal characters, one character per four bits. The echo test from 2.3, packed both ways:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.structure;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** One echo test, packed by the hex-ASCII and the binary packager. */\npublic class Encodings {\n    public static void main(String[] args) throws Exception {\n        GenericPackager ascii = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        GenericPackager binary = new GenericPackager(\"jar:packager/iso87binary.xml\");\n        ISOMsg echo = new ISOMsg(\"0800\");\n        echo.set(7, \"1106093000\");\n        echo.set(11, \"000418\");\n        echo.set(70, \"301\");\n\n        echo.setPackager(ascii);\n        byte[] a = echo.pack();\n        echo.setPackager(binary);\n        byte[] b = echo.pack();\n        System.out.println(\"iso87ascii,  \" + a.length + \" bytes, as text: \" + split(new String(a)));\n        System.out.println(\"iso87binary, \" + b.length + \" bytes, in hex:  \" + split(ISOUtil.hexString(b)));\n\n        ISOMsg received = new ISOMsg();\n        received.setPackager(ascii);\n        try {\n            received.unpack(b);                       // binary bytes, read as hex-ASCII\n        } catch (Exception e) {\n            System.out.println(\"binary read as ascii: \" + e.getMessage());\n        }\n    }\n\n    /** MTI, two bitmaps, fields 7, 11 and 70. */\n    static String split(String s) {\n        return String.join(\" \", s.substring(0, 4), s.substring(4, 20), s.substring(20, 36),\n                s.substring(36, 46), s.substring(46, 52), s.substring(52));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "iso87ascii,  55 bytes, as text: 0800 8220000000000000 0400000000000000 1106093000 000418 301\niso87binary, 28 bytes, in hex:  0800 8220000000000000 0400000000000000 1106093000 000418 0301\nbinary read as ascii: Index 28 out of bounds for length 28 consumed=4"
+    },
+    {
+      "type": "para",
+      "text": "The binary packager writes the same bits as 8 bytes per bitmap, and the numeric fields as two digits per byte, so the message is about half as long. Nothing in the bytes says which form was used: the ASCII packager took the binary message's first four bytes as the MTI and failed on the bitmap."
+    },
+    {
+      "type": "para",
+      "text": "Each network's specification sets the form, link by link; both packagers here are 1987. When a new link fails on its first message, compare the bitmap of a captured message with the specification before you suspect any field."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.5. Summary"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
+        "**The MTI's digits say edition, class, function and origin.** A response adds 1 to the third digit, a repeat sets the fourth, and a repeat is answered like the original.",
+        "**Bit n says field n is present, counted from 1 at the leftmost bit.** A bitmap off by one bit turns the card number into an amount, and the message may still unpack.",
+        "**Bit 1 announces the secondary bitmap and bit 65 a tertiary one.** Neither is a field: set the fields, never field 1, and let the packager set bit 1.",
+        "**The bitmap travels as 8 bytes or as 16 characters,** as the link's specification says. A receiver can't tell the other form from the bytes; it fails or misreads."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "2.6. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**MTI digits (1987 edition, with later additions):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Digit",
+        "Values"
+      ],
+      "rows": [
         [
-          "Version (1st digit):",
-          {
-            "type": "list",
-            "ordered": false,
-            "items": [
-              "0: ISO 8583-1:1987",
-              "1: ISO 8583-2:1993",
-              "2: ISO 8583-3:2003",
-              "3-9: Reserved for future use"
-            ]
-          }
+          "1, version",
+          "`0` 1987, `1` 1993, `2` 2003; `3`-`7` reserved for ISO, `8` national use, `9` private use"
         ],
         [
-          "Message Class (2nd digit):",
-          {
-            "type": "list",
-            "ordered": false,
-            "items": [
-              "0: Reserved",
-              "1: Authorization",
-              "2: Financial",
-              "3: File actions",
-              "4: Reversal and chargeback",
-              "5: Reconciliation",
-              "6: Administrative",
-              "7: Fee collection",
-              "8: Network management",
-              "9: Reserved for ISO use"
-            ]
-          }
+          "2, class",
+          "`1` authorization, `2` financial, `3` file actions, `4` reversal and chargeback, `5` reconciliation, `6` administrative, `7` fee collection, `8` network management; `0` and `9` reserved"
         ],
         [
-          "Message Function (3rd digit):",
-          {
-            "type": "list",
-            "ordered": false,
-            "items": [
-              "0: Request",
-              "1: Response",
-              "2: Advice",
-              "3: Advice response",
-              "4-9: Reserved for ISO use"
-            ]
-          }
+          "3, function",
+          "`0` request, `1` request response, `2` advice, `3` advice response, `4` notification and `5` its acknowledgement (1993), `6` instruction and `7` its acknowledgement (2003); `8`-`9` reserved"
         ],
         [
-          "Message Origin (4th digit):",
-          {
-            "type": "list",
-            "ordered": false,
-            "items": [
-              "0: Acquirer",
-              "1: Acquirer repeat",
-              "2: Issuer",
-              "3: Issuer repeat",
-              "4: Other",
-              "5: Other repeat"
-            ]
-          }
+          "4, origin",
+          "`0` acquirer, `1` acquirer repeat, `2` issuer, `3` issuer repeat, `4` other, `5` other repeat; `6`-`9` reserved"
         ]
       ]
     },
     {
       "type": "para",
-      "text": "Here's an example of how to create an ISO-8583 message with a specific MTI using jPOS:"
+      "text": "ISO 8583-2 and 8583-3 are parts of the standard (registration of institution codes and maintenance), not versions. For the 2023 edition, take the version digit from your network's specification."
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class MTIExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\"); // Authorization request\n        \n        System.out.println(\"MTI: \" + message.getMTI());\n    }\n}"
+      "type": "para",
+      "text": "**Bitmaps:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Bitmap",
+        "Announces fields",
+        "Present when",
+        "Its first bit"
+      ],
+      "rows": [
+        [
+          "primary",
+          "1-64",
+          "always",
+          "bit 1: a secondary bitmap follows"
+        ],
+        [
+          "secondary",
+          "65-128",
+          "bit 1 is set",
+          "bit 65: a tertiary bitmap follows"
+        ],
+        [
+          "tertiary",
+          "129-192",
+          "bit 65 is set",
+          "-"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The bitmap in jPOS 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Wire form",
+        "Field packager",
+        "Packagers",
+        "Size per bitmap"
+      ],
+      "rows": [
+        [
+          "hex-ASCII",
+          "`IFA_BITMAP`",
+          "`iso87ascii.xml`, `ISO87APackager`",
+          "16 characters"
+        ],
+        [
+          "binary",
+          "`IFB_BITMAP`",
+          "`iso87binary.xml`, `ISO87BPackager`",
+          "8 bytes"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`ISOMsg` keeps the bitmap as field -1, a `java.util.BitSet`, computed when the message is packed and read from the wire when it is unpacked. Before the first `pack`, field -1 is `null`; whether a message will need a secondary bitmap is `getMaxField() > 64`."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "2.2. Bitmaps"
-    },
-    {
-      "type": "para",
-      "text": "Bitmaps are used to indicate which data elements are present in the message. Each bit in the bitmap represents a specific data element."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "2.2.1. Primary bitmap"
-    },
-    {
-      "type": "para",
-      "text": "The primary bitmap is always present and indicates the presence of data elements 1 to 64."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "2.2.2. Secondary bitmap"
-    },
-    {
-      "type": "para",
-      "text": "If bit 1 of the primary bitmap is set (1), it indicates the presence of a secondary bitmap. The secondary bitmap indicates the presence of data elements 65 to 128."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "2.2.3. Tertiary bitmap (if applicable)"
-    },
-    {
-      "type": "para",
-      "text": "Some implementations may use a tertiary bitmap for data elements 129 to 192, although this is less common."
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how to set and check bitmaps using jPOS:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class BitmapExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        \n        // Set some fields\n        message.set(2, \"1234567890123456\"); // Primary Account Number\n        message.set(3, \"000000\"); // Processing Code\n        message.set(4, \"000000010000\"); // Transaction Amount\n        message.set(65, \"1234567890\"); // Extended Primary Account Number\n        \n        // Print bitmap information\n        System.out.println(\"Primary Bitmap: \" + message.getBitmap());\n        System.out.println(\"Has Secondary Bitmap: \" + message.hasSecondaryBitmap());\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "2.3. Data Elements"
-    },
-    {
-      "type": "para",
-      "text": "Data elements are the actual fields that contain the transaction data."
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "2.3.1. Field numbering (1-128 for primary, 129-192 for secondary)"
+      "text": "2.7. Challenges"
     },
     {
       "type": "list",
-      "ordered": false,
+      "ordered": true,
       "items": [
-        "Fields 1-64 are represented by the primary bitmap",
-        "Fields 65-128 are represented by the secondary bitmap",
-        "Fields 129-192 are represented by the tertiary bitmap (if used)"
+        "A network's specification shows a sample message as a hex dump. How do you tell from its first 20 bytes whether the bitmap is binary or hex-ASCII, and what would you still have to take from the specification?",
+        "The shifted purchase with field 37 in 2.2.1 unpacked without an error. Which checks after unpacking would have refused it, and which of them would a host run anyway?",
+        "A host logs every bitmap it receives. Write the query that finds senders whose messages carry field 1 or field 65 as data, and say what each finding means.",
+        "Your host receives an `0421` repeat. What must it remember about the `0420` it may already have answered, and for how long?"
       ]
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "2.3.2. Data element presence indication"
+      "level": 3,
+      "text": "2.8. Design Note: Why Is the Second Bitmap Optional?"
     },
     {
       "type": "para",
-      "text": "The presence of a data element is indicated by setting the corresponding bit in the bitmap to 1. If the bit is 0, the data element is not present in the message."
+      "text": "The 1987 edition could have given every message one 128-bit bitmap. Instead the primary bitmap covers fields 1 to 64, and bit 1 says whether a second one follows. A purchase, which rarely needs a field above 64, saves 8 bytes, or 16 characters on a hex-ASCII link, on every message. On the slow lines of the 1980s that saving was worth a bit every receiver must check first."
     },
     {
       "type": "para",
-      "text": "Here's an example of how to work with data elements using jPOS:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\n\npublic class DataElementExample {\n    public static void main(String[] args) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        \n        // Set some fields\n        message.set(2, \"1234567890123456\"); // Primary Account Number\n        message.set(3, \"000000\"); // Processing Code\n        message.set(4, \"000000010000\"); // Transaction Amount\n        \n        // Check if a field is present\n        System.out.println(\"Field 2 present: \" + message.hasField(2));\n        System.out.println(\"Field 5 present: \" + message.hasField(5));\n        \n        // Get field value\n        System.out.println(\"Field 2 value: \" + message.getString(2));\n        \n        // Print all fields\n        for (int i = 0; i <= 128; i++) {\n            if (message.hasField(i)) {\n                System.out.println(\"Field \" + i + \": \" + message.getString(i));\n            }\n        }\n    }\n}"
+      "text": "The price is a bit that means something different from all the others. Every reader has to branch on it before it can find the first field, and every writer has to keep it consistent with the fields that follow, which is the trap 2.3 shows when field 1 is set by hand. The 1993 edition kept the design, and the tertiary bitmap repeats the scheme at bit 65. Support for that third bitmap is rarer than for the second: jPOS 2.1.7's own 1987 packagers don't have it."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 11,
-    "paras": 12,
-    "code": 3,
-    "tables": 0,
-    "lists": 3,
+    "headings": 10,
+    "paras": 25,
+    "code": 9,
+    "tables": 3,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 2,
     "disclosures": 0
   },
-  "content_sha256": "81e8be2469c9ca9b233f93e2af1142c3d118fc4979296b6d7eec9f9704188e8f"
+  "content_sha256": "7c6c7bd35c640951a39fdb24d1640eb17d0a539df5e6f8764c95a2f9c0d5a463"
 }

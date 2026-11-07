@@ -1,0 +1,205 @@
+{
+  "coverage_api": 2,
+  "page": "src/c15.md",
+  "kind": "code",
+  "quiz": "lifecycle-quiz",
+  "case": "code-no-tests",
+  "digests": {
+    "src/c15.md": "sha256:b9353edff26f9f9e971eeb0a38c79ea783b31ebdbce35cb1bd282f4efc57489d"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 5,
+    "aspects": [
+      {
+        "id": "answer-by-function",
+        "says": "Each host-initiated network management request is answered by its function, from a list of fields, through its source: a sign-off removes the enabled and logon marks, an unknown function is refused, advices are acknowledged with 0830, and other messages are left to the next listener.",
+        "basis": [
+          "section:15.1 The Host Starts Network Messages Too, and Each One Needs Its Own Answer"
+        ],
+        "exercise": "host-requests",
+        "reason": null
+      },
+      {
+        "id": "backoff-capped",
+        "says": "A refused sign-on is retried after a wait that doubles with each refusal in a row up to a cap and starts over after a success; the cap is also how long a link may stay out after its host recovers.",
+        "basis": [
+          "section:15.2 A Refused Sign-On Waits Longer Each Time"
+        ],
+        "exercise": "sign-on-backoff",
+        "reason": null
+      },
+      {
+        "id": "backoff-no-overflow",
+        "says": "Doubling by shifting overflows after a few hours of refusals and the delay turns negative, zero or short; doubling step by step inside the cap cannot.",
+        "basis": [
+          "section:15.2.1 Spot the Problem: Doubling by Shifting"
+        ],
+        "exercise": "sign-on-backoff",
+        "reason": null
+      },
+      {
+        "id": "drain-before-sign-off",
+        "says": "A planned stop disables the link, waits with a bound until no request is pending, then signs off and forgets the session; without the drain, approvals in flight are lost and reversed.",
+        "basis": [
+          "section:15.4 Drain a Link Before You Sign It Off"
+        ],
+        "exercise": "drain-before-sign-off",
+        "reason": null
+      },
+      {
+        "id": "echo-failures-in-a-row",
+        "says": "Only echo failures in a row count, an answered echo or a new sign-on starts the count again, and the link is taken out at the limit.",
+        "basis": [
+          "section:15.3 One Lost Echo Is Not a Dead Host"
+        ],
+        "exercise": "echo-limit",
+        "reason": null
+      },
+      {
+        "id": "echo-limit-cost",
+        "says": "Each failure the echo limit allows keeps a dead host in the pool for one more echo timeout, and every purchase sent there is an unknown outcome to reverse.",
+        "basis": [
+          "section:15.3 One Lost Echo Is Not a Dead Host"
+        ],
+        "exercise": "lifecycle-quiz",
+        "reason": null
+      },
+      {
+        "id": "host-sign-off-unheard",
+        "says": "A host sign-off that no listener takes ends on the unhandled queue; the link stays enabled and every purchase on it is declined until the logon mark expires.",
+        "basis": [
+          "section:15.1 The Host Starts Network Messages Too, and Each One Needs Its Own Answer"
+        ],
+        "exercise": "lifecycle-quiz",
+        "reason": null
+      },
+      {
+        "id": "key-acknowledged-after-install",
+        "says": "A key change is answered 00 only after the key is imported, its check value matches and it is stored; otherwise it is refused, the old key stays, and the key never travels back in the answer.",
+        "basis": [
+          "section:15.5 A New Key Is Acknowledged Only Once It Is Installed"
+        ],
+        "exercise": "host-requests",
+        "reason": null
+      },
+      {
+        "id": "lifecycle-states",
+        "says": "The lifecycle of a link is down, connected, signed on and stopping, and the ready entry, the logon mark and the enabled mark say which.",
+        "basis": [
+          "section:15.6 The Lifecycle Is a Handful of States, and the Marks Say Which"
+        ],
+        "exercise": null,
+        "reason": "a summary diagram of transitions the four code practices grade one by one; a practice would retype the table"
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "sign-on-backoff",
+        "aspects": [
+          "backoff-capped",
+          "backoff-no-overflow"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "echo-limit",
+        "aspects": [
+          "echo-failures-in-a-row"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "drain-before-sign-off",
+        "aspects": [
+          "drain-before-sign-off"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "host-requests",
+        "aspects": [
+          "answer-by-function",
+          "key-acknowledged-after-install"
+        ]
+      },
+      {
+        "slot": 5,
+        "name": "lifecycle-quiz",
+        "aspects": [
+          "echo-limit-cost",
+          "host-sign-off-unheard"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/jpos-client/prose/unit-15/practice-1",
+    "exercises/jpos-client/prose/unit-15/practice-2",
+    "exercises/jpos-client/prose/unit-15/practice-3",
+    "exercises/jpos-client/prose/unit-15/practice-4",
+    "exercises/jpos-client/prose/unit-15/practice-5"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-1",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.2.1 Spot the Problem: Doubling by Shifting"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-2",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.3 One Lost Echo Is Not a Dead Host"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-3",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.4 Drain a Link Before You Sign It Off"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-4",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.5 A New Key Is Acknowledged Only Once It Is Installed"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-5:q-host-sign-off-unanswered",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.1 The Host Starts Network Messages Too, and Each One Needs Its Own Answer"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-5:q-backoff-cap",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.2 A Refused Sign-On Waits Longer Each Time"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-5:q-echo-limit-hung-host",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.3 One Lost Echo Is Not a Dead Host"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-15/practice-5:q-stop-without-drain",
+      "origin": {
+        "path": "src/c15.md",
+        "section": "15.4 Drain a Link Before You Sign It Off"
+      }
+    }
+  ],
+  "shortfalls": []
+}

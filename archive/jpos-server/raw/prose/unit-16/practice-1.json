@@ -1,0 +1,143 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Forward a terminal's request as the switch, and answer it as the terminal's",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The switch now also forwards purchases and balance inquiries from fuel-station terminals to `fleet`, a fuel-card network, as well as to `visa`. The fleet network knows the switch as one terminal, `SW000001`, sent by acquirer `12345678901`, and refuses any message that carries the terminals' private field 48. The terminals match answers the way any QMUX does. A purchase's approval must show the network's approval code, and an inquiry's the balance the network returned (field 54). Nothing else in the network's answer is for the terminal."
+    },
+    {
+      "type": "para",
+      "text": "`ForwardLeg` in `src/main/java/com/example/practice/ForwardLeg.java` already holds the two participants that stand around `QueryHost` in the forwarding group. Finish the three methods marked `TODO`: `outbound`, `reply` and `nextStan`. About fifteen lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager, a real `QueryHost` and two real QMUXes with Q2, in the test's own JVM, with a scripted network behind each QMUX. After the group, an abort participant answers reported failures from the terminal's request, as unit s10's does. Besides approvals, the tests send declines, purchases the network never answers, and two purchases in flight at once."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\nimport java.util.Map;\n\n/**\n * The forwarding leg of the switch. {@link Outbound} stands before QueryHost and {@link Reply} after\n * it, in the group that forwards a terminal's request to the network named by DESTINATION.\n */\npublic class ForwardLeg {\n    public static final String OUTBOUND = \"OUTBOUND\";\n    public static final String HOST_RESPONSE = \"HOST_RESPONSE\";\n\n    /** What a reply to a terminal echoes from the terminal's request (unit s2). */\n    static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** The network's declines, as causes; AnswerFailures turns a cause into the terminal's code. */\n    static final Map<String, CMF> DECLINES = Map.of(\n        \"05\", CMF.DO_NOT_HONOUR, \"51\", CMF.NOT_SUFFICIENT_FUNDS, \"54\", CMF.EXPIRED);\n\n    /** Before QueryHost: puts under OUTBOUND the message the network receives. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private Space<String, Object> space;\n        private String terminalId;\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) throws ConfigurationException {\n            space = SpaceFactory.getSpace(cfg.get(\"space\", \"tspace:default\"));\n            terminalId = cfg.get(\"terminal-id\");\n            acquirerId = cfg.get(\"acquirer-id\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ctx.put(OUTBOUND, outbound(request, link, space, terminalId, acquirerId));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: an approval becomes the terminal's reply; anything else is reported. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(HOST_RESPONSE);\n            if (answer == null)\n                return FAIL;                                  // QueryHost reported HOST_UNREACHABLE\n            String code = answer.getString(39);\n            if (!\"00\".equals(code))\n                return ctx.getResult().fail(DECLINES.getOrDefault(code, CMF.SYSTEM_ERROR),\n                    Caller.info(), \"network answered %s\", code).FAIL();\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    reply(ctx.get(ContextConstants.REQUEST.toString()), answer));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** The message the network receives for the terminal's {@code request}, sent on {@code link}. */\n    static ISOMsg outbound(ISOMsg request, String link, Space<String, Object> space,\n                           String terminalId, String acquirerId) throws ISOException {\n        ISOMsg out = (ISOMsg) request.clone();\n        out.unset(48);\n        out.set(11, nextStan(space, link));\n        out.set(32, acquirerId);\n        out.set(41, terminalId);\n        return out;\n    }\n\n    /** The approval the terminal receives, given the network's approving {@code answer}. */\n    static ISOMsg reply(ISOMsg request, ISOMsg answer) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        for (int f : new int[] { 38, 54 })\n            if (answer.hasField(f))\n                r.set(f, answer.getString(f));\n        return r;\n    }\n\n    /** The STAN of the next message the switch sends on {@code link}. */\n    static String nextStan(Space<String, Object> space, String link) {\n        long n = SpaceUtil.nextLong(space, \"stan.\" + link);\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\nimport java.util.Map;\n\n/**\n * The forwarding leg of the switch. {@link Outbound} stands before QueryHost and {@link Reply} after\n * it, in the group that forwards a terminal's request to the network named by DESTINATION.\n */\npublic class ForwardLeg {\n    public static final String OUTBOUND = \"OUTBOUND\";\n    public static final String HOST_RESPONSE = \"HOST_RESPONSE\";\n\n    /** What a reply to a terminal echoes from the terminal's request (unit s2). */\n    static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** The network's declines, as causes; AnswerFailures turns a cause into the terminal's code. */\n    static final Map<String, CMF> DECLINES = Map.of(\n        \"05\", CMF.DO_NOT_HONOUR, \"51\", CMF.NOT_SUFFICIENT_FUNDS, \"54\", CMF.EXPIRED);\n\n    /** Before QueryHost: puts under OUTBOUND the message the network receives. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private Space<String, Object> space;\n        private String terminalId;\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) throws ConfigurationException {\n            space = SpaceFactory.getSpace(cfg.get(\"space\", \"tspace:default\"));\n            terminalId = cfg.get(\"terminal-id\");\n            acquirerId = cfg.get(\"acquirer-id\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ctx.put(OUTBOUND, outbound(request, link, space, terminalId, acquirerId));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: an approval becomes the terminal's reply; anything else is reported. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(HOST_RESPONSE);\n            if (answer == null)\n                return FAIL;                                  // QueryHost reported HOST_UNREACHABLE\n            String code = answer.getString(39);\n            if (!\"00\".equals(code))\n                return ctx.getResult().fail(DECLINES.getOrDefault(code, CMF.SYSTEM_ERROR),\n                    Caller.info(), \"network answered %s\", code).FAIL();\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    reply(ctx.get(ContextConstants.REQUEST.toString()), answer));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** The message the network receives for the terminal's {@code request}, sent on {@code link}. */\n    static ISOMsg outbound(ISOMsg request, String link, Space<String, Object> space,\n                           String terminalId, String acquirerId) throws ISOException {\n        // TODO: The network knows the switch as one terminal, terminalId, sent by the acquirer\n        //       acquirerId, and refuses the terminals' private field 48. Whatever goes wrong\n        //       upstream, the terminal must still get answers it recognises as its own.\n        throw new IllegalStateException(\"TODO: outbound\");\n    }\n\n    /** The approval the terminal receives, given the network's approving {@code answer}. */\n    static ISOMsg reply(ISOMsg request, ISOMsg answer) throws ISOException {\n        // TODO: The terminal must recognise this as the answer to its request. It needs the\n        //       approval code (38) and, for a balance inquiry, the balance (54) from the network.\n        //       Nothing else the network put in its answer is for the terminal.\n        throw new IllegalStateException(\"TODO: reply\");\n    }\n\n    /** The STAN of the next message the switch sends on {@code link}. */\n    static String nextStan(Space<String, Object> space, String link) {\n        // TODO: Six digits, never 000000. Several sessions send at once, and the switch has\n        //       several links.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "d7bf9dcfb82a1e9289faaa3f6cfb3f0767d7a7460e9e0ac8cb845427bd5d06b7",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.rc.CMF;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.Caller;\n\nimport java.io.Serializable;\nimport java.util.Map;\n\n/**\n * The forwarding leg of the switch. {@link Outbound} stands before QueryHost and {@link Reply} after\n * it, in the group that forwards a terminal's request to the network named by DESTINATION.\n */\npublic class ForwardLeg {\n    public static final String OUTBOUND = \"OUTBOUND\";\n    public static final String HOST_RESPONSE = \"HOST_RESPONSE\";\n\n    /** What a reply to a terminal echoes from the terminal's request (unit s2). */\n    static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };\n\n    /** The network's declines, as causes; AnswerFailures turns a cause into the terminal's code. */\n    static final Map<String, CMF> DECLINES = Map.of(\n        \"05\", CMF.DO_NOT_HONOUR, \"51\", CMF.NOT_SUFFICIENT_FUNDS, \"54\", CMF.EXPIRED);\n\n    /** Before QueryHost: puts under OUTBOUND the message the network receives. */\n    public static class Outbound implements TransactionParticipant, Configurable {\n        private Space<String, Object> space;\n        private String terminalId;\n        private String acquirerId;\n\n        @Override\n        public void setConfiguration(Configuration cfg) throws ConfigurationException {\n            space = SpaceFactory.getSpace(cfg.get(\"space\", \"tspace:default\"));\n            terminalId = cfg.get(\"terminal-id\");\n            acquirerId = cfg.get(\"acquirer-id\");\n        }\n\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            String link = ctx.getString(ContextConstants.DESTINATION.toString());\n            try {\n                ctx.put(OUTBOUND, outbound(request, link, space, terminalId, acquirerId));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** After QueryHost: an approval becomes the terminal's reply; anything else is reported. */\n    public static class Reply implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(HOST_RESPONSE);\n            if (answer == null)\n                return FAIL;                                  // QueryHost reported HOST_UNREACHABLE\n            String code = answer.getString(39);\n            if (!\"00\".equals(code))\n                return ctx.getResult().fail(DECLINES.getOrDefault(code, CMF.SYSTEM_ERROR),\n                    Caller.info(), \"network answered %s\", code).FAIL();\n            try {\n                ctx.put(ContextConstants.RESPONSE.toString(),\n                    reply(ctx.get(ContextConstants.REQUEST.toString()), answer));\n                return PREPARED | NO_JOIN;\n            } catch (Exception e) {\n                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), \"%s\", e).FAIL();\n            }\n        }\n    }\n\n    /** The message the network receives for the terminal's {@code request}, sent on {@code link}. */\n    static ISOMsg outbound(ISOMsg request, String link, Space<String, Object> space,\n                           String terminalId, String acquirerId) throws ISOException {\n        // TODO: The network knows the switch as one terminal, terminalId, sent by the acquirer\n        //       acquirerId, and refuses the terminals' private field 48. Whatever goes wrong\n        //       upstream, the terminal must still get answers it recognises as its own.\n        throw new IllegalStateException(\"TODO: outbound\");\n    }\n\n    /** The approval the terminal receives, given the network's approving {@code answer}. */\n    static ISOMsg reply(ISOMsg request, ISOMsg answer) throws ISOException {\n        // TODO: The terminal must recognise this as the answer to its request. It needs the\n        //       approval code (38) and, for a balance inquiry, the balance (54) from the network.\n        //       Nothing else the network put in its answer is for the terminal.\n        throw new IllegalStateException(\"TODO: reply\");\n    }\n\n    /** The STAN of the next message the switch sends on {@code link}. */\n    static String nextStan(Space<String, Object> space, String link) {\n        // TODO: Six digits, never 000000. Several sessions send at once, and the switch has\n        //       several links.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-16/practice-1/src/main/java/com/example/practice/ForwardLeg.java",
+    "test_path": "practice/jpos-server/prose/unit-16/practice-1/src/test/java/com/example/practice/ForwardLegTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-16/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-16/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ForwardLegTest#anApprovedPurchaseReachesTheTerminal",
+        "kind": "main",
+        "says": "an approved purchase reaches the network under the switch's terminal and acquirer IDs, without field 48, and the terminal gets the approval with its approval code"
+      },
+      {
+        "id": "com.example.practice.ForwardLegTest#aBalanceInquiryShowsTheBalance",
+        "kind": "main",
+        "says": "an approved balance inquiry gives the terminal the balance the network returned"
+      },
+      {
+        "id": "com.example.practice.ForwardLegTest#declinesAndSilenceAnswerTheTerminalsOwnRequest",
+        "kind": "edge",
+        "says": "a decline and a silent network are answered with the terminal's own STAN and terminal ID, because the request the answers start from was never renumbered"
+      },
+      {
+        "id": "com.example.practice.ForwardLegTest#theReplyCarriesNothingPrivateOfTheNetwork",
+        "kind": "edge",
+        "says": "the approval is built from the terminal's request, so the network's private field and the switch's acquirer ID never reach the terminal"
+      },
+      {
+        "id": "com.example.practice.ForwardLegTest#eachLinkNumbersItsOwnMessages",
+        "kind": "edge",
+        "says": "each network link has its own STAN sequence, unaffected by traffic on the other link"
+      },
+      {
+        "id": "com.example.practice.ForwardLegTest#twoTerminalsWithTheSameStanAtTheSameMoment",
+        "kind": "edge",
+        "says": "two terminals that use the same STAN at once are both answered, because the switch numbers what it sends"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-16/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s16.md",
+      "section": "16.1 The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request"
+    },
+    "concepts": [
+      "The destination receives a copy of the source's request; every answer to the source, approval, decline or 91 alike, is built from the unchanged request, so renumbering the request in place breaks every answer.",
+      "On each upstream link the switch is the sender, so the copy carries a STAN from one sequence per destination link and the switch's own identifiers."
+    ]
+  }
+}

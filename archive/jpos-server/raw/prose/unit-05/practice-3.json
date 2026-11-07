@@ -1,0 +1,190 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: per-brand processing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-group-order",
+        "stem": "A TransactionManager's main chain is Validate, a Switch, Authorize, SendResponse. The file declares the group 'limits' (one participant, CheckLimits) before the group 'risk' (one participant, ScoreRisk). For one request the Switch returns 'risk limits'. In what order do the participants run, if none aborts?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Validate, Switch, ScoreRisk, CheckLimits, Authorize, SendResponse, since the named groups run in the order the selector names them, right after it",
+            "correct": true,
+            "says": "the TransactionManager splices the named groups, in the order named, right after the selector, then carries on with the chain"
+          },
+          {
+            "id": "b",
+            "text": "Validate, Switch, CheckLimits, ScoreRisk, Authorize, SendResponse, since the named groups run in the order the file declares them, right after it",
+            "correct": false,
+            "says": "the order of the names returned by select decides, not the order of the group elements in the file"
+          },
+          {
+            "id": "c",
+            "text": "Validate, Switch, Authorize, SendResponse, ScoreRisk, CheckLimits, since the named groups run once the main chain has finished",
+            "correct": false,
+            "says": "groups run where the selector stands, before the rest of the chain"
+          },
+          {
+            "id": "d",
+            "text": "Validate, Switch, ScoreRisk, CheckLimits, since the named groups take the place of the rest of the main chain",
+            "correct": false,
+            "says": "after the groups the TransactionManager carries on with the rest of the main chain"
+          }
+        ],
+        "origin": {
+          "path": "src/s5.md",
+          "section": "5.1 A Selector Names a Group, and the Group Runs Where the Selector Stands"
+        }
+      },
+      {
+        "id": "q-overlapping-bins",
+        "stem": "SelectDestination is configured with <endpoint destination=\"visa\">4</endpoint> followed by <endpoint destination=\"debit\">457123</endpoint>, and the Switch has a property and a group for both. A purchase arrives with a valid card whose number begins 457123. Which destination does it get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "visa, since the endpoints are tried in the order they are written and the first match wins",
+            "correct": false,
+            "says": "SelectDestination orders its ranges by how many digits they name, whatever the order of the lines"
+          },
+          {
+            "id": "b",
+            "text": "debit, since the ranges are tried from the most digits to the fewest and the first match wins",
+            "correct": true,
+            "says": "the six-digit range is tried before the one-digit range, so the most specific range wins"
+          },
+          {
+            "id": "c",
+            "text": "visa, since a range that covers another one absorbs it when the table is built",
+            "correct": false,
+            "says": "both ranges stay in the table; the deploy log lists them separately, the longer one first"
+          },
+          {
+            "id": "d",
+            "text": "debit, since a later endpoint replaces whatever an earlier endpoint says about the same numbers",
+            "correct": false,
+            "says": "the line order doesn't matter; moving the debit line first gives the same result"
+          }
+        ],
+        "origin": {
+          "path": "src/s5.md",
+          "section": "5.2 The BIN Table Is Configuration, and the Most Specific Range Wins"
+        }
+      },
+      {
+        "id": "q-missing-group",
+        "stem": "A server's Switch has <property name=\"amex\" value=\"amex-checks\"/>, but the descriptor's group for those checks is named 'amex'. The main chain ends with a participant that approves whatever reaches it, then SendResponse, and debug is false. An Amex purchase arrives without a field the Amex checks require. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is approved, since the name matches no group, so no participant is added and nothing aborts",
+            "correct": true,
+            "says": "a name with no group adds nothing; the only sign is a WARNING inside the transaction event, and debug false removes the event"
+          },
+          {
+            "id": "b",
+            "text": "It is declined with the unknown code, since a name that matches no group falls back to the 'unknown' group",
+            "correct": false,
+            "says": "Switch falls back to its unknown property only when the Context value has no property; here the property exists and names a missing group"
+          },
+          {
+            "id": "c",
+            "text": "It never arrives, since Q2 refuses to deploy a descriptor whose selector names a group it lacks",
+            "correct": false,
+            "says": "the TransactionManager deploys normally; group names are looked up per transaction"
+          },
+          {
+            "id": "d",
+            "text": "It gets no answer, since the TransactionManager aborts a transaction whose selector names a group it lacks",
+            "correct": false,
+            "says": "nothing aborts: the transaction goes on through the rest of the chain and is approved"
+          }
+        ],
+        "origin": {
+          "path": "src/s5.md",
+          "section": "5.3 A Name With No Group Behind It Runs Nothing"
+        }
+      },
+      {
+        "id": "q-new-terminal-field",
+        "stem": "CheckFields is configured with mandatory 'CARD PCODE 4 11 41' and optional '22 42 43', and with no other properties. Later in the chain an abort participant answers reported failures, mapping missing, extra and invalid fields to 30. A terminal software update makes every purchase carry field 37 as well. What do those terminals get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Every purchase is answered with 30, since a field that neither of the two lists names counts as a failure",
+            "correct": true,
+            "says": "allow-extra-fields is false unless set, so field 37 is an EXTRA_FIELD failure, which the abort participant answers with 30"
+          },
+          {
+            "id": "b",
+            "text": "Every purchase is answered with 30, since field 37 is one of the fields CheckFields always checks for format",
+            "correct": false,
+            "says": "CheckFields checks the format of the named entries such as PCODE or TID; field 37 fails only because no list names it"
+          },
+          {
+            "id": "c",
+            "text": "Every purchase is approved as before, since a field that neither of the two lists names is let through",
+            "correct": false,
+            "says": "the default is the strict one: a field in neither list fails"
+          },
+          {
+            "id": "d",
+            "text": "Every purchase is approved as before, since CheckFields looks only at the fields its two lists name",
+            "correct": false,
+            "says": "CheckFields also looks for fields that are in neither list"
+          }
+        ],
+        "origin": {
+          "path": "src/s5.md",
+          "section": "5.5 A Stock Participant Reports a Failure, and an Abort Participant Has to Answer It"
+        }
+      }
+    ],
+    "concepts": [
+      "SelectDestination's BIN table is configuration, tried from the range written with the most digits; a Mastercard table written as 5 declines 2-series cards.",
+      "A selector's select names groups that the TransactionManager runs, in the order named, right after the selector and before the rest of the chain.",
+      "A selector name with no group adds nothing, with only a WARNING in the transaction event, which debug false removes; the request goes on unchecked.",
+      "CheckFields records failures in the Result and votes ABORTED without a response, extra fields fail by default, and an abort participant has to turn the failure into an answer."
+    ]
+  }
+}

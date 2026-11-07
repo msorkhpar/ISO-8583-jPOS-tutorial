@@ -1,0 +1,153 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Pay merchants from a payout file, or not at all",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Every evening the acquirer's settlement system drops a payout run into the server's `payouts/request/` directory, and `PayoutProcessor`, a DirPoll processor, pays each merchant through the `Ledger`. Treasury reports three kinds of trouble: a run that was paid short, a run that bounced to `bad/` when it only needed a few more seconds, and a run that reached `bad/` only after DirPoll had tried it all night."
+    },
+    {
+      "type": "para",
+      "text": "A run file has a header `H|acquirer|run`, one `P|merchant|amount` line per merchant (a 15-character merchant id and 1 to 12 digits in minor units) and a trailer `T|count|total`."
+    },
+    {
+      "type": "para",
+      "text": "`process` in `src/main/java/com/example/practice/PayoutProcessor.java` already pays a good run and answers it. Finish the five methods marked `TODO` so that a run is paid in full or not at all, a file that may still be completed comes back later, and a file that never will goes to a person at once. About 18 lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests take files through DirPoll's real `request/`, `run/`, `archive/` and `bad/` directories in a temporary folder, and also call `process` directly."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = h[1] + \"/\" + h[2];\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        return lines.size() >= 2 && lines.get(lines.size() - 1).startsWith(\"T|\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        DirPoll.DirPollException e = new DirPoll.DirPollException(name + \": not complete yet\");\n        e.setRetry(true);\n        return e;\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        return new DirPoll.DirPollException(name + \": \" + why);\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        List<Payout> payouts = new ArrayList<>();\n        for (String r : records) {\n            String[] f = r.split(\"\\\\|\");\n            if (f.length != 3 || !f[0].equals(\"P\") || f[1].length() != 15 || !f[2].matches(\"\\\\d{1,12}\"))\n                throw refused(name, \"bad record \" + (payouts.size() + 1));\n            payouts.add(new Payout(f[1], Long.parseLong(f[2])));\n        }\n        return payouts;\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        String[] t = trailer.split(\"\\\\|\");\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        if (t.length != 3 || !t[1].equals(Integer.toString(payouts.size())) || !t[2].equals(Long.toString(total)))\n            throw refused(name, \"trailer does not match the payouts\");\n    }\n\n    /** Given: the payments table. Each call to pay is one database transaction. */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = h[1] + \"/\" + h[2];\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        // TODO: A sender may still be writing, or may not have started. (one line)\n        throw new IllegalStateException(\"TODO: finished\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        // TODO: DirPoll should come back to this file later. (about three lines)\n        throw new IllegalStateException(\"TODO: notYet\");\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        // TODO: A person has to look at this file; DirPoll should not see it again. (one line)\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        // TODO: A record is P|merchant|amount: a 15-character merchant id and 1 to 12 digits.\n        //       Anything else makes the whole file wrong. (about eight lines)\n        throw new IllegalStateException(\"TODO: payoutsOf\");\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        // TODO: T|count|total, where total is the sum of the amounts. (about five lines)\n        throw new IllegalStateException(\"TODO: checkTrailer\");\n    }\n\n    /** Given: the payments table. Each call to pay is one database transaction. */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "bb49f70c529bdb866ceb2d0aa9399032e4528c29037ffb2cd5dfde31c0eafa23",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.util.DirPoll;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The acquirer's payout run, delivered as a file: a header H|acquirer|run, one P|merchant|amount line\n * per merchant (a 15-character merchant id, the amount in minor units), and a trailer\n * T|count|total. Pays every merchant through the {@link Ledger} and answers with the totals.\n */\npublic class PayoutProcessor implements DirPoll.Processor {\n    public record Payout(String merchant, long amount) {}\n\n    private final Ledger ledger;\n\n    public PayoutProcessor(Ledger ledger) {\n        this.ledger = ledger;\n    }\n\n    @Override\n    public byte[] process(String name, byte[] content) throws DirPoll.DirPollException {\n        List<String> lines = new ArrayList<>();\n        for (String l : new String(content, StandardCharsets.US_ASCII).split(\"\\r?\\n\"))\n            if (!l.isBlank())\n                lines.add(l.trim());\n        if (!finished(lines))\n            throw notYet(name);\n        String[] h = lines.get(0).split(\"\\\\|\");\n        if (h.length != 3 || !h[0].equals(\"H\"))\n            throw refused(name, \"no header\");\n        String run = h[1] + \"/\" + h[2];\n        List<Payout> payouts = payoutsOf(name, lines.subList(1, lines.size() - 1));\n        checkTrailer(name, lines.get(lines.size() - 1), payouts);\n        ledger.pay(run, payouts);\n        long total = payouts.stream().mapToLong(Payout::amount).sum();\n        return String.format(\"PAID %s merchants=%d total=%d%n\", run, payouts.size(), total)\n                .getBytes(StandardCharsets.US_ASCII);\n    }\n\n    /** Is this the whole run, header to trailer? */\n    boolean finished(List<String> lines) {\n        // TODO: A sender may still be writing, or may not have started. (one line)\n        throw new IllegalStateException(\"TODO: finished\");\n    }\n\n    /** The exception for a file that is not complete yet. */\n    DirPoll.DirPollException notYet(String name) {\n        // TODO: DirPoll should come back to this file later. (about three lines)\n        throw new IllegalStateException(\"TODO: notYet\");\n    }\n\n    /** The exception for a file that will never be right. */\n    DirPoll.DirPollException refused(String name, String why) {\n        // TODO: A person has to look at this file; DirPoll should not see it again. (one line)\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n\n    /** The payouts of the P| records, in order. */\n    List<Payout> payoutsOf(String name, List<String> records) throws DirPoll.DirPollException {\n        // TODO: A record is P|merchant|amount: a 15-character merchant id and 1 to 12 digits.\n        //       Anything else makes the whole file wrong. (about eight lines)\n        throw new IllegalStateException(\"TODO: payoutsOf\");\n    }\n\n    /** The trailer must agree with the payouts. */\n    void checkTrailer(String name, String trailer, List<Payout> payouts) throws DirPoll.DirPollException {\n        // TODO: T|count|total, where total is the sum of the amounts. (about five lines)\n        throw new IllegalStateException(\"TODO: checkTrailer\");\n    }\n\n    /** Given: the payments table. Each call to pay is one database transaction. */\n    public static final class Ledger {\n        private final List<String> payments = new ArrayList<>();\n\n        public synchronized void pay(String run, List<Payout> payouts) {\n            for (Payout p : payouts)\n                payments.add(run + \" \" + p.merchant() + \" \" + p.amount());\n        }\n\n        public synchronized List<String> payments() {\n            return new ArrayList<>(payments);\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-17/practice-1/src/main/java/com/example/practice/PayoutProcessor.java",
+    "test_path": "practice/jpos-server/prose/unit-17/practice-1/src/test/java/com/example/practice/PayoutProcessorTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-17/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-17/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aCompleteRunIsPaidAnsweredAndArchived",
+        "kind": "main",
+        "says": "a complete payout run is paid, answered with its totals and archived"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aRunWithoutItsTrailerIsTakenAgainLater",
+        "kind": "edge",
+        "says": "a run without its trailer may still be being written, so DirPoll is asked to retry it and nobody is paid"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#anEmptyFileWaitsForItsContent",
+        "kind": "edge",
+        "says": "an empty file is an unfinished file: it goes back to request/, not to bad/"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aMalformedRecordSendsTheRunToAPerson",
+        "kind": "edge",
+        "says": "a malformed record never gets better, so the file is refused without a retry"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aCountThatDisagreesIsRefused",
+        "kind": "edge",
+        "says": "a trailer whose count disagrees refuses the run and pays nobody"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#aTotalThatDisagreesIsRefused",
+        "kind": "edge",
+        "says": "a trailer whose total disagrees refuses the run and pays nobody"
+      },
+      {
+        "id": "com.example.practice.PayoutProcessorTest#eachRunIsCheckedOnItsOwn",
+        "kind": "edge",
+        "says": "one processor instance handles every file, so nothing about one run carries over to the next"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-17/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s17.md",
+      "section": "17.3 DirPoll Takes a File the Moment It Appears, Finished or Not"
+    },
+    "concepts": [
+      "How a DirPoll processor ends decides where the file goes: returned bytes to response/ and the file to archive/, a retry exception back to request/ after ten poll intervals, any other exception to bad/.",
+      "One processor instance handles every file, so nothing about one file is kept in fields.",
+      "DirPoll takes a file the moment it appears, so a processor treats a missing trailer or an empty file as not finished, and the sender writes elsewhere and renames."
+    ]
+  }
+}

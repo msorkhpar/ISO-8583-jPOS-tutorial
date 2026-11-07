@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 19,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Answer the 0500 with the receiver's verdict",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "This picks up where the previous practice ended: `src/main/java/com/example/practice/DayTotals.java` already counts the day correctly. Now the same class builds the `0500` and plays the receiving side. Your test lab uses it as a stand-in host: it gets the switch's `0500`, counts the same day from its own copy of the traffic, and answers."
+    },
+    {
+      "type": "para",
+      "text": "`request` is written, except for the net settlement amount, DE 97. Finish `de97` and `answer`. The receiver's answer is only useful if it says `2` whenever the two ends counted the day differently, and the `0500` it received is evidence of what the switch said, so it keeps it as it came. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests build totals directly; they include a day of more refunds than sales."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** One business day's 1987 reconciliation totals, and the 0500 / 0510 exchange that compares them. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        return de15.equals(m.getString(15));\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        return isReversal(m) || \"00\".equals(m.getString(39));\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            if (!t.reversed.add(m.getString(90)))\n                return;\n            if (isRefund(m)) {\n                t.creditReversals++;\n                t.creditReversalsAmount += amount;\n            } else {\n                t.debitReversals++;\n                t.debitReversalsAmount += amount;\n            }\n        } else if (m.getString(0).startsWith(\"01\")) {\n            t.authorizations++;\n        } else if (isRefund(m)) {\n            t.credits++;\n            t.creditsAmount += amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n\n    /** The totals fields an 0510 compares: 74-77, 81, 86-89 and 97. */\n    public static final int[] TOTALS_FIELDS = { 74, 75, 76, 77, 81, 86, 87, 88, 89, 97 };\n\n    /** The acquirer's 0500 for one business day. */\n    public static ISOMsg request(Totals t, String de15, String stan, String de7, String acquirer)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0500\");\n        m.set(7, de7);\n        m.set(11, stan);\n        m.set(15, de15);\n        m.set(32, acquirer);\n        m.set(50, \"840\");\n        m.set(74, ISOUtil.zeropad(t.credits(), 10));\n        m.set(75, ISOUtil.zeropad(t.creditReversals(), 10));\n        m.set(76, ISOUtil.zeropad(t.debits(), 10));\n        m.set(77, ISOUtil.zeropad(t.debitReversals(), 10));\n        m.set(81, ISOUtil.zeropad(t.authorizations(), 10));\n        m.set(86, ISOUtil.zeropad(t.creditsAmount(), 16));\n        m.set(87, ISOUtil.zeropad(t.creditReversalsAmount(), 16));\n        m.set(88, ISOUtil.zeropad(t.debitsAmount(), 16));\n        m.set(89, ISOUtil.zeropad(t.debitReversalsAmount(), 16));\n        m.set(97, de97(t.net()));\n        return m;\n    }\n\n    /** DE 97, the net settlement amount: C when the sender of the totals is owed it, D when it owes it. */\n    static String de97(long net) throws ISOException {\n        return (net >= 0 ? \"C\" : \"D\") + ISOUtil.zeropad(Math.abs(net), 16);\n    }\n\n    /** The receiver's 0510 to an 0500, given the totals the receiver counted for the same day. */\n    public static ISOMsg answer(ISOMsg request, Totals ours) throws ISOException {\n        ISOMsg own = request(ours, request.getString(15), request.getString(11),\n                request.getString(7), request.getString(32));\n        boolean inBalance = true;\n        for (int f : TOTALS_FIELDS)\n            inBalance &= own.getString(f).equals(request.getString(f));\n        ISOMsg r = (ISOMsg) request.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        r.set(66, inBalance ? \"1\" : \"2\");\n        return r;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** One business day's 1987 reconciliation totals, and the 0500 / 0510 exchange that compares them. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        return de15.equals(m.getString(15));\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        return isReversal(m) || \"00\".equals(m.getString(39));\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            if (!t.reversed.add(m.getString(90)))\n                return;\n            if (isRefund(m)) {\n                t.creditReversals++;\n                t.creditReversalsAmount += amount;\n            } else {\n                t.debitReversals++;\n                t.debitReversalsAmount += amount;\n            }\n        } else if (m.getString(0).startsWith(\"01\")) {\n            t.authorizations++;\n        } else if (isRefund(m)) {\n            t.credits++;\n            t.creditsAmount += amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n\n    /** The totals fields an 0510 compares: 74-77, 81, 86-89 and 97. */\n    public static final int[] TOTALS_FIELDS = { 74, 75, 76, 77, 81, 86, 87, 88, 89, 97 };\n\n    /** The acquirer's 0500 for one business day. */\n    public static ISOMsg request(Totals t, String de15, String stan, String de7, String acquirer)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0500\");\n        m.set(7, de7);\n        m.set(11, stan);\n        m.set(15, de15);\n        m.set(32, acquirer);\n        m.set(50, \"840\");\n        m.set(74, ISOUtil.zeropad(t.credits(), 10));\n        m.set(75, ISOUtil.zeropad(t.creditReversals(), 10));\n        m.set(76, ISOUtil.zeropad(t.debits(), 10));\n        m.set(77, ISOUtil.zeropad(t.debitReversals(), 10));\n        m.set(81, ISOUtil.zeropad(t.authorizations(), 10));\n        m.set(86, ISOUtil.zeropad(t.creditsAmount(), 16));\n        m.set(87, ISOUtil.zeropad(t.creditReversalsAmount(), 16));\n        m.set(88, ISOUtil.zeropad(t.debitsAmount(), 16));\n        m.set(89, ISOUtil.zeropad(t.debitReversalsAmount(), 16));\n        m.set(97, de97(t.net()));\n        return m;\n    }\n\n    /** DE 97, the net settlement amount: C when the sender of the totals is owed it, D when it owes it. */\n    static String de97(long net) throws ISOException {\n        // TODO: The packager takes a sign character and 16 digits. (one line)\n        throw new IllegalStateException(\"TODO: de97\");\n    }\n\n    /** The receiver's 0510 to an 0500, given the totals the receiver counted for the same day. */\n    public static ISOMsg answer(ISOMsg request, Totals ours) throws ISOException {\n        // TODO: The answer says whether the receiver's count of the day agrees with the sender's:\n        //       DE 39 00 (the request was processed) and DE 66, 1 in balance or 2 out of balance.\n        //       (about 10 lines)\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "264679be5852a2d8ddaa0e860e7b2358181a88a7c119d6baf4090dbf136e86bb",
+  "starting_code": "package com.example.practice;\n\nimport java.util.HashSet;\nimport java.util.List;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** One business day's 1987 reconciliation totals, and the 0500 / 0510 exchange that compares them. */\npublic final class DayTotals {\n\n    /** The totals of one day; amounts in minor units. */\n    public record Totals(long credits, long creditReversals, long debits, long debitReversals,\n                         long authorizations,\n                         long creditsAmount, long creditReversalsAmount,\n                         long debitsAmount, long debitReversalsAmount) {\n\n        /** What the sender of the totals is owed (positive) or owes (negative). */\n        public long net() {\n            return (debitsAmount - debitReversalsAmount) - (creditsAmount - creditReversalsAmount);\n        }\n    }\n\n    /** The running counts while a journal is read. */\n    static final class Tally {\n        long credits, creditReversals, debits, debitReversals, authorizations;\n        long creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount;\n        final Set<String> reversed = new HashSet<>();      // DE 90 of every reversal counted so far\n\n        Totals totals() {\n            return new Totals(credits, creditReversals, debits, debitReversals, authorizations,\n                    creditsAmount, creditReversalsAmount, debitsAmount, debitReversalsAmount);\n        }\n    }\n\n    private DayTotals() {\n    }\n\n    /**\n     * The totals of the business day {@code de15}. Each journal entry is a message as the exchange\n     * ended: the request's fields, plus DE 15 and, for requests, the DE 39 of the answer. Reversals\n     * (0420, 0421) are in the journal once acknowledged, and carry no DE 39.\n     */\n    public static Totals count(List<ISOMsg> journal, String de15) {\n        Tally t = new Tally();\n        for (ISOMsg m : journal)\n            if (onTheDay(m, de15) && settled(m))\n                add(t, m);\n        return t.totals();\n    }\n\n    /** Whether the entry belongs to the day being counted. */\n    static boolean onTheDay(ISOMsg m, String de15) {\n        return de15.equals(m.getString(15));\n    }\n\n    /** Whether the entry did what it asked for, so that it has something to count. */\n    static boolean settled(ISOMsg m) {\n        return isReversal(m) || \"00\".equals(m.getString(39));\n    }\n\n    static boolean isReversal(ISOMsg m) {\n        return m.getString(0).startsWith(\"04\");\n    }\n\n    /** True for a refund: processing code 20, money back to the card. */\n    static boolean isRefund(ISOMsg m) {\n        return m.getString(3).startsWith(\"20\");\n    }\n\n    /** Puts one settled entry of the day into the totals. */\n    static void add(Tally t, ISOMsg m) {\n        long amount = Long.parseLong(m.getString(4));\n        if (isReversal(m)) {\n            if (!t.reversed.add(m.getString(90)))\n                return;\n            if (isRefund(m)) {\n                t.creditReversals++;\n                t.creditReversalsAmount += amount;\n            } else {\n                t.debitReversals++;\n                t.debitReversalsAmount += amount;\n            }\n        } else if (m.getString(0).startsWith(\"01\")) {\n            t.authorizations++;\n        } else if (isRefund(m)) {\n            t.credits++;\n            t.creditsAmount += amount;\n        } else {\n            t.debits++;\n            t.debitsAmount += amount;\n        }\n    }\n\n    /** The totals fields an 0510 compares: 74-77, 81, 86-89 and 97. */\n    public static final int[] TOTALS_FIELDS = { 74, 75, 76, 77, 81, 86, 87, 88, 89, 97 };\n\n    /** The acquirer's 0500 for one business day. */\n    public static ISOMsg request(Totals t, String de15, String stan, String de7, String acquirer)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0500\");\n        m.set(7, de7);\n        m.set(11, stan);\n        m.set(15, de15);\n        m.set(32, acquirer);\n        m.set(50, \"840\");\n        m.set(74, ISOUtil.zeropad(t.credits(), 10));\n        m.set(75, ISOUtil.zeropad(t.creditReversals(), 10));\n        m.set(76, ISOUtil.zeropad(t.debits(), 10));\n        m.set(77, ISOUtil.zeropad(t.debitReversals(), 10));\n        m.set(81, ISOUtil.zeropad(t.authorizations(), 10));\n        m.set(86, ISOUtil.zeropad(t.creditsAmount(), 16));\n        m.set(87, ISOUtil.zeropad(t.creditReversalsAmount(), 16));\n        m.set(88, ISOUtil.zeropad(t.debitsAmount(), 16));\n        m.set(89, ISOUtil.zeropad(t.debitReversalsAmount(), 16));\n        m.set(97, de97(t.net()));\n        return m;\n    }\n\n    /** DE 97, the net settlement amount: C when the sender of the totals is owed it, D when it owes it. */\n    static String de97(long net) throws ISOException {\n        // TODO: The packager takes a sign character and 16 digits. (one line)\n        throw new IllegalStateException(\"TODO: de97\");\n    }\n\n    /** The receiver's 0510 to an 0500, given the totals the receiver counted for the same day. */\n    public static ISOMsg answer(ISOMsg request, Totals ours) throws ISOException {\n        // TODO: The answer says whether the receiver's count of the day agrees with the sender's:\n        //       DE 39 00 (the request was processed) and DE 66, 1 in balance or 2 out of balance.\n        //       (about 10 lines)\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-19/practice-3/src/main/java/com/example/practice/DayTotals.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-19/practice-3/src/test/java/com/example/practice/DayTotalsTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.DayTotalsTest#the0500CarriesTheNetAndPacks",
+        "kind": "main",
+        "says": "the 0500 carries the net as C and 16 digits and packs with iso87ascii"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#equalTotalsAreAnsweredInBalance",
+        "kind": "main",
+        "says": "an 0500 whose totals equal the receiver's is answered 0510 with DE 39 00 and DE 66 1"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aMissingPurchaseIsOutOfBalance",
+        "kind": "main",
+        "says": "an 0500 with a purchase the receiver never counted is answered out of balance"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#aDayWithMoreRefundsThanSalesSendsADebitNet",
+        "kind": "edge",
+        "says": "when refunds exceed sales, DE 97 is D followed by the net's absolute value"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#theSameNetWithOtherCountsIsOutOfBalance",
+        "kind": "edge",
+        "says": "two counts with the same net but different categories are out of balance"
+      },
+      {
+        "id": "com.example.practice.DayTotalsTest#theReceived0500StaysAsItWasReceived",
+        "kind": "edge",
+        "says": "answering builds a new message and leaves the received 0500 unchanged"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-19/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/19.md",
+      "section": "19.4. The Receiver Compares Every Total, Because Equal Nets Can Hide Different Counts"
+    },
+    "concepts": [
+      "The receiver of an 0500 compares every totals field with its own count and answers 2 when any differs, even when the nets agree; DE 97 is a C or D sign and 16 digits."
+    ]
+  }
+}

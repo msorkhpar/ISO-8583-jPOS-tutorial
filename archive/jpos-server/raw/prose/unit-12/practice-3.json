@@ -1,0 +1,141 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Move a terminal to its next batch, in any space",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Terminals settle at the end of the day, and from then on their transactions belong to a new batch. The switch keeps each terminal's profile, with its current batch number, in the Space under `profile.<terminal>`. In the tests the space is `tspace:`; in production it is `je:terminals`, so that the profiles survive a restart."
+    },
+    {
+      "type": "para",
+      "text": "Finish `nextBatch` in `src/main/java/com/example/practice/BatchNumbers.java`. When you're done, it returns the new batch number, and afterwards:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`profile(terminal)` shows that number, in a transient space and in a persistent one;",
+        "the terminal still has one profile in the space;",
+        "two sessions settling the same terminal at the same moment get two different numbers."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About five lines. One test uses a space that behaves like `je:`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\n\nimport java.io.Serializable;\n\n/**\n * Each terminal's profile lives in the Space under {@code profile.<terminal>}. When a terminal\n * settles, its batch is closed and the next transactions belong to a new batch number.\n */\npublic class BatchNumbers {\n    public static final class Profile implements Serializable {\n        private static final long serialVersionUID = 1L;\n        public final String terminal;\n        public final String merchant;\n        public int batch;\n\n        public Profile(String terminal, String merchant, int batch) {\n            this.terminal = terminal;\n            this.merchant = merchant;\n            this.batch = batch;\n        }\n\n        /** A new profile, equal to this one except for the batch number. */\n        public Profile withBatch(int batch) {\n            return new Profile(terminal, merchant, batch);\n        }\n    }\n\n    private final Space<String, Object> sp;\n\n    public BatchNumbers(Space<String, Object> sp) {\n        this.sp = sp;\n    }\n\n    static String key(String terminal) {\n        return \"profile.\" + terminal;\n    }\n\n    /** The terminal's current profile, as stored. */\n    public Profile profile(String terminal) {\n        return (Profile) sp.rdp(key(terminal));\n    }\n\n    /** Closes the terminal's current batch and returns the number of the new one. */\n    public int nextBatch(String terminal) {\n        synchronized (sp) {\n            Profile now = profile(terminal);\n            Profile next = now.withBatch(now.batch + 1);\n            sp.put(key(terminal), next);\n            return next.batch;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.space.Space;\n\nimport java.io.Serializable;\n\n/**\n * Each terminal's profile lives in the Space under {@code profile.<terminal>}. When a terminal\n * settles, its batch is closed and the next transactions belong to a new batch number.\n */\npublic class BatchNumbers {\n    public static final class Profile implements Serializable {\n        private static final long serialVersionUID = 1L;\n        public final String terminal;\n        public final String merchant;\n        public int batch;\n\n        public Profile(String terminal, String merchant, int batch) {\n            this.terminal = terminal;\n            this.merchant = merchant;\n            this.batch = batch;\n        }\n\n        /** A new profile, equal to this one except for the batch number. */\n        public Profile withBatch(int batch) {\n            return new Profile(terminal, merchant, batch);\n        }\n    }\n\n    private final Space<String, Object> sp;\n\n    public BatchNumbers(Space<String, Object> sp) {\n        this.sp = sp;\n    }\n\n    static String key(String terminal) {\n        return \"profile.\" + terminal;\n    }\n\n    /** The terminal's current profile, as stored. */\n    public Profile profile(String terminal) {\n        return (Profile) sp.rdp(key(terminal));\n    }\n\n    /** Closes the terminal's current batch and returns the number of the new one. */\n    public int nextBatch(String terminal) {\n        // TODO: the stored profile must carry the new batch number afterwards, whatever kind of\n        //       space holds it, and two sessions settling the same terminal at once must get two\n        //       different numbers.\n        throw new IllegalStateException(\"TODO: nextBatch\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "cf20ab3fd4f92394ad9419a3ec9c2572935ee0d282fb1b32400f0652d103732b",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.space.Space;\n\nimport java.io.Serializable;\n\n/**\n * Each terminal's profile lives in the Space under {@code profile.<terminal>}. When a terminal\n * settles, its batch is closed and the next transactions belong to a new batch number.\n */\npublic class BatchNumbers {\n    public static final class Profile implements Serializable {\n        private static final long serialVersionUID = 1L;\n        public final String terminal;\n        public final String merchant;\n        public int batch;\n\n        public Profile(String terminal, String merchant, int batch) {\n            this.terminal = terminal;\n            this.merchant = merchant;\n            this.batch = batch;\n        }\n\n        /** A new profile, equal to this one except for the batch number. */\n        public Profile withBatch(int batch) {\n            return new Profile(terminal, merchant, batch);\n        }\n    }\n\n    private final Space<String, Object> sp;\n\n    public BatchNumbers(Space<String, Object> sp) {\n        this.sp = sp;\n    }\n\n    static String key(String terminal) {\n        return \"profile.\" + terminal;\n    }\n\n    /** The terminal's current profile, as stored. */\n    public Profile profile(String terminal) {\n        return (Profile) sp.rdp(key(terminal));\n    }\n\n    /** Closes the terminal's current batch and returns the number of the new one. */\n    public int nextBatch(String terminal) {\n        // TODO: the stored profile must carry the new batch number afterwards, whatever kind of\n        //       space holds it, and two sessions settling the same terminal at once must get two\n        //       different numbers.\n        throw new IllegalStateException(\"TODO: nextBatch\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-12/practice-3/src/main/java/com/example/practice/BatchNumbers.java",
+    "test_path": "practice/jpos-server/prose/unit-12/practice-3/src/test/java/com/example/practice/BatchNumbersTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.BatchNumbersTest#eachSettlementOpensTheNextBatch",
+        "kind": "main",
+        "says": "each settlement returns the next batch number and keeps the rest of the profile"
+      },
+      {
+        "id": "com.example.practice.BatchNumbersTest#theNewNumberIsStoredInAPersistentSpaceToo",
+        "kind": "edge",
+        "says": "a persistent space hands back a copy, so the changed profile has to be written back"
+      },
+      {
+        "id": "com.example.practice.BatchNumbersTest#theTerminalKeepsOneProfile",
+        "kind": "edge",
+        "says": "a current value is replaced, not appended, so the key keeps one entry"
+      },
+      {
+        "id": "com.example.practice.BatchNumbersTest#twoSessionsSettlingAtOnceGetTwoNumbers",
+        "kind": "edge",
+        "says": "the read and the write happen under the space's lock, so two settlements at once get two numbers"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-12/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s12.md",
+      "section": "12.5 A Transient Space Hands Back the Stored Object, and a Persistent One a Copy"
+    },
+    "concepts": [
+      "A transient space hands back the stored object and a persistent one a copy, so a change is made to a clone and written back."
+    ]
+  }
+}

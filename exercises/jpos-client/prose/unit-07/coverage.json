@@ -1,108 +1,209 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c7.md",
   "kind": "code",
+  "quiz": "security-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c7.md": "sha256:34213f497d2a6a8d5e10ddb3fbe10dd847453ce4d6ce917f52a7954fd3ef4d78"
+    "src/c7.md": "sha256:87bd350e1a2535d6361bfa43bc2fe94a6154da18783d38af1c7a0af630083dbd"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "configure-the-jce-module",
-        "says": "JCESecurityModule is configured with a provider and loaded keys before it can encrypt PINs or generate MACs.",
+        "id": "bad-mac-is-unknown",
+        "says": "A response with a wrong or missing MAC proves nothing, so the outcome is unknown, as with no answer: reverse and alert, never report a decline.",
         "basis": [
-          "example:src/c7.md:1",
-          "example:src/c7.md:2"
+          "section:7.6 A Response That Fails Its MAC Is an Unknown Outcome, Not a Decline",
+          "example:src/c7.md:18",
+          "example:src/c7.md:19"
+        ],
+        "exercise": "mac-link",
+        "reason": null
+      },
+      {
+        "id": "card-data-intact",
+        "says": "Card numbers travel intact and are masked only in logs and displays; track data, CVV and PIN blocks are never kept after the purchase.",
+        "basis": [
+          "section:7.7 Card Data Crosses the Client Intact and Stays Nowhere",
+          "example:src/c7.md:20"
+        ],
+        "exercise": "security-quiz",
+        "reason": null
+      },
+      {
+        "id": "check-value-identifies-key",
+        "says": "A key's bytes differ between modules because each holds it under its own LMK; the check value identifies the key and is compared at every load, import and exchange.",
+        "basis": [
+          "section:7.4.1 Two Modules, One Key, Different Bytes",
+          "section:7.4.2 A Key Exchange Is Checked Before It Is Used",
+          "example:src/c7.md:12",
+          "example:src/c7.md:13",
+          "example:src/c7.md:14"
+        ],
+        "exercise": "security-quiz",
+        "reason": null
+      },
+      {
+        "id": "desk-module",
+        "says": "A JCESecurityModule with the Bouncy Castle provider, an LMK kept in memory and keys loaded from published test components gives reproducible PIN and MAC results without hardware.",
+        "basis": [
+          "section:7.1 A Security Module on Your Desk"
         ],
         "exercise": null,
-        "reason": "configuration wiring that needs real key material and a key store; the exercise reaches the module through its service instead"
+        "reason": "the desk module and test acquirer are the tool the practices' tests are built on, not a skill to practise"
       },
       {
-        "id": "mac-covers-what-is-sent",
-        "says": "The MAC in field 64 is computed over the message as it is actually sent, after the PIN has been encrypted, so the peer can check that nothing changed on the way.",
+        "id": "mac-covers-bytes-sent",
+        "says": "The MAC covers the packed message as sent, with the MAC field's bit set and its own bytes left out, computed on a copy so a received MAC is never overwritten.",
         "basis": [
-          "example:src/c7.md:3"
+          "section:7.5 A MAC Covers the Bytes as Sent, So It Is the Last Thing You Add",
+          "example:src/c7.md:15",
+          "example:src/c7.md:17"
         ],
-        "exercise": "secure-exchange",
+        "exercise": "mac-link",
         "reason": null
       },
       {
-        "id": "pin-never-travels-clear",
-        "says": "The PIN in field 52 leaves the client only encrypted, under the card number it belongs to, never in the clear.",
+        "id": "module-as-qbean",
+        "says": "The module is deployed as an SMAdaptor QBean; on Java 17 without a named provider it never registers, while the rest of Q2 runs, and SunJCE lacks the default MAC.",
         "basis": [
-          "example:src/c7.md:3",
-          "section:7.2 Implementing Security in a jPOS Client"
+          "section:7.4 Keys Live Under the Module's Master Key and Are Known by Their Check Value",
+          "example:src/c7.md:9",
+          "example:src/c7.md:10",
+          "example:src/c7.md:11"
         ],
-        "exercise": "secure-exchange",
+        "exercise": "security-quiz",
         "reason": null
       },
       {
-        "id": "security-module-behind-a-service",
-        "says": "PIN encryption and MAC generation belong to a security module with its keys, which the client reaches through a security service instead of doing the cryptography itself.",
+        "id": "pin-block-key-and-card",
+        "says": "A format 0 PIN block is the PIN mixed with 12 digits of the card number and encrypted under a PIN key, so reading it takes both the key and the card number.",
         "basis": [
-          "example:src/c7.md:2",
-          "section:7.1 Overview of jPOS Security Features"
-        ],
-        "exercise": "secure-exchange",
-        "reason": null
-      },
-      {
-        "id": "security-practices",
-        "says": "Keys are rotated and stored securely, channels use TLS, security operations are audited and error messages reveal nothing sensitive.",
-        "basis": [
-          "section:7.4 Best Practices for Security in jPOS"
-        ],
-        "exercise": null,
-        "reason": "operational advice with nothing a graded offline run can check"
-      },
-      {
-        "id": "test-with-stand-in-collaborators",
-        "says": "The secure client is tested by replacing its security service and its channel with stand-ins and checking how it uses them.",
-        "basis": [
+          "section:7.2 A PIN Block Means Nothing Without Its Key and Its Card Number",
           "example:src/c7.md:4",
-          "section:7.3 Testing the Secure Client"
+          "example:src/c7.md:6"
         ],
-        "exercise": null,
-        "reason": "the exercise's own test works exactly this way, so the reader meets it there; the page's test itself cannot run as written (AssertJ, and a live channel it leaves unmocked)"
+        "exercise": "pin-relay",
+        "reason": null
       },
       {
-        "id": "verify-the-response-mac",
-        "says": "A response is accepted only when the MAC it carries matches the MAC computed over it, and one whose MAC is wrong or missing is refused.",
+        "id": "sign-last",
+        "says": "Signing is the last change before a message leaves; any field set after it makes the host reject the message.",
         "basis": [
-          "example:src/c7.md:2",
-          "example:src/c7.md:3"
+          "section:7.5 A MAC Covers the Bytes as Sent, So It Is the Last Thing You Add",
+          "example:src/c7.md:16"
         ],
-        "exercise": "secure-exchange",
+        "exercise": "security-quiz",
+        "reason": null
+      },
+      {
+        "id": "tls-is-not-pin-protection",
+        "says": "TLS protects one connection and ends in an ordinary process at each end, while a PIN block stays encrypted until it reaches a module that holds its key.",
+        "basis": [
+          "section:7.2 A PIN Block Means Nothing Without Its Key and Its Card Number"
+        ],
+        "exercise": "security-quiz",
+        "reason": null
+      },
+      {
+        "id": "translate-not-decrypt",
+        "says": "The client re-encrypts a PIN block from the terminal's key and format to the host's with translatePIN, and refuses a purchase whose block cannot be translated rather than sending it without field 52.",
+        "basis": [
+          "section:7.3 The Client Translates the PIN and Never Sees It",
+          "example:src/c7.md:7",
+          "example:src/c7.md:8"
+        ],
+        "exercise": "pin-relay",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "secure-exchange",
+        "name": "pin-relay",
         "aspects": [
-          "mac-covers-what-is-sent",
-          "pin-never-travels-clear",
-          "security-module-behind-a-service",
-          "verify-the-response-mac"
+          "pin-block-key-and-card",
+          "translate-not-decrypt"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "mac-link",
+        "aspects": [
+          "bad-mac-is-unknown",
+          "mac-covers-bytes-sent"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "security-quiz",
+        "aspects": [
+          "card-data-intact",
+          "check-value-identifies-key",
+          "module-as-qbean",
+          "sign-last",
+          "tls-is-not-pin-protection"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-07/practice-1"
+    "exercises/jpos-client/prose/unit-07/practice-1",
+    "exercises/jpos-client/prose/unit-07/practice-2",
+    "exercises/jpos-client/prose/unit-07/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-07/practice-1",
       "origin": {
         "path": "src/c7.md",
-        "section": "7.2 Implementing Security in a jPOS Client"
+        "section": "7.3 The Client Translates the PIN and Never Sees It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-2",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.6 A Response That Fails Its MAC Is an Unknown Outcome, Not a Decline"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-3:q-missing-provider",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.4 Keys Live Under the Module's Master Key and Are Known by Their Check Value"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-3:q-key-bytes",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.4.1 Two Modules, One Key, Different Bytes"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-3:q-tls-instead",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.2 A PIN Block Means Nothing Without Its Key and Its Card Number"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-3:q-field7-after-mac",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.5 A MAC Covers the Bytes as Sent, So It Is the Last Thing You Add"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-07/practice-3:q-masked-pan",
+      "origin": {
+        "path": "src/c7.md",
+        "section": "7.7 Card Data Crosses the Client Intact and Stays Nowhere"
       }
     }
   ],

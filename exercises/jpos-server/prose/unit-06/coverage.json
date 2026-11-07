@@ -1,79 +1,177 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s6.md",
   "kind": "code",
+  "quiz": "fields-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s6.md": "sha256:bedf25f7c6f6dc5711a856bef66bd0ddb6a60a60ee1ba0fc94963102448fdd17"
+    "src/s6.md": "sha256:6ad365e9d52c1cbd36cf4bacac6c9fdb6017eeecd80295fe0d51857cc3e74553"
   },
   "plan": {
     "plan_api": 2,
-    "tier": "introductory",
-    "count": 1,
+    "tier": "core",
+    "count": 4,
     "aspects": [
       {
-        "id": "clone-is-independent",
-        "says": "Cloning an ISOMsg gives a separate message, so changing the clone leaves the original as it was.",
+        "id": "check-packing-in-prepare",
+        "says": "set checks nothing and the packager checks when SendResponse sends, after the vote; a participant packs a copy with the source channel's packager in prepare and answers without the field that didn't fit.",
         "basis": [
+          "section:6.5 `set` Checks Nothing; the Packager Checks After the Vote",
+          "example:src/s6.md:13",
+          "example:src/s6.md:14",
+          "example:src/s6.md:17",
+          "example:src/s6.md:18"
+        ],
+        "exercise": "core-answer",
+        "reason": null
+      },
+      {
+        "id": "closest-year-in-gmt",
+        "says": "Field 7 has no year and is in GMT: it takes the year closest to the clock and is read in GMT, whatever the JVM's default zone.",
+        "basis": [
+          "section:6.4 A Date Without a Year Takes the Year Closest to the Clock, Read in GMT",
+          "example:src/s6.md:10",
+          "example:src/s6.md:11",
+          "example:src/s6.md:12"
+        ],
+        "exercise": "stale-requests",
+        "reason": null
+      },
+      {
+        "id": "minor-units-by-currency",
+        "says": "Field 4 counts the minor units of the currency in field 49, whose decimals come from the currency, and an unknown currency must be answered rather than thrown.",
+        "basis": [
+          "section:6.3 An Amount Counts the Minor Units of the Currency in Field 49",
+          "example:src/s6.md:6",
+          "example:src/s6.md:7",
+          "example:src/s6.md:9"
+        ],
+        "exercise": "atm-dispense",
+        "reason": null
+      },
+      {
+        "id": "numeric-text-unchecked",
+        "says": "The packager checks a numeric field's length, not its characters, so field 4 must be checked for twelve digits before it is converted.",
+        "basis": [
+          "section:6.2 A Numeric Field Is Text That Nobody Checked",
+          "example:src/s6.md:4",
+          "example:src/s6.md:5"
+        ],
+        "exercise": "atm-dispense",
+        "reason": null
+      },
+      {
+        "id": "send-entry-is-not-a-send",
+        "says": "A response that fails to pack is logged by the channel as a send with the error under it, while the TransactionManager's event shows a clean transaction.",
+        "basis": [
+          "section:6.5 `set` Checks Nothing; the Packager Checks After the Vote",
+          "example:src/s6.md:15",
+          "example:src/s6.md:16"
+        ],
+        "exercise": "fields-quiz",
+        "reason": null
+      },
+      {
+        "id": "throw-answers-nobody",
+        "says": "A missing field reads as null; a participant that throws while reading it gets an ABORTED vote and leaves no response, so the client gets nothing.",
+        "basis": [
+          "section:6.1 A Missing Field Reads as `null`, and a Participant That Throws Answers Nobody",
           "example:src/s6.md:1",
-          "section:Key features of ISOMsg:"
-        ],
-        "exercise": "answer-from-the-request",
-        "reason": null
-      },
-      {
-        "id": "failure-aborts-with-the-exception",
-        "says": "When the message cannot be handled, the participant puts the ISOException in the Context and returns ABORTED instead of letting it escape.",
-        "basis": [
-          "example:src/s6.md:3",
-          "section:6.3 Integrating Data Element Handling in a jPOS Server"
-        ],
-        "exercise": "answer-from-the-request",
-        "reason": null
-      },
-      {
-        "id": "isofield-standalone",
-        "says": "A single data element can be handled on its own as an ISOField carrying its field number and value.",
-        "basis": [
           "example:src/s6.md:2",
-          "section:6.2 ISOField"
+          "example:src/s6.md:3"
         ],
-        "exercise": null,
-        "reason": "the page's own words: you usually work through ISOMsg; splitting the value on a pipe is plain Java, not a jPOS idea"
-      },
-      {
-        "id": "response-from-request",
-        "says": "A response is built from its request: it keeps the request's data elements, takes the matching response MTI through setResponseMTI, and adds the response code (39) and authorization code (38).",
-        "basis": [
-          "example:src/s6.md:3",
-          "section:6.3 Integrating Data Element Handling in a jPOS Server"
-        ],
-        "exercise": "answer-from-the-request",
+        "exercise": "fields-quiz",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "answer-from-the-request",
+        "name": "atm-dispense",
         "aspects": [
-          "clone-is-independent",
-          "failure-aborts-with-the-exception",
-          "response-from-request"
+          "minor-units-by-currency",
+          "numeric-text-unchecked"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "stale-requests",
+        "aspects": [
+          "closest-year-in-gmt"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "core-answer",
+        "aspects": [
+          "check-packing-in-prepare"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "fields-quiz",
+        "aspects": [
+          "send-entry-is-not-a-send",
+          "throw-answers-nobody"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-06/practice-1"
+    "exercises/jpos-server/prose/unit-06/practice-1",
+    "exercises/jpos-server/prose/unit-06/practice-2",
+    "exercises/jpos-server/prose/unit-06/practice-3",
+    "exercises/jpos-server/prose/unit-06/practice-4"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-06/practice-1",
       "origin": {
         "path": "src/s6.md",
-        "section": "6.3 Integrating Data Element Handling in a jPOS Server"
+        "section": "6.3 An Amount Counts the Minor Units of the Currency in Field 49"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-2",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.4 A Date Without a Year Takes the Year Closest to the Clock, Read in GMT"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-3",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.5 `set` Checks Nothing; the Packager Checks After the Vote"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-4:q-missing-entry-mode",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.1 A Missing Field Reads as `null`, and a Participant That Throws Answers Nobody"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-4:q-signed-amount",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.2 A Numeric Field Is Text That Nobody Checked"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-4:q-won-and-dinar",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.3 An Amount Counts the Minor Units of the Currency in Field 49"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-06/practice-4:q-long-reason-text",
+      "origin": {
+        "path": "src/s6.md",
+        "section": "6.5 `set` Checks Nothing; the Packager Checks After the Vote"
       }
     }
   ],

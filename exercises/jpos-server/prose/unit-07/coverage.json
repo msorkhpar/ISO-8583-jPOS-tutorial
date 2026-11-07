@@ -1,90 +1,152 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s7.md",
   "kind": "code",
+  "quiz": "security-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s7.md": "sha256:606776f70319daf6618ee01a2040bacf6ee16ea4cc983570d95784ff7c9653a3"
+    "src/s7.md": "sha256:e082ac52485b54cfdfab8448900127c93988fe1db0e6bd31f6872d89401bf0cf"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "ask-the-security-module",
-        "says": "Application code never does PIN or key cryptography itself: it asks a security module through the SMAdapter interface, so a software (JCE) module and a hardware one are interchangeable and a test can stand in a mock.",
+        "id": "key-file-and-lmk",
+        "says": "The key file holds keys only under the LMK, so it is harmless alone and reads PINs together with the LMK file.",
         "basis": [
-          "example:src/s7.md:1",
-          "example:src/s7.md:6",
-          "section:7.1 Security Module (SMAdapter)",
-          "section:7.6 Testing Security Features"
+          "section:7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart",
+          "section:7.1 A Server With a Security Module on the Desk",
+          "example:src/s7.md:10",
+          "example:src/s7.md:3"
         ],
-        "exercise": "pin-block-into-field-52",
+        "exercise": "security-quiz",
         "reason": null
       },
       {
-        "id": "jce-module-setup",
-        "says": "The JCE security module is a software SMAdapter configured with a crypto provider and a local master key (LMK) file.",
+        "id": "keys-loaded-live",
+        "says": "A new or replaced key written to the key file under the LMK is used at the next lookup without a restart, so a key change is loaded when the other side switches; keys for card data at rest come from a key store or the HSM, never from configuration.",
         "basis": [
-          "example:src/s7.md:2",
-          "section:7.2 JCE Security Module"
+          "section:7.5 A Key Is Loaded While the Server Runs, and Never Written in Clear",
+          "example:src/s7.md:16"
         ],
         "exercise": null,
-        "reason": "configuration wiring that needs an LMK file; the exercise works against the SMAdapter interface instead"
+        "reason": "key loading is an operational step seen only in the key file's behaviour, which the lesson shows by running; neither a test nor a scenario question would check more than a reading of it"
       },
       {
-        "id": "key-rotation-keeps-old-key",
-        "says": "Keys are rotated on a schedule, and the previous key is kept for a while so transactions already in flight under it still verify.",
+        "id": "mac-first",
+        "says": "A request's MAC is verified under the key of the terminal it names, before any participant acts on it; a missing MAC or an unknown terminal fails like a wrong MAC, and a participant that sends in prepare acts before a later abort.",
         "basis": [
-          "example:src/s7.md:4",
-          "section:7.4 Key Management"
-        ],
-        "exercise": null,
-        "reason": "an operational policy built on a scheduler and a key store the page leaves undefined; nothing in it can be checked offline without inventing that store"
-      },
-      {
-        "id": "pin-block-in-field-52",
-        "says": "A PIN travels only as a PIN block encrypted together with the card number from field 2, and the block goes into field 52 as its raw bytes; the clear PIN is never put in the message.",
-        "basis": [
-          "example:src/s7.md:3",
-          "section:7.3 Implementing PIN Encryption"
-        ],
-        "exercise": "pin-block-into-field-52",
-        "reason": null
-      },
-      {
-        "id": "tls-channel",
-        "says": "Messages between client and server travel over a TLS-protected channel.",
-        "basis": [
+          "section:7.2 A Request's MAC Is Checked Before Anything Acts on It",
           "example:src/s7.md:5",
-          "section:7.5 Secure Communication Channel"
+          "example:src/s7.md:6",
+          "example:src/s7.md:7"
         ],
-        "exercise": null,
-        "reason": "needs a live peer and sockets; a graded run is offline"
+        "exercise": "terminal-gate",
+        "reason": null
+      },
+      {
+        "id": "module-log",
+        "says": "With a logger, the security module and key store log PIN blocks, keys under the LMK and MAC input in hex that no log listener masks, so they are deployed without one.",
+        "basis": [
+          "section:7.3.1 Spot the Problem: The Module That Logged Everything",
+          "example:src/s7.md:11"
+        ],
+        "exercise": "security-quiz",
+        "reason": null
+      },
+      {
+        "id": "pin-per-terminal",
+        "says": "A PIN block is translated from the TPK of the terminal in field 41 to the network's key, on a copy for the network without the terminal's MAC; a block that can't be translated is refused, never sent on without it.",
+        "basis": [
+          "section:7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart",
+          "example:src/s7.md:8",
+          "example:src/s7.md:9"
+        ],
+        "exercise": "terminal-gate",
+        "reason": null
+      },
+      {
+        "id": "sign-both-paths",
+        "says": "Every answer is signed under its terminal's key by an abort participant right before SendResponse; an unsigned decline is an unknown outcome to the terminal, and a network answer is believed only when its own MAC verifies.",
+        "basis": [
+          "section:7.4 Every Response Is Signed, on the Abort Path Too",
+          "example:src/s7.md:12",
+          "example:src/s7.md:13",
+          "example:src/s7.md:14",
+          "example:src/s7.md:15"
+        ],
+        "exercise": "signed-answers",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "pin-block-into-field-52",
+        "name": "terminal-gate",
         "aspects": [
-          "ask-the-security-module",
-          "pin-block-in-field-52"
+          "mac-first",
+          "pin-per-terminal"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "signed-answers",
+        "aspects": [
+          "sign-both-paths"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "security-quiz",
+        "aspects": [
+          "key-file-and-lmk",
+          "module-log"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-07/practice-1"
+    "exercises/jpos-server/prose/unit-07/practice-1",
+    "exercises/jpos-server/prose/unit-07/practice-2",
+    "exercises/jpos-server/prose/unit-07/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-07/practice-1",
       "origin": {
         "path": "src/s7.md",
-        "section": "7.3 Implementing PIN Encryption"
+        "section": "7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-07/practice-2",
+      "origin": {
+        "path": "src/s7.md",
+        "section": "7.4 Every Response Is Signed, on the Abort Path Too"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-07/practice-3:q-before-the-mac-check",
+      "origin": {
+        "path": "src/s7.md",
+        "section": "7.2 A Request's MAC Is Checked Before Anything Acts on It"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-07/practice-3:q-leaked-log",
+      "origin": {
+        "path": "src/s7.md",
+        "section": "7.3.1 Spot the Problem: The Module That Logged Everything"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-07/practice-3:q-unsigned-decline",
+      "origin": {
+        "path": "src/s7.md",
+        "section": "7.4 Every Response Is Signed, on the Abort Path Too"
       }
     }
   ],

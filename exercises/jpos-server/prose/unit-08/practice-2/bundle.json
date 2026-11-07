@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 8,
   "ordinal": 2,
-  "title": "A debug mode you can switch off",
+  "title": "Page someone when a transaction stops finishing",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/DebuggableServer.java",
-  "test_file": "src/test/java/com/example/practice/DebuggableServerTest.java",
+  "main_file": "src/main/java/com/example/practice/StuckWatch.java",
+  "test_file": "src/test/java/com/example/practice/StuckWatchTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,24 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.DebuggableServerTest#withDebugOnADebugEventPrecedesTheProcessingEvent",
+      "id": "com.example.practice.StuckWatchTest#aHungTransactionIsNamed",
       "kind": "main",
-      "says": "with debug on, a debug event comes before the processing event, and not otherwise"
+      "says": "with a real TransactionManager, a transaction hung in a participant is named once it has been the oldest unfinished one for longer than the limit, and nothing is named after it finishes"
     },
     {
-      "id": "com.example.practice.DebuggableServerTest#switchingDebugOffStopsTheDebugEvents",
+      "id": "com.example.practice.StuckWatchTest#anIdleServerIsNotStuck",
       "kind": "edge",
-      "says": "switching debug off again stops the debug events"
+      "says": "when head equals tail nothing is running, so a tail that hasn't moved for hours is not a stuck transaction"
     },
     {
-      "id": "com.example.practice.DebuggableServerTest#aMissingAmountIsSaidNotPrintedAsNull",
+      "id": "com.example.practice.StuckWatchTest#aQuietNightStillShowsTheHungTransaction",
       "kind": "edge",
-      "says": "a message with no amount says so, instead of logging the word null"
+      "says": "a hung transaction is named even when no new transactions arrive and head stays where it is"
+    },
+    {
+      "id": "com.example.practice.StuckWatchTest#aBusyServerWhoseOldestKeepsFinishingIsNotStuck",
+      "kind": "edge",
+      "says": "the time is counted from when the current tail became the oldest, so a busy server whose tail keeps moving is never named"
     }
   ],
   "report": {
@@ -54,6 +59,6 @@
   },
   "origin": {
     "path": "src/s8.md",
-    "section": "8.4 Debugging Techniques"
+    "section": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
   }
 }

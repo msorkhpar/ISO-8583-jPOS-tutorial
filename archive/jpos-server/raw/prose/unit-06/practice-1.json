@@ -8,8 +8,8 @@
   "unit": 6,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Answer a request with a response built from it",
+  "ingested": "2026-11-05",
+  "title": "Pay out only what the ATM's notes can make",
   "blocks": [
     {
       "type": "heading",
@@ -18,40 +18,27 @@
     },
     {
       "type": "para",
-      "text": "A server answers most requests by sending back the same message with a few changes: the response MTI, a response code and an authorization code. The page does that in a `TransactionParticipant` by cloning the request. The request stays in the `Context` too, and later participants (and the log) must see it exactly as it arrived."
+      "text": "An ATM network is adding machines in Seoul and Kuwait City to its euro machines. Each machine pays out only whole notes of its currency, up to a maximum per withdrawal, and the server refuses anything else before the cash dispenser is asked. The table of notes and maximums, `CASSETTES`, is in `src/main/java/com/example/practice/CashWithdrawal.java`, and so is the participant, which already answers every request it can read."
     },
     {
       "type": "para",
-      "text": "Write `DataElementHandler`, a jPOS `TransactionParticipant`. Its `prepare` reads the request `ISOMsg` from the `Context` under `\"REQUEST\"` and puts under `\"RESPONSE\"` a message that:"
+      "text": "Finish the two methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "carries every data element of the request, with the same values;",
-        "has the response MTI (`0200` becomes `0210`, `0100` becomes `0110`), set by jPOS rather than worked out by hand;",
-        "adds field 39 = `00` (approved) and field 38 = `123456` (the authorization code)."
+        "`amountOf(...)`: what the cardholder asked for;",
+        "`decide(...)`: the answer for an amount the server could read."
       ]
     },
     {
       "type": "para",
-      "text": "It then returns `PREPARED | NO_JOIN | READONLY`."
+      "text": "When you're done, every withdrawal gets a response in the Context, whatever the ATM put in its fields, and the won and dinar machines pay out what their cardholders asked for. About fifteen lines in total."
     },
     {
       "type": "para",
-      "text": "Watch for:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "the request must come out unchanged: no response MTI and no field 38 or 39 on it;",
-        "a message that is already a response (`0210`, say) has no response to take. jPOS refuses it with an `ISOException`. Put that exception in the `Context` under `\"EXCEPTION\"`, put no `\"RESPONSE\"`, and return `ABORTED | NO_JOIN | READONLY`."
-      ]
-    },
-    {
-      "type": "para",
-      "text": "In jPOS 2.1.7 `prepare` is declared as `int prepare(long id, Serializable context)`; the page's `Context` parameter comes from a later version, so cast it yourself."
+      "text": "The tests hand `prepare` each request the way the server's channel would: packed by the ATM's side and unpacked with `iso87ascii.xml`."
     },
     {
       "type": "heading",
@@ -66,7 +53,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(\"REQUEST\");\n        try {\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setResponseMTI();\n            response.set(39, \"00\");\n            response.set(38, \"123456\");\n            ctx.put(\"RESPONSE\", response);\n            return PREPARED | NO_JOIN | READONLY;\n        } catch (ISOException e) {\n            ctx.put(\"EXCEPTION\", e);\n            return ABORTED | NO_JOIN | READONLY;\n        }\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport java.util.Map;\n\n/** Approves a cash withdrawal only for an amount the ATM can pay out in its notes. */\npublic class CashWithdrawal implements TransactionParticipant {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    /** Per ISO 4217 numeric currency: the smallest note the ATM holds, and the most one withdrawal may take. */\n    static final Map<String, BigDecimal[]> CASSETTES = Map.of(\n            \"978\", new BigDecimal[] { new BigDecimal(\"10.00\"), new BigDecimal(\"400.00\") },     // euro\n            \"410\", new BigDecimal[] { new BigDecimal(\"10000\"), new BigDecimal(\"1000000\") },    // won\n            \"414\", new BigDecimal[] { new BigDecimal(\"5.000\"), new BigDecimal(\"300.000\") });   // Kuwaiti dinar\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        try {\n            BigDecimal amount = amountOf(request);\n            String rc = amount == null ? \"30\" : decide(amount, request.getString(49));\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rc);\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(rc) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** The amount the cardholder asked for, in units of its currency; null when the request doesn't say. */\n    static BigDecimal amountOf(ISOMsg request) {\n        String amount = request.getString(4);\n        String currency = request.getString(49);\n        if (amount == null || currency == null)\n            return null;\n        if (amount.length() != 12 || !ISOUtil.isNumeric(amount, 10))\n            return null;\n        try {\n            return ISOCurrency.parseFromISO87String(amount, currency);\n        } catch (IllegalArgumentException unknown) {\n            return null;\n        }\n    }\n\n    /** The response code for a readable amount: 00, 13 (not payable in notes), 61 (over the maximum) or 57 (no cassette). */\n    static String decide(BigDecimal amount, String currency) {\n        BigDecimal[] cassette = CASSETTES.get(currency);\n        if (cassette == null)\n            return \"57\";\n        if (amount.compareTo(cassette[1]) > 0)\n            return \"61\";\n        if (amount.signum() <= 0 || amount.remainder(cassette[0]).signum() != 0)\n            return \"13\";\n        return \"00\";\n    }\n}\n"
         }
       ]
     },
@@ -78,7 +65,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport java.util.Map;\n\n/** Approves a cash withdrawal only for an amount the ATM can pay out in its notes. */\npublic class CashWithdrawal implements TransactionParticipant {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    /** Per ISO 4217 numeric currency: the smallest note the ATM holds, and the most one withdrawal may take. */\n    static final Map<String, BigDecimal[]> CASSETTES = Map.of(\n            \"978\", new BigDecimal[] { new BigDecimal(\"10.00\"), new BigDecimal(\"400.00\") },     // euro\n            \"410\", new BigDecimal[] { new BigDecimal(\"10000\"), new BigDecimal(\"1000000\") },    // won\n            \"414\", new BigDecimal[] { new BigDecimal(\"5.000\"), new BigDecimal(\"300.000\") });   // Kuwaiti dinar\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        try {\n            BigDecimal amount = amountOf(request);\n            String rc = amount == null ? \"30\" : decide(amount, request.getString(49));\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rc);\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(rc) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** The amount the cardholder asked for, in units of its currency; null when the request doesn't say. */\n    static BigDecimal amountOf(ISOMsg request) {\n        // TODO: Fields 4 and 49 of the request as an amount the rest of this class can compare\n        //       with CASSETTES. Return null for any request that doesn't state one, so prepare()\n        //       can answer it with 30. Terminals you don't control send these.\n        throw new IllegalStateException(\"TODO: amountOf\");\n    }\n\n    /** The response code for a readable amount: 00, 13 (not payable in notes), 61 (over the maximum) or 57 (no cassette). */\n    static String decide(BigDecimal amount, String currency) {\n        // TODO: 57 for a currency the ATM has no cassette for, 61 above that currency's maximum,\n        //       13 for an amount its notes can't make, otherwise 00.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -86,10 +73,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 5,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -97,11 +84,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "8ace7b02bd75ae1ae701ccd612ba4ecb944767e53b24dfafac0d9ea47390f92e",
-  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Answers the request in the Context with an approved response built from it. */\npublic class DataElementHandler implements TransactionParticipant {\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n}\n",
+  "content_sha256": "54228aaead3537efdea5d30b7d4c8a44f456a13de56722c9ff0c62b9b3a1abf6",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOCurrency;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport java.util.Map;\n\n/** Approves a cash withdrawal only for an amount the ATM can pay out in its notes. */\npublic class CashWithdrawal implements TransactionParticipant {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    /** Per ISO 4217 numeric currency: the smallest note the ATM holds, and the most one withdrawal may take. */\n    static final Map<String, BigDecimal[]> CASSETTES = Map.of(\n            \"978\", new BigDecimal[] { new BigDecimal(\"10.00\"), new BigDecimal(\"400.00\") },     // euro\n            \"410\", new BigDecimal[] { new BigDecimal(\"10000\"), new BigDecimal(\"1000000\") },    // won\n            \"414\", new BigDecimal[] { new BigDecimal(\"5.000\"), new BigDecimal(\"300.000\") });   // Kuwaiti dinar\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        try {\n            BigDecimal amount = amountOf(request);\n            String rc = amount == null ? \"30\" : decide(amount, request.getString(49));\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, rc);\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n            return \"00\".equals(rc) ? PREPARED | NO_JOIN : ABORTED;\n        } catch (ISOException e) {\n            ctx.log(e);\n            return ABORTED;\n        }\n    }\n\n    /** The amount the cardholder asked for, in units of its currency; null when the request doesn't say. */\n    static BigDecimal amountOf(ISOMsg request) {\n        // TODO: Fields 4 and 49 of the request as an amount the rest of this class can compare\n        //       with CASSETTES. Return null for any request that doesn't state one, so prepare()\n        //       can answer it with 30. Terminals you don't control send these.\n        throw new IllegalStateException(\"TODO: amountOf\");\n    }\n\n    /** The response code for a readable amount: 00, 13 (not payable in notes), 61 (over the maximum) or 57 (no cassette). */\n    static String decide(BigDecimal amount, String currency) {\n        // TODO: 57 for a currency the ATM has no cassette for, 61 above that currency's maximum,\n        //       13 for an amount its notes can't make, otherwise 00.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-06/practice-1/src/main/java/com/example/practice/DataElementHandler.java",
-    "test_path": "practice/jpos-server/prose/unit-06/practice-1/src/test/java/com/example/practice/DataElementHandlerTest.java",
+    "main_path": "practice/jpos-server/prose/unit-06/practice-1/src/main/java/com/example/practice/CashWithdrawal.java",
+    "test_path": "practice/jpos-server/prose/unit-06/practice-1/src/test/java/com/example/practice/CashWithdrawalTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -122,19 +109,49 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.DataElementHandlerTest#aRequestIsAnsweredWithAnApprovedCopyOfItself",
+        "id": "com.example.practice.CashWithdrawalTest#aWithdrawalInNotesIsApproved",
         "kind": "main",
-        "says": "a request is answered by a response under the response MTI, carrying the request's fields plus 39 and 38"
+        "says": "a withdrawal the euro notes can make, within the maximum, is approved"
       },
       {
-        "id": "com.example.practice.DataElementHandlerTest#theRequestItselfIsLeftAsItWas",
-        "kind": "edge",
-        "says": "the request in the Context is not changed: the response is a separate message"
+        "id": "com.example.practice.CashWithdrawalTest#anAmountTheNotesCannotMakeIsRefused",
+        "kind": "main",
+        "says": "an amount that is not a whole number of the smallest note is refused with 13"
       },
       {
-        "id": "com.example.practice.DataElementHandlerTest#aMessageThatIsAlreadyAResponseAborts",
+        "id": "com.example.practice.CashWithdrawalTest#aWithdrawalOverTheMaximumIsRefused",
+        "kind": "main",
+        "says": "an amount above the currency's maximum is refused with 61"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#aCurrencyWithoutACassetteIsRefused",
+        "kind": "main",
+        "says": "a currency the ATM holds no notes for is refused with 57"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#aWithdrawalWithoutACurrencyIsAFormatError",
         "kind": "edge",
-        "says": "a message that is already a response cannot be answered: the participant aborts with the exception in the Context"
+        "says": "a request without field 49 gets a 30 response instead of an exception, since a missing field reads as null"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#aSignedAmountIsAFormatError",
+        "kind": "edge",
+        "says": "a field 4 with a sign is not twelve digits and gets 30, though BigDecimal would accept it"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#wonHaveNoMinorUnit",
+        "kind": "edge",
+        "says": "field 4 in won counts whole won, since the won has no minor unit"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#dinarsHaveThreeDecimals",
+        "kind": "edge",
+        "says": "field 4 in Kuwaiti dinars has three decimals, taken from the currency rather than assumed"
+      },
+      {
+        "id": "com.example.practice.CashWithdrawalTest#anUnknownCurrencyCodeIsAFormatError",
+        "kind": "edge",
+        "says": "a currency code ISOCurrency doesn't know gets 30 instead of an exception"
       }
     ],
     "report": {
@@ -143,12 +160,11 @@
     },
     "origin": {
       "path": "src/s6.md",
-      "section": "6.3 Integrating Data Element Handling in a jPOS Server"
+      "section": "6.3 An Amount Counts the Minor Units of the Currency in Field 49"
     },
     "concepts": [
-      "Cloning an ISOMsg gives a separate message, so changing the clone leaves the original as it was.",
-      "When the message cannot be handled, the participant puts the ISOException in the Context and returns ABORTED instead of letting it escape.",
-      "A response is built from its request: it keeps the request's data elements, takes the matching response MTI through setResponseMTI, and adds the response code (39) and authorization code (38)."
+      "Field 4 counts the minor units of the currency in field 49, whose decimals come from the currency, and an unknown currency must be answered rather than thrown.",
+      "The packager checks a numeric field's length, not its characters, so field 4 must be checked for twelve digits before it is converted."
     ]
   }
 }

@@ -8,7 +8,7 @@
   "unit": 9,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Error Handling",
   "blocks": [
     {
@@ -18,160 +18,516 @@
     },
     {
       "type": "para",
-      "text": "Error handling is a crucial aspect of any robust application, especially in financial transaction processing where accuracy and reliability are paramount. In a jPOS client implementation, we need to handle various types of exceptions that may occur during message creation, sending, and processing."
+      "text": "A bakery signs up with a merchant name of 41 characters. Its first purchase goes through your client, and `request` throws nothing. A moment later a cardholder at another till, whose purchase the host had approved, is told \"outcome unknown\". The only trace in the log is a warning: `error packing field 43`."
+    },
+    {
+      "type": "para",
+      "text": "The bakery's bug landed on someone else, and none of your error handling saw it. Where each failure of a jPOS client shows up, and what it tells you, comes down to four rules, one per section heading."
+    },
+    {
+      "type": "para",
+      "text": "Every output is from jPOS 2.1.7: Q2 in the same JVM with unit c4's ChannelAdaptor and QMUX, and an `ISOServer` on 127.0.0.1 as the host. The host can answer, decline, drop or hold each request, or answer with a field 39 we choose. The reconnect delay is 500 ms, so the examples finish quickly."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.1 Types of Exceptions"
+      "text": "9.1 Your Thread Sees Four Endings, and Each Says What the Host Knows"
     },
     {
       "type": "para",
-      "text": "In a jPOS client application, you may encounter several types of exceptions:"
+      "text": "We sent five purchases. One had neither field 11 nor field 41. One reused the key of a purchase still waiting. The host declined one, dropped one, and was shut down before the last. The call is wrapped the way most first versions are:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "try {\n    if (!mux.isConnected()) ending = \"isConnected() false\";\n    else ending = \"returned \" + show(mux.request(m, 1000));\n} catch (ISOException e) {\n    ending = \"ISOException: \" + e.getMessage();\n}"
+    },
+    {
+      "type": "para",
+      "text": "In which cases did the host receive the purchase?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "no 11, no 41  host received 0   ISOException: Key fields not found - not sending host-send.020\nsame key      host received 0   ISOException: Duplicate key 'host-send.0200000000029110001000611.req' detected\ndeclined      host received 1   returned 0210 39=05\ndropped       host received 1   returned null\nlink down     host received 0   isConnected() false"
+    },
+    {
+      "type": "para",
+      "text": "Each of the four endings says something different about the host:"
     },
     {
       "type": "list",
-      "ordered": true,
+      "ordered": false,
       "items": [
-        "`ISOException`: Thrown for ISO-8583 specific errors.",
-        "`IOException`: For network-related issues.",
-        "`NullPointerException`: For unexpected null values.",
-        "`TimeoutException`: When a transaction takes too long to complete.",
-        "Custom exceptions: For application-specific error scenarios."
+        "**An `ISOException` from `request`** means QMUX refused the message before queueing it. The host saw nothing. Fix the message, and if the key was a duplicate, send it again with a new STAN.",
+        "**`isConnected()` false** means nothing was sent either. Tell the caller the host is unavailable. (The link can still drop between a `true` and the call; that ends in `null`, as unit c4 showed.)",
+        "**`null`** means the outcome is unknown: the host may have approved the purchase. Unit c12 reverses it.",
+        "**A response** means the host decided, and field 39 says what, as long as you can read it (9.3)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`request` declares only `ISOException`, so a `catch (IOException e)` around it doesn't compile. The socket is read and written on the adaptor's threads, so a broken connection reaches you as `isConnected()` false or as `null`. A timeout is `null` too, never a `TimeoutException`."
+    },
+    {
+      "type": "para",
+      "text": "The trap is reading these four as two, \"it threw\" and \"it didn't\". Put an `ISOException` and a `null` in the same \"failed\" branch and you either reverse purchases the host never saw, or tell a cardholder \"declined, try again\" about a purchase the host approved. Ask of every failure what the host knows. Only `null`, and an answer you can't read, leave that open."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.2 A Field the Packager Refuses Fails on the Adaptor's Thread, and Takes the Link With It"
+    },
+    {
+      "type": "para",
+      "text": "The bakery's 41 characters go into field 43, which holds 40. Where does packing fail?"
+    },
+    {
+      "type": "para",
+      "text": "QMUX doesn't pack. It puts the `ISOMsg` on the adaptor's queue, and the adaptor's sender thread packs it when it writes to the socket. We sent three purchases on one link: 000201, whose approval the host held for a moment, then 000202 with the long field 43, and 100 ms later 000203:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "ISOMsg bad = Stack.purchase(\"29110002\", \"000202\", \"000000001000\");\nbad.set(43, \"THE CORNER BAKERY AND COFFEE HOUSE LONDON\");   // 41 characters, field 43 holds 40\nFuture<ISOMsg> refused = pool.submit(() -> mux.request(bad, 5000));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected 0.3 s after the bad message: false\nhost could not answer 000201: unconnected ISOChannel\n000201 (sent before): null\n000202 (bad):         null\n000203 (sent after):  0210 39=00 after 900 ms\nhost received: 2"
+    },
+    {
+      "type": "para",
+      "text": "Nothing threw in the calling thread. The sender thread caught the `ISOException`, logged a warning in the realm `org.jpos.q2.iso.ChannelAdaptor` with the text `error packing field 43`, closed the connection and slept for a second before taking the next message. The 2.1.7 source does this for any `ISOException` during a send, except a veto from a channel filter."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**000201 had nothing wrong with it.** The host approved it and tried to answer on a connection that no longer existed. Its caller got `null`, its cardholder hears \"outcome unknown\", and a reversal goes out for a purchase that was fine.",
+        "**000202 never left the JVM.** Its caller still waited the full five seconds and got `null`, the same answer as a lost approval. A client that follows the rules reverses a purchase the host never saw.",
+        "**000203** went out on the new connection, about a second late."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The warning names a field number but no STAN or terminal, so with twenty purchases in flight the log can't tell which one was bad."
+    },
+    {
+      "type": "para",
+      "text": "With the adaptor's `<ignore-iso-exceptions>yes</ignore-iso-exceptions>`, the same run keeps the link:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected 0.3 s after the bad message: true\n000201 (sent before): 0210 39=00\n000202 (bad):         null\n000203 (sent after):  0210 39=00 after 900 ms"
+    },
+    {
+      "type": "para",
+      "text": "The bad purchase still waits five seconds for a `null` that means \"unknown\" when the truth is \"never sent\", and the one-second pause after the error still delays the next message. The switch also covers the receiving side, where an answer that can't be unpacked drops the link too by default."
+    },
+    {
+      "type": "para",
+      "text": "The fix is to pack a copy with the channel's packager, in the caller's thread, before you queue. The failure is then an `ISOException` before sending."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.errors;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Packs a copy with the link's packager, so a bad field fails here and not on the link. */\npublic final class Preflight {\n    private final ISOPackager packager;\n\n    public Preflight(ISOPackager packager) {\n        this.packager = packager;               // the same packager the channel uses\n    }\n\n    public void check(ISOMsg m) throws ISOException {\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(packager);\n        copy.pack();                            // throws \"error packing field NN\"\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Purchases 000201 and 000202 again, with `preflight.check(m)` before each `request`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000202 (bad):  refused after 0 ms: error packing field 43\nisConnected: true\n000201 (good): 0210 39=00\nhost received: 1"
+    },
+    {
+      "type": "para",
+      "text": "The bad purchase is refused at once, in the thread that knows its STAN and terminal, with nothing to reverse, and the link stays up. The price is packing every message twice, small next to a network round trip. The check uses the packager alone: if the channel has outgoing filters that change fields, or picks a packager per message, check against what it really sends."
+    },
+    {
+      "type": "para",
+      "text": "A packager checks lengths, not meaning. With `iso87ascii.xml`, a 41-character field 43 or a 20-digit PAN fails, but an amount written as `50.00` packs and reaches the host as `000000050.00`. Checking what is in a field stays the job of the code that builds the request (unit c2)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.3 Field 39 Says Who Acts Next"
+    },
+    {
+      "type": "para",
+      "text": "A response means the host decided, and field 39 says what. Most first versions read it like this:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "String naive = \"00\".equals(r.getString(39)) ? \"APPROVED\" : \"DECLINED\";"
+    },
+    {
+      "type": "para",
+      "text": "The host answered seven purchases, each with a different field 39 (the last two with none at all and with a code that isn't on the network's list). We read each answer with the line above and with a policy built from the network's code list. Which answers moved the cardholder's money, and after which should the cardholder try again in a minute?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "39    \"00\" or declined    policy\n00    APPROVED            APPROVED\n08    DECLINED            APPROVED\n51    DECLINED            DECLINED\n91    DECLINED            TRY_LATER\n30    DECLINED            FIX_REQUEST\nnone  DECLINED            REVERSE\nN7    DECLINED            REVERSE"
+    },
+    {
+      "type": "para",
+      "text": "The naive line reads two rows of seven correctly."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**08 is an approval** (\"honour with identification\" in ISO 8583:1987). Read as a decline, the till says the purchase failed while the money has moved. Because a decline needs no reversal, nothing ever gives it back.",
+        "**91 says the issuer or the switch is unavailable.** Reported as a decline, it sends away a cardholder whose card is fine and who would have succeeded in a minute. Trying again means a new transaction with a new STAN, not the same message again.",
+        "**30 is a format error**: your request is wrong. After a release that breaks one field, every purchase comes back 30. Read as declines, cardholders blame their cards, and no alert reaches the developers who could fix it.",
+        "**No field 39, or a code you don't know**, says nothing about the money. Treat it as no answer, and reverse. Sending the same purchase again would charge twice if the first was approved."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A reversal costs one message and undoes the worst case; the design note weighs it."
+    },
+    {
+      "type": "para",
+      "text": "The code list belongs to the network, so keep it as data and keep the decisions in code:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.errors;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Map;\n\n/** What field 39 asks of us. The codes come from the network's specification. */\npublic final class AnswerPolicy {\n    public enum Next { APPROVED, DECLINED, TRY_LATER, FIX_REQUEST, REVERSE }\n\n    private final Map<String, Next> codes;\n\n    public AnswerPolicy(Map<String, Next> codes) {\n        this.codes = Map.copyOf(codes);\n    }\n\n    public Next of(ISOMsg response) {\n        String rc = response.getString(39);\n        if (rc == null)\n            return Next.REVERSE;                      // an answer that decides nothing\n        return codes.getOrDefault(rc, Next.REVERSE);  // a code we can't place: the same\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Each value of `Next` says who acts: the cardholder goes home with the goods, tries another card or tries again later; a developer fixes the request; or the reversal process takes over. The run above used the list in the Reference."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Networks differ.** Each network publishes its own field 39 values, and its own rules for which are approvals and which may be retried, and how soon. Build the map from your network's specification; the codes in this unit are the common ISO 8583:1987 ones."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.4 An Exception in a jPOS Callback Drops the Link and Reaches No Caller"
+    },
+    {
+      "type": "para",
+      "text": "Unit c4's asynchronous `request` calls your listener with the answer on the adaptor's receiver thread (an expiry arrives on a QMUX timer thread instead). Suppose the listener writes the answer to the database and the write fails, while purchase 000301 waits for its own answer:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "mux.request(purchase, 5000, (response, handBack) -> {\n    System.out.println(\"listener for 000302 got \" + response.getString(11) + \" 39=\" + response.getString(39) + \", and throws\");\n    throw new IllegalStateException(\"payments table is locked\");     // say, a failed database write\n}, null);"
+    },
+    {
+      "type": "para",
+      "text": "What happens to 000301?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "listener for 000302 got 000302 39=00, and throws\nisConnected: false\n000301 (blocking): null\nhost received: 2"
+    },
+    {
+      "type": "para",
+      "text": "The link dropped, and 000301's approval, which the host sent right behind 000302's, was lost with it."
+    },
+    {
+      "type": "para",
+      "text": "The receiver puts each incoming message on the QMUX's in queue, and the Space calls QMUX on that same thread to match it. QMUX calls your listener from there, and nothing on the way catches a runtime exception. It ends in the receiver's own `catch (Exception e)`, which logs a warning in the `ChannelAdaptor` realm and reconnects. Every answer still in the socket is lost, and each of those purchases returns `null` and is reversed."
+    },
+    {
+      "type": "para",
+      "text": "QMUX's `<request-listener>`s are called the same way, for every message no request is waiting for. Ours takes the first six digits of field 2 of everything it sees. An 0800 echo, STAN 000402, gave up after 300 ms while purchase 000401 waited. Then the host answered both, the late 0810 first, and an 0810 has no field 2:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000402: null\nrequest listener got 0810 000402\nisConnected: false\n000401: null"
+    },
+    {
+      "type": "para",
+      "text": "No caller hears of the exception: the thread that called `request` gets `null` like any lost answer, and the listener's caller is jPOS. A Spring `@ControllerAdvice` sees only exceptions thrown by a controller method on the HTTP request's thread, so it misses this one too. The decision about the purchase (reverse, repeat, report) belongs in the code that called the MUX, made from the ending it got, before anything returns to the HTTP layer."
+    },
+    {
+      "type": "para",
+      "text": "So a callback that jPOS calls catches its own failures and hands them to whoever is waiting:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.errors;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\nimport java.util.concurrent.CompletableFuture;\nimport java.util.function.Consumer;\n\n/** Sends asynchronously and records each answer; a failure is the caller's, never the link's. */\npublic class RecordingSender {\n    private final MUX mux;\n    private final long timeout;\n    private final Consumer<ISOMsg> recorder;           // e.g. a write to the payments table\n\n    public RecordingSender(MUX mux, long timeout, Consumer<ISOMsg> recorder) {\n        this.mux = mux;\n        this.timeout = timeout;\n        this.recorder = recorder;\n    }\n\n    public CompletableFuture<ISOMsg> send(ISOMsg request) throws ISOException {\n        CompletableFuture<ISOMsg> result = new CompletableFuture<>();\n        mux.request(request, timeout, (response, handBack) -> {\n            try {                                       // the receiver thread (a timer thread on expiry)\n                if (response != null)\n                    recorder.accept(response);\n                result.complete(response);\n            } catch (RuntimeException e) {\n                result.completeExceptionally(e);        // the caller learns of it; the link doesn't\n            }\n        }, null);\n        return result;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The same failing write, through `RecordingSender`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected: true\n000301 (blocking): 0210 39=00\n000302 (async):    java.lang.IllegalStateException: payments table is locked"
+    },
+    {
+      "type": "para",
+      "text": "The caller of 000302 knows the host approved and the record wasn't written, and can retry the write or reverse. A request listener follows the same rule, with one more option: return `false` from `process` for anything it can't handle, and the message goes on to the next listener or to `<unhandled>`."
+    },
+    {
+      "type": "para",
+      "text": "Unit c4 has the other half of this rule: a callback that blocks holds up every answer on the link. Keep callbacks short, and never let them throw."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.5 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Your thread sees four endings.** An `ISOException` and `isConnected()` false mean the host saw nothing. A response you can read means it decided, and `null` means nobody knows. `null` needs a reversal, and no catch block ever sees it.",
+        "**A field the packager refuses fails on the adaptor's sender thread.** By default the link drops, innocent purchases in flight come back `null`, and the bad one waits out its timeout. Pack a copy in the caller's thread first and it becomes a plain refusal.",
+        "**Field 39 says who acts next.** Read it from the network's list: approvals other than 00, \"try later\" as a new transaction, format errors as a developer's problem. An answer with no code or an unknown one is treated like no answer, and reversed.",
+        "**An exception in a listener drops the link.** A response listener given an answer, and every request listener, runs on the receiver thread. Its exception ends in the adaptor's reconnect, never with a caller. Catch inside the callback and hand the failure to whoever waits."
       ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.2 Implementing Exception Handlers"
+      "text": "9.6 Reference"
     },
     {
       "type": "para",
-      "text": "We'll use Spring's `@ExceptionHandler` annotation to create centralized exception handling for our jPOS client. This approach allows us to define how different types of exceptions should be handled across the application."
+      "text": "**Where each failure of a 2.1.7 client surfaces:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "What fails",
+        "Where it surfaces",
+        "Did the host see it?",
+        "What to do"
+      ],
+      "rows": [
+        [
+          "no key field, or a key already waiting",
+          "`ISOException` from `request`, in your thread",
+          "no",
+          "fix the message; a new STAN for a duplicate"
+        ],
+        [
+          "link down before the call",
+          "`isConnected()` false",
+          "no",
+          "report the host unavailable"
+        ],
+        [
+          "no answer, a lost answer, a link that dropped",
+          "`null` after the timeout",
+          "unknown",
+          "reverse (unit c12)"
+        ],
+        [
+          "a field the packager refuses",
+          "warning `error packing field NN` on the sender; link dropped; `null`",
+          "no",
+          "pack a copy first"
+        ],
+        [
+          "an answer that can't be unpacked",
+          "warning on the receiver; link dropped; `null`",
+          "yes",
+          "reverse"
+        ],
+        [
+          "an exception in a response or request listener",
+          "warning on the receiver; link dropped",
+          "depends",
+          "catch inside the callback"
+        ],
+        [
+          "an answer",
+          "the response; field 39",
+          "yes, and it decided",
+          "by the code's category"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "Let's create an `ErrorHandler` class:"
+      "text": "**ChannelAdaptor settings involved:**"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOException;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\n\nimport java.io.IOException;\nimport java.util.concurrent.TimeoutException;\n\n@ControllerAdvice\npublic class ErrorHandler {\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<ErrorResponse> handleISOException(ISOException ex) {\n        ErrorResponse error = new ErrorResponse(\"ISO-8583 Error\", ex.getMessage());\n        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);\n    }\n\n    @ExceptionHandler(IOException.class)\n    public ResponseEntity<ErrorResponse> handleIOException(IOException ex) {\n        ErrorResponse error = new ErrorResponse(\"Network Error\", \"Failed to communicate with the server\");\n        return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);\n    }\n\n    @ExceptionHandler(TimeoutException.class)\n    public ResponseEntity<ErrorResponse> handleTimeoutException(TimeoutException ex) {\n        ErrorResponse error = new ErrorResponse(\"Timeout Error\", \"The operation timed out\");\n        return new ResponseEntity<>(error, HttpStatus.REQUEST_TIMEOUT);\n    }\n\n    @ExceptionHandler(Exception.class)\n    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {\n        ErrorResponse error = new ErrorResponse(\"Internal Server Error\", \"An unexpected error occurred\");\n        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Element",
+        "Default",
+        "Effect"
+      ],
+      "rows": [
+        [
+          "`<ignore-iso-exceptions>`",
+          "`no`",
+          "with `yes`, an `ISOException` while packing or unpacking is logged and the link stays up"
+        ],
+        [
+          "`<reconnect-delay>`",
+          "10000 ms",
+          "wait before reconnecting after the link drops"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "And the `ErrorResponse` class:"
+      "text": "After an error (other than a filter's veto), the sender or receiver thread also sleeps for one second before it carries on."
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "public class ErrorResponse {\n    private String errorType;\n    private String errorMessage;\n\n    public ErrorResponse(String errorType, String errorMessage) {\n        this.errorType = errorType;\n        this.errorMessage = errorMessage;\n    }\n\n    // Getters and setters\n}"
+      "type": "para",
+      "text": "**Common ISO 8583:1987 response codes** (your network's list is the one that counts):"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Code",
+        "Meaning",
+        "`Next` in this unit"
+      ],
+      "rows": [
+        [
+          "`00`",
+          "approved",
+          "`APPROVED`"
+        ],
+        [
+          "`08`",
+          "honour with identification",
+          "`APPROVED`"
+        ],
+        [
+          "`05`",
+          "do not honour",
+          "`DECLINED`"
+        ],
+        [
+          "`51`",
+          "insufficient funds",
+          "`DECLINED`"
+        ],
+        [
+          "`54`",
+          "expired card",
+          "`DECLINED`"
+        ],
+        [
+          "`55`",
+          "incorrect PIN",
+          "`DECLINED`"
+        ],
+        [
+          "`91`",
+          "issuer or switch inoperative",
+          "`TRY_LATER`"
+        ],
+        [
+          "`96`",
+          "system malfunction",
+          "`TRY_LATER`"
+        ],
+        [
+          "`12`",
+          "invalid transaction",
+          "`FIX_REQUEST`"
+        ],
+        [
+          "`13`",
+          "invalid amount",
+          "`FIX_REQUEST`"
+        ],
+        [
+          "`30`",
+          "format error",
+          "`FIX_REQUEST`"
+        ],
+        [
+          "none, or not on the list",
+          "",
+          "`REVERSE`"
+        ]
+      ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "9.3 Logging Exceptions"
-    },
-    {
-      "type": "para",
-      "text": "It's important to log exceptions for debugging and monitoring purposes. We can enhance our error handler to include logging:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\n\n@ControllerAdvice\npublic class ErrorHandler {\n    private static final Logger logger = LoggerFactory.getLogger(ErrorHandler.class);\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<ErrorResponse> handleISOException(ISOException ex) {\n        logger.error(\"ISO-8583 Error: \", ex);\n        ErrorResponse error = new ErrorResponse(\"ISO-8583 Error\", ex.getMessage());\n        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);\n    }\n\n    // Other exception handlers...\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.4 Custom Exceptions"
-    },
-    {
-      "type": "para",
-      "text": "For application-specific error scenarios, it's often useful to create custom exceptions. Here's an example:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public class TransactionDeclinedException extends RuntimeException {\n    private String responseCode;\n\n    public TransactionDeclinedException(String message, String responseCode) {\n        super(message);\n        this.responseCode = responseCode;\n    }\n\n    public String getResponseCode() {\n        return responseCode;\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "And its corresponding exception handler:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@ExceptionHandler(TransactionDeclinedException.class)\npublic ResponseEntity<ErrorResponse> handleTransactionDeclinedException(TransactionDeclinedException ex) {\n    logger.warn(\"Transaction declined: {}\", ex.getMessage());\n    ErrorResponse error = new ErrorResponse(\"Transaction Declined\", \n        \"Transaction was declined with response code: \" + ex.getResponseCode());\n    return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.5 Testing Exception Handlers"
-    },
-    {
-      "type": "para",
-      "text": "To ensure our exception handlers work as expected, we should write unit tests. Here's an example using JUnit, Mockito, and Spring's testing support:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\n\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@ExtendWith(MockitoExtension.class)\npublic class ErrorHandlerTest {\n\n    @InjectMocks\n    private ErrorHandler errorHandler;\n\n    @Test\n    public void testHandleISOException() {\n        ISOException ex = new ISOException(\"Invalid message format\");\n        ResponseEntity<ErrorResponse> response = errorHandler.handleISOException(ex);\n\n        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);\n        assertThat(response.getBody().getErrorType()).isEqualTo(\"ISO-8583 Error\");\n        assertThat(response.getBody().getErrorMessage()).isEqualTo(\"Invalid message format\");\n    }\n\n    @Test\n    public void testHandleTransactionDeclinedException() {\n        TransactionDeclinedException ex = new TransactionDeclinedException(\"Insufficient funds\", \"51\");\n        ResponseEntity<ErrorResponse> response = errorHandler.handleTransactionDeclinedException(ex);\n\n        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);\n        assertThat(response.getBody().getErrorType()).isEqualTo(\"Transaction Declined\");\n        assertThat(response.getBody().getErrorMessage()).contains(\"51\");\n    }\n\n    // More tests for other exception handlers...\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "9.6 Integration with jPOS Client"
-    },
-    {
-      "type": "para",
-      "text": "To integrate this error handling mechanism with your jPOS client, you need to ensure that your client code throws these exceptions when appropriate. For example:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class TransactionService {\n\n    private final MUX mux;\n\n    public TransactionService(MUX mux) {\n        this.mux = mux;\n    }\n\n    public ISOMsg sendTransaction(ISOMsg request) throws ISOException, IOException {\n        try {\n            ISOMsg response = mux.request(request, 30000); // 30 seconds timeout\n            if (response == null) {\n                throw new TimeoutException(\"Transaction timed out\");\n            }\n            \n            String responseCode = response.getString(39);\n            if (!\"00\".equals(responseCode)) {\n                throw new TransactionDeclinedException(\"Transaction declined\", responseCode);\n            }\n            \n            return response;\n        } catch (ISOException | IOException e) {\n            throw e;\n        }\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This service method will now throw appropriate exceptions that our `ErrorHandler` can catch and process."
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "Conclusion"
-    },
-    {
-      "type": "para",
-      "text": "Implementing robust error handling in a jPOS client application involves:"
+      "text": "9.7 Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Creating a centralized `ErrorHandler` using Spring's `@ControllerAdvice` and `@ExceptionHandler`.",
-        "Defining custom exceptions for application-specific scenarios.",
-        "Properly logging exceptions for debugging and monitoring.",
-        "Writing unit tests to ensure exception handlers work correctly.",
-        "Integrating the error handling mechanism with the jPOS client code."
+        "A network wants `ignore-iso-exceptions` off, because it treats an unreadable answer as a broken session. You want it on, because of the bakery. Which failures does each setting turn into a dropped link, and which into a silent timeout? Could you have both behaviours with one link?",
+        "Your packager accepts `50.00` as an amount. List the fields of your purchase where a value of the right length can still be wrong, and decide for each whether the request builder, the preflight or the host should catch it.",
+        "After a release, one purchase in ten comes back 30. How would you notice within a minute, and what would you stop doing until it is fixed?",
+        "A response listener writes to a database that sometimes takes three seconds and sometimes throws. Design the hand-off so that neither the delay nor the failure reaches the link, and say what the caller learns in each case."
       ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9.8 Design Note: Why Reverse an Answer You Can't Read?"
+    },
+    {
+      "type": "para",
+      "text": "An answer with no field 39, or with a code nobody on your team recognises, is still an answer, and it is tempting to call it a decline: the host did reply, and a decline sounds cautious at the till."
+    },
+    {
+      "type": "para",
+      "text": "It is cautious only for the merchant. A decline needs nothing more from you, so if the unreadable answer was an approval, the cardholder has paid for goods they didn't get, and nothing in your system will notice. A reversal costs one more message: if the host had declined, it finds nothing to undo, and if it had approved, the money comes back. When you don't know which mistake you are making, choose the one whose cost you can see and bound."
+    },
+    {
+      "type": "para",
+      "text": "The same reasoning sorts every ending in this unit. A refusal before sending and a link that was down leave nothing to undo. A decision you can read is followed. A `null`, an answer lost to a dropped link and a code you can't place are outcomes you don't know, and get the one answer that is safe when you don't know. The price is reversals for some purchases that were declined anyway, and a reversal process that must be reliable (unit c12)."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 8,
-    "paras": 12,
-    "code": 7,
-    "tables": 0,
-    "lists": 2,
+    "headings": 9,
+    "paras": 41,
+    "code": 15,
+    "tables": 3,
+    "lists": 5,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "c3efa5561156415ca4e0b80ae499c60b20b434531a303edca99c22b801304225"
+  "content_sha256": "f813a0473aaf1fd29eafa552690bdea2ca423fb9841bc6f628c0ec60f932434f"
 }

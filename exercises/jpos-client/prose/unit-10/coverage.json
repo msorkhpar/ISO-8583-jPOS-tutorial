@@ -1,69 +1,161 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c10.md",
   "kind": "code",
+  "quiz": "testing-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c10.md": "sha256:7043a86bd76afa0e0f669eb6f18e61dc6c9f9d5f2e51bb2d31b4b3c485894c3f"
+    "src/c10.md": "sha256:1fb971dde598f174c0199dd11770cecb29c1de722f417d5abe993ccf7da138cc"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 4,
     "aspects": [
       {
-        "id": "end-to-end-through-mux",
-        "says": "Integration, Q2 and concurrency tests send real requests through the MUX and check the host's replies.",
+        "id": "deploy-the-shipped-files",
+        "says": "Descriptors, channel and packager are tested only by running Q2 in the test's JVM on the shipped files against a host on 127.0.0.1, because the NameRegistrar is per JVM.",
         "basis": [
-          "example:src/c10.md:2",
-          "example:src/c10.md:4",
-          "example:src/c10.md:5",
-          "section:10.2 Integration Testing"
+          "section:10.3 Only a Test That Deploys Your Files Tests Them"
         ],
-        "exercise": null,
-        "reason": "each needs a running host to answer; a graded run is offline with no peer"
-      },
-      {
-        "id": "simulate-the-host",
-        "says": "A client is tested without a real host by a stand-in that answers its requests the way the host would, including the declines a test needs.",
-        "basis": [
-          "example:src/c10.md:3",
-          "section:10.3 Simulating Server Responses"
-        ],
-        "exercise": "simulated-host",
+        "exercise": "testing-quiz",
         "reason": null
       },
       {
-        "id": "unit-test-in-isolation",
-        "says": "A single client component, such as the service that builds an authorization request, is tested alone with its collaborators mocked.",
+        "id": "fake-cannot-check-qmux-rules",
+        "says": "A fake MUX checks the client's decisions but not QMUX's rules: missing key fields, duplicate keys and unmatched answers show up only with a real QMUX, which can run in the test against a host on its queues.",
         "basis": [
-          "example:src/c10.md:1",
-          "section:10.1 Unit Testing"
+          "section:10.2 A Fake Checks Your Decisions, and Only QMUX Checks jPOS's Rules"
         ],
-        "exercise": null,
-        "reason": "the service under test is not on the page, and the test is written with AssertJ, which the corpus build does not carry; not practised"
+        "exercise": "testing-quiz",
+        "reason": null
+      },
+      {
+        "id": "fake-keeps-mux-promises",
+        "says": "A fake MUX lets a test decide every answer, and it must answer as QMUX does: a new message with the response MTI and the request's fields, null for silence, expired on the listener form, and a record of everything sent.",
+        "basis": [
+          "section:10.1 A Test Plays the Host Through the `MUX` Interface",
+          "section:10.1.1 Spot the Problem: The Fake That Answered With the Request"
+        ],
+        "exercise": "scripted-mux",
+        "reason": null
+      },
+      {
+        "id": "load-tail-and-nulls",
+        "says": "A load run is judged by percentiles over every request, with each null counted at the time it waited, and by the number of nulls; the mean and answered-only percentiles hide the timeouts.",
+        "basis": [
+          "section:10.5 A Load Test Is Judged by Its Slow Tail and Its Nulls"
+        ],
+        "exercise": "load-report",
+        "reason": null
+      },
+      {
+        "id": "packager-round-trip",
+        "says": "A round trip through the link's packager finds a field that doesn't fit in the build, where otherwise it first fails on the adaptor's thread.",
+        "basis": [
+          "section:10.3.1 The Packager Without the Socket"
+        ],
+        "exercise": "testing-quiz",
+        "reason": null
+      },
+      {
+        "id": "wait-for-a-condition",
+        "says": "q2.ready means deployed, not connected; a test waits for the condition it needs with a blocking read bounded by a deadline, never for a guessed time, and fails loudly when the deadline passes.",
+        "basis": [
+          "section:10.4 A Test Waits for a Condition, Never for a Time"
+        ],
+        "exercise": "await-received",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "simulated-host",
+        "name": "scripted-mux",
         "aspects": [
-          "simulate-the-host"
+          "fake-keeps-mux-promises"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "await-received",
+        "aspects": [
+          "wait-for-a-condition"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "load-report",
+        "aspects": [
+          "load-tail-and-nulls"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "testing-quiz",
+        "aspects": [
+          "deploy-the-shipped-files",
+          "fake-cannot-check-qmux-rules",
+          "packager-round-trip"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-10/practice-1"
+    "exercises/jpos-client/prose/unit-10/practice-1",
+    "exercises/jpos-client/prose/unit-10/practice-2",
+    "exercises/jpos-client/prose/unit-10/practice-3",
+    "exercises/jpos-client/prose/unit-10/practice-4"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-10/practice-1",
       "origin": {
         "path": "src/c10.md",
-        "section": "10.3 Simulating Server Responses"
+        "section": "10.1.1 Spot the Problem: The Fake That Answered With the Request"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-2",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.4 A Test Waits for a Condition, Never for a Time"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-3",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.5 A Load Test Is Judged by Its Slow Tail and Its Nulls"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-4:q-gateway-tests",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.2 A Fake Checks Your Decisions, and Only QMUX Checks jPOS's Rules"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-4:q-script-started-q2",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.3 Only a Test That Deploys Your Files Tests Them"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-4:q-sometimes-unavailable",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.4 A Test Waits for a Condition, Never for a Time"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-10/practice-4:q-merchant-city",
+      "origin": {
+        "path": "src/c10.md",
+        "section": "10.3.1 The Packager Without the Socket"
       }
     }
   ],

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "ordinal": 3,
+  "title": "Check yourself: what an authorization proves, and what a token protects",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-deposit-in-chip-data",
+        "stem": "A hotel's gateway raises the amount of each chip authorization by a 150.00 deposit before forwarding it, and writes the new amount into tag 9F02 of DE 55 as well. The issuers verify the chip data they receive. What happens to these authorizations?",
+        "options": [
+          {
+            "id": "a",
+            "text": "They are approved for the higher amount, since the request and its chip data now show one amount",
+            "correct": false,
+            "says": "agreement between the fields is not what the issuer verifies; it recomputes the card's cryptogram, which was made over the original 9F02"
+          },
+          {
+            "id": "b",
+            "text": "They are declined, since the cryptogram the issuer recomputes no longer matches the one in 9F26",
+            "correct": true,
+            "says": "the cryptogram covers 9F02; with a changed amount the issuer's recomputation fails and the card looks counterfeit"
+          },
+          {
+            "id": "c",
+            "text": "They are declined, since the issuer refuses any DE 55 whose tags are not in the terminal's order",
+            "correct": false,
+            "says": "the issuer recomputes over the values the cryptogram covers; the changed amount is what breaks it, not the order of the tags"
+          },
+          {
+            "id": "d",
+            "text": "They are approved for the higher amount, since the cryptogram covers only the card number and its counter",
+            "correct": false,
+            "says": "the cryptogram covers the amount, currency, date, type, the terminal's random number and more, so a changed amount breaks it"
+          }
+        ],
+        "origin": {
+          "path": "src/14.md",
+          "section": "14.1. A Chip Purchase Carries a Cryptogram Over Its Own Data, So Nobody on the Path May Change That Data"
+        }
+      },
+      {
+        "id": "q-gateway-field-list",
+        "stem": "An e-commerce gateway forwards authorizations with a fixed list of fields that leaves out the network's 3-D Secure field. Customers authenticate in their bank's app as usual. In a region where the law doesn't require online authentication, a cardholder later disputes one of these purchases as fraud. Under most networks' rules, who bears the loss?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The merchant, since the issuer received the purchase with no result attached to it",
+            "correct": true,
+            "says": "the authorization is all the issuer gets; without the 3-D Secure values it is an unauthenticated purchase, and the fraud chargeback falls on the merchant"
+          },
+          {
+            "id": "b",
+            "text": "The merchant, since liability shifts only for purchases above an amount the network sets",
+            "correct": false,
+            "says": "the shift depends on the authentication result reaching the issuer in the authorization, not on an amount"
+          },
+          {
+            "id": "c",
+            "text": "The issuer, since the cardholder had already proved who they were before the purchase",
+            "correct": false,
+            "says": "the check happened outside the authorization; the issuer sees only the authorization, which arrived without its result"
+          },
+          {
+            "id": "d",
+            "text": "The issuer, since the directory server reports each result to the network",
+            "correct": false,
+            "says": "what counts is what the authorization carries; a hop that drops the values drops the proof"
+          }
+        ],
+        "origin": {
+          "path": "src/14.md",
+          "section": "14.2. A 3-D Secure Result Rides in the Authorization, and a Hop That Drops It Drops the Proof"
+        }
+      },
+      {
+        "id": "q-token-without-range",
+        "stem": "A vault draws each token as fifteen random digits followed by a correct check digit, with no reserved prefix. One token is copied by mistake into a system that knows nothing about tokens, and that system sends it on as a card number in a purchase. What can follow?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is charged to a stranger's card, since nothing keeps the number out of real issuers' ranges",
+            "correct": true,
+            "says": "without a reserved range a random number with a correct check digit can be a real card number, and it is routed to that card's issuer"
+          },
+          {
+            "id": "b",
+            "text": "It is charged to the vault's own account, since the network knows which vault drew the number",
+            "correct": false,
+            "says": "nothing in a number without a reserved range tells anyone it is a token; it is routed by its first digits like any card"
+          },
+          {
+            "id": "c",
+            "text": "It is refused at once, since card-number validation finds numbers that no issuer printed",
+            "correct": false,
+            "says": "the check digit only catches typing errors; a random number with a correct one passes, as real cards do"
+          },
+          {
+            "id": "d",
+            "text": "It is refused at once, since every issuer asks the vault about a number first",
+            "correct": false,
+            "says": "issuers don't know a merchant's or gateway's vault; a number outside a token range reaches the issuer of its range as a card"
+          }
+        ],
+        "origin": {
+          "path": "src/14.md",
+          "section": "14.3. A Token Is Random, Shaped Like a Card Number Under a BIN of Its Own"
+        }
+      },
+      {
+        "id": "q-shop-app-detokenize",
+        "stem": "A shop's app is given the detokenize permission so that its refund screen can show full card numbers. Its tokens are random. Attackers later take over the app's server along with its token table. What do the tokens give them?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Every card number behind them, since the app's credentials hold the right to turn tokens back",
+            "correct": true,
+            "says": "with the permission in the app, a breach of the app reads every card number; only the component that builds the network message may detokenize"
+          },
+          {
+            "id": "b",
+            "text": "Every card number behind them, since the stolen table holds enough tokens to reverse random ones",
+            "correct": false,
+            "says": "random tokens carry nothing of the card; the risk is the permission, not the tokens"
+          },
+          {
+            "id": "c",
+            "text": "Nothing they can use elsewhere, since each of the app's tokens was issued to this shop alone",
+            "correct": false,
+            "says": "scoping stops the tokens paying at other shops, but the app's permission turns them back into card numbers that pay anywhere"
+          },
+          {
+            "id": "d",
+            "text": "Nothing they can use elsewhere, since that right works only from inside the shop's own network",
+            "correct": false,
+            "says": "the right goes with the app's credentials, and the attackers hold the app's server; nothing on the page ties it to a network location"
+          }
+        ],
+        "origin": {
+          "path": "src/14.md",
+          "section": "14.5. Only the Component That Builds the Network Message May Turn a Token Back Into a Card Number"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Stop charging twice when the host is slow",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Merchants complain that on slow days some cardholders are charged twice. The culprit is `PaymentClient.send` in `src/main/java/com/example/practice/PaymentClient.java`: when the host doesn't answer in time, it sends the same message again."
+    },
+    {
+      "type": "para",
+      "text": "`send` handles every kind of message the client sends: purchases and authorizations, advices, and echoes. Fix the three places marked `TODO` so that each ends safely and returns the `Outcome` that says what happened:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`send`: when the link is down;",
+        "`outcomeOf`: when the host answered;",
+        "`onNoAnswer`: when it didn't. This is the part that matters."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Anything that must still reach the host later goes onto the `saf.host` queue of the space (`sp.out`). Something else delivers it, as in 12.7. The `ReversalBuilder` from 12.6 is already in the file. About 15 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * Sends one message to the host and says how it ended. Anything that must still reach the host\n * later goes onto the store-and-forward queue {@code saf.host} in the given space.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, REVERSED, QUEUED, NO_ANSWER, NOT_SENT }\n\n    static final String SAF = \"saf.host\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ReversalBuilder reversals;\n    private final long timeout;\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.reversals = new ReversalBuilder(sp);\n        this.timeout = timeout;\n    }\n\n    public Outcome send(ISOMsg m) throws ISOException {\n        if (!mux.isConnected())\n            return Outcome.NOT_SENT;\n        ISOMsg response = mux.request(m, timeout);\n        return response != null ? outcomeOf(response) : onNoAnswer(m);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg response) {\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n\n    /** What to do when the wait for an answer ended with nothing. */\n    Outcome onNoAnswer(ISOMsg m) throws ISOException {\n        char messageClass = m.getMTI().charAt(1);\n        boolean advice = m.getMTI().charAt(2) == '2';\n        if (messageClass == '8')\n            return Outcome.NO_ANSWER;\n        if (advice) {\n            sp.out(SAF, m);\n            return Outcome.QUEUED;\n        }\n        sp.out(SAF, reversals.reversalOf(m));\n        return Outcome.REVERSED;\n    }\n\n    /** The reversal builder from 12.6, given: a new message that points at the original. */\n    static final class ReversalBuilder {\n        private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };\n        private final Space<String, Object> sp;\n\n        ReversalBuilder(Space<String, Object> sp) {\n            this.sp = sp;\n        }\n\n        ISOMsg reversalOf(ISOMsg original) throws ISOException {\n            ISOMsg rev = (ISOMsg) original.clone(COPIED);\n            rev.setMTI(\"0420\");\n            rev.set(7, original.getString(7));\n            rev.set(11, ISOUtil.zeropad(((SpaceUtil.nextLong(sp, \"stan.host\") - 1) % 999999) + 1, 6));\n            rev.set(90, original.getMTI()\n                    + ISOUtil.zeropad(original.getString(11), 6)\n                    + ISOUtil.zeropad(original.getString(7), 10)\n                    + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n                    + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : \"\", 11));\n            return rev;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * Sends one message to the host and says how it ended. Anything that must still reach the host\n * later goes onto the store-and-forward queue {@code saf.host} in the given space.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, REVERSED, QUEUED, NO_ANSWER, NOT_SENT }\n\n    static final String SAF = \"saf.host\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ReversalBuilder reversals;\n    private final long timeout;\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.reversals = new ReversalBuilder(sp);\n        this.timeout = timeout;\n    }\n\n    public Outcome send(ISOMsg m) throws ISOException {\n        // TODO: QMUX would accept a message even with the link down; it would only expire unsent.\n        //       When nothing can go out, what is there to undo? (two lines)\n        ISOMsg response = mux.request(m, timeout);\n        return response != null ? outcomeOf(response) : onNoAnswer(m);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg response) {\n        // TODO: The host answered. Field 39 says how. (one line)\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n\n    /** What to do when the wait for an answer ended with nothing. */\n    Outcome onNoAnswer(ISOMsg m) throws ISOException {\n        // TODO: This is what the client does today, and on slow days cardholders are charged twice.\n        //       Decide by what the message is: 0100/0200 ask for money, 0120/0220 report what has\n        //       already happened, 0800 moves no money at all. Return the Outcome that says what\n        //       you did. (10 to 15 lines)\n        ISOMsg again = mux.request(m, timeout);\n        return again != null ? outcomeOf(again) : Outcome.NO_ANSWER;\n    }\n\n    /** The reversal builder from 12.6, given: a new message that points at the original. */\n    static final class ReversalBuilder {\n        private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };\n        private final Space<String, Object> sp;\n\n        ReversalBuilder(Space<String, Object> sp) {\n            this.sp = sp;\n        }\n\n        ISOMsg reversalOf(ISOMsg original) throws ISOException {\n            ISOMsg rev = (ISOMsg) original.clone(COPIED);\n            rev.setMTI(\"0420\");\n            rev.set(7, original.getString(7));\n            rev.set(11, ISOUtil.zeropad(((SpaceUtil.nextLong(sp, \"stan.host\") - 1) % 999999) + 1, 6));\n            rev.set(90, original.getMTI()\n                    + ISOUtil.zeropad(original.getString(11), 6)\n                    + ISOUtil.zeropad(original.getString(7), 10)\n                    + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n                    + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : \"\", 11));\n            return rev;\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "c368928b6c877cedbe846c20baf57881d461d9294b0a46a8e7c4583608827a45",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/**\n * Sends one message to the host and says how it ended. Anything that must still reach the host\n * later goes onto the store-and-forward queue {@code saf.host} in the given space.\n */\npublic class PaymentClient {\n    public enum Outcome { APPROVED, DECLINED, REVERSED, QUEUED, NO_ANSWER, NOT_SENT }\n\n    static final String SAF = \"saf.host\";\n\n    private final MUX mux;\n    private final Space<String, Object> sp;\n    private final ReversalBuilder reversals;\n    private final long timeout;\n\n    public PaymentClient(MUX mux, Space<String, Object> sp, long timeout) {\n        this.mux = mux;\n        this.sp = sp;\n        this.reversals = new ReversalBuilder(sp);\n        this.timeout = timeout;\n    }\n\n    public Outcome send(ISOMsg m) throws ISOException {\n        // TODO: QMUX would accept a message even with the link down; it would only expire unsent.\n        //       When nothing can go out, what is there to undo? (two lines)\n        ISOMsg response = mux.request(m, timeout);\n        return response != null ? outcomeOf(response) : onNoAnswer(m);\n    }\n\n    /** How a message that got an answer ended. */\n    Outcome outcomeOf(ISOMsg response) {\n        // TODO: The host answered. Field 39 says how. (one line)\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n\n    /** What to do when the wait for an answer ended with nothing. */\n    Outcome onNoAnswer(ISOMsg m) throws ISOException {\n        // TODO: This is what the client does today, and on slow days cardholders are charged twice.\n        //       Decide by what the message is: 0100/0200 ask for money, 0120/0220 report what has\n        //       already happened, 0800 moves no money at all. Return the Outcome that says what\n        //       you did. (10 to 15 lines)\n        ISOMsg again = mux.request(m, timeout);\n        return again != null ? outcomeOf(again) : Outcome.NO_ANSWER;\n    }\n\n    /** The reversal builder from 12.6, given: a new message that points at the original. */\n    static final class ReversalBuilder {\n        private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };\n        private final Space<String, Object> sp;\n\n        ReversalBuilder(Space<String, Object> sp) {\n            this.sp = sp;\n        }\n\n        ISOMsg reversalOf(ISOMsg original) throws ISOException {\n            ISOMsg rev = (ISOMsg) original.clone(COPIED);\n            rev.setMTI(\"0420\");\n            rev.set(7, original.getString(7));\n            rev.set(11, ISOUtil.zeropad(((SpaceUtil.nextLong(sp, \"stan.host\") - 1) % 999999) + 1, 6));\n            rev.set(90, original.getMTI()\n                    + ISOUtil.zeropad(original.getString(11), 6)\n                    + ISOUtil.zeropad(original.getString(7), 10)\n                    + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : \"\", 11)\n                    + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : \"\", 11));\n            return rev;\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-12/practice-2/src/main/java/com/example/practice/PaymentClient.java",
+    "test_path": "practice/jpos-client/prose/unit-12/practice-2/src/test/java/com/example/practice/PaymentClientTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PaymentClientTest#aQuickApprovalIsApproved",
+        "kind": "main",
+        "says": "an answered purchase with 39=00 is approved and leaves nothing to send"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#aDeclineIsADecline",
+        "kind": "edge",
+        "says": "an answer whose field 39 is not 00 is a decline, and a decline needs no reversal"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#aPurchaseWithNoAnswerIsReversedNotSentAgain",
+        "kind": "edge",
+        "says": "a purchase with no answer goes to the host once and is reversed, never resent"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#theReversalPointsAtThePurchase",
+        "kind": "edge",
+        "says": "the reversal is a new message with its own STAN that points at the original through field 90"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#anAdviceWithNoAnswerIsQueuedAsItIs",
+        "kind": "edge",
+        "says": "an advice with no answer reports something that already happened, so it is queued to be repeated rather than reversed"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#anEchoWithNoAnswerNeedsNothing",
+        "kind": "edge",
+        "says": "a network message with no answer moved no money, so nothing is queued or resent"
+      },
+      {
+        "id": "com.example.practice.PaymentClientTest#aPurchaseOnADownLinkIsNeitherSentNorReversed",
+        "kind": "edge",
+        "says": "with the link down nothing is sent, so nothing needs reversing"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-12/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c12.md",
+      "section": "12.5 No Answer Means You Don't Know"
+    },
+    "concepts": [
+      "A reversal is a new message with its own STAN that points at the original through field 90.",
+      "With no answer the outcome is unknown: purchases are reversed and never resent, advices are repeated, network messages need nothing, and what never went out needs nothing."
+    ]
+  }
+}

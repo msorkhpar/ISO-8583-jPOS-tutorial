@@ -1,0 +1,136 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Lift a pre-authorization's hold when it is reversed",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Hotels and fuel pumps send pre-authorizations (`0100`), and for each one your server places a hold on the cardholder's account. When the stay is cancelled, or the pump never got an answer, the acquirer reverses the pre-authorization with an `0400`, and repeats it as `0401` until it is answered."
+    },
+    {
+      "type": "para",
+      "text": "The complaints: guests still see a hotel's hold days after the desk cancelled it; one cardholder had the same hold given back twice; and the acquirer's operations team asks why some reversals come back refused."
+    },
+    {
+      "type": "para",
+      "text": "`ReleaseHold` in `src/main/java/com/example/practice/ReleaseHold.java` answers those reversals. Its `HoldTable` (at the bottom of the file) is the table the authorization chain fills. Finish `lift` and `answerCode`, marked `TODO`. About seven lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager with Q2, in the test's own JVM, place holds in the table the way the authorization chain would, and send reversals from several terminals."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Answers a reversal (0400, or its repeat 0401) of a pre-authorization (0100). A hotel or a fuel\n * pump pre-authorizes an amount, and the server places a hold for it on the cardholder's account;\n * the hold table below remembers each one. A reversal asks for the hold to be lifted.\n */\npublic class ReleaseHold implements TransactionParticipant, Configurable {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 32, 37, 41, 42, 49, 90 };\n    private HoldTable holds;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            holds = NameRegistrar.get(cfg.get(\"holds\", \"holds\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no hold table registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n        lift(reversal);\n        try {\n            ctx.put(ContextConstants.RESPONSE.toString(), reply(reversal, answerCode(reversal)));\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return PREPARED | NO_JOIN;\n    }\n\n    /** Lifts the hold this reversal is about, if there is one to lift. */\n    void lift(ISOMsg reversal) {\n        String original = reversal.getString(90);\n        HoldTable.Hold hold = holds.find(reversal.getString(41), original.substring(4, 10), original.substring(10, 20));\n        if (hold != null && hold.open) {\n            holds.credit(hold.account, hold.amount);\n            hold.open = false;\n        }\n    }\n\n    /** Field 39 of the answer to this reversal. */\n    String answerCode(ISOMsg reversal) {\n        return \"00\";\n    }\n\n    private static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, rc);\n        return r;\n    }\n\n    /** The hold table: one row per pre-authorization, and the accounts' available balances. */\n    public static class HoldTable {\n        public static final class Hold {\n            final String account;\n            final long amount;\n            boolean open = true;\n\n            Hold(String account, long amount) {\n                this.account = account;\n                this.amount = amount;\n            }\n        }\n\n        private final Map<String, Hold> rows = new HashMap<>();\n        private final Map<String, Long> available = new HashMap<>();\n\n        /** What the authorization chain does: takes the amount from the account and remembers why. */\n        public synchronized void place(String terminal, String stan, String transmitted, String account, long amount) {\n            rows.put(terminal + \"/\" + stan + \"/\" + transmitted, new Hold(account, amount));\n            available.merge(account, -amount, Long::sum);\n        }\n\n        /** The hold placed by this terminal's request with this STAN and field 7, or null. */\n        public synchronized Hold find(String terminal, String stan, String transmitted) {\n            return rows.get(terminal + \"/\" + stan + \"/\" + transmitted);\n        }\n\n        public synchronized void credit(String account, long amount) {\n            available.merge(account, amount, Long::sum);\n        }\n\n        public synchronized long available(String account) {\n            return available.getOrDefault(account, 0L);\n        }\n\n        public synchronized void open(String account, long balance) {\n            available.put(account, balance);\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Answers a reversal (0400, or its repeat 0401) of a pre-authorization (0100). A hotel or a fuel\n * pump pre-authorizes an amount, and the server places a hold for it on the cardholder's account;\n * the hold table below remembers each one. A reversal asks for the hold to be lifted.\n */\npublic class ReleaseHold implements TransactionParticipant, Configurable {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 32, 37, 41, 42, 49, 90 };\n    private HoldTable holds;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            holds = NameRegistrar.get(cfg.get(\"holds\", \"holds\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no hold table registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n        lift(reversal);\n        try {\n            ctx.put(ContextConstants.RESPONSE.toString(), reply(reversal, answerCode(reversal)));\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return PREPARED | NO_JOIN;\n    }\n\n    /** Lifts the hold this reversal is about, if there is one to lift. */\n    void lift(ISOMsg reversal) {\n        // TODO: guests say their card still shows the hotel's hold days after the desk cancelled it, and\n        //       one cardholder found the same hold given back twice. Lift the hold this reversal is\n        //       about, exactly once. (about 6 lines)\n        throw new IllegalStateException(\"TODO: lift\");\n    }\n\n    /** Field 39 of the answer to this reversal. */\n    String answerCode(ISOMsg reversal) {\n        // TODO: the acquirer's reversal queue must not stay open for this one. (1 line)\n        throw new IllegalStateException(\"TODO: answerCode\");\n    }\n\n    private static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, rc);\n        return r;\n    }\n\n    /** The hold table: one row per pre-authorization, and the accounts' available balances. */\n    public static class HoldTable {\n        public static final class Hold {\n            final String account;\n            final long amount;\n            boolean open = true;\n\n            Hold(String account, long amount) {\n                this.account = account;\n                this.amount = amount;\n            }\n        }\n\n        private final Map<String, Hold> rows = new HashMap<>();\n        private final Map<String, Long> available = new HashMap<>();\n\n        /** What the authorization chain does: takes the amount from the account and remembers why. */\n        public synchronized void place(String terminal, String stan, String transmitted, String account, long amount) {\n            rows.put(terminal + \"/\" + stan + \"/\" + transmitted, new Hold(account, amount));\n            available.merge(account, -amount, Long::sum);\n        }\n\n        /** The hold placed by this terminal's request with this STAN and field 7, or null. */\n        public synchronized Hold find(String terminal, String stan, String transmitted) {\n            return rows.get(terminal + \"/\" + stan + \"/\" + transmitted);\n        }\n\n        public synchronized void credit(String account, long amount) {\n            available.merge(account, amount, Long::sum);\n        }\n\n        public synchronized long available(String account) {\n            return available.getOrDefault(account, 0L);\n        }\n\n        public synchronized void open(String account, long balance) {\n            available.put(account, balance);\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "a0392051b62bc8c2235ddb7fae3cc769b4b06a3a0523e5b5797d28003c55c64a",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.core.ConfigurationException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Answers a reversal (0400, or its repeat 0401) of a pre-authorization (0100). A hotel or a fuel\n * pump pre-authorizes an amount, and the server places a hold for it on the cardholder's account;\n * the hold table below remembers each one. A reversal asks for the hold to be lifted.\n */\npublic class ReleaseHold implements TransactionParticipant, Configurable {\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 32, 37, 41, 42, 49, 90 };\n    private HoldTable holds;\n\n    @Override\n    public void setConfiguration(Configuration cfg) throws ConfigurationException {\n        try {\n            holds = NameRegistrar.get(cfg.get(\"holds\", \"holds\"));\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new ConfigurationException(\"no hold table registered\", e);\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());\n        lift(reversal);\n        try {\n            ctx.put(ContextConstants.RESPONSE.toString(), reply(reversal, answerCode(reversal)));\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return PREPARED | NO_JOIN;\n    }\n\n    /** Lifts the hold this reversal is about, if there is one to lift. */\n    void lift(ISOMsg reversal) {\n        // TODO: guests say their card still shows the hotel's hold days after the desk cancelled it, and\n        //       one cardholder found the same hold given back twice. Lift the hold this reversal is\n        //       about, exactly once. (about 6 lines)\n        throw new IllegalStateException(\"TODO: lift\");\n    }\n\n    /** Field 39 of the answer to this reversal. */\n    String answerCode(ISOMsg reversal) {\n        // TODO: the acquirer's reversal queue must not stay open for this one. (1 line)\n        throw new IllegalStateException(\"TODO: answerCode\");\n    }\n\n    private static ISOMsg reply(ISOMsg request, String rc) throws ISOException {\n        ISOMsg r = (ISOMsg) request.clone(ECHOED);\n        r.setResponseMTI();\n        r.set(39, rc);\n        return r;\n    }\n\n    /** The hold table: one row per pre-authorization, and the accounts' available balances. */\n    public static class HoldTable {\n        public static final class Hold {\n            final String account;\n            final long amount;\n            boolean open = true;\n\n            Hold(String account, long amount) {\n                this.account = account;\n                this.amount = amount;\n            }\n        }\n\n        private final Map<String, Hold> rows = new HashMap<>();\n        private final Map<String, Long> available = new HashMap<>();\n\n        /** What the authorization chain does: takes the amount from the account and remembers why. */\n        public synchronized void place(String terminal, String stan, String transmitted, String account, long amount) {\n            rows.put(terminal + \"/\" + stan + \"/\" + transmitted, new Hold(account, amount));\n            available.merge(account, -amount, Long::sum);\n        }\n\n        /** The hold placed by this terminal's request with this STAN and field 7, or null. */\n        public synchronized Hold find(String terminal, String stan, String transmitted) {\n            return rows.get(terminal + \"/\" + stan + \"/\" + transmitted);\n        }\n\n        public synchronized void credit(String account, long amount) {\n            available.merge(account, amount, Long::sum);\n        }\n\n        public synchronized long available(String account) {\n            return available.getOrDefault(account, 0L);\n        }\n\n        public synchronized void open(String account, long balance) {\n            available.put(account, balance);\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-10/practice-2/src/main/java/com/example/practice/ReleaseHold.java",
+    "test_path": "practice/jpos-server/prose/unit-10/practice-2/src/test/java/com/example/practice/ReleaseHoldTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-10/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-10/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ReleaseHoldTest#aReversalIsAnsweredAsAReplyToItself",
+        "kind": "main",
+        "says": "a reversal of a held pre-authorization is answered 0410 with its own STAN and 00"
+      },
+      {
+        "id": "com.example.practice.ReleaseHoldTest#theHoldIsLifted",
+        "kind": "edge",
+        "says": "the hold is found through the original's STAN and time in field 90, not the reversal's own, and its amount goes back to the account"
+      },
+      {
+        "id": "com.example.practice.ReleaseHoldTest#aRepeatLiftsNothingMore",
+        "kind": "edge",
+        "says": "a repeated reversal is answered the same way and gives nothing back a second time"
+      },
+      {
+        "id": "com.example.practice.ReleaseHoldTest#aReversalOfNothingIsAnswered00",
+        "kind": "edge",
+        "says": "a reversal whose original placed no hold is answered 00, since the original has no effect to undo"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-10/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s10.md",
+      "section": "10.4 A Reversal Is Answered `00`, Finds Its Original Through Field 90, and Undoes It Once"
+    },
+    "concepts": [
+      "A reversal finds its original through field 90, undoes it at most once however often it is repeated, and is answered 00 even when there is nothing to undo."
+    ]
+  }
+}

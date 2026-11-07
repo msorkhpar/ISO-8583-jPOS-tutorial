@@ -1,86 +1,182 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/5.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/5.md": "sha256:1bfba5a9d46653dfa06bb7f6795696ceb0baded7fde17bd1135c4de186b4bf19"
+    "src/5.md": "sha256:ea3faa2a3122916fb561e3a148e6618d6f6cacb5c426a069c5e4c12147078663"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "field-48-private",
-        "says": "Field 48 carries additional data specific to Visa.",
+        "id": "dual-and-single-message",
+        "says": "Visa takes purchases as 0100 authorizations through BASE I with BASE II clearing, or as 0200s through its Single Message System.",
         "basis": [
-          "section:5.2.3. Field 48: Additional Data - Private Use"
+          "section:5.3. The MTI and the Processing Code Together Name the Transaction"
         ],
         "exercise": null,
-        "reason": "the page does not define its content, only that it exists; not practised"
+        "reason": "orientation about the network that unit 4 already checks through the class digit; name-the-transaction treats both classes alike"
       },
       {
-        "id": "merchant-fields",
-        "says": "Fields 42 and 43 identify the merchant and are fixed width, so their values are right-padded with spaces to 15 and 40 characters.",
+        "id": "header-before-mti",
+        "says": "On a BASE I link a four-byte prefix and a header come before the MTI; the header's first byte gives its length, and the prefix's length counts the header as well as the message.",
         "basis": [
-          "section:5.2.1. Field 42: Card Acceptor ID Code",
-          "section:5.2.2. Field 43: Card Acceptor Name/Location"
+          "section:5.1. On a BASE I Link, a Header Sits Between the Length and the MTI",
+          "example:src/5.md:1",
+          "example:src/5.md:2",
+          "example:src/5.md:3"
         ],
-        "exercise": "visa-purchase-participant",
+        "exercise": "split-base1-frames",
         "reason": null
       },
       {
-        "id": "participant-prepare",
-        "says": "A TransactionParticipant's prepare reads the request from the Context and either leaves a response there and returns PREPARED, or records why and returns ABORTED.",
+        "id": "mti-and-processing-code",
+        "says": "The class digit says authorization, financial or reversal, the first two digits of field 3 say purchase, cash or refund, and the account digits change neither.",
         "basis": [
-          "example:src/5.md:1"
+          "section:5.3. The MTI and the Processing Code Together Name the Transaction"
         ],
-        "exercise": "visa-purchase-participant",
+        "exercise": "name-the-transaction",
         "reason": null
       },
       {
-        "id": "processing-code-names-type",
-        "says": "The first two digits of field 3 name the Visa transaction: 00 purchase, 01 cash advance, 02 void, 20 refund.",
+        "id": "polls-written-back",
+        "says": "A frame with length zero is a poll, not a message, and VAPChannel writes it back to the network.",
         "basis": [
-          "section:5.1. Visa transaction types",
-          "section:5.3. Visa processing codes"
+          "section:5.1. On a BASE I Link, a Header Sits Between the Length and the MTI",
+          "example:src/5.md:5"
         ],
-        "exercise": "visa-purchase-participant",
+        "exercise": "split-base1-frames",
         "reason": null
       },
       {
-        "id": "spring-wiring",
-        "says": "The participant is declared as a Spring bean and listed among the transaction manager's participants.",
+        "id": "private-field-submessage",
+        "says": "Some private fields hold a message with its own bitmap; a value set there as text packs on the sender and fails to unpack at the receiver.",
         "basis": [
-          "example:src/5.md:2"
+          "section:5.4. A Private Field Can Hold a Message of Its Own, Laid Out by This Release's Specification",
+          "example:src/5.md:6",
+          "example:src/5.md:7"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "refund-not-reversal",
+        "says": "A refund is a new credit with its own amount and STAN; a reversal points back at a message whose outcome is still open.",
+        "basis": [
+          "section:5.3. The MTI and the Processing Code Together Name the Transaction"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "reject-in-header",
+        "says": "A network reject returns the sender's own message behind a longer reject header, with no field 39; the refusal and its code are in the header.",
+        "basis": [
+          "section:5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39",
+          "example:src/5.md:4",
+          "example:src/5.md:5"
+        ],
+        "exercise": "split-base1-frames",
+        "reason": null
+      },
+      {
+        "id": "reject-is-not-decline",
+        "says": "A reject must be recognised before field 39 is read; reported as a decline it hides the field that broke the message.",
+        "basis": [
+          "section:5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "release-mapping",
+        "says": "Private-field layouts change with the network's releases, so the packager comes from the current specification and the mapping lives in one component.",
+        "basis": [
+          "section:5.4. A Private Field Can Hold a Message of Its Own, Laid Out by This Release's Specification"
         ],
         "exercise": null,
-        "reason": "configuration wiring with no behaviour of its own; not practised"
+        "reason": "a design recommendation about where code lives; no deterministic test can grade it without the confidential specification"
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "visa-purchase-participant",
+        "name": "split-base1-frames",
         "aspects": [
-          "merchant-fields",
-          "participant-prepare",
-          "processing-code-names-type"
+          "header-before-mti",
+          "polls-written-back",
+          "reject-in-header"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "name-the-transaction",
+        "aspects": [
+          "mti-and-processing-code"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "private-field-submessage",
+          "refund-not-reversal",
+          "reject-is-not-decline"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-05/practice-1"
+    "exercises/iso-fundamentals/prose/unit-05/practice-1",
+    "exercises/iso-fundamentals/prose/unit-05/practice-2",
+    "exercises/iso-fundamentals/prose/unit-05/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-1",
       "origin": {
         "path": "src/5.md",
-        "section": "5.3. Visa processing codes"
+        "section": "5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-2",
+      "origin": {
+        "path": "src/5.md",
+        "section": "5.3. The MTI and the Processing Code Together Name the Transaction"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-3:q-frame-length",
+      "origin": {
+        "path": "src/5.md",
+        "section": "5.1. On a BASE I Link, a Header Sits Between the Length and the MTI"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-3:q-own-mti-back",
+      "origin": {
+        "path": "src/5.md",
+        "section": "5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-3:q-partial-return",
+      "origin": {
+        "path": "src/5.md",
+        "section": "5.3. The MTI and the Processing Code Together Name the Transaction"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-05/practice-3:q-flat-private-field",
+      "origin": {
+        "path": "src/5.md",
+        "section": "5.4. A Private Field Can Hold a Message of Its Own, Laid Out by This Release's Specification"
       }
     }
   ],

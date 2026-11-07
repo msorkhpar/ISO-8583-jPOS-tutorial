@@ -1,0 +1,144 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "MAC a link that pads differently",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "We are joining a regional debit network. Its MAC is the retail MAC, but its specification pads the MAC input differently from the links we had so far. The relevant section is copied into the class comment of `src/main/java/com/example/practice/NetworkMac.java`."
+    },
+    {
+      "type": "para",
+      "text": "In the network's test window, some of our messages were refused as wrongly MACed, and their security team asked how our side treats the MACs it receives: their test script sends answers with a MAC that is wrong, shortened or missing, and expects every one of them to be refused."
+    },
+    {
+      "type": "para",
+      "text": "`mac` already runs the algorithm; it calls `pad` for the MAC input. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`pad(data)`: the MAC input as the network's specification pads it;",
+        "`verify(key16, data, received)`: whether `received` is the MAC of `data`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About eight lines in total. The tests compare your MACs with the network's own reference implementation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.security.GeneralSecurityException;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.spec.SecretKeySpec;\n\n/**\n * MACs on the regional debit network's link. Its specification, section 6.2:\n *\n *   The MAC is ISO 9797-1 MAC algorithm 3 under the double-length ZAK, over the MAC input with\n *   padding method 2: append one byte 0x80, then as few zero bytes (possibly none) as make the\n *   length a multiple of 8. All 8 bytes of the MAC are sent, and a message whose MAC does not\n *   verify is refused.\n */\npublic class NetworkMac {\n\n    /** The 8-byte MAC of {@code data} under {@code key16}. */\n    public static byte[] mac(byte[] key16, byte[] data) throws GeneralSecurityException {\n        if (key16.length != 16)\n            throw new IllegalArgumentException(\"a double-length (16-byte) key is required\");\n        SecretKeySpec left = new SecretKeySpec(Arrays.copyOfRange(key16, 0, 8), \"DES\");\n        SecretKeySpec right = new SecretKeySpec(Arrays.copyOfRange(key16, 8, 16), \"DES\");\n        byte[] padded = pad(data);\n        if (padded.length == 0 || padded.length % 8 != 0)\n            throw new IllegalStateException(\"padding must give whole 8-byte blocks\");\n\n        Cipher des = Cipher.getInstance(\"DES/ECB/NoPadding\");\n        des.init(Cipher.ENCRYPT_MODE, left);\n        byte[] chain = new byte[8];\n        for (int off = 0; off < padded.length; off += 8) {\n            for (int i = 0; i < 8; i++)\n                chain[i] ^= padded[off + i];\n            chain = des.doFinal(chain);\n        }\n        des.init(Cipher.DECRYPT_MODE, right);\n        chain = des.doFinal(chain);\n        des.init(Cipher.ENCRYPT_MODE, left);\n        return des.doFinal(chain);\n    }\n\n    /** The MAC input as the network pads it. */\n    static byte[] pad(byte[] data) {\n        byte[] padded = Arrays.copyOf(data, (data.length / 8 + 1) * 8);\n        padded[data.length] = (byte) 0x80;\n        return padded;\n    }\n\n    /** Whether {@code received} is the MAC the sender computed over {@code data}. */\n    public static boolean verify(byte[] key16, byte[] data, byte[] received) throws GeneralSecurityException {\n        if (received == null)\n            return false;\n        return MessageDigest.isEqual(mac(key16, data), received);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.security.GeneralSecurityException;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.spec.SecretKeySpec;\n\n/**\n * MACs on the regional debit network's link. Its specification, section 6.2:\n *\n *   The MAC is ISO 9797-1 MAC algorithm 3 under the double-length ZAK, over the MAC input with\n *   padding method 2: append one byte 0x80, then as few zero bytes (possibly none) as make the\n *   length a multiple of 8. All 8 bytes of the MAC are sent, and a message whose MAC does not\n *   verify is refused.\n */\npublic class NetworkMac {\n\n    /** The 8-byte MAC of {@code data} under {@code key16}. */\n    public static byte[] mac(byte[] key16, byte[] data) throws GeneralSecurityException {\n        if (key16.length != 16)\n            throw new IllegalArgumentException(\"a double-length (16-byte) key is required\");\n        SecretKeySpec left = new SecretKeySpec(Arrays.copyOfRange(key16, 0, 8), \"DES\");\n        SecretKeySpec right = new SecretKeySpec(Arrays.copyOfRange(key16, 8, 16), \"DES\");\n        byte[] padded = pad(data);\n        if (padded.length == 0 || padded.length % 8 != 0)\n            throw new IllegalStateException(\"padding must give whole 8-byte blocks\");\n\n        Cipher des = Cipher.getInstance(\"DES/ECB/NoPadding\");\n        des.init(Cipher.ENCRYPT_MODE, left);\n        byte[] chain = new byte[8];\n        for (int off = 0; off < padded.length; off += 8) {\n            for (int i = 0; i < 8; i++)\n                chain[i] ^= padded[off + i];\n            chain = des.doFinal(chain);\n        }\n        des.init(Cipher.DECRYPT_MODE, right);\n        chain = des.doFinal(chain);\n        des.init(Cipher.ENCRYPT_MODE, left);\n        return des.doFinal(chain);\n    }\n\n    /** The MAC input as the network pads it. */\n    static byte[] pad(byte[] data) {\n        // TODO: Return the MAC input the network's specification asks for (see the class comment).\n        //       Leave `data` unchanged.\n        throw new IllegalStateException(\"TODO: pad\");\n    }\n\n    /** Whether {@code received} is the MAC the sender computed over {@code data}. */\n    public static boolean verify(byte[] key16, byte[] data, byte[] received) throws GeneralSecurityException {\n        // TODO: True only when `received` is exactly the MAC of `data`. A message can arrive with no\n        //       MAC at all. Don't let the time this takes depend on where the MACs differ.\n        throw new IllegalStateException(\"TODO: verify\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "271c6c295784b4d9ba266555c5df3ad7465ecda8d178c2966f4093ae91ef9cde",
+  "starting_code": "package com.example.practice;\n\nimport java.security.GeneralSecurityException;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport javax.crypto.Cipher;\nimport javax.crypto.spec.SecretKeySpec;\n\n/**\n * MACs on the regional debit network's link. Its specification, section 6.2:\n *\n *   The MAC is ISO 9797-1 MAC algorithm 3 under the double-length ZAK, over the MAC input with\n *   padding method 2: append one byte 0x80, then as few zero bytes (possibly none) as make the\n *   length a multiple of 8. All 8 bytes of the MAC are sent, and a message whose MAC does not\n *   verify is refused.\n */\npublic class NetworkMac {\n\n    /** The 8-byte MAC of {@code data} under {@code key16}. */\n    public static byte[] mac(byte[] key16, byte[] data) throws GeneralSecurityException {\n        if (key16.length != 16)\n            throw new IllegalArgumentException(\"a double-length (16-byte) key is required\");\n        SecretKeySpec left = new SecretKeySpec(Arrays.copyOfRange(key16, 0, 8), \"DES\");\n        SecretKeySpec right = new SecretKeySpec(Arrays.copyOfRange(key16, 8, 16), \"DES\");\n        byte[] padded = pad(data);\n        if (padded.length == 0 || padded.length % 8 != 0)\n            throw new IllegalStateException(\"padding must give whole 8-byte blocks\");\n\n        Cipher des = Cipher.getInstance(\"DES/ECB/NoPadding\");\n        des.init(Cipher.ENCRYPT_MODE, left);\n        byte[] chain = new byte[8];\n        for (int off = 0; off < padded.length; off += 8) {\n            for (int i = 0; i < 8; i++)\n                chain[i] ^= padded[off + i];\n            chain = des.doFinal(chain);\n        }\n        des.init(Cipher.DECRYPT_MODE, right);\n        chain = des.doFinal(chain);\n        des.init(Cipher.ENCRYPT_MODE, left);\n        return des.doFinal(chain);\n    }\n\n    /** The MAC input as the network pads it. */\n    static byte[] pad(byte[] data) {\n        // TODO: Return the MAC input the network's specification asks for (see the class comment).\n        //       Leave `data` unchanged.\n        throw new IllegalStateException(\"TODO: pad\");\n    }\n\n    /** Whether {@code received} is the MAC the sender computed over {@code data}. */\n    public static boolean verify(byte[] key16, byte[] data, byte[] received) throws GeneralSecurityException {\n        // TODO: True only when `received` is exactly the MAC of `data`. A message can arrive with no\n        //       MAC at all. Don't let the time this takes depend on where the MACs differ.\n        throw new IllegalStateException(\"TODO: verify\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-08/practice-2/src/main/java/com/example/practice/NetworkMac.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-08/practice-2/src/test/java/com/example/practice/NetworkMacTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-08/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-08/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.NetworkMacTest#computesTheNetworksMac",
+        "kind": "main",
+        "says": "messages that end inside a block get the MAC the network computes, and the input is left unchanged"
+      },
+      {
+        "id": "com.example.practice.NetworkMacTest#acceptsOnlyTheRightMac",
+        "kind": "main",
+        "says": "the right MAC verifies; a changed MAC, a changed message or a missing MAC does not"
+      },
+      {
+        "id": "com.example.practice.NetworkMacTest#wholeBlocksStillGetPadding",
+        "kind": "edge",
+        "says": "a MAC input that is already whole blocks still gets the padding block the network's method adds"
+      },
+      {
+        "id": "com.example.practice.NetworkMacTest#refusesAMacCutShort",
+        "kind": "edge",
+        "says": "a MAC shorter than 8 bytes is refused even when the bytes it has are right"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-08/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/8.md",
+      "section": "8.6. A MAC Proves the Bytes Were Not Changed, and Hides None of Them"
+    },
+    "concepts": [
+      "A MAC over the message detects any changed byte, depends on how the network pads its input, hides nothing, and is verified against all of its bytes."
+    ]
+  }
+}

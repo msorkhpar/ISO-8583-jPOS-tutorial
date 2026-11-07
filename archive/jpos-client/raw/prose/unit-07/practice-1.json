@@ -8,8 +8,8 @@
   "unit": 7,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Encrypt the PIN, sign the request, check the response",
+  "ingested": "2026-11-05",
+  "title": "Relay each terminal's PIN so the host can read it",
   "blocks": [
     {
       "type": "heading",
@@ -18,33 +18,28 @@
     },
     {
       "type": "para",
-      "text": "A PIN must never cross the network in the clear, and both sides must be able to tell whether a message was changed on the way. The page's `SecureISOClient` does both: it encrypts the PIN, adds a Message Authentication Code (MAC) to what it sends, and checks the MAC on what comes back. The order of those steps and what each MAC is computed over are what make it work."
+      "text": "A shop's PIN pads send their purchases through `PinRelay` to the acquirer's host. The host reads PIN blocks in one way only: ISO format 0 under the PIN key it shares with the relay (`hostPinKey`). The terminals are less tidy. Each has its own PIN key, and the shop runs two models: the older one sends ISO format 0, the newer one ISO format 1. The relay's `terminals` map knows each terminal's key and format."
     },
     {
       "type": "para",
-      "text": "Write `SecureClient`. It is built from two collaborators, both nested interfaces of the class: `Security` (the security module: `encryptPin(pin, pan)` and `mac(msg)`) and `Link` (the channel: `exchange(request)` sends a request and returns the response). Your `send(ISOMsg msg)`:"
+      "text": "Three complaints have come in:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "replaces the clear PIN in field 52 with `encryptPin(pin, pan)`, where the PAN is field 2;",
-        "puts in field 64 the MAC of the message as it is sent, so computed after the PIN is encrypted, and over the message without field 64 itself;",
-        "exchanges the message over the `Link`;",
-        "checks the response: its field 64 must equal the MAC of the response without its field 64. If it does, `send` returns the response; if not, it throws a `SecurityException`."
+        "cardholders who swipe their card and type a PIN are always declined. A swiped purchase can arrive with no field 2, only the card's track 2 in field 35;",
+        "on the new model, every PIN purchase is declined;",
+        "last month a PIN pad's key fell out of step after a repair, and for an afternoon the host approved its purchases without checking any PIN."
       ]
     },
     {
       "type": "para",
-      "text": "Mind these:"
+      "text": "Finish the two methods marked `TODO` in `src/main/java/com/example/practice/PinRelay.java`: `cardNumber` and `putHostPin`. `send` and `refusal` already work; when `putHostPin` returns `false`, `send` answers the terminal itself. About fifteen lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "A response whose MAC does not match (someone changed the amount, say) is refused.",
-        "A response with no field 64 at all is refused too. A missing MAC is not a valid one."
-      ]
+      "type": "para",
+      "text": "The tests run a real `JCESecurityModule` on both sides, with test keys and the test cards `4111111111111111` and `5555555555554444`. The host behind the fake `MUX` reads each PIN block it receives and declines with `55` when it can't find the cardholder's PIN."
     },
     {
       "type": "heading",
@@ -59,7 +54,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.Arrays;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    private final Security security;\n    private final Link link;\n\n    public SecureClient(Security security, Link link) {\n        this.security = security;\n        this.link = link;\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        msg.set(52, security.encryptPin(msg.getString(52), msg.getString(2)));\n        msg.unset(64);\n        msg.set(64, security.mac(msg));\n\n        ISOMsg response = link.exchange(msg);\n        byte[] received = response.hasField(64) ? response.getBytes(64) : null;\n        if (received == null) {\n            throw new SecurityException(\"Response carries no MAC\");\n        }\n        ISOMsg unsigned = (ISOMsg) response.clone();\n        unsigned.unset(64);\n        if (!Arrays.equals(security.mac(unsigned), received)) {\n            throw new SecurityException(\"Invalid MAC in response\");\n        }\n        return response;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * Relays purchases from the shop's terminals to the acquirer's host. The host reads PIN blocks\n * only in ISO format 0 ({@code SMAdapter.FORMAT01}) under the PIN key it shares with the relay.\n */\npublic class PinRelay {\n    /** One terminal: its PIN key (under the module's LMK) and the PIN block format it sends. */\n    public record Terminal(SecureDESKey pinKey, byte pinBlockFormat) { }\n\n    private final SMAdapter<SecureDESKey> hsm;\n    private final Map<String, Terminal> terminals;\n    private final SecureDESKey hostPinKey;\n    private final MUX mux;\n\n    public PinRelay(SMAdapter<SecureDESKey> hsm, Map<String, Terminal> terminals,\n                    SecureDESKey hostPinKey, MUX mux) {\n        this.hsm = hsm;\n        this.terminals = terminals;\n        this.hostPinKey = hostPinKey;\n        this.mux = mux;\n    }\n\n    /** Sends the terminal's purchase to the host and returns the answer for the terminal. */\n    public ISOMsg send(ISOMsg fromTerminal, long timeout) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        if (up.hasField(52)) {\n            Terminal terminal = terminals.get(up.getString(41));\n            if (terminal == null || !putHostPin(up, terminal))\n                return refusal(fromTerminal);\n        }\n        return mux.request(up, timeout);\n    }\n\n    /** The answer a terminal gets when its purchase is not sent: declined, system malfunction. */\n    static ISOMsg refusal(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg answer = (ISOMsg) fromTerminal.clone(2, 3, 4, 11, 41);\n        answer.setMTI(fromTerminal.getMTI());\n        answer.setResponseMTI();\n        answer.set(39, \"96\");\n        return answer;\n    }\n\n    /** The card number of the purchase. */\n    static String cardNumber(ISOMsg m) {\n        if (m.hasField(2))\n            return m.getString(2);\n        String track2 = m.getString(35);\n        return track2 == null ? null : track2.split(\"[=D]\")[0];\n    }\n\n    /** Replaces field 52 of {@code up} with the PIN as the host must receive it. */\n    boolean putHostPin(ISOMsg up, Terminal terminal) throws ISOException {\n        try {\n            EncryptedPIN fromTerminal =\n                    new EncryptedPIN(up.getBytes(52), terminal.pinBlockFormat(), cardNumber(up));\n            EncryptedPIN forHost =\n                    hsm.translatePIN(fromTerminal, terminal.pinKey(), hostPinKey, SMAdapter.FORMAT01);\n            up.set(52, forHost.getPINBlock());\n            return true;\n        } catch (SMException e) {\n            return false;\n        }\n    }\n}\n"
         }
       ]
     },
@@ -71,7 +66,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    public SecureClient(Security security, Link link) {\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * Relays purchases from the shop's terminals to the acquirer's host. The host reads PIN blocks\n * only in ISO format 0 ({@code SMAdapter.FORMAT01}) under the PIN key it shares with the relay.\n */\npublic class PinRelay {\n    /** One terminal: its PIN key (under the module's LMK) and the PIN block format it sends. */\n    public record Terminal(SecureDESKey pinKey, byte pinBlockFormat) { }\n\n    private final SMAdapter<SecureDESKey> hsm;\n    private final Map<String, Terminal> terminals;\n    private final SecureDESKey hostPinKey;\n    private final MUX mux;\n\n    public PinRelay(SMAdapter<SecureDESKey> hsm, Map<String, Terminal> terminals,\n                    SecureDESKey hostPinKey, MUX mux) {\n        this.hsm = hsm;\n        this.terminals = terminals;\n        this.hostPinKey = hostPinKey;\n        this.mux = mux;\n    }\n\n    /** Sends the terminal's purchase to the host and returns the answer for the terminal. */\n    public ISOMsg send(ISOMsg fromTerminal, long timeout) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        if (up.hasField(52)) {\n            Terminal terminal = terminals.get(up.getString(41));\n            if (terminal == null || !putHostPin(up, terminal))\n                return refusal(fromTerminal);\n        }\n        return mux.request(up, timeout);\n    }\n\n    /** The answer a terminal gets when its purchase is not sent: declined, system malfunction. */\n    static ISOMsg refusal(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg answer = (ISOMsg) fromTerminal.clone(2, 3, 4, 11, 41);\n        answer.setMTI(fromTerminal.getMTI());\n        answer.setResponseMTI();\n        answer.set(39, \"96\");\n        return answer;\n    }\n\n    /** The card number of the purchase. */\n    static String cardNumber(ISOMsg m) {\n        // TODO: The card number this purchase was made with. A chip or contactless purchase has it\n        //       in field 2. A swiped card may arrive with no field 2 and its track 2 in field 35:\n        //       the card number, then \"=\", then the expiry date and the rest of the track.\n        throw new IllegalStateException(\"TODO: cardNumber\");\n    }\n\n    /** Replaces field 52 of {@code up} with the PIN as the host must receive it. */\n    boolean putHostPin(ISOMsg up, Terminal terminal) throws ISOException {\n        // TODO: Field 52 holds the PIN block as this terminal produced it. Put in its place the\n        //       block the host can read. Return true when `up` is ready to go to the host, and\n        //       false when it must not be sent at all; send() then answers the terminal itself.\n        throw new IllegalStateException(\"TODO: putHostPin\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -79,10 +74,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -90,11 +85,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "f85ec4c873ba0fac1b0065d8c4111a39ec699d4edf3b2050a1b4e8bc8901bbd7",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** A client that encrypts the PIN, signs what it sends and checks what comes back. */\npublic final class SecureClient {\n\n    /** The security module. */\n    public interface Security {\n        String encryptPin(String pin, String pan) throws ISOException;\n\n        byte[] mac(ISOMsg msg) throws ISOException;\n    }\n\n    /** The channel to the host. */\n    public interface Link {\n        ISOMsg exchange(ISOMsg request) throws ISOException;\n    }\n\n    public SecureClient(Security security, Link link) {\n    }\n\n    public ISOMsg send(ISOMsg msg) throws ISOException {\n        throw new UnsupportedOperationException(\"write send\");\n    }\n}\n",
+  "content_sha256": "7abf61d1e517d06aa16af97e78c284c33c4626eb3431736d1f3c905c00010943",
+  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.EncryptedPIN;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * Relays purchases from the shop's terminals to the acquirer's host. The host reads PIN blocks\n * only in ISO format 0 ({@code SMAdapter.FORMAT01}) under the PIN key it shares with the relay.\n */\npublic class PinRelay {\n    /** One terminal: its PIN key (under the module's LMK) and the PIN block format it sends. */\n    public record Terminal(SecureDESKey pinKey, byte pinBlockFormat) { }\n\n    private final SMAdapter<SecureDESKey> hsm;\n    private final Map<String, Terminal> terminals;\n    private final SecureDESKey hostPinKey;\n    private final MUX mux;\n\n    public PinRelay(SMAdapter<SecureDESKey> hsm, Map<String, Terminal> terminals,\n                    SecureDESKey hostPinKey, MUX mux) {\n        this.hsm = hsm;\n        this.terminals = terminals;\n        this.hostPinKey = hostPinKey;\n        this.mux = mux;\n    }\n\n    /** Sends the terminal's purchase to the host and returns the answer for the terminal. */\n    public ISOMsg send(ISOMsg fromTerminal, long timeout) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        if (up.hasField(52)) {\n            Terminal terminal = terminals.get(up.getString(41));\n            if (terminal == null || !putHostPin(up, terminal))\n                return refusal(fromTerminal);\n        }\n        return mux.request(up, timeout);\n    }\n\n    /** The answer a terminal gets when its purchase is not sent: declined, system malfunction. */\n    static ISOMsg refusal(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg answer = (ISOMsg) fromTerminal.clone(2, 3, 4, 11, 41);\n        answer.setMTI(fromTerminal.getMTI());\n        answer.setResponseMTI();\n        answer.set(39, \"96\");\n        return answer;\n    }\n\n    /** The card number of the purchase. */\n    static String cardNumber(ISOMsg m) {\n        // TODO: The card number this purchase was made with. A chip or contactless purchase has it\n        //       in field 2. A swiped card may arrive with no field 2 and its track 2 in field 35:\n        //       the card number, then \"=\", then the expiry date and the rest of the track.\n        throw new IllegalStateException(\"TODO: cardNumber\");\n    }\n\n    /** Replaces field 52 of {@code up} with the PIN as the host must receive it. */\n    boolean putHostPin(ISOMsg up, Terminal terminal) throws ISOException {\n        // TODO: Field 52 holds the PIN block as this terminal produced it. Put in its place the\n        //       block the host can read. Return true when `up` is ready to go to the host, and\n        //       false when it must not be sent at all; send() then answers the terminal itself.\n        throw new IllegalStateException(\"TODO: putHostPin\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-07/practice-1/src/main/java/com/example/practice/SecureClient.java",
-    "test_path": "practice/jpos-client/prose/unit-07/practice-1/src/test/java/com/example/practice/SecureClientTest.java",
+    "main_path": "practice/jpos-client/prose/unit-07/practice-1/src/main/java/com/example/practice/PinRelay.java",
+    "test_path": "practice/jpos-client/prose/unit-07/practice-1/src/test/java/com/example/practice/PinRelayTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -115,19 +110,29 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.SecureClientTest#sendsAnEncryptedPinAndAMacOverWhatItSends",
+        "id": "com.example.practice.PinRelayTest#aChipPurchaseWithItsPinIsApproved",
         "kind": "main",
-        "says": "the request goes out with its PIN encrypted and a MAC in field 64 computed over the message as sent, and a correctly signed response is returned"
+        "says": "a chip purchase from a terminal reaches the host with a PIN block the host reads as the PIN the cardholder typed"
       },
       {
-        "id": "com.example.practice.SecureClientTest#aTamperedResponseIsRefused",
-        "kind": "edge",
-        "says": "a response whose MAC does not match its content is refused with a SecurityException"
+        "id": "com.example.practice.PinRelayTest#theHostGetsThePurchaseAsTheTerminalSentItApartFromThePin",
+        "kind": "main",
+        "says": "the host receives the terminal's fields unchanged and an 8-byte block that is not the terminal's, and a purchase without a PIN passes as it is"
       },
       {
-        "id": "com.example.practice.SecureClientTest#aResponseWithoutAMacIsRefused",
+        "id": "com.example.practice.PinRelayTest#aSwipedCardArrivesWithOnlyItsTrack",
         "kind": "edge",
-        "says": "a response that carries no MAC at all is refused, not waved through"
+        "says": "a format 0 block is tied to the card number, so for a swiped card without field 2 the card number comes from track 2"
+      },
+      {
+        "id": "com.example.practice.PinRelayTest#theNewTerminalModelSendsIsoFormat1",
+        "kind": "edge",
+        "says": "translation changes the format as well as the key: a terminal's ISO format 1 block reaches the host in the format the host reads"
+      },
+      {
+        "id": "com.example.practice.PinRelayTest#aTerminalWithAStaleKeyGetsNothingPastTheRelay",
+        "kind": "edge",
+        "says": "a block the module cannot translate stops the purchase at the relay; it never reaches the host without its PIN"
       }
     ],
     "report": {
@@ -136,13 +141,11 @@
     },
     "origin": {
       "path": "src/c7.md",
-      "section": "7.2 Implementing Security in a jPOS Client"
+      "section": "7.3 The Client Translates the PIN and Never Sees It"
     },
     "concepts": [
-      "The MAC in field 64 is computed over the message as it is actually sent, after the PIN has been encrypted, so the peer can check that nothing changed on the way.",
-      "The PIN in field 52 leaves the client only encrypted, under the card number it belongs to, never in the clear.",
-      "PIN encryption and MAC generation belong to a security module with its keys, which the client reaches through a security service instead of doing the cryptography itself.",
-      "A response is accepted only when the MAC it carries matches the MAC computed over it, and one whose MAC is wrong or missing is refused."
+      "A format 0 PIN block is the PIN mixed with 12 digits of the card number and encrypted under a PIN key, so reading it takes both the key and the card number.",
+      "The client re-encrypts a PIN block from the terminal's key and format to the host's with translatePIN, and refuses a purchase whose block cannot be translated rather than sending it without field 52."
     ]
   }
 }

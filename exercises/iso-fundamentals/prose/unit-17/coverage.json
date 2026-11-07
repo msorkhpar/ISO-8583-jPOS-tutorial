@@ -1,0 +1,165 @@
+{
+  "coverage_api": 2,
+  "page": "src/17.md",
+  "kind": "code",
+  "quiz": "check-yourself",
+  "case": "code-no-tests",
+  "digests": {
+    "src/17.md": "sha256:51ecfbf9e3c70d0c64510b538883d950988aa571aca01d7730b6f63db53a322a"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 3,
+    "aspects": [
+      {
+        "id": "composite-row-of-datasets",
+        "says": "A composite field is a row of datasets, each a one-byte identifier, a two-byte big-endian length counting its content, and the content; the field prefix, dataset lengths and TLV lengths must agree.",
+        "basis": [
+          "section:17.1. A Composite Field Is a Row of Datasets, and Each Announces Its Own Length",
+          "example:src/17.md:2",
+          "example:src/17.md:5"
+        ],
+        "exercise": "write-a-composite-field",
+        "reason": null
+      },
+      {
+        "id": "de55-no-envelope",
+        "says": "DE 55 is composite but carries raw BER-TLV with no envelope, so a reader must know which fields have one.",
+        "basis": [
+          "section:17.3. DE 55 Is Composite but Has No Envelope",
+          "example:src/17.md:7"
+        ],
+        "exercise": "find-a-dataset-element",
+        "reason": null
+      },
+      {
+        "id": "edition-decides-meaning",
+        "says": "A field number means something only with its edition, so a switch maps between 1987 and 2023 links through its internal format and passes DE 55 through unchanged.",
+        "basis": [
+          "section:17.7. The Same Field Number Means Different Things on a 1987 Link and a 2023 Link"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "identifier-range-and-definition",
+        "says": "Identifiers 01-70 are TLV datasets and 71-FE bitmap datasets, 00 and FF are invalid; an unknown dataset can be stepped over but a bitmap dataset's elements need the field's definition.",
+        "basis": [
+          "section:17.2. The Identifier's Range Says How to Read a Dataset, and Only the Field's Definition Says What It Holds"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "path-levels",
+        "says": "A path names one element at one level: after DE 55 comes a tag, after another field a dataset, then a tag only inside a TLV dataset; absent is not an error.",
+        "basis": [
+          "section:17.5. A Path Names One Element at One Level"
+        ],
+        "exercise": "find-a-dataset-element",
+        "reason": null
+      },
+      {
+        "id": "walk-not-search",
+        "says": "A reader walks the envelopes from the start, steps over unknown datasets by their length, and refuses overruns and the bytes 00 and FF.",
+        "basis": [
+          "section:17.4. A Reader Walks the Envelopes, Steps Over What It Doesn't Know and Refuses What Overruns",
+          "example:src/17.md:8",
+          "example:src/17.md:9"
+        ],
+        "exercise": "find-a-dataset-element",
+        "reason": null
+      },
+      {
+        "id": "writer-owns-lengths",
+        "says": "The writer encodes every length itself: BER long forms from 128 bytes, a two-byte dataset length up to 65535, and no TLVList.pack() with its 516-byte buffer.",
+        "basis": [
+          "section:17.6. A Writer Encodes Every Length Itself, Because the Packager Sees Only Bytes",
+          "example:src/17.md:12",
+          "example:src/17.md:14"
+        ],
+        "exercise": "write-a-composite-field",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "find-a-dataset-element",
+        "aspects": [
+          "de55-no-envelope",
+          "path-levels",
+          "walk-not-search"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "write-a-composite-field",
+        "aspects": [
+          "composite-row-of-datasets",
+          "writer-owns-lengths"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "edition-decides-meaning",
+          "identifier-range-and-definition"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/iso-fundamentals/prose/unit-17/practice-1",
+    "exercises/iso-fundamentals/prose/unit-17/practice-2",
+    "exercises/iso-fundamentals/prose/unit-17/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-1",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.5. A Path Names One Element at One Level"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-2",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.6. A Writer Encodes Every Length Itself, Because the Packager Sees Only Bytes"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-3:q-unknown-dataset",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.2. The Identifier's Range Says How to Read a Dataset, and Only the Field's Definition Says What It Holds"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-3:q-chip-at-dataset-level",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.3. DE 55 Is Composite but Has No Envelope"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-3:q-reader-fix",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.4. A Reader Walks the Envelopes, Steps Over What It Doesn't Know and Refuses What Overruns"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-17/practice-3:q-edition-mapping",
+      "origin": {
+        "path": "src/17.md",
+        "section": "17.7. The Same Field Number Means Different Things on a 1987 Link and a 2023 Link"
+      }
+    }
+  ],
+  "shortfalls": []
+}

@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 14,
   "ordinal": 1,
-  "title": "Read the EMV tags out of field 55",
+  "title": "Issue tokens that nobody can mistake for cards or trace back to them",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ChipData.java",
-  "test_file": "src/test/java/com/example/practice/ChipDataTest.java",
+  "main_file": "src/main/java/com/example/practice/TokenVault.java",
+  "test_file": "src/test/java/com/example/practice/TokenVaultTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ChipDataTest#readsEveryTagWithItsValueInOrder",
+      "id": "com.example.practice.TokenVaultTest#aCardGetsATokenThatLeadsBackToIt",
       "kind": "main",
-      "says": "reads every one-byte tag of field 55 with its value, in the order they arrive, and an absent field 55 gives no tags"
+      "says": "a card gets a 16-digit token, the same requestor gets the same token again, another card gets another, and each token leads back to its card"
     },
     {
-      "id": "com.example.practice.ChipDataTest#readsTwoByteTags",
+      "id": "com.example.practice.TokenVaultTest#tokensPassTheCardNumberCheck",
       "kind": "edge",
-      "says": "a tag whose first byte ends in five set bits (such as 9F26 or 5F2A) is two bytes long"
+      "says": "every token ends with the Luhn check digit of its first fifteen digits, so checks built for card numbers accept it"
     },
     {
-      "id": "com.example.practice.ChipDataTest#refusesAValueThatRunsPastTheEnd",
+      "id": "com.example.practice.TokenVaultTest#tokensComeFromTheTokenRange",
       "kind": "edge",
-      "says": "a length that runs past the end of field 55 is refused with an ISOException instead of read short"
+      "says": "every token starts with the range reserved for tokens, so it can never be a real card number"
+    },
+    {
+      "id": "com.example.practice.TokenVaultTest#eachRequestorGetsItsOwnToken",
+      "kind": "edge",
+      "says": "the same card presented by two requestors gets two different tokens"
+    },
+    {
+      "id": "com.example.practice.TokenVaultTest#aTokenSaysNothingAboutTheCard",
+      "kind": "edge",
+      "says": "apart from the range and the check digit, a token's digits are drawn at random; none are copied from the card"
+    },
+    {
+      "id": "com.example.practice.TokenVaultTest#aTokenAlreadyIssuedIsNotIssuedAgain",
+      "kind": "edge",
+      "says": "a new draw that equals an issued token is drawn again, so the issued token keeps leading to its own card"
+    },
+    {
+      "id": "com.example.practice.TokenVaultTest#theVaultKeepsNoClearCardNumber",
+      "kind": "edge",
+      "says": "nothing the vault keeps holds a clear card number: it files tokens under the keyed lookup value"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/14.md",
-    "section": "14.1.1. EMV data in ISO-8583 messages"
+    "section": "14.4. A Token Belongs to the Requestor It Was Issued To"
   }
 }

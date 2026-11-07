@@ -1,0 +1,69 @@
+{
+  "bundle_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "ordinal": 2,
+  "title": "Answer API callers without a thread per purchase",
+  "lang": "java",
+  "main_file": "src/main/java/com/example/practice/PaymentEndpoint.java",
+  "test_file": "src/test/java/com/example/practice/PaymentEndpointTest.java",
+  "build": [
+    "pom.xml"
+  ],
+  "run_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-client/prose/unit-04/practice-2/pom.xml",
+    "compile"
+  ],
+  "test_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-client/prose/unit-04/practice-2/pom.xml",
+    "test"
+  ],
+  "provenance": "generated",
+  "trust": "advisory",
+  "cases": [
+    {
+      "id": "com.example.practice.PaymentEndpointTest#anApprovedPurchaseCompletesWith200",
+      "kind": "main",
+      "says": "a purchase the host approves completes its future with 200"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#silenceStillCompletesTheFuture",
+      "kind": "edge",
+      "says": "when no answer comes the listener is called with null, and the future still completes, with 504"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#aRefusedPurchaseFailsTheFuture",
+      "kind": "edge",
+      "says": "a purchase the MUX refuses before sending fails the future with the ISOException and is not an unknown outcome"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#aDownLinkCompletesWith503AndNothingGoesOut",
+      "kind": "edge",
+      "says": "the listener form does not check the link either, so a down link is answered with 503 before anything is handed to the MUX"
+    },
+    {
+      "id": "com.example.practice.PaymentEndpointTest#theCallerGetsItsFutureBeforeTheAnswer",
+      "kind": "edge",
+      "says": "the future is returned before the host answers, so no thread is held while the host thinks"
+    }
+  ],
+  "report": {
+    "format": "junit",
+    "path": "target/surefire-reports"
+  },
+  "origin": {
+    "path": "src/c4.md",
+    "section": "4.5 The Asynchronous Form Calls Back Once, With an Answer or With null"
+  }
+}

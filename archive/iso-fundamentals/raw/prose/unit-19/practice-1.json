@@ -1,0 +1,166 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 19,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Give each transaction the London network's settlement date",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your switch has joined a card network run from London, and its first two weeks of `0510` answers were out of balance more often than not. The network's operations guide says:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "the business day ends at **16:00 London time**: a transaction at 16:00:00 or later belongs to the next business day;",
+        "the network settles Monday to Friday, except on its own holidays (the constructor gets them);",
+        "most of the host's answers carry DE 15."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "`BusinessDay.de15For` gives the DE 15 your switch records for each transaction, and `settles` the day behind it. Both already work, except for the four methods marked `TODO` in `src/main/java/com/example/practice/BusinessDay.java`. The comment on each says what it is for. Finish them so that your switch counts every transaction on the day the network counts it. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The switch runs in Tokyo. The tests include summer and winter dates and the network's Christmas."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.time.DayOfWeek;\nimport java.time.Instant;\nimport java.time.LocalDate;\nimport java.time.LocalTime;\nimport java.time.ZoneId;\nimport java.time.ZonedDateTime;\nimport java.time.format.DateTimeFormatter;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Gives each transaction on one network link the settlement date the network counts it on. */\npublic final class BusinessDay {\n    private final ZoneId zone;            // where the network's operations guide sets its cutover\n    private final LocalTime cutover;      // from this time on, a transaction belongs to the next day\n    private final Set<LocalDate> holidays;\n\n    public BusinessDay(ZoneId zone, LocalTime cutover, Set<LocalDate> holidays) {\n        this.zone = zone;\n        this.cutover = cutover;\n        this.holidays = Set.copyOf(holidays);\n    }\n\n    /** The DE 15 to record for a transaction made at {@code when}; {@code response} may be null. */\n    public String de15For(ISOMsg response, Instant when) {\n        String fromHost = hostDate(response);\n        return fromHost != null ? fromHost : de15(settles(when));\n    }\n\n    /** The business day on which a transaction made at {@code when} settles. */\n    public LocalDate settles(Instant when) {\n        return rollForward(dayOf(when));\n    }\n\n    /** True on the days the network settles. */\n    public boolean settlesOn(LocalDate day) {\n        DayOfWeek d = day.getDayOfWeek();\n        return d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY && !holidays.contains(day);\n    }\n\n    /** The network's day this moment falls in, before weekends and holidays are considered. */\n    LocalDate dayOf(Instant when) {\n        ZonedDateTime local = when.atZone(zone);\n        LocalDate day = local.toLocalDate();\n        return local.toLocalTime().isBefore(cutover) ? day : day.plusDays(1);\n    }\n\n    /** The first day, this one or a later one, on which the network settles. */\n    LocalDate rollForward(LocalDate day) {\n        while (!settlesOn(day))\n            day = day.plusDays(1);\n        return day;\n    }\n\n    /** DE 15 as this link carries it, in the 1987 layout. */\n    static String de15(LocalDate day) {\n        return day.format(DateTimeFormatter.ofPattern(\"MMdd\"));\n    }\n\n    /** The settlement date the host gave in its answer, or null when there is none to keep. */\n    String hostDate(ISOMsg response) {\n        return response != null && response.hasField(15) ? response.getString(15) : null;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.time.DayOfWeek;\nimport java.time.Instant;\nimport java.time.LocalDate;\nimport java.time.LocalTime;\nimport java.time.ZoneId;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Gives each transaction on one network link the settlement date the network counts it on. */\npublic final class BusinessDay {\n    private final ZoneId zone;            // where the network's operations guide sets its cutover\n    private final LocalTime cutover;      // from this time on, a transaction belongs to the next day\n    private final Set<LocalDate> holidays;\n\n    public BusinessDay(ZoneId zone, LocalTime cutover, Set<LocalDate> holidays) {\n        this.zone = zone;\n        this.cutover = cutover;\n        this.holidays = Set.copyOf(holidays);\n    }\n\n    /** The DE 15 to record for a transaction made at {@code when}; {@code response} may be null. */\n    public String de15For(ISOMsg response, Instant when) {\n        String fromHost = hostDate(response);\n        return fromHost != null ? fromHost : de15(settles(when));\n    }\n\n    /** The business day on which a transaction made at {@code when} settles. */\n    public LocalDate settles(Instant when) {\n        return rollForward(dayOf(when));\n    }\n\n    /** True on the days the network settles. */\n    public boolean settlesOn(LocalDate day) {\n        DayOfWeek d = day.getDayOfWeek();\n        return d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY && !holidays.contains(day);\n    }\n\n    /** The network's day this moment falls in, before weekends and holidays are considered. */\n    LocalDate dayOf(Instant when) {\n        // TODO: Which day does the network say this moment belongs to? Ask the operations guide,\n        //       not the machine this runs on.\n        throw new IllegalStateException(\"TODO: dayOf\");\n    }\n\n    /** The first day, this one or a later one, on which the network settles. */\n    LocalDate rollForward(LocalDate day) {\n        // TODO: A transaction on a day the network doesn't settle waits for the next one that it does.\n        throw new IllegalStateException(\"TODO: rollForward\");\n    }\n\n    /** DE 15 as this link carries it, in the 1987 layout. */\n    static String de15(LocalDate day) {\n        // TODO: Four digits, as the host sends them back.\n        throw new IllegalStateException(\"TODO: de15\");\n    }\n\n    /** The settlement date the host gave in its answer, or null when there is none to keep. */\n    String hostDate(ISOMsg response) {\n        // TODO: Not every exchange ends with an answer, and not every answer carries DE 15.\n        throw new IllegalStateException(\"TODO: hostDate\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "a6d6258c7dd28a023d7228512d3e6bfbec41022642dddee6d0de161d40dd69c7",
+  "starting_code": "package com.example.practice;\n\nimport java.time.DayOfWeek;\nimport java.time.Instant;\nimport java.time.LocalDate;\nimport java.time.LocalTime;\nimport java.time.ZoneId;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOMsg;\n\n/** Gives each transaction on one network link the settlement date the network counts it on. */\npublic final class BusinessDay {\n    private final ZoneId zone;            // where the network's operations guide sets its cutover\n    private final LocalTime cutover;      // from this time on, a transaction belongs to the next day\n    private final Set<LocalDate> holidays;\n\n    public BusinessDay(ZoneId zone, LocalTime cutover, Set<LocalDate> holidays) {\n        this.zone = zone;\n        this.cutover = cutover;\n        this.holidays = Set.copyOf(holidays);\n    }\n\n    /** The DE 15 to record for a transaction made at {@code when}; {@code response} may be null. */\n    public String de15For(ISOMsg response, Instant when) {\n        String fromHost = hostDate(response);\n        return fromHost != null ? fromHost : de15(settles(when));\n    }\n\n    /** The business day on which a transaction made at {@code when} settles. */\n    public LocalDate settles(Instant when) {\n        return rollForward(dayOf(when));\n    }\n\n    /** True on the days the network settles. */\n    public boolean settlesOn(LocalDate day) {\n        DayOfWeek d = day.getDayOfWeek();\n        return d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY && !holidays.contains(day);\n    }\n\n    /** The network's day this moment falls in, before weekends and holidays are considered. */\n    LocalDate dayOf(Instant when) {\n        // TODO: Which day does the network say this moment belongs to? Ask the operations guide,\n        //       not the machine this runs on.\n        throw new IllegalStateException(\"TODO: dayOf\");\n    }\n\n    /** The first day, this one or a later one, on which the network settles. */\n    LocalDate rollForward(LocalDate day) {\n        // TODO: A transaction on a day the network doesn't settle waits for the next one that it does.\n        throw new IllegalStateException(\"TODO: rollForward\");\n    }\n\n    /** DE 15 as this link carries it, in the 1987 layout. */\n    static String de15(LocalDate day) {\n        // TODO: Four digits, as the host sends them back.\n        throw new IllegalStateException(\"TODO: de15\");\n    }\n\n    /** The settlement date the host gave in its answer, or null when there is none to keep. */\n    String hostDate(ISOMsg response) {\n        // TODO: Not every exchange ends with an answer, and not every answer carries DE 15.\n        throw new IllegalStateException(\"TODO: hostDate\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-19/practice-1/src/main/java/com/example/practice/BusinessDay.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-19/practice-1/src/test/java/com/example/practice/BusinessDayTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-19/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.BusinessDayTest#aWinterWeekdayBeforeTheCutoverSettlesThatDay",
+        "kind": "main",
+        "says": "a winter weekday transaction before the cutover settles that day"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#aWinterWeekdayAfterTheCutoverSettlesTheNextDay",
+        "kind": "main",
+        "says": "a winter weekday transaction after the cutover settles the next day"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#withoutTheHostsDateTheCalendarGivesDe15",
+        "kind": "main",
+        "says": "with no answer, or an answer without DE 15, DE 15 comes from the network's calendar"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#theCutoverMomentBelongsToTheNextDay",
+        "kind": "edge",
+        "says": "a transaction at exactly 16:00:00 belongs to the next business day"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#inSummerTheCutoverComesAnHourEarlierInUtc",
+        "kind": "edge",
+        "says": "in summer the cutover follows London's daylight saving time, not UTC"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#aSaturdaySettlesOnMonday",
+        "kind": "edge",
+        "says": "a Friday after the cutover, a Saturday and a Sunday all settle on Monday"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#holidaysAroundAWeekendRollOnToTheNextWorkingDay",
+        "kind": "edge",
+        "says": "a holiday, a weekend and another holiday in a row roll on to the first day the network settles"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#de15CarriesTheDayOfTheMonth",
+        "kind": "edge",
+        "says": "DE 15 is the month and the day of the month, not the day of the year"
+      },
+      {
+        "id": "com.example.practice.BusinessDayTest#theHostsSettlementDateIsKept",
+        "kind": "edge",
+        "says": "a DE 15 in the host's answer is recorded as it is"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-19/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/19.md",
+      "section": "19.2. A Transaction Belongs to the Business Day That the Network's Cutover Gives It"
+    },
+    "concepts": [
+      "A transaction belongs to the business day given by the network's cutover in the network's zone, with daylight saving time, the cutover moment counted as the network writes it, weekends and network holidays rolled forward, and the host's DE 15 kept when it sends one."
+    ]
+  }
+}

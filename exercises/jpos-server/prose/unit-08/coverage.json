@@ -1,73 +1,106 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s8.md",
   "kind": "code",
+  "quiz": "server-log-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s8.md": "sha256:ba2ca10f40b3a0ee37dc52f392cad89cd3562f48dba5726d905638fc980752b7"
+    "src/s8.md": "sha256:b880bbfc12727d28bd893a3060cc907f9ed490c9751b3b87ac1a31c74e5396da"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 2,
+    "count": 3,
     "aspects": [
       {
-        "id": "listener-decides-destination",
-        "says": "A Logger only hands events to its LogListeners, so where events go and how they read is decided by the listener attached, including one that captures them for a test's assertions.",
-        "basis": [
-          "example:src/s8.md:3",
-          "example:src/s8.md:10",
-          "section:8.6 Unit Testing with Logging"
-        ],
-        "exercise": null,
-        "reason": "both exercises' tests attach a capturing listener, so the contract is exercised there and not practised on its own"
-      },
-      {
-        "id": "log-rotation",
-        "says": "In production a RotateLogListener keeps the log in a rotating set of files instead of one that grows without bound.",
-        "basis": [
-          "example:src/s8.md:9",
-          "section:8.5 Log Rotation and Management"
-        ],
-        "exercise": null,
-        "reason": "it writes files and rotates by size or time, which a graded offline run cannot observe reliably"
-      },
-      {
         "id": "one-event-per-transaction",
-        "says": "A server builds one LogEvent per transaction and logs it in a finally block, so a failed transaction leaves a trace carrying its exception just as a good one does.",
+        "says": "A participant writes one event per transaction, created in prepare, with the transaction id, the request as a message for the filter to mask, and the reason, logged in finally whatever happened.",
         "basis": [
-          "example:src/s8.md:1",
-          "example:src/s8.md:2",
-          "section:8.1.2 Creating Log Events"
+          "section:8.3 One Event per Transaction, Carrying Its Id and the Message Itself",
+          "example:src/s8.md:6"
         ],
-        "exercise": "one-trace-per-transaction",
+        "exercise": "decline-reasons",
         "reason": null
       },
       {
-        "id": "switchable-debug-mode",
-        "says": "A debug mode that can be switched on and off adds a detailed event per transaction only while it is on, and says plainly when a field is absent.",
+        "id": "own-event-needs-logger",
+        "says": "A participant that extends Log gets a logger and realm only when its participant element has a logger attribute; without it its events go nowhere, and without realm they share the realm participant.",
         "basis": [
+          "section:8.2 A Participant Writes Its Own Event, and Only If Its Element Names a Logger",
+          "example:src/s8.md:3",
+          "example:src/s8.md:4",
+          "example:src/s8.md:5"
+        ],
+        "exercise": "server-log-quiz",
+        "reason": null
+      },
+      {
+        "id": "profilers",
+        "says": "The TransactionManager's profiler times each participant; ctx.checkPoint goes to the Context's profiler and is invisible without the dump, so a participant times its steps with a Profiler in its own event.",
+        "basis": [
+          "section:8.4 The TransactionManager Times Participants; a Profiler of Your Own Times the Steps",
           "example:src/s8.md:7",
           "example:src/s8.md:8",
-          "section:8.4 Debugging Techniques"
+          "example:src/s8.md:9",
+          "example:src/s8.md:10"
         ],
-        "exercise": "switchable-debug",
+        "exercise": "server-log-quiz",
+        "reason": null
+      },
+      {
+        "id": "stuck-tail",
+        "says": "A transaction that never ends writes no event; tail stays at its id while it is the oldest unfinished one, whether or not head moves, and an idle server has tail equal to head.",
+        "basis": [
+          "section:8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is",
+          "example:src/s8.md:11"
+        ],
+        "exercise": "stuck-watch",
+        "reason": null
+      },
+      {
+        "id": "thread-names",
+        "says": "A session renames its thread while a participant runs, so SystemMonitor's thread list or a jstack shows the stuck transaction's id, phase, participant and start time.",
+        "basis": [
+          "section:8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is",
+          "example:src/s8.md:12"
+        ],
+        "exercise": null,
+        "reason": "the thread name is read off a monitor's output by a person; a test could only compare a string the page already shows"
+      },
+      {
+        "id": "votes-not-reasons",
+        "says": "With the Context dump off, the TransactionManager's event shows each participant's vote but not why; what ctx.log collects is printed only in the dump.",
+        "basis": [
+          "section:8.1 The Transaction Event Says Who Voted, Never Why",
+          "example:src/s8.md:1",
+          "example:src/s8.md:2"
+        ],
+        "exercise": "server-log-quiz",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "one-trace-per-transaction",
+        "name": "decline-reasons",
         "aspects": [
           "one-event-per-transaction"
         ]
       },
       {
         "slot": 2,
-        "name": "switchable-debug",
+        "name": "stuck-watch",
         "aspects": [
-          "switchable-debug-mode"
+          "stuck-tail"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "server-log-quiz",
+        "aspects": [
+          "own-event-needs-logger",
+          "profilers",
+          "votes-not-reasons"
         ]
       }
     ],
@@ -75,21 +108,50 @@
   },
   "shipped": [
     "exercises/jpos-server/prose/unit-08/practice-1",
-    "exercises/jpos-server/prose/unit-08/practice-2"
+    "exercises/jpos-server/prose/unit-08/practice-2",
+    "exercises/jpos-server/prose/unit-08/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-08/practice-1",
       "origin": {
         "path": "src/s8.md",
-        "section": "8.1 jPOS Logging Framework"
+        "section": "8.3 One Event per Transaction, Carrying Its Id and the Message Itself"
       }
     },
     {
       "exercise": "exercises/jpos-server/prose/unit-08/practice-2",
       "origin": {
         "path": "src/s8.md",
-        "section": "8.4 Debugging Techniques"
+        "section": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-08/practice-3:q-participant-without-logger",
+      "origin": {
+        "path": "src/s8.md",
+        "section": "8.2 A Participant Writes Its Own Event, and Only If Its Element Names a Logger"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-08/practice-3:q-caught-exception",
+      "origin": {
+        "path": "src/s8.md",
+        "section": "8.1 The Transaction Event Says Who Voted, Never Why"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-08/practice-3:q-checkpoints-in-production",
+      "origin": {
+        "path": "src/s8.md",
+        "section": "8.4 The TransactionManager Times Participants; a Profiler of Your Own Times the Steps"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-08/practice-3:q-tail-not-moving",
+      "origin": {
+        "path": "src/s8.md",
+        "section": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
       }
     }
   ],

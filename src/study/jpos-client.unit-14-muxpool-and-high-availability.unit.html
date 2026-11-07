@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f5f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a">
+<script>try{var t=sessionStorage.getItem("studyforge.boot.theme.v1");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}</script>
+<title>MUXPool and High Availability</title>
+<link rel="stylesheet" href="../../.studyforge/assets/page.css">
+<script type="application/json" id="studyforge-identity">{"identity_api":1,"corpus":"iso-8583-jpos-tutorial","address":["jpos-client"],"unit":14,"kind":"unit","variant":"prose"}</script>
+</head>
+<body>
+<a href="#content">Skip to the content</a>
+<header>
+<div role="toolbar" aria-label="Site tools" data-section="topbar">
+<button type="button" data-section="search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K /" aria-label="Search the course" data-keys-mac="&#8984; K" data-keys-other="Ctrl K" hidden>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-label>Search</span><kbd></kbd></button>
+<button type="button" data-section="theme" data-theme-choice="toggle" data-to-dark="Switch to the dark theme" data-to-light="Switch to the light theme" aria-label="Switch theme" hidden>
+<svg data-icon="sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M 12 2 v 2 M 12 20 v 2 M 2 12 h 2 M 20 12 h 2 M 4.9 4.9 l 1.4 1.4 M 17.7 17.7 l 1.4 1.4 M 4.9 19.1 l 1.4 -1.4 M 17.7 6.3 l 1.4 -1.4"></path></svg>
+<svg data-icon="moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 21 13.2 A 9 9 0 1 1 10.8 3 a 7 7 0 0 0 10.2 10.2 z"></path></svg>
+</button>
+</div>
+<div role="dialog" aria-modal="true" aria-label="Search" data-section="search" data-search-placeholder="Search the course" data-search-loading="Preparing the search..." data-search-none="No results for" data-search-failed="The search index could not be loaded on this page." data-search-hint-open="Enter to open" data-search-hint-move="Up and down to move" data-search-hint-close="Esc to close" data-search-count-one="1 result" data-search-count-many="{n} results" hidden>
+<div data-search-box>
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-field></span>
+<button type="button" data-search-close aria-label="Close the search">Esc</button>
+</div>
+<div id="search-results" role="listbox" aria-label="Results" data-search-results></div>
+<p data-search-status role="status" aria-live="polite"></p>
+<p data-search-hints></p>
+</div>
+<nav aria-label="Breadcrumb"><ol><li><a href="../../index.html">ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></li><li><span aria-hidden="true">› </span><a href="client-implementation.section.html"><span data-kind="level">group</span> Client Implementation</a></li><li aria-current="page"><span aria-hidden="true">› </span>MUXPool and High Availability</li></ol></nav>
+<h1 id="prose-b0">MUXPool and High Availability</h1>
+</header>
+<nav aria-label="Containers"><details open><summary>Course contents</summary><ol><li data-readable="true"><details><summary><a href="iso-8583-for-visa-and-mastercard-transactions-a-comprehensive-developers-guide.section.html"><span data-kind="level">group</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></summary><ol><li data-unit="iso-fundamentals/unit-01" data-readable="true"><a href="iso-fundamentals.unit-01-introduction-to-iso-8583.unit.html"><span data-kind="numbering">1</span> Introduction to ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-02" data-readable="true"><a href="iso-fundamentals.unit-02-iso-8583-message-structure.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Structure<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-03" data-readable="true"><a href="iso-fundamentals.unit-03-data-elements.unit.html"><span data-kind="numbering">3</span> Data Elements<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-04" data-readable="true"><a href="iso-fundamentals.unit-04-message-type-indicators-mtis.unit.html"><span data-kind="numbering">4</span> Message Type Indicators (MTIs)<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-05" data-readable="true"><a href="iso-fundamentals.unit-05-visa-specific-implementation.unit.html"><span data-kind="numbering">5</span> Visa-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-06" data-readable="true"><a href="iso-fundamentals.unit-06-mastercard-specific-implementation.unit.html"><span data-kind="numbering">6</span> Mastercard-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-07" data-readable="true"><a href="iso-fundamentals.unit-07-transaction-flow.unit.html"><span data-kind="numbering">7</span> Transaction Flow<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-08" data-readable="true"><a href="iso-fundamentals.unit-08-security-and-encryption.unit.html"><span data-kind="numbering">8</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-09" data-readable="true"><a href="iso-fundamentals.unit-09-error-handling-and-response-codes.unit.html"><span data-kind="numbering">9</span> Error Handling and Response Codes<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-10" data-readable="true"><a href="iso-fundamentals.unit-10-testing-and-certification.unit.html"><span data-kind="numbering">10</span> Testing and Certification<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-11" data-readable="true"><a href="iso-fundamentals.unit-11-best-practices-for-iso-8583-development.unit.html"><span data-kind="numbering">11</span> Best Practices for ISO-8583 Development<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-12" data-readable="true"><a href="iso-fundamentals.unit-12-integration-with-payment-gateways.unit.html"><span data-kind="numbering">12</span> Integration with Payment Gateways<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-13" data-readable="true"><a href="iso-fundamentals.unit-13-compliance-and-regulations.unit.html"><span data-kind="numbering">13</span> Compliance and Regulations<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-14" data-readable="true"><a href="iso-fundamentals.unit-14-advanced-topics.unit.html"><span data-kind="numbering">14</span> Advanced Topics<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-15" data-readable="true"><a href="iso-fundamentals.unit-15-troubleshooting-and-common-issues.unit.html"><span data-kind="numbering">15</span> Troubleshooting and Common Issues<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-16" data-readable="true"><a href="iso-fundamentals.unit-16-future-of-iso-8583.unit.html"><span data-kind="numbering">16</span> Future of ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-17" data-readable="true"><a href="iso-fundamentals.unit-17-iso-8583-2023-and-datasets.unit.html"><span data-kind="numbering">17</span> ISO 8583:2023 and Datasets<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-18" data-readable="true"><a href="iso-fundamentals.unit-18-emv-and-de-55-in-depth.unit.html"><span data-kind="numbering">18</span> EMV and DE 55 in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-19" data-readable="true"><a href="iso-fundamentals.unit-19-clearing-and-reconciliation.unit.html"><span data-kind="numbering">19</span> Clearing and Reconciliation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-20" data-readable="true"><a href="iso-fundamentals.unit-20-store-and-forward-and-reversals.unit.html"><span data-kind="numbering">20</span> Store-and-Forward and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li aria-current="true" data-readable="true"><details open><summary><span data-kind="level">group</span> Client Implementation</summary><ol><li data-unit="jpos-client/unit-01" data-readable="true"><a href="jpos-client.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-02" data-readable="true"><a href="jpos-client.unit-02-iso-8583-message-creation.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Creation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-03" data-readable="true"><a href="jpos-client.unit-03-channel-management.unit.html"><span data-kind="numbering">3</span> Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-04" data-readable="true"><a href="jpos-client.unit-04-transaction-sending.unit.html"><span data-kind="numbering">4</span> Transaction Sending<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-05" data-readable="true"><a href="jpos-client.unit-05-visa-and-mastercard-specific-requests.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Requests<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-06" data-readable="true"><a href="jpos-client.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-07" data-readable="true"><a href="jpos-client.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-08" data-readable="true"><a href="jpos-client.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-09" data-readable="true"><a href="jpos-client.unit-09-error-handling.unit.html"><span data-kind="numbering">9</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-10" data-readable="true"><a href="jpos-client.unit-10-testing.unit.html"><span data-kind="numbering">10</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-11" data-readable="true"><a href="jpos-client.unit-11-connection-management.unit.html"><span data-kind="numbering">11</span> Connection Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-12" data-readable="true"><a href="jpos-client.unit-12-correlation-timeouts-and-reversals.unit.html"><span data-kind="numbering">12</span> Correlation, Timeouts and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-13" data-readable="true"><a href="jpos-client.unit-13-packagers-in-depth.unit.html"><span data-kind="numbering">13</span> Packagers in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li aria-current="page" data-unit="jpos-client/unit-14" data-readable="true"><span data-kind="numbering">14</span> MUXPool and High Availability<span data-kind="read-state" hidden>, marked read</span></li><li data-unit="jpos-client/unit-15" data-readable="true"><a href="jpos-client.unit-15-the-logon-lifecycle.unit.html"><span data-kind="numbering">15</span> The Logon Lifecycle<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-16" data-readable="true"><a href="jpos-client.unit-16-simulators-and-test-harnesses.unit.html"><span data-kind="numbering">16</span> Simulators and Test Harnesses<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-17" data-readable="true"><a href="jpos-client.unit-17-the-debugging-toolbox.unit.html"><span data-kind="numbering">17</span> The Debugging Toolbox<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li data-readable="true"><details><summary><a href="jpos-server-implementation.section.html"><span data-kind="level">group</span> jPOS Server Implementation</a></summary><ol><li data-unit="jpos-server/unit-01" data-readable="true"><a href="jpos-server.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-02" data-readable="true"><a href="jpos-server.unit-02-iso-8583-message-handling.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-03" data-readable="true"><a href="jpos-server.unit-03-server-channel-management.unit.html"><span data-kind="numbering">3</span> Server Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-04" data-readable="true"><a href="jpos-server.unit-04-transaction-processing.unit.html"><span data-kind="numbering">4</span> Transaction Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-05" data-readable="true"><a href="jpos-server.unit-05-visa-and-mastercard-specific-processing.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-06" data-readable="true"><a href="jpos-server.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-07" data-readable="true"><a href="jpos-server.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-08" data-readable="true"><a href="jpos-server.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-09" data-readable="true"><a href="jpos-server.unit-09-database-integration.unit.html"><span data-kind="numbering">9</span> Database Integration<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-10" data-readable="true"><a href="jpos-server.unit-10-error-handling.unit.html"><span data-kind="numbering">10</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-11" data-readable="true"><a href="jpos-server.unit-11-testing.unit.html"><span data-kind="numbering">11</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-12" data-readable="true"><a href="jpos-server.unit-12-the-space.unit.html"><span data-kind="numbering">12</span> The Space<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-13" data-readable="true"><a href="jpos-server.unit-13-what-changes-in-jpos-3.unit.html"><span data-kind="numbering">13</span> What changes in jPOS 3<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-14" data-readable="true"><a href="jpos-server.unit-14-q2-and-qbeans-in-depth.unit.html"><span data-kind="numbering">14</span> Q2 and QBeans in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-15" data-readable="true"><a href="jpos-server.unit-15-the-transactionmanager-in-depth.unit.html"><span data-kind="numbering">15</span> The TransactionManager in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-16" data-readable="true"><a href="jpos-server.unit-16-building-a-switch.unit.html"><span data-kind="numbering">16</span> Building a Switch<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-17" data-readable="true"><a href="jpos-server.unit-17-dirpoll-and-operations.unit.html"><span data-kind="numbering">17</span> DirPoll and Operations<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li></ol></details></nav>
+<script>try{var n=document.querySelector('nav[aria-label=Containers]');if(n){var v=sessionStorage.getItem("studyforge.boot.rail.v1");if(v!==null&&!isNaN(+v)){n.scrollTop=+v;}var c=n.querySelector('[aria-current=page]'),a=c&&c.getBoundingClientRect(),b=n.getBoundingClientRect();if(a&&a.height>0){if(a.bottom>b.bottom){n.scrollTop+=a.bottom-b.bottom+8;}else if(b.top>a.top){n.scrollTop-=b.top-a.top+8;}}}}catch(e){}</script>
+<nav aria-label="Outline"><p>On this page</p><ol><li data-level="2"><a href="#prose-b3">Links You Can Take Down</a></li><li data-level="2"><a href="#prose-b9">A Pool Chooses a Link Once per Request</a></li><li data-level="2"><a href="#prose-b17">A Link Is Usable When It Is Connected and Signed On</a></li><li data-level="3"><a href="#prose-b26">Alert on the links the pool is not using</a></li><li data-level="2"><a href="#prose-b27">The Strategy Decides Where Traffic Goes When a Link Fails</a></li><li data-level="3"><a href="#prose-b34">Spot the Problem: Eight Months of Uptime</a></li><li data-level="2"><a href="#prose-b39">With Nothing Usable, the Pool Spends the Request's Own Time</a></li><li data-level="3"><a href="#prose-b48">Pay through a pool without paying twice</a></li><li data-level="3"><a href="#prose-b49">Check yourself: where the pool sends a request</a></li><li data-level="2"><a href="#prose-b50">A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own</a></li><li data-level="3"><a href="#prose-b65">Send each completion to the data centre that holds its pre-authorization</a></li><li data-level="2"><a href="#prose-b66">Summary</a></li><li data-level="2"><a href="#prose-b68">Reference</a></li><li data-level="2"><a href="#prose-b77">Challenges</a></li><li data-level="2"><a href="#prose-b79">Design Note: Why the Pool Knows Only &quot;Usable&quot;</a></li></ol></nav>
+<main id="content">
+<section id="s-prose" data-section="prose" data-kind="lesson" data-label="MUXPool and High Availability">
+<p>The host runs two data centres, and you have one link to each, with a <code>MUXPool</code> in front of them (unit c4). At 14:02 the link to data centre B drops while a purchase is on it. The pool sends the next purchases to A, and the dashboard stays green. The purchase that was on B came back <code>null</code>. Someone suggests sending it again, since the pool will now pick A.</p>
+<p>Was the cardholder charged? Where does the reversal go, and what does A make of it? The answers come down to five rules, one per section heading.</p>
+<h2 id="prose-b3">Links You Can Take Down</h2>
+<p>A pool never touches a socket. It asks each member whether it is connected, and a QMUX with <code>&lt;ready&gt;</code> answers by looking for its adaptor's ready entry in the Space (unit c4). So a test can run real QMUXes and a real <code>MUXPool</code> in one JVM, with unit c12's test host behind each QMUX, and take a link down by removing its ready entry.</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">// not-compiled: uses TestHost from unit c12
+package com.example.jpos.client.ha;
+
+import com.example.jpos.client.testhost.TestHost;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.q2.iso.MUXPool;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+
+import java.util.Date;
+
+/** Links in one JVM: a real QMUX per link, a test host behind each, and a real MUXPool in front. */
+public final class Links {
+    public final LocalSpace&lt;String, Object&gt; sp;
+    private final String space;
+    private final String[] muxes;
+    private final TestHost[] hosts;
+
+    /** Link 0 uses the unit c4 names (host-mux, host-send, ...), link 1 adds &quot;-b&quot;, link 2 &quot;-c&quot;. */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public Links(String space, int count) throws Exception {
+        this.space = space;
+        this.sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(space);
+        this.muxes = new String[count];
+        this.hosts = new TestHost[count];
+        for (int i = 0; i &lt; count; i++) {
+            String s = i == 0 ? &quot;&quot; : &quot;-&quot; + (char) ('a' + i);
+            muxes[i] = &quot;host-mux&quot; + s;
+            Element e = new Element(&quot;mux&quot;);
+            e.addContent(new Element(&quot;space&quot;).setText(space));
+            e.addContent(new Element(&quot;in&quot;).setText(&quot;host&quot; + s + &quot;-receive&quot;));
+            e.addContent(new Element(&quot;out&quot;).setText(&quot;host&quot; + s + &quot;-send&quot;));
+            e.addContent(new Element(&quot;ready&quot;).setText(&quot;host-channel&quot; + s + &quot;.ready&quot;));
+            e.addContent(new Element(&quot;unhandled&quot;).setText(&quot;host&quot; + s + &quot;-unhandled&quot;));
+            QMUX mux = new QMUX();                       // what Q2 does with 20_host_mux.xml
+            mux.setName(muxes[i]);
+            mux.setPersist(e);
+            mux.setConfiguration(new SimpleConfiguration());
+            mux.init();
+            mux.start();
+            hosts[i] = new TestHost(sp, &quot;host&quot; + s + &quot;-send&quot;, &quot;host&quot; + s + &quot;-receive&quot;);
+        }
+    }
+
+    public TestHost host(int i) { return hosts[i]; }
+    public String mux(int i) { return muxes[i]; }
+
+    /** The adaptor connects: a new ready Date, as ChannelAdaptor writes it. */
+    public void up(int i) { sp.put(ready(i), new Date()); }
+    public void down(int i) { sp.inp(ready(i)); }
+    /** What a sign-on manager writes after an approved sign-on (unit c11). */
+    public void signOn(int i) { sp.put(muxes[i] + &quot;.enabled&quot;, sp.rdp(ready(i))); }
+    public String ready(int i) { return &quot;host-channel&quot; + (i == 0 ? &quot;&quot; : &quot;-&quot; + (char) ('a' + i)) + &quot;.ready&quot;; }
+
+    /** Deploys a MUXPool over every link, as Q2 does with 25_host_pool.xml. */
+    public MUXPool pool(String name, String strategy, boolean checkEnabled, Element... extra) throws Exception {
+        Element e = new Element(&quot;mux&quot;);
+        e.addContent(new Element(&quot;muxes&quot;).setText(String.join(&quot; &quot;, muxes)));
+        if (strategy != null) e.addContent(new Element(&quot;strategy&quot;).setText(strategy));
+        e.addContent(new Element(&quot;space&quot;).setText(space));
+        for (Element x : extra) e.addContent(x);
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        if (checkEnabled) cfg.put(&quot;check-enabled&quot;, &quot;true&quot;);
+        MUXPool p = new MUXPool();
+        p.setName(name);
+        p.setPersist(e);
+        p.setConfiguration(cfg);
+        p.init();
+        p.start();
+        return p;
+    }
+}</code></pre></figure>
+<p><code>pool(...)</code> builds the element Q2 reads from a descriptor like this one:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;mux name=&quot;host-pool&quot; class=&quot;org.jpos.q2.iso.MUXPool&quot; logger=&quot;Q2&quot;&gt;
+  &lt;muxes&gt;host-mux host-mux-b&lt;/muxes&gt;
+  &lt;strategy&gt;round-robin&lt;/strategy&gt;
+  &lt;property name=&quot;check-enabled&quot; value=&quot;true&quot;/&gt;
+&lt;/mux&gt;</code></pre></figure>
+<p>Every output in this unit comes from the jPOS 2.1.7 <code>MUXPool</code> and QMUX deployed this way.</p>
+<h2 id="prose-b9">A Pool Chooses a Link Once per Request</h2>
+<p>A round-robin pool sends the opening's purchase to <code>host-mux-b</code>, whose host answers 1.5 seconds late. The client waits one second, gets <code>null</code>, and tries again through the pool:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">links.host(1).then(1500);                    // the host behind host-mux-b answers late
+ISOMsg p = purchase(&quot;29110001&quot;, &quot;000201&quot;);
+ISOMsg r = pool.request(p, 1000);
+r = pool.request(p, 1000);                   // try again: the pool picks a link afresh</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">try 1: null
+try 2: 0210 39=00
+host-mux   received 0200 11=000201 and approved it
+host-mux-b received 0200 11=000201 and approved it</code></pre></figure>
+<p>The second try looked like a success, and the cardholder paid twice: the resend of unit c12. With one link it double-charges too, once the slow host gets to it. A pool makes it look safe, because the retry may go to a healthy link and be approved at once.</p>
+<p>The pool picks a member when <code>request</code> is called and hands it the message. From then on the member's QMUX does the waiting. If that link drops or the host stays silent, the member returns <code>null</code> at the timeout, and the pool passes the <code>null</code> up without moving the request. It has no way to tell a request that never arrived from an approval that got lost, any more than a single QMUX can.</p>
+<p>New purchases stop going to a dead link, so a pool means fewer unknown outcomes, but the ones already on that link stay unknown. A <code>null</code> from the pool is reversed, never resent, whatever the strategy (unit c12).</p>
+<p>The response comes back on the link that carried the request, because each QMUX matches only its own traffic (the out queue is part of the key, unit c12). A request still in a member's send queue when its link drops waits there until the link comes back or the request expires (unit c4); the pool doesn't take it back.</p>
+<h2 id="prose-b17">A Link Is Usable When It Is Connected and Signed On</h2>
+<p>The pool acts on a single signal per member: <strong>usable</strong> or not. It reads that signal on every request, so a link joins or leaves the rotation from one request to the next.</p>
+<p>Without <code>check-enabled</code>, usable means <code>isConnected()</code>. Many hosts refuse traffic on a connection until the acquirer has signed on (unit c11), so a connected link is not enough. With <code>check-enabled</code>, a QMUX member is usable only while the entry <code>&lt;mux-name&gt;.enabled</code> holds the very object stored under its ready key. Two links, both connected, under a primary-secondary pool with and without <code>check-enabled</code>:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">without check-enabled:
+both connected, none signed on     isConnected=true  -&gt; host-mux
+with check-enabled:
+both connected, none signed on     isConnected=false -&gt; nobody
+host-mux-b signed on               isConnected=true  -&gt; host-mux-b
+host-mux signed on                 isConnected=true  -&gt; host-mux
+host-mux reconnected               isConnected=true  -&gt; host-mux-b
+enabled copy: equals=true same=false
+host-mux enabled with a copy       isConnected=true  -&gt; host-mux-b
+host-mux signed on again           isConnected=true  -&gt; host-mux</code></pre></figure>
+<p>In the &quot;reconnected&quot; line, <code>host-mux</code> had signed on, its link dropped, and the adaptor reconnected. Nobody told the pool, and it stopped using the link anyway. The adaptor writes a new <code>Date</code> as the ready entry on every connect. The enabled mark still holds the old one, and the pool compares the two with <code>==</code>, so the old sign-on no longer counts.</p>
+<p>An equal copy fails too: a <code>Date</code> with the same time is <code>equals</code>, but it is not the ready object. For a QMUX with one <code>&lt;ready&gt;</code> name, a sign-on manager that writes <code>Boolean.TRUE</code>, a fresh <code>Date</code> or a copy keeps its link out of the pool for good. One that writes the ready object it signed on with (as <code>signOn</code> does above) gets it in. (With several <code>&lt;ready&gt;</code> names the pool only checks that the mark exists; see the reference table.)</p>
+<p>The pool compares the two entries in its own <code>&lt;space&gt;</code>. If the adaptors write their ready entries to another space, both lookups return <code>null</code>, <code>null == null</code> is true, and <code>check-enabled</code> silently lets every connected link through. Leave <code>&lt;space&gt;</code> out, or name the adaptors' space.</p>
+<p>A link whose host process hangs stays connected at TCP level, and the pool keeps sending to it. Unit c11's read timeout, echoes more often than that timeout, and a sign-on manager that removes <code>&lt;mux&gt;.enabled</code> when an echo fails turn that failure into the signal. A host that stops answering then leaves the rotation within one echo interval plus the echo's own timeout.</p>
+<p><code>isConnected()</code> on the pool is true while any member is usable, so as an alarm it stays quiet while one of two links is out. An alarm should name the members the pool is skipping.</p>
+<section id="prose-b26" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose" data-practice-card="s-practice-prose" data-practice-key="jpos-client/unit-14/practice-prose" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose" data-practices-part="open">Alert on the links the pool is not using</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>With check-enabled a member is usable only while its enabled mark is the very ready object of its current connection; without it a connected member is usable.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Alert on the links the pool is not using">
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>Last night one of the acquirer's two links reconnected at 02:10 and was refused its sign-on until 06:00. For four hours every purchase went over the other link, and nobody was paged: the alert watches the pool's <code>isConnected()</code>, and the adaptor's connection counter looked healthy too.</p>
+<p><code>PoolMonitor</code> in <code>src/main/java/com/example/practice/PoolMonitor.java</code> is the new alert. It is built with the same space and the same <code>check-enabled</code> setting as the pool it watches, and <code>skipped()</code> names the links the pool will not send to right now. Finish <code>inUse</code>, the one method marked <code>TODO</code>. When you're done, the alert names a link exactly when the pool would pass it over, whatever state its connection and sign-on are in. About six lines.</p>
+<p>The tests run real QMUXes and a real <code>MUXPool</code> in one JVM. They play the adaptor and the sign-on manager by writing to the space.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.Space;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The operations team's view of a MUXPool: which of its links the pool is not using right now.
+ * Built with the same space and the same check-enabled setting as the pool it watches.
+ */
+public class PoolMonitor {
+    private final Space&lt;String, Object&gt; sp;
+    private final boolean checkEnabled;
+    private final QMUX[] members;
+
+    public PoolMonitor(Space&lt;String, Object&gt; sp, boolean checkEnabled, QMUX... members) {
+        this.sp = sp;
+        this.checkEnabled = checkEnabled;
+        this.members = members.clone();
+    }
+
+    /** The names of the members the pool would not send a request to now, in member order. */
+    public List&lt;String&gt; skipped() {
+        List&lt;String&gt; out = new ArrayList&lt;&gt;();
+        for (QMUX m : members)
+            if (!inUse(m))
+                out.add(m.getName());
+        return out;
+    }
+
+    /** Whether the pool would send a request to this member now. Each member has one ready key. */
+    boolean inUse(QMUX member) {
+        if (!member.isConnected())
+            return false;
+        if (!checkEnabled)
+            return true;
+        Object ready = sp.rdp(member.getReadyIndicatorNames()[0]);
+        return sp.rdp(member.getName() + &quot;.enabled&quot;) == ready;
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-b6">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.Space;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The operations team's view of a MUXPool: which of its links the pool is not using right now.
+ * Built with the same space and the same check-enabled setting as the pool it watches.
+ */
+public class PoolMonitor {
+    private final Space&lt;String, Object&gt; sp;
+    private final boolean checkEnabled;
+    private final QMUX[] members;
+
+    public PoolMonitor(Space&lt;String, Object&gt; sp, boolean checkEnabled, QMUX... members) {
+        this.sp = sp;
+        this.checkEnabled = checkEnabled;
+        this.members = members.clone();
+    }
+
+    /** The names of the members the pool would not send a request to now, in member order. */
+    public List&lt;String&gt; skipped() {
+        List&lt;String&gt; out = new ArrayList&lt;&gt;();
+        for (QMUX m : members)
+            if (!inUse(m))
+                out.add(m.getName());
+        return out;
+    }
+
+    /** Whether the pool would send a request to this member now. Each member has one ready key. */
+    boolean inUse(QMUX member) {
+        // TODO: Answer the way the pool decides, so that the alert and the pool never disagree.
+        //       The pool was deployed with the same space and the same check-enabled setting
+        //       as this monitor. member.getReadyIndicatorNames()[0] is the key its adaptor
+        //       writes when it connects.
+        throw new IllegalStateException(&quot;TODO: inUse&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-14/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-14/practice-1/src/main/java/com/example/practice/PoolMonitor.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-14/practice-prose" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-14/practice-prose">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-14/practice-prose" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-14/practice-prose">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.PoolMonitorTest#signedOnLinksAreInUseAndADroppedOneIsNamed" data-practice-case-kind="main"><span data-practice-part="verdict"></span>with every link connected and signed on nothing is named, and a link that drops is named</li>
+<li data-practice-case="com.example.practice.PoolMonitorTest#aConnectedLinkThatHasNotSignedOnIsNamed" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>with check-enabled a link that is connected but not signed on is not in use</li>
+<li data-practice-case="com.example.practice.PoolMonitorTest#aLinkThatReconnectedIsNamedUntilItSignsOnAgain" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a sign-on belongs to one connection: after a reconnect the old mark no longer counts</li>
+<li data-practice-case="com.example.practice.PoolMonitorTest#aMarkThatOnlyEqualsTheConnectionDoesNotCount" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the enabled mark must be the very ready object; an equal copy does not count</li>
+<li data-practice-case="com.example.practice.PoolMonitorTest#withoutCheckEnabledEveryConnectedLinkIsInUse" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>without check-enabled a connected link is in use with no sign-on mark at all</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b27">The Strategy Decides Where Traffic Goes When a Link Fails</h2>
+<p>Three links, all usable at first. Each line sends requests with STANs from 000001 and shows which link received which STAN. In the first line <code>host-mux</code> goes down after two requests and comes back after four. The &quot;split on 41&quot; line sends two requests each from terminals 29110001, 29110002 and 29110003; the next line sends four from 29110001 alone:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">primary-secondary:      host-mux [000001 000002 000005 000006] -b [000003 000004]        -c []
+round-robin, all up:    host-mux [000003 000006]        -b [000001 000004]        -c [000002 000005]
+round-robin, -b down:   host-mux [000002 000004 000006] -b []                     -c [000001 000003 000005]
+split on 41:            host-mux [000003 000004]        -b [000005 000006]        -c [000001 000002]
+split on 41, -c down:   host-mux [000002 000004]        -b [000001 000003]        -c []
+split, 41=GW000001:     host-mux [000003]               -b [000001]               -c [000002]</code></pre></figure>
+<p><strong><code>primary-secondary</code></strong> takes the first usable member in <code>&lt;muxes&gt;</code> order. Request 5 went back to <code>host-mux</code> the moment it was up again: failback has no hold-down period. A flapping primary drags all traffic with it; with <code>check-enabled</code> it returns only after signing on again. It is also the default, and any <code>&lt;strategy&gt;</code> text the pool doesn't recognise selects it, so a typo in <code>round-robin</code> silently gives you active/standby.</p>
+<p><strong><code>round-robin</code></strong> keeps one counter for the pool and increments it before using it, so the first request goes to the second member. In the third line, with <code>-b</code> down, <code>host-mux</code> and <code>-c</code> got three requests each. A simpler rule, &quot;start at the counter and take the next usable member&quot;, would give <code>-c</code> both its own turn and <code>-b</code>'s, two requests out of three. The 2.1.7 pool increments the counter once more for every member it skips, which spreads a dead member's share evenly. Under load the shares are only roughly equal, because many threads move the counter at once.</p>
+<p><strong><code>split-by-divisor</code></strong> with <code>&lt;split-field&gt;</code> sends a message to member number <code>value % size</code>, here terminal ID modulo 3. Terminal 29110001 always lands on <code>-c</code>, while that member is usable. With <code>-c</code> down, its requests went round-robin to the other two, one each. A field that is missing or not all digits, such as <code>GW000001</code>, goes round-robin as well. So this strategy can't pin a terminal's traffic to one link.</p>
+<p><strong><code>round-robin-with-override</code></strong> keeps chosen MTIs on a named link while that link is usable, and otherwise sends them round-robin (14.6).</p>
+<h3 id="prose-b34">Spot the Problem: Eight Months of Uptime</h3>
+<p>A switch has run a round-robin pool of three links for 250 days at about 100 requests a second. Today two purchases in three fail before they are sent, and the third always goes to the first link. The same pool, with its private counter set close to its limit by reflection:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">counter at 2147483646, request 1: sent to another member
+counter at 2147483646, request 2: ArrayIndexOutOfBoundsException: Index -2 out of bounds for length 3
+counter at 2147483646, request 3: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 3
+counter at 2147483646, request 4: sent to host-mux
+counter at 2147483646, request 5: ArrayIndexOutOfBoundsException: Index -2 out of bounds for length 3
+counter at 2147483646, request 6: ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 3</code></pre></figure>
+<p>The counter is an <code>int</code>. After 2^31 increments it wraps to a negative number, and <code>counter % size</code> in Java keeps the sign, so the index is negative unless the remainder happens to be 0. That stays so until the counter climbs back above zero, another 2^31 increments later. At 100 a second, 2^31 requests take about 249 days, and skipped members and idle polling (14.5) add increments of their own.</p>
+<p>A planned restart before that point resets the counter. A router of your own avoids it with <code>Math.floorMod</code>, as in 14.6.</p>
+<h2 id="prose-b39">With Nothing Usable, the Pool Spends the Request's Own Time</h2>
+<p>Both links are down, and a request arrives with a 200 ms timeout. Then a link comes up 300 ms into a request that may wait 5 seconds:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">none usable, timeout 200:  null after 1000 ms, hosts received 0
+isConnected():             false after 0 ms
+link up at 300 ms:         0210 after 1000 ms</code></pre></figure>
+<p>When no member is usable, the pool sleeps one second and looks again, until the deadline has passed. It checks the deadline only after the sleep, so a 200 ms request returns after a whole second. A link that comes up during the sleep is noticed at the next look, and the time spent waiting comes out of the request's budget: the pool turns the timeout into a deadline at the start and hands the member only what is left.</p>
+<p>This <code>null</code> means nothing was sent, so there is nothing to reverse, but the caller can't tell it from the <code>null</code> of 14.2. Ask the pool's <code>isConnected()</code> first, as unit c4 did with a single QMUX: it answers at once, you can report &quot;host unavailable&quot;, and every <code>null</code> that <code>request</code> returns afterwards means an unknown outcome. A member can still drop between the check and the request. You then reverse a purchase that was never sent, which costs one message and is safe.</p>
+<p>Keep request timeouts well above a second, or the polling eats most of them.</p>
+<p>The other entry points end differently when nothing is usable. <code>send(m)</code> throws <code>No available MUX</code> after one second, and the asynchronous <code>request</code> throws <code>No MUX available</code> once its timeout has passed, rounded up to whole seconds, without calling the listener (2500 ms became 3000 ms in our run). <code>request(m, 0)</code> does not just send. With two usable links:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">request(m, 0):             hosts received 2 copies of 000403 (host-mux [000402 000403], host-mux-b [000403])</code></pre></figure>
+<p>In 2.1.7 a zero timeout makes the pool call <code>send(m)</code> first, and then fall into the normal path with a deadline of &quot;now&quot;. Within the same millisecond, that path hands the message to a member again. Both copies are queued without an expiry, so on a link that drops they wait until it is back. When you mean to send without waiting, call <code>send</code>.</p>
+<section id="prose-b48" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-2" data-practice-card="s-practice-prose-2" data-practice-key="jpos-client/unit-14/practice-prose-2" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-2" data-practices-part="open">Pay through a pool without paying twice</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A pool chooses a member once per request and never moves it, so a null from the pool is an unknown outcome to reverse; a retry through the pool lands on another link as a second purchase.</li>
+<li>With nothing usable the pool polls once a second inside the request's own budget and returns null with nothing sent, so the caller checks isConnected first.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Pay through a pool without paying twice">
+<h2 id="practice-prose-2-b0">Problem statement</h2>
+<p>A chain of stores pays through a <code>MUXPool</code> over two links to its acquirer. Since the second link was added, two complaints have come in. On Tuesday a link dropped at noon, and a few cardholders were charged twice for one purchase, although the checkout showed a single approval. And during the nightly maintenance, when both links are down, every checkout hangs for a second before failing, and the reversal queue fills with purchases the acquirer has never seen.</p>
+<p><code>Checkout.pay</code> in <code>src/main/java/com/example/practice/Checkout.java</code> already handles purchases the host answers. Finish the two methods marked <code>TODO</code>:</p>
+<ul class="items"><li><code>canSend()</code>: whether to send at all;</li><li><code>onNoAnswer(...)</code>: what a purchase with no answer becomes.</li></ul>
+<p>Purchases that must be reversed go onto the <code>TO_REVERSE</code> queue of the space (<code>sp.out</code>), where the reversal sender takes them. About four lines in total.</p>
+<p>The tests run a real round-robin <code>MUXPool</code> over two real QMUXes, with a test host behind each link.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+/** Sends a store's purchases to the acquirer through a MUXPool over several links. */
+public class Checkout {
+    public enum Outcome { APPROVED, DECLINED, UNAVAILABLE, UNKNOWN }
+
+    /** Purchases waiting to be reversed; the reversal sender of unit c12 takes them from here. */
+    public static final String TO_REVERSE = &quot;to-reverse&quot;;
+
+    private final MUX pool;
+    private final Space&lt;String, Object&gt; sp;
+    private final long timeout;
+
+    public Checkout(MUX pool, Space&lt;String, Object&gt; sp, long timeout) {
+        this.pool = pool;
+        this.sp = sp;
+        this.timeout = timeout;
+    }
+
+    /** Sends one purchase and says what became of it. */
+    public Outcome pay(ISOMsg purchase) throws ISOException {
+        if (!canSend())
+            return Outcome.UNAVAILABLE;
+        ISOMsg response = pool.request(purchase, timeout);
+        if (response == null)
+            return onNoAnswer(purchase);
+        return &quot;00&quot;.equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;
+    }
+
+    /** Whether the purchase should be sent at all. */
+    boolean canSend() {
+        return pool.isConnected();
+    }
+
+    /** The purchase went out and no answer came back in time. */
+    Outcome onNoAnswer(ISOMsg purchase) throws ISOException {
+        sp.out(TO_REVERSE, purchase);
+        return Outcome.UNKNOWN;
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-2-b8">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+/** Sends a store's purchases to the acquirer through a MUXPool over several links. */
+public class Checkout {
+    public enum Outcome { APPROVED, DECLINED, UNAVAILABLE, UNKNOWN }
+
+    /** Purchases waiting to be reversed; the reversal sender of unit c12 takes them from here. */
+    public static final String TO_REVERSE = &quot;to-reverse&quot;;
+
+    private final MUX pool;
+    private final Space&lt;String, Object&gt; sp;
+    private final long timeout;
+
+    public Checkout(MUX pool, Space&lt;String, Object&gt; sp, long timeout) {
+        this.pool = pool;
+        this.sp = sp;
+        this.timeout = timeout;
+    }
+
+    /** Sends one purchase and says what became of it. */
+    public Outcome pay(ISOMsg purchase) throws ISOException {
+        if (!canSend())
+            return Outcome.UNAVAILABLE;
+        ISOMsg response = pool.request(purchase, timeout);
+        if (response == null)
+            return onNoAnswer(purchase);
+        return &quot;00&quot;.equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;
+    }
+
+    /** Whether the purchase should be sent at all. */
+    boolean canSend() {
+        // TODO: Decide before anything goes out. A purchase that is never sent can be reported
+        //       to the cardholder at once and needs nothing afterwards.
+        throw new IllegalStateException(&quot;TODO: canSend&quot;);
+    }
+
+    /** The purchase went out and no answer came back in time. */
+    Outcome onNoAnswer(ISOMsg purchase) throws ISOException {
+        // TODO: The purchase left on one of the links and nothing came back. Return the outcome
+        //       the store must show, and make sure the money ends up where it belongs.
+        throw new IllegalStateException(&quot;TODO: onNoAnswer&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-14/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-14/practice-2/src/main/java/com/example/practice/Checkout.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-14/practice-prose-2" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-14/practice-prose-2">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-14/practice-prose-2" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-14/practice-prose-2">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.CheckoutTest#answeredPurchasesAreApprovedOrDeclined" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a purchase the host answers is approved or declined by field 39 and leaves nothing to reverse</li>
+<li data-practice-case="com.example.practice.CheckoutTest#aPurchaseLeftUnansweredGoesToNoOtherLink" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a purchase with no answer is an unknown outcome and is never handed to the pool again, where another link would take it</li>
+<li data-practice-case="com.example.practice.CheckoutTest#aPurchaseLeftUnansweredIsQueuedForReversal" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a purchase with no answer may have been approved, so it is queued for reversal</li>
+<li data-practice-case="com.example.practice.CheckoutTest#withEveryLinkDownNothingIsSentOrReversed" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>with no usable link the purchase is reported unavailable before anything is sent, and nothing is queued for reversal</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<section id="prose-b49" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-4" data-practice-card="s-practice-prose-4" data-practice-key="jpos-client/unit-14/practice-prose-4" data-practice-kind="quiz" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-4" data-practices-part="open">Check yourself: where the pool sends a request</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>primary-secondary fails back at once, round-robin spreads a dead member's share evenly by advancing its counter per skipped member, and split-by-divisor falls back to round-robin when its member is down.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-4" data-section="practice-prose-4" data-kind="practice" data-label="Check yourself: where the pool sends a request">
+<h2 id="practice-prose-4-b0">Check yourself</h2>
+<p>Questions on what this page has just taught. Choose one answer for each.</p>
+</section>
+<section data-practice-quiz="jpos-client/unit-14/practice-prose-4" data-practice-mock="100" data-mock-form="exam" data-form-kind="quiz" data-corpus="iso-8583-jpos-tutorial" aria-label="Questions" tabindex="-1">
+<div data-practice-part="head"><h2>Answer these</h2></div>
+<p data-practice-part="grader">Written for this site from this page.</p>
+<div data-form-part="start" hidden></div>
+<div data-form-part="bar" hidden><p data-form-part="timer-line" hidden>Time remaining <span data-form-part="timer" role="timer" aria-label="Time remaining"></span></p>
+<p data-form-part="progress"><progress data-form-part="meter" max="4" value="0"></progress> <span data-form-part="count"></span></p></div>
+<div data-form-part="navigator" role="navigation" aria-label="Question navigator" hidden></div>
+<div data-form-part="result" role="region" aria-label="Result" hidden>
+<p data-form-part="overall"></p>
+<p data-form-part="scaled" hidden></p>
+<table data-form-part="domains"><thead><tr><th scope="col">Domain</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<table data-form-part="difficulties" hidden><thead><tr><th scope="col">Difficulty</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<div data-form-part="review-filter" role="group" aria-label="Review"></div>
+</div>
+<p data-form-part="announce" role="status" aria-live="polite" data-form-quiet></p>
+<ol data-practice-part="questions">
+<li data-practice-question="q-reconnected-primary" data-mock-domain=""><fieldset><legend tabindex="-1">A primary-secondary pool with check-enabled lists acq-mux-1 first and acq-mux-2 second. acq-mux-1's link drops at 09:00:00, its adaptor reconnects at 09:00:20, and the link's next sign-on is approved at 09:00:23. Where does a purchase sent at 09:00:21 go?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-reconnected-primary" value="a"> To acq-mux-1, since the sign-on it made before the drop still counts for the link</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-reconnected-primary" value="b"> To acq-mux-2, since acq-mux-1's earlier sign-on belonged to the connection it lost</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-reconnected-primary" value="c"> To acq-mux-1, since a reconnected link counts as signed on until a sign-on is refused</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-reconnected-primary" value="d"> To acq-mux-2, since the pool keeps a member out for a fixed hold-down after a sign-on</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-round-robin-share" data-mock-domain=""><fieldset><legend tabindex="-1">A round-robin pool has four members. One of them is unusable for an hour while the other three stay usable, and the pool handles 9,000 requests in that hour, one at a time. Roughly how are they spread?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-round-robin-share" value="a"> About 3,000 to each of the three, since every skipped member moves the counter on once more</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-round-robin-share" value="b"> About 3,000 to each of the three, since the pool rebuilds its member list without the unusable one</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-round-robin-share" value="c"> About 4,500 to the member after the unusable one, since it takes that member's turns as well</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-round-robin-share" value="d"> About 4,500 to the member listed first, since the pool sends a skipped turn back to the start</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-split-member-down" data-mock-domain=""><fieldset><legend tabindex="-1">A split-by-divisor pool of three members splits on field 41, and terminal 29220005 maps to the third member. The third member is unusable for ten minutes while the other two stay usable. What happens to that terminal's purchases in those ten minutes?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-split-member-down" value="a"> They go to the other two members in turn, since a split member that is down means round-robin</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-split-member-down" value="b"> They all go to the first member, since a request for a member that is down moves on to the next</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-split-member-down" value="c"> They fail with null after their timeout, since a terminal is bound to the member of its remainder</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-split-member-down" value="d"> They fail with an exception at once, since the split field names a member that cannot be used</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-nothing-usable" data-mock-domain=""><fieldset><legend tabindex="-1">Every member of a pool is unusable. A balance inquiry is sent with request(m, 300). What does the caller get?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-nothing-usable" value="a"> null after about 300 ms, since the pool gives up when the request's own timeout is spent</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-nothing-usable" value="b"> null after about one second, since the pool looks for a usable member once per second</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-nothing-usable" value="c"> null after about 300 ms, since the inquiry waits in the first member's queue until it expires</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-14/practice-prose-4:q-nothing-usable" value="d"> an ISOException after about one second, since the pool refuses requests it cannot hand to a member</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+</ol>
+<p data-form-part="pager" hidden><button type="button" data-form-part="previous">Previous</button> <button type="button" data-form-part="next">Next</button></p>
+<script type="application/json" data-form-part="key">{"q-reconnected-primary":{"keys":["b"],"says":{"a":"the old enabled mark holds the previous connection's ready Date, and the pool compares it with the new one by identity","b":"with check-enabled a member is usable only while its enabled mark is the ready object of its current connection","c":"with check-enabled a connected member is usable only after a sign-on over that connection has written the enabled mark","d":"primary-secondary has no hold-down: it takes the first usable member on every request"}},"q-round-robin-share":{"keys":["a"],"says":{"a":"the 2.1.7 pool increments its counter for each member it skips, which spreads the dead member's share evenly","b":"the members are fixed when the pool is deployed; the unusable one stays in the list and is skipped","c":"that is the simpler rule the extra increment avoids","d":"a skipped turn moves to the next member and the counter moves on; nothing goes back to the start of the list"}},"q-split-member-down":{"keys":["a"],"says":{"a":"split-by-divisor falls back to round-robin when the member of the remainder is not usable","b":"the fallback is the shared round-robin counter, so the requests alternate between the usable members","c":"stickiness is a preference; while the member is down the requests go elsewhere","d":"nothing is refused: the pool falls back to round-robin"}},"q-nothing-usable":{"keys":["b"],"says":{"a":"the pool sleeps a whole second before it looks at the deadline again","b":"with nothing usable the pool sleeps one second between looks and returns null with nothing sent","c":"with no usable member the pool hands the message to nobody","d":"only send and the asynchronous request throw; the blocking request returns null"}}}</script>
+<script type="application/json" data-form-part="plan">{"pass_mark":100,"domains":[],"layout":"exam"}</script>
+<script type="application/json" data-form-part="words">{"choose":"Choose a sitting","begin":"Begin","beginOnly":"Begin the exam","questions":"{n} questions","scenarios":"{n} scenarios","allQuestions":"All {n} questions","minutes":"{n} minutes","noTime":"No time limit","count":"{answered} of {asked} answered","position":"Question {n} of {total}","flag":"Flag for review","flagged":"Flagged for review","previous":"Previous","next":"Next","answered":"answered","open":"not answered","flaggedState":"flagged","navQuestion":"Question {n}, {state}","allDomains":"All domains","domainFilter":"Domain","flaggedOnly":"Flagged only","choose_n":"Choose {n}.","confirm":"Not answered yet: {list}. Choose Finish quiz again to finish anyway.","timeUp":"Time is up. The exam was submitted.","minutesLeft":"{n} minutes remaining.","oneMinuteLeft":"One minute remaining.","reached":"You answered all {asked} questions correctly.","short":"You answered {right} of {asked} questions correctly.","scaled":"Scaled score: {score} on a scale of {min} to {max}, where the scale's pass is {line}. This is a linear illustration of your score and not the exam's own scaling.","scoreWords":"{right} of {asked} ({percent}%)","right":"Right.","wrong":"Not this one.","unanswered":"Not answered.","key":"Correct answer","yours":"Your choice","reviewAll":"All questions","reviewMissed":"Missed only","reviewFlagged":"Flagged only","reviewNone":"No question matches this filter.","unitSingular":"question","domain":"Domain","difficulty":"Difficulty","summary":"Your answers","summaryItem":"Question {n}: {verdict}","summaryJump":"Go to question {n}","positionCount":"Question {n} of {total}. {answered} answered."}</script>
+<link rel="stylesheet" href="../../.studyforge/assets/mock-form.css">
+<script src="../../.studyforge/assets/mock-form-core.js" defer></script>
+<script src="../../.studyforge/assets/mock-form-panels.js" defer></script>
+<script src="../../.studyforge/assets/mock-form.js" defer></script>
+<p data-practice-part="offline">Checking answers needs this page's script, and it is not running here. Read the questions and choose your answers; nothing here can check them.</p>
+<p data-form-part="controls" hidden><button type="button" data-form-part="submit">Finish quiz</button> <button type="button" data-form-part="again" hidden>Try again</button></p>
+<p data-form-part="missing" role="alert" hidden></p>
+</section>
+<h2 id="prose-b50">A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own</h2>
+<p>A reversal refers to an earlier message. Whether it must travel on the original's link depends on what is behind the links:</p>
+<ul class="items"><li>several connections to one host instance: any link works, and the reversal queue of unit c12 can send through the pool;</li><li>several host instances that share their state at once, such as two front ends on one database: any link works too;</li><li>instances that don't share state, or share it late, such as two data centres that replicate asynchronously: the reversal must reach the data centre that saw the original.</li></ul>
+<p>Take the third case with the opening's purchase. Data centre B approved it, and the answer was lost. The link to B is down. The test host for each data centre approves purchases and reverses only what it has a record of, answering <code>25</code> (original not found) otherwise. The pool uses <code>round-robin-with-override</code> with <code>&lt;follower-override&gt;0420 0421&lt;/follower-override&gt;</code>, and the test puts the original link's adaptor name, <code>host-channel-b</code>, into the field that <code>&lt;original-channel-field&gt;</code> names. A real application would first have to learn that name: the pool doesn't say which member it chose.</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">override pool
+purchase:          null
+reversal, -b down: 0430 39=25
+data centre A saw: [0420 11=000502 -&gt; 25]
+data centre B saw: [0200 11=000501 -&gt; 00 (answer lost)]</code></pre></figure>
+<p>With <code>-b</code> down, the override fell back to round-robin and sent the reversal to A, which had never seen the purchase. In most networks any answer acknowledges a reversal (unit c12), so the queue deleted it. B still holds an approved purchase that nobody will reverse, and the cardholder's money stays with the merchant until someone finds it at reconciliation.</p>
+<p>Here the follow-up must go back to the original's link, and when that link is down it must wait in the queue. The 2.1.7 pool has no hook for a choice of your own (later releases add one). The <code>MUX</code> interface is small, though, so a class of your own can implement it, wrap the members, and take the pool's place under its name:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.ha;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOResponseListener;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+/** Round-robin for new requests; a reversal goes back to its original's link, or waits. */
+public class StickyRouter implements MUX {
+    private final Space&lt;String, Object&gt; routes;         // persistent in production
+    private final long routeTtl;                         // longer than the reversal window
+    private final MUX[] members;
+    private final AtomicInteger next = new AtomicInteger();
+
+    public StickyRouter(Space&lt;String, Object&gt; routes, long routeTtl, MUX... members) {
+        this.routes = routes;
+        this.routeTtl = routeTtl;
+        this.members = members.clone();
+    }
+
+    @Override
+    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {
+        MUX member = route(m);
+        return member == null ? null : member.request(m, timeout);   // null: nothing was sent
+    }
+
+    @Override
+    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack)
+            throws ISOException {
+        member(m).request(m, timeout, l, handBack);
+    }
+
+    @Override
+    public void send(ISOMsg m) throws ISOException, java.io.IOException {
+        member(m).send(m);
+    }
+
+    @Override
+    public boolean isConnected() {
+        for (MUX member : members)
+            if (member.isConnected())
+                return true;
+        return false;
+    }
+
+    private MUX member(ISOMsg m) throws ISOException {
+        MUX member = route(m);
+        if (member == null)
+            throw new ISOException(&quot;no usable member&quot;);
+        return member;
+    }
+
+    private MUX route(ISOMsg m) throws ISOException {
+        boolean reversal = m.getMTI().startsWith(&quot;04&quot;) &amp;&amp; m.hasField(90);
+        if (reversal) {
+            Integer index = (Integer) routes.rdp(originalOf(m));
+            if (index != null)                                       // (1) known original:
+                return members[index].isConnected() ? members[index] : null;   // its link, or wait
+        }
+        int start = next.getAndIncrement();
+        for (int i = 0; i &lt; members.length; i++) {
+            int j = Math.floorMod(start + i, members.length);        // (2) survives the wrap
+            if (members[j].isConnected()) {
+                if (!reversal)
+                    routes.put(idOf(m), j, routeTtl);                // (3) remember the route
+                return members[j];
+            }
+        }
+        return null;
+    }
+
+    /** Terminal, STAN and transmission time: how a reversal names its original. */
+    static String idOf(ISOMsg m) {
+        return &quot;route.&quot; + m.getString(41) + &quot;.&quot; + m.getString(11) + &quot;.&quot; + m.getString(7);
+    }
+
+    static String originalOf(ISOMsg reversal) {
+        String de90 = reversal.getString(90);
+        return &quot;route.&quot; + reversal.getString(41) + &quot;.&quot; + de90.substring(4, 10)
+                + &quot;.&quot; + de90.substring(10, 20);
+    }
+}</code></pre></figure>
+<p>The same story through <code>StickyRouter</code> (an earlier purchase went to A, so this one goes to B):</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">StickyRouter
+purchase:          null
+reversal, -b down: null
+reversal, -b up:   0430 39=00
+data centre A saw: [0200 11=000500 -&gt; 00]
+data centre B saw: [0200 11=000501 -&gt; 00 (answer lost), 0420 11=000502 -&gt; 00]</code></pre></figure>
+<p><strong>(1) Its link, or wait.</strong> While B is down, <code>request</code> returns <code>null</code> and sends nothing. The reversal queue of unit c12 sees no answer and keeps the reversal, and the next attempt after B is back reaches it. Test a router like this with the original's link down: one that fails over passes every test in which all links stay up.</p>
+<p><strong>(2) The index survives the wrap.</strong> <code>Math.floorMod</code> keeps it between 0 and the member count when the counter goes negative, the failure of 14.4.1.</p>
+<p><strong>(3) The route is remembered under the original's identity</strong>, the way a reversal states it: field 41, and the STAN and transmission time from field 90 (positions 5-10 and 11-20, unit c12). The reversal's own STAN and time are new and match nothing. The routes live in a Space with a TTL longer than the network's reversal window, so they don't grow for ever; a persistent space keeps them across a restart. A reversal whose route is unknown (it expired, or the original went out before a restart with a transient space) goes round-robin here. If your hosts can't take that, return <code>null</code> for it instead, and decide what alerts on reversals that never leave the queue.</p>
+<p>Usability here is <code>isConnected()</code>. To keep unsigned links out as well, test the enabled mark the way <code>check-enabled</code> does (14.3), in the adaptors' space, before choosing a member.</p>
+<p>Your code sets field 11 before the router or the pool picks a link, so the STAN can't come from the chosen link's sequence. Use one sequence for the pool, such as <code>stan.host-pool</code> (unit c4), and every STAN is unique on every member. A network that wants the STANs on each connection to run without gaps needs the STAN set after the choice, inside a router like this one.</p>
+<section id="prose-b65" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-3" data-practice-card="s-practice-prose-3" data-practice-key="jpos-client/unit-14/practice-prose-3" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-3" data-practices-part="open">Send each completion to the data centre that holds its pre-authorization</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>When host instances do not share state, a follow-up must go to its original's link, found through field 41 and field 90, and wait while that link is down; the override strategy falls back to round-robin instead, so it needs a router of your own.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-3" data-section="practice-prose-3" data-kind="practice" data-label="Send each completion to the data centre that holds its pre-authorization">
+<h2 id="practice-prose-3-b0">Problem statement</h2>
+<p>A hotel chain pre-authorizes each stay at check-in (an 0100 that places a hold on the card) and completes it at check-out with an 0220 whose field 90 points at the 0100. The acquirer runs two data centres, and the chain has one link to each. The data centres don't share their holds. Since the second link went live, some guests are charged at check-out while the hold from check-in stays on their card for a week, and the acquirer's answer to some completions is &quot;original not found&quot;.</p>
+<p><code>HoldRouter</code> in <code>src/main/java/com/example/practice/HoldRouter.java</code> is the chain's own <code>MUX</code> in front of the two links. It already sends every message out in turn. Finish the three methods marked <code>TODO</code>:</p>
+<ul class="items"><li><code>remember(...)</code>: what the router keeps when a pre-authorization goes out;</li><li><code>holdOf(...)</code>: how a completion finds it again;</li><li><code>forCompletion(...)</code>: where a completion goes now.</li></ul>
+<p>Completions that get no answer stay in the chain's advice queue, which calls <code>request</code> again later. About ten lines in total.</p>
+<p>The tests run two real QMUXes with a test host behind each, one per data centre.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOResponseListener;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Sends a hotel chain's card traffic to the acquirer's data centres, one link per data centre.
+ * A pre-authorization (0100) places a hold at the data centre that receives it; the data centres
+ * do not share their holds. A completion (0220 or 0221 with field 90) settles that hold.
+ */
+public class HoldRouter implements MUX {
+    private final Space&lt;String, Object&gt; holds;
+    private final long holdTtl;
+    private final MUX[] links;
+    private final AtomicInteger next = new AtomicInteger();
+
+    public HoldRouter(Space&lt;String, Object&gt; holds, long holdTtl, MUX... links) {
+        this.holds = holds;
+        this.holdTtl = holdTtl;
+        this.links = links.clone();
+    }
+
+    @Override
+    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {
+        MUX link = route(m);
+        return link == null ? null : link.request(m, timeout);
+    }
+
+    @Override
+    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack) throws ISOException {
+        MUX link = route(m);
+        if (link == null)
+            throw new ISOException(&quot;no link for this message now&quot;);
+        link.request(m, timeout, l, handBack);
+    }
+
+    @Override
+    public void send(ISOMsg m) throws IOException, ISOException {
+        MUX link = route(m);
+        if (link == null)
+            throw new ISOException(&quot;no link for this message now&quot;);
+        link.send(m);
+    }
+
+    @Override
+    public boolean isConnected() {
+        for (MUX link : links)
+            if (link.isConnected())
+                return true;
+        return false;
+    }
+
+    private MUX route(ISOMsg m) throws ISOException {
+        String mti = m.getMTI();
+        if ((mti.equals(&quot;0220&quot;) || mti.equals(&quot;0221&quot;)) &amp;&amp; m.hasField(90))
+            return forCompletion(m);
+        int i = nextConnected();
+        if (i &lt; 0)
+            return null;
+        if (mti.equals(&quot;0100&quot;))
+            remember(m, i);
+        return links[i];
+    }
+
+    /** The index of the next connected link in turn, or -1 when none is connected. */
+    int nextConnected() {
+        int start = next.getAndIncrement();
+        for (int k = 0; k &lt; links.length; k++) {
+            int i = Math.floorMod(start + k, links.length);
+            if (links[i].isConnected())
+                return i;
+        }
+        return -1;
+    }
+
+    /** The space key of the hold placed by terminal `terminal`'s message with this STAN and time. */
+    static String key(String terminal, String stan, String time) {
+        return &quot;hold.&quot; + terminal + &quot;.&quot; + stan + &quot;.&quot; + time;
+    }
+
+    /** A pre-authorization is about to go out on links[index]. */
+    void remember(ISOMsg preauth, int index) {
+        holds.put(key(preauth.getString(41), preauth.getString(11), preauth.getString(7)), index, holdTtl);
+    }
+
+    /** The space key under which the completion's pre-authorization was remembered. */
+    String holdOf(ISOMsg completion) {
+        String de90 = completion.getString(90);
+        return key(completion.getString(41), de90.substring(4, 10), de90.substring(10, 20));
+    }
+
+    /** The link a completion goes out on now, or null to send nothing this time. */
+    MUX forCompletion(ISOMsg completion) {
+        Integer index = (Integer) holds.rdp(holdOf(completion));
+        if (index == null) {
+            int i = nextConnected();
+            return i &lt; 0 ? null : links[i];
+        }
+        return links[index].isConnected() ? links[index] : null;
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-3-b8">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOResponseListener;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Sends a hotel chain's card traffic to the acquirer's data centres, one link per data centre.
+ * A pre-authorization (0100) places a hold at the data centre that receives it; the data centres
+ * do not share their holds. A completion (0220 or 0221 with field 90) settles that hold.
+ */
+public class HoldRouter implements MUX {
+    private final Space&lt;String, Object&gt; holds;
+    private final long holdTtl;
+    private final MUX[] links;
+    private final AtomicInteger next = new AtomicInteger();
+
+    public HoldRouter(Space&lt;String, Object&gt; holds, long holdTtl, MUX... links) {
+        this.holds = holds;
+        this.holdTtl = holdTtl;
+        this.links = links.clone();
+    }
+
+    @Override
+    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {
+        MUX link = route(m);
+        return link == null ? null : link.request(m, timeout);
+    }
+
+    @Override
+    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack) throws ISOException {
+        MUX link = route(m);
+        if (link == null)
+            throw new ISOException(&quot;no link for this message now&quot;);
+        link.request(m, timeout, l, handBack);
+    }
+
+    @Override
+    public void send(ISOMsg m) throws IOException, ISOException {
+        MUX link = route(m);
+        if (link == null)
+            throw new ISOException(&quot;no link for this message now&quot;);
+        link.send(m);
+    }
+
+    @Override
+    public boolean isConnected() {
+        for (MUX link : links)
+            if (link.isConnected())
+                return true;
+        return false;
+    }
+
+    private MUX route(ISOMsg m) throws ISOException {
+        String mti = m.getMTI();
+        if ((mti.equals(&quot;0220&quot;) || mti.equals(&quot;0221&quot;)) &amp;&amp; m.hasField(90))
+            return forCompletion(m);
+        int i = nextConnected();
+        if (i &lt; 0)
+            return null;
+        if (mti.equals(&quot;0100&quot;))
+            remember(m, i);
+        return links[i];
+    }
+
+    /** The index of the next connected link in turn, or -1 when none is connected. */
+    int nextConnected() {
+        int start = next.getAndIncrement();
+        for (int k = 0; k &lt; links.length; k++) {
+            int i = Math.floorMod(start + k, links.length);
+            if (links[i].isConnected())
+                return i;
+        }
+        return -1;
+    }
+
+    /** The space key of the hold placed by terminal `terminal`'s message with this STAN and time. */
+    static String key(String terminal, String stan, String time) {
+        return &quot;hold.&quot; + terminal + &quot;.&quot; + stan + &quot;.&quot; + time;
+    }
+
+    /** A pre-authorization is about to go out on links[index]. */
+    void remember(ISOMsg preauth, int index) {
+        // TODO: Keep what forCompletion will need. Holds expire at the acquirer after holdTtl
+        //       milliseconds, and the router runs for months.
+        throw new IllegalStateException(&quot;TODO: remember&quot;);
+    }
+
+    /** The space key under which the completion's pre-authorization was remembered. */
+    String holdOf(ISOMsg completion) {
+        // TODO: The completion is a new message: its own STAN and time are not the
+        //       pre-authorization's. Field 90 is laid out as in unit c12.
+        throw new IllegalStateException(&quot;TODO: holdOf&quot;);
+    }
+
+    /** The link a completion goes out on now, or null to send nothing this time. */
+    MUX forCompletion(ISOMsg completion) {
+        // TODO: A completion must settle its hold, which only one data centre has. A completion
+        //       whose pre-authorization this router never saw (or no longer remembers) goes out
+        //       like any other message. When the answer is null, the advice queue keeps the
+        //       completion and calls request again later.
+        throw new IllegalStateException(&quot;TODO: forCompletion&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-14/practice-prose-3" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-14/practice-3/src/main/java/com/example/practice/HoldRouter.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-14/practice-prose-3" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-14/practice-prose-3">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-14/practice-prose-3" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-14/practice-prose-3">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.HoldRouterTest#preauthsTakeTurnsAndCompletionsAreAnswered" data-practice-case-kind="main"><span data-practice-part="verdict"></span>pre-authorizations take turns over the connected links, and completions are delivered and answered</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#aCompletionGoesToTheDataCentreThatHoldsIt" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a completion goes to the link that carried its pre-authorization, wherever the rotation stands</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#aCompletionWaitsWhileItsDataCentreIsDown" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>while that link is down the completion is not sent anywhere, and it goes there once the link is back</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#aCompletionIsMatchedThroughFieldNinety" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the pre-authorization is found through field 90, not through the completion's own STAN and time</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#twoTerminalsWithTheSameStanAndTimeKeepTheirOwnHolds" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the terminal is part of the original's identity, so two terminals with the same STAN and time do not mix</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#aHoldIsRememberedOnlyAsLongAsItLasts" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>each remembered route expires with the hold, so the memory does not grow for ever</li>
+<li data-practice-case="com.example.practice.HoldRouterTest#aCompletionWithNoKnownHoldStillGoesOut" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a completion whose pre-authorization is not remembered goes out like any other message instead of waiting for ever</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b66">Summary</h2>
+<ul class="items"><li><strong>A pool chooses a link once per request.</strong> It never moves a request a member has taken, so a <code>null</code> is still an unknown outcome to reverse. A retry through the pool is a second purchase, often on another link that approves it at once.</li><li><strong>Usable means connected, and with <code>check-enabled</code> signed on over this connection.</strong> The enabled mark must be the very ready object, so a reconnect takes the link out until it signs on again. A hung host leaves the rotation only if read timeouts, echoes and the sign-on manager say so.</li><li><strong>The strategy decides where traffic goes on failure.</strong> <code>primary-secondary</code> fails back at once; <code>round-robin</code> spreads a dead member's share evenly, and its 2.1.7 counter breaks most requests after 2^31 increments; <code>split-by-divisor</code> and the override fall back to round-robin when their member is down.</li><li><strong>With nothing usable, the pool polls once a second inside the request's own budget</strong> and returns <code>null</code> with nothing sent. Check <code>isConnected()</code> first, and never call <code>request(m, 0)</code>.</li><li><strong>A follow-up that must reach its original's host needs a router of your own</strong>, which remembers each original's link and makes the follow-up wait while that link is down. The STAN is set before the choice, so the pool uses one sequence.</li></ul>
+<h2 id="prose-b68">Reference</h2>
+<p><strong>What <code>MUXPool</code> 2.1.7 reads:</strong></p>
+<div class="scroll"><table><thead><tr><th>Element</th><th>Meaning</th></tr></thead><tbody><tr><td><code>&lt;muxes&gt;</code></td><td>member names, looked up as <code>mux.&lt;name&gt;</code> once at initialisation; a missing name fails the deployment, so the pool's file sorts after its members (<code>25_</code>); redeploy the pool after a member changes (unit c4)</td></tr><tr><td><code>&lt;strategy&gt;</code></td><td><code>primary-secondary</code> (default, also for any unknown text), <code>round-robin</code>, <code>round-robin-with-override</code>, <code>split-by-divisor</code></td></tr><tr><td><code>&lt;space&gt;</code></td><td>where <code>check-enabled</code> reads the ready and enabled entries; default space if absent. Must be the adaptors' space: elsewhere both entries are <code>null</code>, which compare equal, and every connected link passes</td></tr><tr><td><code>&lt;property name=&quot;check-enabled&quot;&gt;</code></td><td><code>true</code> adds the sign-on test below</td></tr><tr><td><code>&lt;split-field&gt;</code></td><td>field whose numeric value picks the member for <code>split-by-divisor</code></td></tr><tr><td><code>&lt;follower-override&gt;</code></td><td>MTIs that <code>round-robin-with-override</code> keeps on their original's link, e.g. <code>0420 0421</code></td></tr><tr><td><code>&lt;original-channel-field&gt;</code></td><td>field holding the ChannelAdaptor name (not the QMUX name) of the original's link; the member whose QMUX <code>&lt;in&gt;</code> is that adaptor's <code>&lt;out&gt;</code> is used if usable. A name that is not registered, or a member that is not a QMUX, makes the pool return no member at all (<code>null</code>, nothing sent). The field travels with the message: a packager with no definition for it fails the pack (<code>null field N packager</code>), so remove it in an outgoing filter or use a field the host ignores</td></tr></tbody></table></div>
+<p><strong>Usable in 2.1.7:</strong></p>
+<div class="scroll"><table><thead><tr><th>Member</th><th>Usable when</th></tr></thead><tbody><tr><td>any <code>MUX</code>, no <code>check-enabled</code></td><td><code>isConnected()</code></td></tr><tr><td>a non-QMUX member (a pool of pools), with <code>check-enabled</code></td><td><code>isConnected()</code></td></tr><tr><td>QMUX with one <code>&lt;ready&gt;</code> name, <code>check-enabled</code></td><td><code>isConnected()</code> and <code>&lt;mux-name&gt;.enabled</code> <code>==</code> the ready entry</td></tr><tr><td>QMUX with several <code>&lt;ready&gt;</code> names, <code>check-enabled</code></td><td><code>isConnected()</code> and <code>&lt;mux-name&gt;.enabled</code> present, whatever it holds</td></tr></tbody></table></div>
+<p><strong>Entry points when nothing is usable:</strong></p>
+<div class="scroll"><table><thead><tr><th>Call</th><th>Result</th></tr></thead><tbody><tr><td><code>request(m, timeout)</code></td><td>polls every second until the deadline, so at least one second, then returns <code>null</code>; nothing sent</td></tr><tr><td><code>request(m, timeout, listener, handBack)</code></td><td>polls the same way, then throws <code>ISOException(&quot;No MUX available&quot;)</code>; the listener is not called</td></tr><tr><td><code>send(m)</code></td><td>looks once, sleeps a second, then throws <code>ISOException(&quot;No available MUX&quot;)</code></td></tr><tr><td><code>isConnected()</code></td><td>answers at once: true when any member is usable</td></tr><tr><td><code>request(m, 0)</code></td><td>calls <code>send(m)</code> and then the normal path: the message can go out twice, both copies without an expiry</td></tr></tbody></table></div>
+<p><strong>The counter.</strong> <code>round-robin</code>, the fallback of <code>split-by-divisor</code> and of the override share one <code>int</code> counter. It is incremented once per round-robin choice (for the other two, only when they fall back), once per skipped member, and once per member on every one-second poll while nothing is usable. Past 2^31 it is negative, and every choice whose remainder is not 0 fails: <code>round-robin</code> throws <code>ArrayIndexOutOfBoundsException</code>, while the other two catch the exception, log it and return no member, so <code>request</code> returns <code>null</code> with nothing sent.</p>
+<p><strong>JMX.</strong> The pool's MBean shows <code>getMuxNames()</code> and <code>getStrategy()</code> (0 primary-secondary, 1 round-robin, 2 round-robin-with-override, 3 split-by-divisor). The members' QMUX counters (unit c11) show where traffic actually went.</p>
+<h2 id="prose-b77">Challenges</h2>
+<ol class="items"><li>Your primary link drops for a few seconds about once an hour. Compare <code>primary-secondary</code> with and without <code>check-enabled</code>, and with <code>round-robin</code>: how many requests move during each blip, and how many unknown outcomes does each choice produce?</li><li>A round-robin pool of four links runs at 400 requests a second, and one link is down for 20 minutes every night with nothing usable for one minute of that. How long until the counter wraps? Work it out, then decide when to schedule restarts.</li><li>Two data centres replicate within 3 seconds. Is that &quot;sharing state&quot; for reversals? Which reversals could still arrive before their original is known, and what would you measure to decide between the pool and a router of your own?</li><li><code>StickyRouter</code> keeps routes in a Space. Design the same memory as a column in the transaction table instead. What becomes simpler, and what happens to a reversal whose original's row has not been written yet?</li></ol>
+<h2 id="prose-b79">Design Note: Why the Pool Knows Only &quot;Usable&quot;</h2>
+<p><code>MUXPool</code> knows nothing about hosts or data centres, only one bit per member: usable or not (14.3). Writing the bit is someone else's job: the adaptor writes the ready entry, and the sign-on manager writes and removes the enabled mark.</p>
+<p>That split keeps the pool under 300 lines in 2.1.7. The adaptor and the sign-on manager need not know the pool exists; they only follow its convention, the <code>&lt;mux-name&gt;.enabled</code> key and the identity rule. A failure the pool should react to needs a component that turns it into the bit, not a change to the pool.</p>
+<p>The price is that the pool cannot link a message to an earlier one. It can route an MTI to a named link, but it doesn't know which link carried a reversal's original, and it returns the same <code>null</code> for &quot;not sent&quot; and &quot;not answered&quot;. Those decisions need the application's knowledge, and in 2.1.7 the only place to put that knowledge is a <code>MUX</code> of your own in front of, or instead of, the pool.</p>
+</section>
+<div data-workspace role="dialog" aria-modal="true" aria-labelledby="practice-workspace-title" hidden>
+<div data-workspace-part="bar"><button type="button" data-workspace-act="statement" aria-expanded="true" hidden><span data-workspace-word="hide">Hide description</span><span data-workspace-word="show" hidden>Show description</span></button><h2 id="practice-workspace-title" data-workspace-part="title"></h2>
+<p data-workspace-part="acts"><button type="button" data-workspace-act="previous">Previous</button><button type="button" data-workspace-act="next">Next</button><button type="button" data-workspace-act="close">Close</button></p></div>
+<div data-workspace-part="divider" role="separator" aria-orientation="vertical" aria-label="Resize the description" tabindex="0" hidden></div>
+<button type="button" data-workspace-act="reopen" aria-expanded="false" hidden><span data-workspace-part="edge-mark" aria-hidden="true">&#8250;</span><span data-workspace-part="edge-word">Show description</span></button>
+</div>
+</main>
+<section data-section="read-mark" data-unit="jpos-client/unit-14" hidden>
+<p><button type="button" aria-pressed="false"><span data-state="unread">Mark as read</span><span data-state="read" hidden>Read. Press again to unmark</span></button></p>
+<p>Your marks are kept in this browser on this machine, not in the repository. Clearing its site data clears them.</p>
+</section>
+<nav aria-label="Between units"><a rel="prev" href="jpos-client.unit-13-packagers-in-depth.unit.html"><span>Previous</span> Packagers in Depth</a><a rel="up" href="../../index.html"><span>Contents</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a><a rel="next" href="jpos-client.unit-15-the-logon-lifecycle.unit.html"><span>Up next</span> The Logon Lifecycle</a></nav>
+<script src="../../.studyforge/assets/page.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Pass on only answers that can be checked",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The network now signs its answers, with a MAC key it shares with us (`zak.network`). The terminals check ours, each under its own key (`tak.` plus its terminal ID). Since the change, the terminals' support line hears two complaints: some of our answers fail the terminal's check, and the network team asks why we passed on an answer of theirs that someone had changed on the way."
+    },
+    {
+      "type": "para",
+      "text": "`src/main/java/com/example/practice/NetworkAnswers.java` holds two participants. `CheckNetworkMac` stands right after `QueryHost`; `SignForTerminal` stands right before `SendResponse`. Between them, an abort participant answers `91` when it finds no response in the Context. Finish the parts marked `TODO`. `mac(message, key)` and `key(alias)` are given. About fifteen lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests deploy a real TransactionManager, `QueryHost` and QMUX in the test's own JVM, with a real software security module. The network on the far side signs, declines, or sends answers that are not what it signed."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/** The two participants that handle MACs on the way back: one after QueryHost, one right before SendResponse. */\npublic final class NetworkAnswers {\n    private NetworkAnswers() { }\n\n    /** Right after QueryHost. The network signs its answers with the key it shares with us, \"zak.network\". */\n    public static class CheckNetworkMac implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(ContextConstants.RESPONSE.toString());\n            if (answer == null)\n                return ABORTED | NO_JOIN | READONLY;          // QueryHost got nothing: the chain answers 91\n            try {\n                byte[] received = answer.getBytes(64);\n                if (received != null && MessageDigest.isEqual(received, mac(answer, key(\"zak.network\"))))\n                    return PREPARED | NO_JOIN | READONLY;\n            } catch (Exception e) {\n                ctx.log(e.getClass().getSimpleName());\n            }\n            ctx.remove(ContextConstants.RESPONSE.toString());\n            return ABORTED | NO_JOIN;\n        }\n    }\n\n    /** Right before SendResponse: the terminal checks every answer under its own key, \"tak.\" + its terminal ID. */\n    public static class SignForTerminal implements AbortParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            sign((Context) context);\n            return PREPARED | NO_JOIN;\n        }\n\n        @Override\n        public int prepareForAbort(long id, Serializable context) {\n            sign((Context) context);\n            return ABORTED | NO_JOIN;\n        }\n\n        void sign(Context ctx) {\n            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n            ISOMsg answer = ctx.get(ContextConstants.RESPONSE.toString());\n            if (answer == null)\n                return;\n            try {\n                answer.set(64, mac(answer, key(\"tak.\" + request.getString(41))));\n            } catch (Exception e) {\n                ctx.log(e.getClass().getSimpleName());\n            }\n        }\n    }\n\n    // ---- given ----\n\n    /** The MAC of m as both links pack it: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] mac(ISOMsg m, SecureDESKey key) throws Exception {\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        byte[] input = Arrays.copyOf(packed, packed.length - 16);      // field 64 travels as 16 hex characters\n        SMAdapter<SecureDESKey> hsm = NameRegistrar.get(\"hsm\");\n        return hsm.generateCBC_MAC(input, key);\n    }\n\n    static SecureDESKey key(String alias) throws Exception {\n        SecureKeyStore keys = NameRegistrar.get(\"ks\");\n        return keys.getKey(alias);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/** The two participants that handle MACs on the way back: one after QueryHost, one right before SendResponse. */\npublic final class NetworkAnswers {\n    private NetworkAnswers() { }\n\n    /** Right after QueryHost. The network signs its answers with the key it shares with us, \"zak.network\". */\n    public static class CheckNetworkMac implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(ContextConstants.RESPONSE.toString());\n            if (answer == null)\n                return ABORTED | NO_JOIN | READONLY;          // QueryHost got nothing: the chain answers 91\n            // TODO: Today every answer QueryHost brings back goes on to the terminal. Decide which\n            //       ones may. When this one may not, the terminal must still get an answer, and\n            //       the abort participant further down answers 91 only where it finds no RESPONSE.\n            throw new IllegalStateException(\"TODO: CheckNetworkMac.prepare\");\n        }\n    }\n\n    /** Right before SendResponse: the terminal checks every answer under its own key, \"tak.\" + its terminal ID. */\n    public static class SignForTerminal implements TransactionParticipant {\n        // TODO: Terminals report that some of our answers can't be checked. Make sure every answer\n        //       the terminal receives gets here.\n        @Override\n        public int prepare(long id, Serializable context) {\n            sign((Context) context);\n            return PREPARED | NO_JOIN;\n        }\n\n        void sign(Context ctx) {\n            // TODO: the answer in the Context leaves with a MAC its terminal can check.\n            throw new IllegalStateException(\"TODO: SignForTerminal.sign\");\n        }\n    }\n\n    // ---- given ----\n\n    /** The MAC of m as both links pack it: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] mac(ISOMsg m, SecureDESKey key) throws Exception {\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        byte[] input = Arrays.copyOf(packed, packed.length - 16);      // field 64 travels as 16 hex characters\n        SMAdapter<SecureDESKey> hsm = NameRegistrar.get(\"hsm\");\n        return hsm.generateCBC_MAC(input, key);\n    }\n\n    static SecureDESKey key(String alias) throws Exception {\n        SecureKeyStore keys = NameRegistrar.get(\"ks\");\n        return keys.getKey(alias);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "f1f01d391e646b4c89d86d63c417057caf94b57c403acf16a41f8e7a86454c10",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SecureDESKey;\nimport org.jpos.security.SecureKeyStore;\nimport org.jpos.transaction.AbortParticipant;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\nimport org.jpos.util.NameRegistrar;\n\nimport java.io.Serializable;\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\n/** The two participants that handle MACs on the way back: one after QueryHost, one right before SendResponse. */\npublic final class NetworkAnswers {\n    private NetworkAnswers() { }\n\n    /** Right after QueryHost. The network signs its answers with the key it shares with us, \"zak.network\". */\n    public static class CheckNetworkMac implements TransactionParticipant {\n        @Override\n        public int prepare(long id, Serializable context) {\n            Context ctx = (Context) context;\n            ISOMsg answer = ctx.get(ContextConstants.RESPONSE.toString());\n            if (answer == null)\n                return ABORTED | NO_JOIN | READONLY;          // QueryHost got nothing: the chain answers 91\n            // TODO: Today every answer QueryHost brings back goes on to the terminal. Decide which\n            //       ones may. When this one may not, the terminal must still get an answer, and\n            //       the abort participant further down answers 91 only where it finds no RESPONSE.\n            throw new IllegalStateException(\"TODO: CheckNetworkMac.prepare\");\n        }\n    }\n\n    /** Right before SendResponse: the terminal checks every answer under its own key, \"tak.\" + its terminal ID. */\n    public static class SignForTerminal implements TransactionParticipant {\n        // TODO: Terminals report that some of our answers can't be checked. Make sure every answer\n        //       the terminal receives gets here.\n        @Override\n        public int prepare(long id, Serializable context) {\n            sign((Context) context);\n            return PREPARED | NO_JOIN;\n        }\n\n        void sign(Context ctx) {\n            // TODO: the answer in the Context leaves with a MAC its terminal can check.\n            throw new IllegalStateException(\"TODO: SignForTerminal.sign\");\n        }\n    }\n\n    // ---- given ----\n\n    /** The MAC of m as both links pack it: the packed message up to field 64, with bit 64 set (unit c7). */\n    static byte[] mac(ISOMsg m, SecureDESKey key) throws Exception {\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        copy.set(64, new byte[8]);\n        byte[] packed = copy.pack();\n        byte[] input = Arrays.copyOf(packed, packed.length - 16);      // field 64 travels as 16 hex characters\n        SMAdapter<SecureDESKey> hsm = NameRegistrar.get(\"hsm\");\n        return hsm.generateCBC_MAC(input, key);\n    }\n\n    static SecureDESKey key(String alias) throws Exception {\n        SecureKeyStore keys = NameRegistrar.get(\"ks\");\n        return keys.getKey(alias);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-07/practice-2/src/main/java/com/example/practice/NetworkAnswers.java",
+    "test_path": "practice/jpos-server/prose/unit-07/practice-2/src/test/java/com/example/practice/NetworkAnswersTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-07/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-07/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.NetworkAnswersTest#theNetworksApprovalReachesTheTerminal",
+        "kind": "main",
+        "says": "the network's approval reaches each terminal with a MAC that verifies under that terminal's own key"
+      },
+      {
+        "id": "com.example.practice.NetworkAnswersTest#theNetworksDeclineReachesTheTerminal",
+        "kind": "main",
+        "says": "the network's decline reaches the terminal as a decline it can check"
+      },
+      {
+        "id": "com.example.practice.NetworkAnswersTest#anAnswerChangedOnTheWayIsNotPassedOn",
+        "kind": "edge",
+        "says": "an answer that fails the network's MAC is not passed on; the terminal gets 91 instead"
+      },
+      {
+        "id": "com.example.practice.NetworkAnswersTest#anUnsignedAnswerIsNotPassedOn",
+        "kind": "edge",
+        "says": "an answer that carries no MAC from the network is treated like one with a wrong MAC"
+      },
+      {
+        "id": "com.example.practice.NetworkAnswersTest#aDeclineOfOurOwnCanBeChecked",
+        "kind": "edge",
+        "says": "a decline the server makes itself on the abort path also reaches the terminal signed"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-07/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s7.md",
+      "section": "7.4 Every Response Is Signed, on the Abort Path Too"
+    },
+    "concepts": [
+      "Every answer is signed under its terminal's key by an abort participant right before SendResponse; an unsigned decline is an unknown outcome to the terminal, and a network answer is believed only when its own MAC verifies."
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "ordinal": 3,
+  "title": "Check yourself: where did the request stop?",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-space-mismatch",
+        "stem": "After a change, the IncomingListener in 50_server.xml writes to queue auth in the default Space, and 30_txnmgr.xml reads queue auth from the Space tspace:switch. Both files deploy without a warning. A terminal sends a purchase. What does the server's log show for it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A receive by the channel and nothing after it, since no session reads the queue the Context went to",
+            "correct": true,
+            "says": "the listener and the TransactionManager meet only in a queue of one Space; with different Spaces the Context waits where no session reads and expires"
+          },
+          {
+            "id": "b",
+            "text": "A receive by the channel and nothing after it, since the listener drops a message no session has asked for",
+            "correct": false,
+            "says": "the listener never checks for a reader; it writes the Context to the queue and returns"
+          },
+          {
+            "id": "c",
+            "text": "A receive, a TransactionManager event and a send, since the shared queue name is what ties the two together",
+            "correct": false,
+            "says": "the queue name and the Space together are the link; the same name in another Space is another queue"
+          },
+          {
+            "id": "d",
+            "text": "A receive, a TransactionManager event and a send, since every Space name refers to the one default Space",
+            "correct": false,
+            "says": "tspace:switch is a Space of its own, separate from the default Space"
+          }
+        ],
+        "origin": {
+          "path": "src/s1.md",
+          "section": "1.2 The Listener and the TransactionManager Meet Only in a Queue"
+        }
+      },
+      {
+        "id": "q-missing-jar",
+        "stem": "A new deployment script forgets to copy the jar that holds your participants into lib/. Q2 starts and lists 30_txnmgr.xml and 50_server.xml as deployed. What do you find in deploy/ and on port 8000?",
+        "options": [
+          {
+            "id": "a",
+            "text": "30_txnmgr.xml renamed with .BAD, and nothing on port 8000, since Q2 stops deploying after a failed file",
+            "correct": false,
+            "says": "the file could be read, so it keeps its name, and Q2 deploys the following files as usual"
+          },
+          {
+            "id": "b",
+            "text": "30_txnmgr.xml renamed with .BAD, and the port accepting terminals, since each file is deployed on its own",
+            "correct": false,
+            "says": "only a file Q2 can't read or build is renamed; a failure inside init leaves the name and one warning"
+          },
+          {
+            "id": "c",
+            "text": "30_txnmgr.xml under its own name, and nothing on port 8000, since Q2 stops deploying after a failed file",
+            "correct": false,
+            "says": "QBeanSupport logs the failure and Q2 carries on; QServer starts and listens"
+          },
+          {
+            "id": "d",
+            "text": "30_txnmgr.xml under its own name, and the port accepting terminals, since each file is deployed on its own",
+            "correct": true,
+            "says": "the TransactionManager fails in init and logs one warning, the file keeps its name, and QServer starts and feeds a queue nobody reads"
+          }
+        ],
+        "origin": {
+          "path": "src/s1.md",
+          "section": "1.3.1 Spot the Problem: The Package Rename"
+        }
+      },
+      {
+        "id": "q-context-dump",
+        "stem": "A server's 00_logger.xml lists ProtectedLogListener first, protecting fields 2 and 35. Its 30_txnmgr.xml sets neither debug nor debug-context. A purchase with the test card 5555555555554444 is refused with 12. Where does log/q2.log show that card number in clear?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nowhere in the file, since the masking listener runs before every writer",
+            "correct": false,
+            "says": "the listener masks only messages that are themselves in the event; the Context in the transaction event prints its messages unmasked"
+          },
+          {
+            "id": "b",
+            "text": "Nowhere in the file, since a refused purchase writes no transaction event",
+            "correct": false,
+            "says": "the TransactionManager writes an event for aborted transactions too, with the Context in it by default"
+          },
+          {
+            "id": "c",
+            "text": "In the transaction event, since the Context it holds prints its messages unmasked",
+            "correct": true,
+            "says": "debug-context defaults to debug, which defaults to true, and ProtectedLogListener doesn't look inside a Context"
+          },
+          {
+            "id": "d",
+            "text": "In the channel's receive, since the masking listener handles only the transaction event",
+            "correct": false,
+            "says": "the channel's receive holds the message itself, which the listener masks"
+          }
+        ],
+        "origin": {
+          "path": "src/s1.md",
+          "section": "1.6 The Transaction Trace Dumps What the Log Filter Can't Mask"
+        }
+      },
+      {
+        "id": "q-busy-sessions",
+        "stem": "Both TransactionManager sessions are stuck for a minute on a database that stopped answering. The IncomingListener's timeout is 15000. A terminal sends an echo and waits 30 seconds. What happens to the echo?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It expires unread after 15 seconds, since that is how long a Context may wait in the queue",
+            "correct": true,
+            "says": "the listener writes the Context with its timeout as the lifetime; no session takes it in time, so it expires and the terminal times out"
+          },
+          {
+            "id": "b",
+            "text": "It expires unread after 15 seconds, since the listener closes a connection that has waited that long",
+            "correct": false,
+            "says": "the timeout is the Context's lifetime in the queue; the listener doesn't touch the connection"
+          },
+          {
+            "id": "c",
+            "text": "It is answered once a session frees up, since the queue keeps each Context until a session takes it",
+            "correct": false,
+            "says": "the Context has a lifetime; after 15 seconds it is gone, long before a session frees up"
+          },
+          {
+            "id": "d",
+            "text": "It is answered once a session frees up, since an echo needs no participant that uses the database",
+            "correct": false,
+            "says": "every request, an echo included, waits in the same queue for a free session"
+          }
+        ],
+        "origin": {
+          "path": "src/s1.md",
+          "section": "1.2 The Listener and the TransactionManager Meet Only in a Queue"
+        }
+      }
+    ]
+  }
+}

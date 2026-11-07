@@ -1,79 +1,189 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c3.md",
   "kind": "code",
+  "quiz": "channel-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c3.md": "sha256:aefd0cf9b166cecaded96210bf23fb6b6d81dc6d45d912efb9fb9b79a966184e"
+    "src/c3.md": "sha256:5f72bf5814f342e020ffc4e511af8146cdb08f3f6cea08385bef3c50bac9954e"
   },
   "plan": {
     "plan_api": 2,
     "tier": "advanced",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "always-give-back",
-        "says": "A borrowed channel always goes back to the pool, even when the work done with it fails, and a channel that has dropped is discarded rather than handed out.",
+        "id": "adaptor-one-reader",
+        "says": "A ChannelAdaptor runs one Receiver that reads continuously into <out> and one Sender that sends from <in>; application code only touches the queues.",
         "basis": [
-          "example:src/c3.md:4",
-          "section:3.1.3 Advanced Usage with Connection Pool"
+          "section:3.4 A Link Has One Reader That Never Stops: the ChannelAdaptor",
+          "example:src/c3.md:9"
         ],
-        "exercise": "pooled-channels",
-        "reason": null
+        "exercise": null,
+        "reason": "it is the shape of a deployment that only a running Q2 with a socket shows; the queue wiring is practised with QMUX in unit c4"
       },
       {
-        "id": "client-request-lifecycle",
-        "says": "A client connects its channel, sends a request with a timeout, treats a null response as no answer, and disconnects when done.",
+        "id": "adaptor-reconnect-ready",
+        "says": "The adaptor reconnects by itself after reconnect-delay and puts a new Date under <name>.ready for each connection.",
         "basis": [
+          "section:3.5 The Adaptor Reconnects and Announces the Link",
+          "example:src/c3.md:10"
+        ],
+        "exercise": null,
+        "reason": "it needs Q2, a socket and real time; acting on a new ready object is practised in unit c11"
+      },
+      {
+        "id": "channel-frames-packager-encodes",
+        "says": "The channel decides where a message ends and the packager what is inside it; a 2-byte binary length is an unsigned number, high byte first, and a wrong frame shows up as silence.",
+        "basis": [
+          "section:3.1 The Channel Decides Where a Message Ends",
           "example:src/c3.md:1",
-          "section:3.1.1 Basic Implementation"
+          "example:src/c3.md:2"
         ],
-        "exercise": null,
-        "reason": "it needs a live peer to answer, and a graded run is offline; the null-means-no-answer idea is practised on page 4"
-      },
-      {
-        "id": "pool-keeps-connections",
-        "says": "A connection pool exists to keep channels connected between uses, so a borrowed channel is connected once and reused rather than reconnected for every request.",
-        "basis": [
-          "example:src/c3.md:3",
-          "section:3.1.3 Advanced Usage with Connection Pool"
-        ],
-        "exercise": "pooled-channels",
+        "exercise": "two-byte-frames",
         "reason": null
       },
       {
-        "id": "tls-channel",
-        "says": "Secure communication wraps the channel in TLS, configured with a keystore and a truststore.",
+        "id": "no-raw-channel-pool",
+        "says": "A pool of raw channels mixes answers between borrowers and loses the answers that come after a read timeout, because the 2.1.7 channel closes its socket when the timeout fires.",
         "basis": [
-          "example:src/c3.md:5",
-          "example:src/c3.md:6",
-          "section:3.2 SSL/TLS on a Channel (org.jpos.iso.channel.NACChannel)"
+          "section:3.3.1 Spot the Problem: A Pool of Channels",
+          "example:src/c3.md:7",
+          "example:src/c3.md:8"
         ],
-        "exercise": null,
-        "reason": "it needs certificates and a live TLS peer, which a graded offline run has not"
+        "exercise": "channel-quiz",
+        "reason": null
+      },
+      {
+        "id": "one-read-not-one-message",
+        "says": "A receiver reads exactly the announced length, across as many reads as it takes and one frame per call, and a stream that ends early is an error.",
+        "basis": [
+          "section:3.2 One Read Is Not One Message",
+          "example:src/c3.md:3"
+        ],
+        "exercise": "two-byte-frames",
+        "reason": null
+      },
+      {
+        "id": "receive-next-frame",
+        "says": "receive() returns the next frame, not your answer, never returns null, and its read timeout measures silence; silence and a closed connection are different exceptions.",
+        "basis": [
+          "section:3.3 `receive()` Returns the Next Frame, Not Your Answer",
+          "example:src/c3.md:5",
+          "example:src/c3.md:6"
+        ],
+        "exercise": "echo-probe",
+        "reason": null
+      },
+      {
+        "id": "settings-that-do-nothing",
+        "says": "A timeout attribute on <channel> and a <ready> element on the adaptor are ignored: the read timeout is the timeout property, the ready key is always <name>.ready.",
+        "basis": [
+          "section:3.5.1 Two Settings That Do Nothing",
+          "example:src/c3.md:11",
+          "example:src/c3.md:12"
+        ],
+        "exercise": "channel-quiz",
+        "reason": null
+      },
+      {
+        "id": "tls-serverauth",
+        "says": "GenericSSLSocketFactory accepts any certificate unless serverauth is true, then trusts the keystore and compares servername with the CN; passwords come from the environment.",
+        "basis": [
+          "section:3.6 A TLS Channel Checks the Host Only When You Tell It To",
+          "example:src/c3.md:13",
+          "example:src/c3.md:14",
+          "example:src/c3.md:15"
+        ],
+        "exercise": "channel-quiz",
+        "reason": null
+      },
+      {
+        "id": "zero-length-keep-alive",
+        "says": "A zero-length frame is a keep-alive: ASCIIChannel skips it, a binary channel needs expect-keep-alive or the adaptor drops the link.",
+        "basis": [
+          "section:3.2 One Read Is Not One Message",
+          "example:src/c3.md:4"
+        ],
+        "exercise": "channel-quiz",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "pooled-channels",
+        "name": "two-byte-frames",
         "aspects": [
-          "always-give-back",
-          "pool-keeps-connections"
+          "channel-frames-packager-encodes",
+          "one-read-not-one-message"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "echo-probe",
+        "aspects": [
+          "receive-next-frame"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "channel-quiz",
+        "aspects": [
+          "no-raw-channel-pool",
+          "settings-that-do-nothing",
+          "tls-serverauth",
+          "zero-length-keep-alive"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-03/practice-1"
+    "exercises/jpos-client/prose/unit-03/practice-1",
+    "exercises/jpos-client/prose/unit-03/practice-2",
+    "exercises/jpos-client/prose/unit-03/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-03/practice-1",
       "origin": {
         "path": "src/c3.md",
-        "section": "3.1.3 Advanced Usage with Connection Pool"
+        "section": "3.2 One Read Is Not One Message"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-03/practice-2",
+      "origin": {
+        "path": "src/c3.md",
+        "section": "3.3 `receive()` Returns the Next Frame, Not Your Answer"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-03/practice-3:q-slow-answer-in-a-pool",
+      "origin": {
+        "path": "src/c3.md",
+        "section": "3.3.1 Spot the Problem: A Pool of Channels"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-03/practice-3:q-timeout-attribute",
+      "origin": {
+        "path": "src/c3.md",
+        "section": "3.5.1 Two Settings That Do Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-03/practice-3:q-tls-machine-on-the-path",
+      "origin": {
+        "path": "src/c3.md",
+        "section": "3.6 A TLS Channel Checks the Host Only When You Tell It To"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-03/practice-3:q-binary-keep-alive",
+      "origin": {
+        "path": "src/c3.md",
+        "section": "3.2 One Read Is Not One Message"
       }
     }
   ],

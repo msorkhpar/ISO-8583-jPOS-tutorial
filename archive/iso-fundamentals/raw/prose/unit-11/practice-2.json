@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Route cards by an account-range file",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your switch's processor sends its routing table as an account-range file instead of a list of prefixes. Each row gives the first and the last eight-digit card prefix of a range, both included, and the destination for the cards in it. A bank's own range may sit inside a network's range. The file arrives every night and is put into service while authorizations keep coming."
+    },
+    {
+      "type": "para",
+      "text": "Finish the three methods marked `TODO` in `src/main/java/com/example/practice/RangeRouter.java`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`holds`: whether a card belongs to a range;",
+        "`destinationFor`: where a card goes, or `null` when no range holds it;",
+        "`reload`: puts a newly parsed file into service."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, the bank's own cards reach its own host, every card at the edge of a range is routed by that range, and no lookup ever sees a file that is half read. About twelve lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        List<Range> table = ranges;\n        Range best = null;\n        for (Range r : table) {\n            if (holds(r, pan) && (best == null || width(r) < width(best)))\n                best = r;\n        }\n        return best == null ? null : best.destination();\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        ranges = List.copyOf(file);\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        String prefix = pan.substring(0, 8);\n        return prefix.compareTo(r.low()) >= 0 && prefix.compareTo(r.high()) <= 0;\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        // TODO: The bank's own cards have a range of their own inside the network's range. Every\n        //       card must reach the destination of the range it was issued under.\n        throw new IllegalStateException(\"TODO: destinationFor\");\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        // TODO: The file comes from a parser that reuses its list for the next file. A lookup\n        //       must always see one whole version of the file.\n        throw new IllegalStateException(\"TODO: reload\");\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        // TODO: Decide whether the card is in the range, as the file defines its rows.\n        throw new IllegalStateException(\"TODO: holds\");\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b74274e3baf701e5beb08bff5f919082839edfa6eac94c805ab73c65272fe731",
+  "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        // TODO: The bank's own cards have a range of their own inside the network's range. Every\n        //       card must reach the destination of the range it was issued under.\n        throw new IllegalStateException(\"TODO: destinationFor\");\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        // TODO: The file comes from a parser that reuses its list for the next file. A lookup\n        //       must always see one whole version of the file.\n        throw new IllegalStateException(\"TODO: reload\");\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        // TODO: Decide whether the card is in the range, as the file defines its rows.\n        throw new IllegalStateException(\"TODO: holds\");\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/com/example/practice/RangeRouter.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-11/practice-2/src/test/java/com/example/practice/RangeRouterTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-11/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-11/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.RangeRouterTest#cardsGoToTheRangeThatHoldsThem",
+        "kind": "main",
+        "says": "a card goes to the destination of the range that holds it, and a reloaded file replaces the old one"
+      },
+      {
+        "id": "com.example.practice.RangeRouterTest#theNarrowestRangeDecidesInEitherOrder",
+        "kind": "edge",
+        "says": "when ranges nest, the most specific one decides, whatever the order of the file's rows"
+      },
+      {
+        "id": "com.example.practice.RangeRouterTest#aRangeIncludesBothOfItsEnds",
+        "kind": "edge",
+        "says": "the first and the last prefix of a row both belong to its range"
+      },
+      {
+        "id": "com.example.practice.RangeRouterTest#aLoadedFileStaysAsItWasLoaded",
+        "kind": "edge",
+        "says": "a loaded table is the router's own copy, replaced whole, so a change to the parser's list does not reach it"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-11/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/11.md",
+      "section": "11.2. A Card Goes to the Destination of Its Longest Matching Prefix"
+    },
+    "concepts": [
+      "A card goes to the destination of the most specific entry that holds it, whatever the entry's length or its place in the table.",
+      "Routing tables are kept in memory and replaced whole, so a lookup sees one version of the table."
+    ]
+  }
+}

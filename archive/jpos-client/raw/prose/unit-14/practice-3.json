@@ -1,0 +1,160 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Send each completion to the data centre that holds its pre-authorization",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A hotel chain pre-authorizes each stay at check-in (an 0100 that places a hold on the card) and completes it at check-out with an 0220 whose field 90 points at the 0100. The acquirer runs two data centres, and the chain has one link to each. The data centres don't share their holds. Since the second link went live, some guests are charged at check-out while the hold from check-in stays on their card for a week, and the acquirer's answer to some completions is \"original not found\"."
+    },
+    {
+      "type": "para",
+      "text": "`HoldRouter` in `src/main/java/com/example/practice/HoldRouter.java` is the chain's own `MUX` in front of the two links. It already sends every message out in turn. Finish the three methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`remember(...)`: what the router keeps when a pre-authorization goes out;",
+        "`holdOf(...)`: how a completion finds it again;",
+        "`forCompletion(...)`: where a completion goes now."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Completions that get no answer stay in the chain's advice queue, which calls `request` again later. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests run two real QMUXes with a test host behind each, one per data centre."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.io.IOException;\nimport java.util.concurrent.atomic.AtomicInteger;\n\n/**\n * Sends a hotel chain's card traffic to the acquirer's data centres, one link per data centre.\n * A pre-authorization (0100) places a hold at the data centre that receives it; the data centres\n * do not share their holds. A completion (0220 or 0221 with field 90) settles that hold.\n */\npublic class HoldRouter implements MUX {\n    private final Space<String, Object> holds;\n    private final long holdTtl;\n    private final MUX[] links;\n    private final AtomicInteger next = new AtomicInteger();\n\n    public HoldRouter(Space<String, Object> holds, long holdTtl, MUX... links) {\n        this.holds = holds;\n        this.holdTtl = holdTtl;\n        this.links = links.clone();\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        MUX link = route(m);\n        return link == null ? null : link.request(m, timeout);\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack) throws ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.request(m, timeout, l, handBack);\n    }\n\n    @Override\n    public void send(ISOMsg m) throws IOException, ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.send(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        for (MUX link : links)\n            if (link.isConnected())\n                return true;\n        return false;\n    }\n\n    private MUX route(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if ((mti.equals(\"0220\") || mti.equals(\"0221\")) && m.hasField(90))\n            return forCompletion(m);\n        int i = nextConnected();\n        if (i < 0)\n            return null;\n        if (mti.equals(\"0100\"))\n            remember(m, i);\n        return links[i];\n    }\n\n    /** The index of the next connected link in turn, or -1 when none is connected. */\n    int nextConnected() {\n        int start = next.getAndIncrement();\n        for (int k = 0; k < links.length; k++) {\n            int i = Math.floorMod(start + k, links.length);\n            if (links[i].isConnected())\n                return i;\n        }\n        return -1;\n    }\n\n    /** The space key of the hold placed by terminal `terminal`'s message with this STAN and time. */\n    static String key(String terminal, String stan, String time) {\n        return \"hold.\" + terminal + \".\" + stan + \".\" + time;\n    }\n\n    /** A pre-authorization is about to go out on links[index]. */\n    void remember(ISOMsg preauth, int index) {\n        holds.put(key(preauth.getString(41), preauth.getString(11), preauth.getString(7)), index, holdTtl);\n    }\n\n    /** The space key under which the completion's pre-authorization was remembered. */\n    String holdOf(ISOMsg completion) {\n        String de90 = completion.getString(90);\n        return key(completion.getString(41), de90.substring(4, 10), de90.substring(10, 20));\n    }\n\n    /** The link a completion goes out on now, or null to send nothing this time. */\n    MUX forCompletion(ISOMsg completion) {\n        Integer index = (Integer) holds.rdp(holdOf(completion));\n        if (index == null) {\n            int i = nextConnected();\n            return i < 0 ? null : links[i];\n        }\n        return links[index].isConnected() ? links[index] : null;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.io.IOException;\nimport java.util.concurrent.atomic.AtomicInteger;\n\n/**\n * Sends a hotel chain's card traffic to the acquirer's data centres, one link per data centre.\n * A pre-authorization (0100) places a hold at the data centre that receives it; the data centres\n * do not share their holds. A completion (0220 or 0221 with field 90) settles that hold.\n */\npublic class HoldRouter implements MUX {\n    private final Space<String, Object> holds;\n    private final long holdTtl;\n    private final MUX[] links;\n    private final AtomicInteger next = new AtomicInteger();\n\n    public HoldRouter(Space<String, Object> holds, long holdTtl, MUX... links) {\n        this.holds = holds;\n        this.holdTtl = holdTtl;\n        this.links = links.clone();\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        MUX link = route(m);\n        return link == null ? null : link.request(m, timeout);\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack) throws ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.request(m, timeout, l, handBack);\n    }\n\n    @Override\n    public void send(ISOMsg m) throws IOException, ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.send(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        for (MUX link : links)\n            if (link.isConnected())\n                return true;\n        return false;\n    }\n\n    private MUX route(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if ((mti.equals(\"0220\") || mti.equals(\"0221\")) && m.hasField(90))\n            return forCompletion(m);\n        int i = nextConnected();\n        if (i < 0)\n            return null;\n        if (mti.equals(\"0100\"))\n            remember(m, i);\n        return links[i];\n    }\n\n    /** The index of the next connected link in turn, or -1 when none is connected. */\n    int nextConnected() {\n        int start = next.getAndIncrement();\n        for (int k = 0; k < links.length; k++) {\n            int i = Math.floorMod(start + k, links.length);\n            if (links[i].isConnected())\n                return i;\n        }\n        return -1;\n    }\n\n    /** The space key of the hold placed by terminal `terminal`'s message with this STAN and time. */\n    static String key(String terminal, String stan, String time) {\n        return \"hold.\" + terminal + \".\" + stan + \".\" + time;\n    }\n\n    /** A pre-authorization is about to go out on links[index]. */\n    void remember(ISOMsg preauth, int index) {\n        // TODO: Keep what forCompletion will need. Holds expire at the acquirer after holdTtl\n        //       milliseconds, and the router runs for months.\n        throw new IllegalStateException(\"TODO: remember\");\n    }\n\n    /** The space key under which the completion's pre-authorization was remembered. */\n    String holdOf(ISOMsg completion) {\n        // TODO: The completion is a new message: its own STAN and time are not the\n        //       pre-authorization's. Field 90 is laid out as in unit c12.\n        throw new IllegalStateException(\"TODO: holdOf\");\n    }\n\n    /** The link a completion goes out on now, or null to send nothing this time. */\n    MUX forCompletion(ISOMsg completion) {\n        // TODO: A completion must settle its hold, which only one data centre has. A completion\n        //       whose pre-authorization this router never saw (or no longer remembers) goes out\n        //       like any other message. When the answer is null, the advice queue keeps the\n        //       completion and calls request again later.\n        throw new IllegalStateException(\"TODO: forCompletion\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "bc40e601a3c944002420f515040cdaf1390843dba1c1c0b338bf7a4cdad2bce1",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.Space;\n\nimport java.io.IOException;\nimport java.util.concurrent.atomic.AtomicInteger;\n\n/**\n * Sends a hotel chain's card traffic to the acquirer's data centres, one link per data centre.\n * A pre-authorization (0100) places a hold at the data centre that receives it; the data centres\n * do not share their holds. A completion (0220 or 0221 with field 90) settles that hold.\n */\npublic class HoldRouter implements MUX {\n    private final Space<String, Object> holds;\n    private final long holdTtl;\n    private final MUX[] links;\n    private final AtomicInteger next = new AtomicInteger();\n\n    public HoldRouter(Space<String, Object> holds, long holdTtl, MUX... links) {\n        this.holds = holds;\n        this.holdTtl = holdTtl;\n        this.links = links.clone();\n    }\n\n    @Override\n    public ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        MUX link = route(m);\n        return link == null ? null : link.request(m, timeout);\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack) throws ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.request(m, timeout, l, handBack);\n    }\n\n    @Override\n    public void send(ISOMsg m) throws IOException, ISOException {\n        MUX link = route(m);\n        if (link == null)\n            throw new ISOException(\"no link for this message now\");\n        link.send(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        for (MUX link : links)\n            if (link.isConnected())\n                return true;\n        return false;\n    }\n\n    private MUX route(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if ((mti.equals(\"0220\") || mti.equals(\"0221\")) && m.hasField(90))\n            return forCompletion(m);\n        int i = nextConnected();\n        if (i < 0)\n            return null;\n        if (mti.equals(\"0100\"))\n            remember(m, i);\n        return links[i];\n    }\n\n    /** The index of the next connected link in turn, or -1 when none is connected. */\n    int nextConnected() {\n        int start = next.getAndIncrement();\n        for (int k = 0; k < links.length; k++) {\n            int i = Math.floorMod(start + k, links.length);\n            if (links[i].isConnected())\n                return i;\n        }\n        return -1;\n    }\n\n    /** The space key of the hold placed by terminal `terminal`'s message with this STAN and time. */\n    static String key(String terminal, String stan, String time) {\n        return \"hold.\" + terminal + \".\" + stan + \".\" + time;\n    }\n\n    /** A pre-authorization is about to go out on links[index]. */\n    void remember(ISOMsg preauth, int index) {\n        // TODO: Keep what forCompletion will need. Holds expire at the acquirer after holdTtl\n        //       milliseconds, and the router runs for months.\n        throw new IllegalStateException(\"TODO: remember\");\n    }\n\n    /** The space key under which the completion's pre-authorization was remembered. */\n    String holdOf(ISOMsg completion) {\n        // TODO: The completion is a new message: its own STAN and time are not the\n        //       pre-authorization's. Field 90 is laid out as in unit c12.\n        throw new IllegalStateException(\"TODO: holdOf\");\n    }\n\n    /** The link a completion goes out on now, or null to send nothing this time. */\n    MUX forCompletion(ISOMsg completion) {\n        // TODO: A completion must settle its hold, which only one data centre has. A completion\n        //       whose pre-authorization this router never saw (or no longer remembers) goes out\n        //       like any other message. When the answer is null, the advice queue keeps the\n        //       completion and calls request again later.\n        throw new IllegalStateException(\"TODO: forCompletion\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-14/practice-3/src/main/java/com/example/practice/HoldRouter.java",
+    "test_path": "practice/jpos-client/prose/unit-14/practice-3/src/test/java/com/example/practice/HoldRouterTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-14/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HoldRouterTest#preauthsTakeTurnsAndCompletionsAreAnswered",
+        "kind": "main",
+        "says": "pre-authorizations take turns over the connected links, and completions are delivered and answered"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#aCompletionGoesToTheDataCentreThatHoldsIt",
+        "kind": "edge",
+        "says": "a completion goes to the link that carried its pre-authorization, wherever the rotation stands"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#aCompletionWaitsWhileItsDataCentreIsDown",
+        "kind": "edge",
+        "says": "while that link is down the completion is not sent anywhere, and it goes there once the link is back"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#aCompletionIsMatchedThroughFieldNinety",
+        "kind": "edge",
+        "says": "the pre-authorization is found through field 90, not through the completion's own STAN and time"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#twoTerminalsWithTheSameStanAndTimeKeepTheirOwnHolds",
+        "kind": "edge",
+        "says": "the terminal is part of the original's identity, so two terminals with the same STAN and time do not mix"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#aHoldIsRememberedOnlyAsLongAsItLasts",
+        "kind": "edge",
+        "says": "each remembered route expires with the hold, so the memory does not grow for ever"
+      },
+      {
+        "id": "com.example.practice.HoldRouterTest#aCompletionWithNoKnownHoldStillGoesOut",
+        "kind": "edge",
+        "says": "a completion whose pre-authorization is not remembered goes out like any other message instead of waiting for ever"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-14/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c14.md",
+      "section": "14.6 A Follow-Up That Must Reach Its Original's Host Needs a Router of Your Own"
+    },
+    "concepts": [
+      "When host instances do not share state, a follow-up must go to its original's link, found through field 41 and field 90, and wait while that link is down; the override strategy falls back to round-robin instead, so it needs a router of your own."
+    ]
+  }
+}

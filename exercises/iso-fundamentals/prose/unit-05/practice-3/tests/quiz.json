@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 5,
+  "ordinal": 3,
+  "title": "Check yourself: Visa-specific Implementation",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-frame-length",
+        "stem": "A capture from a BASE I link shows a frame that starts 00 3A 00 00 16 01 02 00 3A. The first header is the only one. How many bytes does the message take, from its MTI to its last field?",
+        "options": [
+          {
+            "id": "a",
+            "text": "58, since the two length bytes count only the message that comes after the header",
+            "correct": false,
+            "says": "Section 5.1: the length in the prefix counts the header as well as the message (68 for a 46-byte message behind a 22-byte header)."
+          },
+          {
+            "id": "b",
+            "text": "54, since the two length bytes count the four prefix bytes but not the header",
+            "correct": false,
+            "says": "Section 5.1: the prefix's length is 68 for 22 header bytes and 46 message bytes; the four prefix bytes are not in it."
+          },
+          {
+            "id": "c",
+            "text": "36, since the two length bytes count the 22-byte header as well as the message",
+            "correct": true,
+            "says": "Section 5.1: 0x3A is 58, the header's first byte 0x16 says 22, and the prefix counts header and message, so 58 - 22 = 36."
+          },
+          {
+            "id": "d",
+            "text": "32, since the two length bytes count the four prefix bytes and the 22-byte header",
+            "correct": false,
+            "says": "Section 5.1: the prefix's own four bytes are not counted; 00440000 announced 68 for a 72-byte capture."
+          }
+        ],
+        "origin": {
+          "path": "src/5.md",
+          "section": "5.1. On a BASE I Link, a Header Sits Between the Length and the MTI"
+        }
+      },
+      {
+        "id": "q-own-mti-back",
+        "stem": "A client sent an 0100 with STAN 000418 and waits for its answer. What arrives is an 0100 with STAN 000418, no field 39, and 48 bytes of header in front of it, the first header saying 26. What should the client do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Report a decline to the cashier, since the issuer answered the message without approving it",
+            "correct": false,
+            "says": "Section 5.2: no issuer saw the message; the network sent it back as a reject, and reporting it as a decline hides the cause."
+          },
+          {
+            "id": "b",
+            "text": "Log the reject code from the header, since the network refused the message before an issuer saw it",
+            "correct": true,
+            "says": "Section 5.2: a reject comes back as your own message behind a 26-byte reject header; the reject code in the header points at the field to fix."
+          },
+          {
+            "id": "c",
+            "text": "Send the same 0100 again with a new STAN, since the network refused the message before an issuer saw it",
+            "correct": false,
+            "says": "Section 5.2: the same broken field is rejected again; the cause is in the reject code, which this ignores."
+          },
+          {
+            "id": "d",
+            "text": "Read the decline reason from the header, since the issuer answered the message without approving it",
+            "correct": false,
+            "says": "Section 5.2: the header carries the network's reject code, not an issuer's reason; no issuer saw the message."
+          }
+        ],
+        "origin": {
+          "path": "src/5.md",
+          "section": "5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
+        }
+      },
+      {
+        "id": "q-partial-return",
+        "stem": "A cardholder bought three shirts for 90.00 ten days ago, and the purchase has been cleared. Today they bring back one shirt worth 30.00. What does the merchant's system send?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A reversal of the purchase for 30.00, since a reversal can take back part of an earlier sale",
+            "correct": false,
+            "says": "Section 5.3: a reversal points back at a message whose outcome is still open; ten days on, the purchase has been cleared."
+          },
+          {
+            "id": "b",
+            "text": "A reversal of the purchase for 90.00 and a new purchase of 60.00, since a reversal undoes a sale whole",
+            "correct": false,
+            "says": "Section 5.3: a reversal is for a message whose outcome is open; a cleared purchase is answered with a refund, a new transaction."
+          },
+          {
+            "id": "c",
+            "text": "A refund of 30.00 carrying the purchase's STAN, since a refund points back at the sale it undoes",
+            "correct": false,
+            "says": "Section 5.3: a refund is a new transaction, not an undo, with its own amount and STAN."
+          },
+          {
+            "id": "d",
+            "text": "A refund of 30.00 carrying a STAN of its own, since a refund is a new credit to the cardholder",
+            "correct": true,
+            "says": "Section 5.3: a return after clearing is a refund, processing code 20, with its own amount and STAN."
+          }
+        ],
+        "origin": {
+          "path": "src/5.md",
+          "section": "5.3. The MTI and the Processing Code Together Name the Transaction"
+        }
+      },
+      {
+        "id": "q-flat-private-field",
+        "stem": "A developer adds a date to field 126 of a Visa message with msg.set(126, \"270115\"), using a packager that defines 126 the way jPOS's Base1Packager does. The unit test that packs the message passes. What happens to messages that carry the date?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The receiver cannot read field 126, since it expects the field to start with a bitmap of its own",
+            "correct": true,
+            "says": "Section 5.4: field 126 holds a sub-message with an 8-byte bitmap; the six text bytes are too short for it and unpacking fails."
+          },
+          {
+            "id": "b",
+            "text": "The receiver cannot read field 126, since the sender's packager cut the value to fit the field",
+            "correct": false,
+            "says": "Section 5.4: the packager wrote all six characters, as 06 and six ASCII bytes; nothing was cut."
+          },
+          {
+            "id": "c",
+            "text": "The receiver reads the date, since the packager turned the text into the right sub-field while packing",
+            "correct": false,
+            "says": "Section 5.4: the text went out as plain bytes, with no sub-field bitmap."
+          },
+          {
+            "id": "d",
+            "text": "The receiver reads the date, since a private field carries whatever text the sender puts there",
+            "correct": false,
+            "says": "Section 5.4: some private fields are messages with their own bitmap, and field 126 is one; the flat value fails to unpack."
+          }
+        ],
+        "origin": {
+          "path": "src/5.md",
+          "section": "5.4. A Private Field Can Hold a Message of Its Own, Laid Out by This Release's Specification"
+        }
+      }
+    ]
+  }
+}

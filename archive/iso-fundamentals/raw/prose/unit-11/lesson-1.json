@@ -8,7 +8,7 @@
   "unit": 11,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Best Practices for ISO-8583 Development",
   "blocks": [
     {
@@ -17,164 +17,411 @@
       "text": "11. Best Practices for ISO-8583 Development"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "11.1. Code Organization"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.1.1. Modular Design"
+      "type": "para",
+      "text": "Your switch passed certification last month (unit 10), and every message it sends is right byte for byte. This month it paid a Tokyo cardholder 150,000 yen back for a 1,500-yen purchase. It sent your bank's own cards out to the card network. And one Saturday, while a single issuer was slow, the terminals of every bank timed out. No message was malformed. Each failure came from the code around the messages, and four rules, one per section heading, would have prevented them."
     },
     {
       "type": "para",
-      "text": "When developing ISO-8583 applications, it's crucial to maintain a modular design. This approach enhances maintainability, reusability, and testability of your code. Here's an example of how you can structure your project:"
+      "text": "The jPOS habits the old version of this unit taught, from masked logs to JVM flags, are now in the c and s units; the Reference says where."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
+    },
+    {
+      "type": "para",
+      "text": "Field 4 holds `000000001500`. How much money is that?"
+    },
+    {
+      "type": "para",
+      "text": "Field 4 counts the minor units of the currency in field 49, and the currency decides how many minor units make one: a dollar has 100 cents, the yen has no smaller unit, and a Kuwaiti dinar has 1,000 fils. jPOS's `ISOCurrency` takes the number of decimals of each ISO 4217 code from Java's currency list, then from `ISOCurrency.properties` files on the classpath, which can change an entry:"
     },
     {
       "type": "code",
-      "lang": "",
-      "text": "src/\n├── main/\n│   ├── java/\n│   │   └── com/\n│   │       └── example/\n│   │           ├── config/\n│   │           ├── channel/\n│   │           ├── packager/\n│   │           ├── participant/\n│   │           ├── service/\n│   │           ├── util/\n│   │           └── Application.java\n│   └── resources/\n│       ├── packager/\n│       └── application.yml\n├── test/\n│   └── java/\n│       └── com/\n│           └── example/\n│               ├── channel/\n│               ├── participant/\n│               └── service/\n└── pom.xml"
+      "lang": "java",
+      "text": "ISOCurrency.parseFromISO87String(\"000000001500\", \"414\");       // field 4 -> BigDecimal\nISOCurrency.toISO87String(new BigDecimal(\"1500\"), \"392\");       // BigDecimal -> field 4"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "4=000000001500 49=840 USD  decimals 2  amount 15.00\n4=000000001500 49=978 EUR  decimals 2  amount 15.00\n4=000000001500 49=392 JPY  decimals 0  amount 1500\n4=000000001500 49=414 KWD  decimals 3  amount 1.500\n\nrefund of 1500 JPY, times 100       4=000000150000\nrefund of 1500 JPY, 392 decimals    4=000000001500\ncharge of 1.500 KWD, times 100      4=000000000150\ncharge of 1.500 KWD, 414 decimals   4=000000001500\n12.345 USD, 840 decimals            java.lang.ArithmeticException: Rounding necessary\n0.29 USD through a double           4=000000000028"
     },
     {
       "type": "para",
-      "text": "In this structure:"
+      "text": "The opening's refund was typed as 1500 yen, and the refund code multiplied by 100, as it always had for dollars. The cardholder was credited 150,000 yen and the merchant was debited as much. The same habit in Kuwait charges 0.150 dinar for a purchase of 1.500: the merchant is paid a tenth of the price, and no cardholder complains."
+    },
+    {
+      "type": "para",
+      "text": "`toISO87String` refuses 12.345 dollars instead of rounding it. A third decimal in dollars is a bug upstream, and rounding would hide it. The last line is why unit 3 keeps amounts out of `double`: 0.29 has no exact binary form, `0.29 * 100` is 28.999999999999996, and the cast keeps 28."
+    },
+    {
+      "type": "para",
+      "text": "Convert once, at the edge where amounts enter or leave the switch, with the decimals of the currency the message names. Fields 5 and 6 carry their own currencies in fields 50 and 51 (Reference)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.2. A Card Goes to the Destination of Its Longest Matching Prefix"
+    },
+    {
+      "type": "para",
+      "text": "A switch decides where an authorization goes from the first digits of the card number, the issuer identification number or BIN. Its routing table maps prefixes to destinations: a card network, a processor, or the bank's own authorization system for the cards it issued itself (**on-us** cards). Which destination gets `4111111111111111` from this table?"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.iso.habits;\n\nimport java.util.Map;\n\n/** Card prefix -> destination, read by every authorization and replaced whole on reload. */\npublic class BinTable {\n    private volatile Map<String, String> routes = Map.of();\n\n    public void reload(Map<String, String> fresh) {\n        routes = Map.copyOf(fresh);                  // readers see the old table or the new one\n    }\n\n    public String destinationFor(String pan) {\n        Map<String, String> r = routes;              // one table for the whole lookup\n        for (int len = pan.length(); len > 0; len--) {\n            String dest = r.get(pan.substring(0, len));\n            if (dest != null)\n                return dest;\n        }\n        return null;\n    }\n\n    String firstSix(String pan) {\n        return routes.get(pan.substring(0, 6));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "table.reload(Map.of(\n        \"411111\",   \"visa\",          // the network's range\n        \"41111111\", \"on-us\",         // our own bank's cards, inside it\n        \"555555\",   \"mastercard\"));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "411111______1111  first six: visa        longest prefix: on-us\n555555______4444  first six: mastercard  longest prefix: mastercard"
+    },
+    {
+      "type": "para",
+      "text": "Many tables are keyed by the first six digits, because for decades a BIN had six. Under that lookup the bank's own cards, issued under the eight-digit `41111111`, match the network's `411111` and go out to the network. The bank pays network fees to approve its own customers. When the link to the network is down, its cardholders are turned away at its own terminals, while its own host is up."
+    },
+    {
+      "type": "para",
+      "text": "The longest matching prefix decides: try the whole number, then one digit less, until an entry matches, whatever the prefix lengths and the order of the entries."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Eight-digit BINs.** ISO/IEC 7812-1 lengthened issuer identification numbers from six digits to eight in its 2017 edition, and the card networks moved over in the years after. Expect routing files that mix six- and eight-digit entries, and check which lengths your network's files carry."
+        }
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The table is reference data. It changes a few times a week and every authorization reads it. Read from the database per message, every slow query delays an answer (11.3). Load it at startup, keep it in memory, and replace it whole: `reload` copies the new entries into a new map and swaps one reference, so a lookup sees the old table or the new one, never half of each. Card data, balances and authorization results are not reference data and don't belong in such a cache."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+    },
+    {
+      "type": "para",
+      "text": "The year's average says nothing about the rate the switch must carry. Take the busiest hour you expect and divide by 3600. Multiply by the burst factor, the ratio of the busiest second to the average second within that hour, which last year's logs give you."
+    },
+    {
+      "type": "para",
+      "text": "That rate times the answer time is the number of authorizations in flight at once. Each holds a **session**, one of the fixed number of places a switch has for requests waiting on an answer (in jPOS, the TransactionManager's limit on active transactions, unit s9), and a cardholder waits on it. For 180,000 authorizations in the busiest hour and a burst factor of 3:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "average 50/s, peak 150/s\nanswers in  0.3 s ->    45 in flight at the peak\nanswers in  1.0 s ->   150 in flight at the peak\nanswers in  8.0 s ->  1200 in flight at the peak"
+    },
+    {
+      "type": "para",
+      "text": "The same traffic needs 45 sessions while the host answers in 0.3 seconds, and 1,200 when it answers in 8. Then the answer times, 1,000 of them from one day:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mean 0.78 s, median 0.3 s, 99th percentile 31.0 s, after 30 s: 15 of 1000"
+    },
+    {
+      "type": "para",
+      "text": "By its mean the switch is quick. The 99th percentile is 31 seconds, and terminals give up at 30. Each of those 15 purchases ends at the terminal with no answer, so its outcome is unknown and it is reversed (unit 4). Sending it again would risk a second charge, since the issuer may have approved the first. At 150 a second, 1.5% is over two reversals a second, added when the switch is busiest. Report the median and the 99th percentile next to the throughput, and compare the percentile with the terminal's timeout."
+    },
+    {
+      "type": "para",
+      "text": "Slow answers usually come from work the answer doesn't need. Settlement files, ad-hoc reports and statement runs built from the online tables compete with authorizations for the same rows and disks. Keep on the authorization path only what decides the answer: parse, check, look up in memory, decide or forward, record, reply. Reports read a copy of the database, and batch work runs outside the online system."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+    },
+    {
+      "type": "para",
+      "text": "A switch with 100 sessions forwards to three issuers. At the peak A gets 90 requests a second, B 45 and C 15. A and B answer in 0.3 seconds. On a Saturday C slows to 8. Whose cardholders wait?"
+    },
+    {
+      "type": "para",
+      "text": "We simulated one minute of that traffic in 10 ms steps and followed every request until it was answered. The terminal gives up after 30 seconds. First with one pool for everybody, then with at most 20 of C's requests in flight:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "one pool for every issuer\n  A  in time  4689   too late   710   91 at once    0\n  B  in time  2343   too late   356   91 at once    0\n  C  in time   590   too late   310   91 at once    0\n  C's first answer too late: a request that arrived at second 39\n  B's first answer too late: a request that arrived at second 52\n  A's first answer too late: a request that arrived at second 52\nat most 20 in flight for C\n  A  in time  5399   too late     0   91 at once    0\n  B  in time  2699   too late     0   91 at once    0\n  C  in time   160   too late     0   91 at once  740"
+    },
+    {
+      "type": "para",
+      "text": "Each of C's requests holds a session for 8 seconds, so every second brings 135 × 0.3 + 15 × 8 = 160.5 session-seconds of work for 100 sessions. The pool fills with C's requests, and A's and B's queue behind them for longer every second. C's answers are too late from second 39, and A's and B's from second 52. A and B are healthy, their cardholders see timeouts, and each timeout becomes a reversal that adds more work."
+    },
+    {
+      "type": "para",
+      "text": "With the limit, C can't hold more than 20 sessions, and every answer from A and B is in time. The 740 requests of C's beyond the limit are answered at once with `91`, issuer or switch inoperative. None of them needs a reversal, since none reached the issuer."
+    },
+    {
+      "type": "para",
+      "text": "Why `91` and not a decline such as `05`? The issuer never saw these purchases. A decline says the issuer refused the card. `91` is an error, not a decision about the card (unit 9): the cardholder may try again in a minute, and a network that stands in for its issuers (unit 7) may decide within the limits C agreed."
+    },
+    {
+      "type": "para",
+      "text": "Set each limit from 11.3's arithmetic. C normally has 15 × 0.3, about 5, requests in flight, so 20 leaves room for a burst and still stops a slowdown from spreading. The slot must be freed however the request ends, with an answer, a timeout or an exception. A slot kept after an exception is lost for good, and after enough of them the limit refuses everything C sends, even once C has recovered."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.5. Summary"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`config/`: Contains Spring configuration classes",
-        "`channel/`: Custom channel implementations",
-        "`packager/`: Custom packager implementations",
-        "`participant/`: Transaction participants",
-        "`service/`: Business logic services",
-        "`util/`: Utility classes"
+        "**An amount counts minor units, and its currency says how many make one.** Multiplying by 100 pays a yen refund a hundred times over and charges a tenth of a dinar price; a `double` loses cents.",
+        "**A card goes to the destination of its longest matching prefix.** A six-digit lookup sends eight-digit ranges to the wrong place, such as the bank's own cards to the network. The table lives in memory and is replaced whole.",
+        "**Capacity is sized from the busiest second and judged by the slowest answers.** In-flight requests are rate times answer time. A mean hides the answers that come after the terminal's timeout, and each of those becomes a reversal.",
+        "**A slow destination gets a limit of its own, and past it an immediate `91`.** Without one, a single slow issuer fills the shared sessions and every bank's terminals time out."
       ]
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "11.1.2. Separation of Concerns"
+      "level": 3,
+      "text": "11.6. Reference"
     },
     {
       "type": "para",
-      "text": "Implement separation of concerns by creating distinct classes for different responsibilities. Here's an example of how you can separate concerns in your ISO-8583 application:"
+      "text": "**Amount fields (ISO 8583:1987):**"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class TransactionService {\n    private final ISOPackager packager;\n    private final ChannelManager channelManager;\n\n    @Autowired\n    public TransactionService(ISOPackager packager, ChannelManager channelManager) {\n        this.packager = packager;\n        this.channelManager = channelManager;\n    }\n\n    public ISOMsg processTransaction(ISOMsg request) {\n        // Process the transaction\n        // ...\n    }\n}\n\n@Service\npublic class ChannelManager {\n    private final ISOServer isoServer;\n\n    @Autowired\n    public ChannelManager(ISOServer isoServer) {\n        this.isoServer = isoServer;\n    }\n\n    public void startServer() {\n        isoServer.run();\n    }\n\n    public void stopServer() {\n        isoServer.shutdown();\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Field",
+        "Name",
+        "Its currency"
+      ],
+      "rows": [
+        [
+          "4",
+          "amount, transaction",
+          "field 49, currency code, transaction"
+        ],
+        [
+          "5",
+          "amount, settlement",
+          "field 50, currency code, settlement"
+        ],
+        [
+          "6",
+          "amount, cardholder billing",
+          "field 51, currency code, cardholder billing"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Each amount is 12 digits of minor units with no decimal point."
+    },
+    {
+      "type": "para",
+      "text": "**Decimals of some currencies, as jPOS 2.1.7 reads them (`ISOCurrency.getCurrency(code).getDecimals()`):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Code",
+        "Currency",
+        "Decimals"
+      ],
+      "rows": [
+        [
+          "840, 978, 826",
+          "USD, EUR, GBP",
+          "2"
+        ],
+        [
+          "392, 410, 152, 352",
+          "JPY, KRW, CLP, ISK",
+          "0"
+        ],
+        [
+          "414, 048, 788",
+          "KWD, BHD, TND",
+          "3"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Sizing arithmetic:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Quantity",
+        "How"
+      ],
+      "rows": [
+        [
+          "average rate",
+          "authorizations in the busiest hour / 3600"
+        ],
+        [
+          "peak rate",
+          "average rate × burst factor (busiest second / average second, from logs)"
+        ],
+        [
+          "in flight",
+          "peak rate × answer time"
+        ],
+        [
+          "limit per destination",
+          "its rate × its normal answer time, with room for a burst"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Seven beliefs to check a design against**, paraphrased from \"Seven Fallacies of jPOS applications\", a July 2007 post on the jPOS blog by the project's author:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Belief",
+        "Where the course answers it"
+      ],
+      "rows": [
+        [
+          "our single point of failure is very reliable",
+          "unit c14"
+        ],
+        [
+          "the online system can do batch work in real time",
+          "11.3"
+        ],
+        [
+          "replication and clustering make the database trustworthy",
+          "unit c14"
+        ],
+        [
+          "the database is never the bottleneck, so nothing is cached",
+          "11.2, 11.3"
+        ],
+        [
+          "reports can run on the online database",
+          "11.3"
+        ],
+        [
+          "peaks and slow endpoints sort themselves out",
+          "11.4"
+        ],
+        [
+          "careful coding makes tests unnecessary",
+          "units 10, c10, s11"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Where the jPOS-side practices are:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Practice",
+        "Unit"
+      ],
+      "rows": [
+        [
+          "`ProtectedLogListener` first in the logger",
+          "c8, s8"
+        ],
+        [
+          "`debug-context` off in production",
+          "s1"
+        ],
+        [
+          "one participant instance for every session",
+          "s1, s15"
+        ],
+        [
+          "request and read timeouts, echoes",
+          "c11, c12"
+        ],
+        [
+          "several links behind a `MUXPool`",
+          "c14"
+        ],
+        [
+          "JVM and GC settings",
+          "s17"
+        ]
+      ]
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "11.2. Logging and Debugging"
+      "text": "11.7. Challenges"
     },
     {
-      "type": "heading",
-      "level": 4,
-      "text": "11.2.1. Transaction Logging"
-    },
-    {
-      "type": "para",
-      "text": "Implement comprehensive transaction logging to track all incoming and outgoing messages. jPOS provides built-in logging capabilities that you can leverage:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Component\npublic class TransactionLogger implements LogListener {\n    private static final Logger logger = LoggerFactory.getLogger(TransactionLogger.class);\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        if (ev.getTag().equals(\"TX\")) {\n            for (Object payload : ev.getPayLoad()) {\n                if (payload instanceof ISOMsg) {\n                    logger.info(\"Transaction: {}\", payload);\n                }\n            }\n        }\n        return ev;\n    }\n}\n\n@Configuration\npublic class LoggingConfig {\n    @Bean\n    public Logger logger() {\n        Logger logger = new Logger();\n        logger.addListener(new TransactionLogger());\n        return logger;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.2.2. Error Logging"
-    },
-    {
-      "type": "para",
-      "text": "Implement error logging to capture and analyze issues:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@ControllerAdvice\npublic class GlobalExceptionHandler {\n    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);\n\n    @ExceptionHandler(ISOException.class)\n    public ResponseEntity<String> handleISOException(ISOException ex) {\n        logger.error(\"ISO Exception occurred: \", ex);\n        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(\"An error occurred processing the ISO message\");\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.2.3. Debugging Techniques"
-    },
-    {
-      "type": "para",
-      "text": "Use jPOS's built-in debugging capabilities:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "public class DebugParticipant implements TransactionParticipant {\n    @Override\n    public int prepare(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Prepare called for transaction \" + id);\n        return PREPARED;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Commit called for transaction \" + id);\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n        ((Context) context).log(\"Debug: Abort called for transaction \" + id);\n    }\n}"
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your switch converts a cardholder's euros into yen for field 6. Where in that conversion can a minor unit be gained or lost, and who should get it?",
+        "The network's routing file arrives every night with 400,000 prefixes. How would you check a new file before `reload` swaps it in, and what do you do with a file that fails the check?",
+        "Last year's busiest second had 410 authorizations, and the busiest hour 290,000. What burst factor does that give, and why might next year's be higher?",
+        "An issuer's normal answer time is 0.3 seconds, but it answers balance enquiries in 2. Should its limit count both kinds of request together?"
+      ]
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "11.3. Performance Optimization"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.3.1. Message Parsing Efficiency"
+      "text": "11.8. Design Note: Why Field 4 Has No Decimal Point"
     },
     {
       "type": "para",
-      "text": "Use efficient message parsing techniques:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Component\npublic class EfficientPackager extends GenericPackager {\n    public EfficientPackager() throws ISOException {\n        super(\"packager/efficient-packager.xml\");\n    }\n\n    @Override\n    public byte[] pack(ISOComponent m) throws ISOException {\n        // Implement more efficient packing logic\n    }\n\n    @Override\n    public int unpack(ISOComponent m, byte[] b) throws ISOException {\n        // Implement more efficient unpacking logic\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.3.2. Connection Pooling"
+      "text": "The 1987 standard could have sent `15.00`. It sends `000000001500` and leaves the decimals to the currency in field 49. A fixed-width field of digits packs the same way for every currency: twelve ASCII digits, or six bytes of BCD (unit 3), with no separator to choose between a point and a comma. Sums of minor units are exact, which matters for the totals that two institutions reconcile (unit 7)."
     },
     {
       "type": "para",
-      "text": "Implement connection pooling to reuse connections:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Configuration\npublic class ConnectionPoolConfig {\n    @Bean\n    public PooledConnectionFactory pooledConnectionFactory() {\n        PooledConnectionFactory factory = new PooledConnectionFactory();\n        factory.setChannelName(\"myChannel\");\n        factory.setPackager(new ISO87APackager());\n        factory.setHost(\"localhost\");\n        factory.setPort(1234);\n        factory.setPoolSize(10);\n        return factory;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "11.3.3. Caching Strategies"
-    },
-    {
-      "type": "para",
-      "text": "Implement caching for frequently accessed data:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Configuration\n@EnableCaching\npublic class CacheConfig {\n    @Bean\n    public CacheManager cacheManager() {\n        SimpleCacheManager cacheManager = new SimpleCacheManager();\n        cacheManager.setCaches(Arrays.asList(\n            new ConcurrentMapCache(\"isoMessages\"),\n            new ConcurrentMapCache(\"transactionResults\")\n        ));\n        return cacheManager;\n    }\n}\n\n@Service\npublic class CachedTransactionService {\n    @Cacheable(\"transactionResults\")\n    public TransactionResult getTransactionResult(String transactionId) {\n        // Fetch transaction result from database or external service\n    }\n}"
+      "text": "The cost is that field 4 means nothing alone. Every program that shows, converts or compares an amount needs field 49 and a table of decimals, and both ends must use the same table. Store the currency code next to every amount you keep, or the stored amount can't be read back."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 12,
-    "paras": 9,
+    "headings": 9,
+    "paras": 30,
     "code": 8,
-    "tables": 0,
-    "lists": 1,
+    "tables": 5,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "339b1919eadf3c5272f0d41467f8b8755f581466be2a195d88086fa3e59920f5"
+  "content_sha256": "a0ec98513a843f6167600af1e4adfa5210815074a09fd2c68296b1b5eaad58be"
 }

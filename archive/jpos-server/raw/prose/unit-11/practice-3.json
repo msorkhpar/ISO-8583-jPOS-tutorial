@@ -1,0 +1,189 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 11,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what each server test can see",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-hand-built-key",
+        "stem": "A participant reads the request with ctx.get(\"Request\"). Its unit test builds the Context with ctx.put(\"Request\", purchase), calls prepare, and passes. What does the participant find when the server first runs it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It finds no request, since IncomingListener stores the request under another key",
+            "correct": true,
+            "says": "IncomingListener stores the request under \"REQUEST\"; the hand-built Context shared the participant's wrong key, so only a Context from the real listener shows it"
+          },
+          {
+            "id": "b",
+            "text": "It finds no request, since IncomingListener queues the Context only after prepare has run",
+            "correct": false,
+            "says": "the listener puts the Context on the queue before any session takes it; the key is the problem"
+          },
+          {
+            "id": "c",
+            "text": "It finds the request, since Context keys are matched without regard to case",
+            "correct": false,
+            "says": "the Context is a map; \"Request\" and \"REQUEST\" are different keys"
+          },
+          {
+            "id": "d",
+            "text": "It finds the request, since the unit test has already exercised the key it reads",
+            "correct": false,
+            "says": "the test used the same wrong key as the participant, so it agreed with it instead of with production"
+          }
+        ],
+        "origin": {
+          "path": "src/s11.md",
+          "section": "11.1 A Participant Test Gets Its Context From `IncomingListener`"
+        }
+      },
+      {
+        "id": "q-reset-by-registering",
+        "stem": "A test class starts Q2 once. In setConfiguration, a velocity participant gets its per-card counter from the NameRegistrar. To give every test clean counts, a @BeforeEach method registers a new counter object under the counter's name. A test that expects a card's first purchase to pass gets a refusal, because the card already has purchases from an earlier test. Why?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The participant keeps the object it found at start-up, so it never counts in the new one",
+            "correct": true,
+            "says": "the lookup happened once, in setConfiguration; registering a new object changes the registry, not the participant's field"
+          },
+          {
+            "id": "b",
+            "text": "The participant keeps a copy of each count it has seen, so it writes them into the new one",
+            "correct": false,
+            "says": "nothing copies the counts; the participant simply still holds the first object"
+          },
+          {
+            "id": "c",
+            "text": "The registry refuses a second object under a name already in use, so the first counter stays registered",
+            "correct": false,
+            "says": "NameRegistrar.register replaces the entry; the participant just never looks again"
+          },
+          {
+            "id": "d",
+            "text": "The registry keeps one object per test class, so the new counter is only seen by the next class",
+            "correct": false,
+            "says": "the NameRegistrar is one map per JVM, shared by every class and test"
+          }
+        ],
+        "origin": {
+          "path": "src/s11.md",
+          "section": "11.3 Tests That Share a Q2 Share Its State"
+        }
+      },
+      {
+        "id": "q-client-from-descriptor",
+        "stem": "A server's 50_server.xml names NACChannel. The network's specification says terminals send four ASCII digits of length before each message. The integration test starts Q2 on the shipped descriptors and connects a client built with the channel class and packager that 50_server.xml names, and every purchase is approved. What does that test tell you about the terminals in the field?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing about their framing, since its client would agree with 50_server.xml whatever that file named",
+            "correct": true,
+            "says": "a client copied from the descriptor matches it by construction; only a client built from the network's specification tests it"
+          },
+          {
+            "id": "b",
+            "text": "Nothing about their framing, since a socket test checks the packager but never the channel",
+            "correct": false,
+            "says": "a socket test goes through the channel as well; the problem is that this client's channel was copied from the server"
+          },
+          {
+            "id": "c",
+            "text": "That they will be answered, since its purchases reached the channel in 50_server.xml over a real socket",
+            "correct": false,
+            "says": "a real socket tests the framing the client uses, and this client uses the server's, not the terminals'"
+          },
+          {
+            "id": "d",
+            "text": "That they will be answered, since QServer detects the framing of each new connection",
+            "correct": false,
+            "says": "the server reads with the channel its descriptor names; a frame it can't read ends the connection"
+          }
+        ],
+        "origin": {
+          "path": "src/s11.md",
+          "section": "11.4 Only a Socket Test With the Terminals' Framing Tests `50_server.xml`"
+        }
+      },
+      {
+        "id": "q-one-after-another",
+        "stem": "A participant keeps the card number in a field from prepare to commit. The suite sends 400 purchases, one after another, through a TransactionManager with four sessions, and every answer and every journal line is right. Why did the suite miss the bug?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Each purchase ended before the next one began, so no other transaction wrote the field in between",
+            "correct": true,
+            "says": "the field is overwritten only while another transaction is inside the same participant; one at a time never overlaps"
+          },
+          {
+            "id": "b",
+            "text": "Each purchase ended before the next one began, so each one ran in a freshly created participant and field",
+            "correct": false,
+            "says": "the TransactionManager creates one participant instance and every session uses it"
+          },
+          {
+            "id": "c",
+            "text": "The four sessions ran the purchases side by side, so the field needs more writers than that to go wrong",
+            "correct": false,
+            "says": "requests sent one after another are never side by side; two transactions in flight are enough"
+          },
+          {
+            "id": "d",
+            "text": "The four sessions ran the purchases side by side, so each session kept a field of its own",
+            "correct": false,
+            "says": "sessions share the one participant instance and its fields"
+          }
+        ],
+        "origin": {
+          "path": "src/s11.md",
+          "section": "11.5 Only Two Transactions in Flight Show What Sessions Share"
+        }
+      }
+    ],
+    "concepts": [
+      "A participant test that builds its Context by hand can share the participant's wrong key; a Context from a real IncomingListener has the keys production uses.",
+      "Tests that share a Q2 share its participants, the objects they found by name, the Space and the NameRegistrar, so each test brings its own data, and registering a new object does not reach a participant that already holds the old one.",
+      "Only a socket test on the shipped descriptors, with a client built from the network's specification, tests the server's port, channel and packager; a client copied from the descriptor agrees with it whatever it says."
+    ]
+  }
+}

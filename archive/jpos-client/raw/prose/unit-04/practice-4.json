@@ -1,0 +1,132 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 4,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Find the MUX by its name, every time",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "`PaymentService` sends purchases through whatever Q2 has deployed under a name it is given, such as `acquirer-mux`. It is created when the application starts and then runs for weeks. In that time the operations team edits the descriptors: they change a timeout and Q2 redeploys the file, or they add a second link and give the old name to a pool. They expect the service to keep working through all of it without a restart."
+    },
+    {
+      "type": "para",
+      "text": "Write `mux()` in `src/main/java/com/example/practice/PaymentService.java`. `pay(...)` already handles a `null` from it as \"unavailable\". About five lines."
+    },
+    {
+      "type": "para",
+      "text": "The tests do what Q2 does with a descriptor, without a Q2: they create the component, register it under its name, start it, and stop and destroy it on a redeploy."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        try {\n            return QMUX.getMUX(muxName);\n        } catch (NameRegistrar.NotFoundException e) {\n            return null;\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        // TODO: The service is created when the application starts, and it runs for weeks while\n        //       operators deploy, redeploy and reorganise what sits under that name. (about five\n        //       lines)\n        throw new IllegalStateException(\"TODO: mux\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ed27569a6cfc6b08680ea13ccc5719aa5d84a4f48b7fccfbca2cd79285bdc68d",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        // TODO: The service is created when the application starts, and it runs for weeks while\n        //       operators deploy, redeploy and reorganise what sits under that name. (about five\n        //       lines)\n        throw new IllegalStateException(\"TODO: mux\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-04/practice-4/src/main/java/com/example/practice/PaymentService.java",
+    "test_path": "practice/jpos-client/prose/unit-04/practice-4/src/test/java/com/example/practice/PaymentServiceTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-4/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-04/practice-4/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.PaymentServiceTest#aDeployedMuxCarriesThePurchase",
+        "kind": "main",
+        "says": "with a QMUX deployed under the name, a purchase goes through it and is approved"
+      },
+      {
+        "id": "com.example.practice.PaymentServiceTest#theServiceStartsBeforeTheMuxIsDeployed",
+        "kind": "edge",
+        "says": "a service created before the MUX is deployed finds it once it is, because the name is looked up when it is used"
+      },
+      {
+        "id": "com.example.practice.PaymentServiceTest#anOperatorRedeploysTheMux",
+        "kind": "edge",
+        "says": "after a redeploy the name refers to a new QMUX, and a reference kept from before is a stopped one"
+      },
+      {
+        "id": "com.example.practice.PaymentServiceTest#theNameNowBelongsToAPool",
+        "kind": "edge",
+        "says": "the code depends on the MUX interface only, so a MUXPool can take the name's place"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-04/practice-4/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c4.md",
+      "section": "4.7 Code Names a MUX and Never Keeps One"
+    },
+    "concepts": [
+      "Code looks a MUX up by name when it uses it and depends only on the MUX interface, so it survives late deployment and redeploys, and a pool can take the name."
+    ]
+  }
+}

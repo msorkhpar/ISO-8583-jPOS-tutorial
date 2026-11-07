@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 6,
   "ordinal": 1,
-  "title": "Build Mastercard requests from their processing codes",
+  "title": "Write the packager for an EBCDIC link from its samples",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/MastercardRequests.java",
-  "test_file": "src/test/java/com/example/practice/MastercardRequestsTest.java",
+  "main_file": "src/main/java/com/example/practice/MastercardLayout.java",
+  "test_file": "src/test/java/com/example/practice/MastercardLayoutTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,24 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.MastercardRequestsTest#buildsRequestsAndReadsTheirType",
+      "id": "com.example.practice.MastercardLayoutTest#packsAndReadsBackAnAuthorization",
       "kind": "main",
-      "says": "builds 0200 purchase and refund requests with the right fields, reads a message's type back from field 3, and approves only on 00"
+      "says": "an authorization packs with its MTI written as the samples write it, and unpacks to the same fields"
     },
     {
-      "id": "com.example.practice.MastercardRequestsTest#refusesAnUnknownProcessingCode",
+      "id": "com.example.practice.MastercardLayoutTest#theBitmapIsEightRawBytes",
       "kind": "edge",
-      "says": "a code that is not six digits, or whose transaction type the scheme does not define, is refused rather than mapped to null, while other account-type digits leave a known type unchanged"
+      "says": "the bitmap goes out as 8 binary bytes, not as 16 EBCDIC hex characters, so the first field follows at byte 12"
     },
     {
-      "id": "com.example.practice.MastercardRequestsTest#aResponseWithoutField39IsNotApproved",
+      "id": "com.example.practice.MastercardLayoutTest#thePanAndItsLengthAreOneByteADigit",
       "kind": "edge",
-      "says": "a response that carries no field 39 is not approved, and asking does not fail"
+      "says": "the PAN and its two-digit length are EBCDIC characters, one byte a digit, not BCD as on a BASE I link"
+    },
+    {
+      "id": "com.example.practice.MastercardLayoutTest#textFieldsAreWrittenLikeTheSamples",
+      "kind": "edge",
+      "says": "text fields are EBCDIC and filled with EBCDIC spaces (40), not left in ASCII as iso87binary declares them"
     }
   ],
   "report": {
@@ -54,6 +59,6 @@
   },
   "origin": {
     "path": "src/6.md",
-    "section": "6.3. Mastercard processing codes"
+    "section": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
   }
 }

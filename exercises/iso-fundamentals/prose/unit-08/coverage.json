@@ -1,107 +1,169 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/8.md",
   "kind": "code",
+  "quiz": "security-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/8.md": "sha256:4f250d889f1f69ac2492d67e943e459d740120ed6235928716e143425d079bb9"
+    "src/8.md": "sha256:20b703b2dc4505dbe7989ac8fb96cd636e679d55eb3f2336b254f9663628f107"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "dukpt-per-transaction-key",
-        "says": "DUKPT derives a fresh key for every transaction from a base key and the transaction counter in the key serial number.",
+        "id": "card-data-not-kept",
+        "says": "Track data, PIN blocks and security codes are deleted once the purchase is answered, because a kept block with its track lets a copied purchase pass the PIN check; a card number is kept only encrypted and shown masked.",
         "basis": [
-          "example:src/8.md:4",
-          "section:8.3.2. DUKPT (Derived Unique Key Per Transaction)"
+          "section:8.1. Track Data, PIN Blocks and Security Codes Are Never Kept, and a Card Number Only Unreadable"
         ],
-        "exercise": null,
-        "reason": "DUKPT is a standard derivation (ANSI X9.24) that the page shows in full; an exercise would ask the reader to retype a published algorithm, and the idea this page practises is the PIN block"
-      },
-      {
-        "id": "key-hierarchy",
-        "says": "Master keys encrypt session keys, and the working keys that encrypt data such as PINs come from session keys, so one compromised key exposes little.",
-        "basis": [
-          "example:src/8.md:2",
-          "section:8.2. Key management"
-        ],
-        "exercise": null,
-        "reason": "the page states it in prose, and its key manager needs an LMK file and a configured JCE security module; the idea this page practises is the PIN block"
-      },
-      {
-        "id": "mac-integrity",
-        "says": "The receiver recomputes the MAC over the message with the shared key and compares it with the one received, which shows whether the message was altered or forged.",
-        "basis": [
-          "example:src/8.md:3",
-          "section:8.3.1. MAC (Message Authentication Code)"
-        ],
-        "exercise": null,
-        "reason": "the page's MAC is one library call and a comparison; there is no decision of the reader's own to practise"
-      },
-      {
-        "id": "pin-bound-to-pan",
-        "says": "XORing the PIN field with the twelve rightmost PAN digits, the check digit excluded, binds the PIN block to one card.",
-        "basis": [
-          "example:src/8.md:1",
-          "section:8.1.2. ISO Format 1"
-        ],
-        "exercise": "pin-block",
+        "exercise": "security-quiz",
         "reason": null
       },
       {
-        "id": "pin-field-layout",
-        "says": "A PIN field is a format digit, the PIN length as one hexadecimal digit, the PIN itself, then F padding to sixteen hexadecimal digits.",
+        "id": "dukpt",
+        "says": "DUKPT encrypts every PIN under its own key, which the host's HSM derives from the BDK and the KSN sent in clear, so equal PINs give different blocks and the BDK must stay inside HSMs.",
         "basis": [
-          "example:src/8.md:1",
-          "section:8.1.1. ISO Format 0 (Zero)"
+          "section:8.5. DUKPT Gives Every Purchase Its Own Key, Derived From a Serial Number Sent Beside the PIN"
         ],
-        "exercise": "pin-block",
+        "exercise": "security-quiz",
         "reason": null
       },
       {
-        "id": "pin-length-bounds",
-        "says": "A PIN is four to twelve digits, and anything else is refused before a block is built.",
+        "id": "keys-and-check-values",
+        "says": "Every key is kept encrypted under the key above it, with the LMK inside the HSM, and two parties confirm they hold the same key by comparing check values, never the bytes under their LMKs.",
         "basis": [
-          "example:src/8.md:1"
+          "section:8.4. Every Key Is Encrypted Under the Key Above It, and Known by Its Check Value"
         ],
-        "exercise": "pin-block",
+        "exercise": "security-quiz",
         "reason": null
       },
       {
-        "id": "random-padding",
-        "says": "Format 3 pads the PIN with random values instead of F, so the same PIN gives a different block each time.",
+        "id": "mac-constant-time",
+        "says": "A received MAC is compared in constant time, with MessageDigest.isEqual.",
         "basis": [
-          "section:8.1.3. ISO Format 3"
+          "section:8.6. A MAC Proves the Bytes Were Not Changed, and Hides None of Them"
         ],
         "exercise": null,
-        "reason": "the same layout as the practised PIN field with only the padding changed, and a random block has no single right answer to check"
+        "reason": "timing can't be graded deterministically; mac-padding-two's starter asks for it and grades only the verdict"
+      },
+      {
+        "id": "mac-detects-change",
+        "says": "A MAC over the message detects any changed byte, depends on how the network pads its input, hides nothing, and is verified against all of its bytes.",
+        "basis": [
+          "section:8.6. A MAC Proves the Bytes Were Not Changed, and Hides None of Them",
+          "example:src/8.md:14"
+        ],
+        "exercise": "mac-padding-two",
+        "reason": null
+      },
+      {
+        "id": "pin-block-formats",
+        "says": "Format 0 fills with F and gives the same block every time; format 3 fills with random A to F, and format 1 fills randomly and leaves the card number out, so the reader must act on the format digit.",
+        "basis": [
+          "section:8.3. Format 0 Gives the Same Block Every Time, So Format 3 Adds Random Fill",
+          "example:src/8.md:9"
+        ],
+        "exercise": "read-a-pin-block",
+        "reason": null
+      },
+      {
+        "id": "pin-bound-to-card",
+        "says": "A format 0 PIN block is the PIN field XOR 0000 and the 12 card-number digits before the check digit, so it can be read only with the card number it was built for.",
+        "basis": [
+          "section:8.2. A PIN Block Mixes the PIN With the Card Number Before It Is Encrypted",
+          "section:8.2.1. Spot the Problem: The PIN Pad That Passed Certification",
+          "example:src/8.md:3"
+        ],
+        "exercise": "read-a-pin-block",
+        "reason": null
+      },
+      {
+        "id": "tls-one-connection",
+        "says": "TLS protects one connection and ends before the application, while the PIN block stays encrypted and the MAC is checked by the receiving application.",
+        "basis": [
+          "section:8.7. TLS Protects One Connection, and the PIN Block and the MAC Protect the Message"
+        ],
+        "exercise": "security-quiz",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "pin-block",
+        "name": "read-a-pin-block",
         "aspects": [
-          "pin-bound-to-pan",
-          "pin-field-layout",
-          "pin-length-bounds"
+          "pin-block-formats",
+          "pin-bound-to-card"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "mac-padding-two",
+        "aspects": [
+          "mac-detects-change"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "security-quiz",
+        "aspects": [
+          "card-data-not-kept",
+          "dukpt",
+          "keys-and-check-values",
+          "tls-one-connection"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-08/practice-1"
+    "exercises/iso-fundamentals/prose/unit-08/practice-1",
+    "exercises/iso-fundamentals/prose/unit-08/practice-2",
+    "exercises/iso-fundamentals/prose/unit-08/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-1",
       "origin": {
         "path": "src/8.md",
-        "section": "8.1. PIN block formats"
+        "section": "8.3. Format 0 Gives the Same Block Every Time, So Format 3 Adds Random Fill"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-2",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.6. A MAC Proves the Bytes Were Not Changed, and Hides None of Them"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-3:q-retry-file",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.1. Track Data, PIN Blocks and Security Codes Are Never Kept, and a Card Number Only Unreadable"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-3:q-two-hsms",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.4. Every Key Is Encrypted Under the Key Above It, and Known by Its Check Value"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-3:q-dukpt-blocks",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.5. DUKPT Gives Every Purchase Its Own Key, Derived From a Serial Number Sent Beside the PIN"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-08/practice-3:q-load-balancer",
+      "origin": {
+        "path": "src/8.md",
+        "section": "8.7. TLS Protects One Connection, and the PIN Block and the MAC Protect the Message"
       }
     }
   ],

@@ -8,8 +8,8 @@
   "unit": 2,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Build each request type on one factory of common fields",
+  "ingested": "2026-11-05",
+  "title": "Know which requests never left",
   "blocks": [
     {
       "type": "heading",
@@ -18,32 +18,15 @@
     },
     {
       "type": "para",
-      "text": "The page's factory stamps the fields every request shares, so a message type only adds what is its own. But its trace number is a fixed `\"123456\"` and its date is a constant. A host matches a response, and later a reversal, to the request by these fields; two requests with the same trace number are two requests nobody can tell apart."
+      "text": "An online bookshop sends its purchases to the acquirer through `Submitter.submit`, in `src/main/java/com/example/practice/Submitter.java`. Yesterday a merchant whose name and location ran one character too long in field 43 took the link down. The purchase in flight beside it was approved by the host but reported to the shop as unanswered, and the support team couldn't tell which of the two had actually reached the host."
     },
     {
       "type": "para",
-      "text": "Write `RequestFactory`, built from a terminal id, a `java.time.Clock` and the last trace number already used (`0` for a fresh start)."
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "`create(mti)` returns an `ISOMsg` with that MTI, field 7 as the clock's time in UTC formatted `MMddHHmmss`, field 11 as the next trace number (six digits, zero-padded) and field 41 as the terminal id.",
-        "`authorization(pan, amountMinor)` is an `0100` and `financial(pan, amountMinor)` an `0200`; both carry field 2 (the PAN), field 3 `000000`, field 4 (the amount in minor units, twelve digits zero-padded) and field 49 `840`.",
-        "`reversal(original)` is an `0400` carrying the original's fields 2, 3, 4 and 49, and field 90: the original's MTI, then its field 11, then its field 7, then 22 zeros (42 digits in all)."
-      ]
+      "text": "Finish the three places marked `TODO` so that every `Result` tells the truth: `ANSWERED` with the host's response, `NO_ANSWER` for a request that went out and heard nothing back, and `NOT_SENT` with a reason for a request that never left. The `packager` passed to the constructor is the one the link's channel uses. About 10 lines in total."
     },
     {
       "type": "para",
-      "text": "Edge cases:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "After `999999` the trace number starts again at `000001`; `000000` is never used.",
-        "A reversal is a new message: it takes its own trace number, not the original's."
-      ]
+      "text": "The tests run a real QMUX against a test host on the far side of its queues, and some of them use a network whose fields are not the standard's lengths."
     },
     {
       "type": "heading",
@@ -58,7 +41,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    private static final DateTimeFormatter FIELD_7 =\n            DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC);\n\n    private final String terminalId;\n    private final Clock clock;\n    private int traceNumber;\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n        this.terminalId = terminalId;\n        this.clock = clock;\n        this.traceNumber = lastTraceNumber;\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(mti);\n        msg.set(7, FIELD_7.format(clock.instant()));\n        msg.set(11, String.format(\"%06d\", nextTraceNumber()));\n        msg.set(41, terminalId);\n        return msg;\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        return cardRequest(\"0100\", pan, amountMinor);\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        return cardRequest(\"0200\", pan, amountMinor);\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        ISOMsg msg = create(\"0400\");\n        for (int field : new int[] {2, 3, 4, 49}) {\n            msg.set(field, original.getString(field));\n        }\n        msg.set(90, original.getMTI() + original.getString(11) + original.getString(7) + \"0\".repeat(22));\n        return msg;\n    }\n\n    private ISOMsg cardRequest(String mti, String pan, long amountMinor) throws ISOException {\n        ISOMsg msg = create(mti);\n        msg.set(2, pan);\n        msg.set(3, \"000000\");\n        msg.set(4, String.format(\"%012d\", amountMinor));\n        msg.set(49, \"840\");\n        return msg;\n    }\n\n    private int nextTraceNumber() {\n        traceNumber = traceNumber >= 999999 ? 1 : traceNumber + 1;\n        return traceNumber;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\n\n/**\n * Sends the shop's requests to the acquirer through one MUX and says what became of each one.\n * The MUX's channel packs every message with {@code packager}.\n */\npublic class Submitter {\n    public enum Outcome { ANSWERED, NO_ANSWER, NOT_SENT }\n\n    /** What became of one request. {@code response} is set only when ANSWERED, {@code reason} only when NOT_SENT. */\n    public record Result(Outcome outcome, ISOMsg response, String reason) { }\n\n    private final MUX mux;\n    private final ISOPackager packager;\n    private final long timeout;\n\n    public Submitter(MUX mux, ISOPackager packager, long timeout) {\n        this.mux = mux;\n        this.packager = packager;\n        this.timeout = timeout;\n    }\n\n    public Result submit(ISOMsg request) throws ISOException {\n        String problem = packProblem(request);\n        if (problem != null)\n            return new Result(Outcome.NOT_SENT, null, problem);\n        ISOMsg response = mux.request(request, timeout);\n        return outcomeOf(response);\n    }\n\n    /** Null when the link can carry this request as it is; otherwise what is wrong with it. */\n    String packProblem(ISOMsg request) {\n        try {\n            request.setPackager(packager);\n            request.pack();\n            return null;\n        } catch (ISOException e) {\n            return e.getMessage();\n        }\n    }\n\n    /** The result of a request that went to the MUX, given what came back (null: nothing in time). */\n    Result outcomeOf(ISOMsg response) {\n        if (response == null)\n            return new Result(Outcome.NO_ANSWER, null, null);\n        return new Result(Outcome.ANSWERED, response, null);\n    }\n}\n"
         }
       ]
     },
@@ -70,7 +53,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.time.Clock;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        throw new UnsupportedOperationException(\"write create\");\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorization\");\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write financial\");\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        throw new UnsupportedOperationException(\"write reversal\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\n\n/**\n * Sends the shop's requests to the acquirer through one MUX and says what became of each one.\n * The MUX's channel packs every message with {@code packager}.\n */\npublic class Submitter {\n    public enum Outcome { ANSWERED, NO_ANSWER, NOT_SENT }\n\n    /** What became of one request. {@code response} is set only when ANSWERED, {@code reason} only when NOT_SENT. */\n    public record Result(Outcome outcome, ISOMsg response, String reason) { }\n\n    private final MUX mux;\n    private final ISOPackager packager;\n    private final long timeout;\n\n    public Submitter(MUX mux, ISOPackager packager, long timeout) {\n        this.mux = mux;\n        this.packager = packager;\n        this.timeout = timeout;\n    }\n\n    public Result submit(ISOMsg request) throws ISOException {\n        // TODO: Today every request goes straight to the MUX. Make sure a request the link can't\n        //       carry is reported as NOT_SENT, with the reason, and never reaches the MUX.\n        ISOMsg response = mux.request(request, timeout);\n        return outcomeOf(response);\n    }\n\n    /** Null when the link can carry this request as it is; otherwise what is wrong with it. */\n    String packProblem(ISOMsg request) {\n        // TODO: Find out whether this request can go out on this link, the way the channel would.\n        throw new IllegalStateException(\"TODO: packProblem\");\n    }\n\n    /** The result of a request that went to the MUX, given what came back (null: nothing in time). */\n    Result outcomeOf(ISOMsg response) {\n        // TODO: Say what the caller now knows about a request that went to the MUX.\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -81,7 +64,7 @@
     "paras": 3,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -89,11 +72,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "6f04e9a7fde3a8512090f5ea820964d6215578b551f1d42b9ca1ffcfeac59f45",
-  "starting_code": "package com.example.practice;\n\nimport java.time.Clock;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds client requests on one set of common fields. */\npublic final class RequestFactory {\n\n    public RequestFactory(String terminalId, Clock clock, int lastTraceNumber) {\n    }\n\n    /** A request of type `mti` with the fields every request shares. */\n    public ISOMsg create(String mti) throws ISOException {\n        throw new UnsupportedOperationException(\"write create\");\n    }\n\n    public ISOMsg authorization(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write authorization\");\n    }\n\n    public ISOMsg financial(String pan, long amountMinor) throws ISOException {\n        throw new UnsupportedOperationException(\"write financial\");\n    }\n\n    public ISOMsg reversal(ISOMsg original) throws ISOException {\n        throw new UnsupportedOperationException(\"write reversal\");\n    }\n}\n",
+  "content_sha256": "af6eeb9674af57e4287822433b26887640e55ee8d31a2334494e21bf71f8e5e7",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.MUX;\n\n/**\n * Sends the shop's requests to the acquirer through one MUX and says what became of each one.\n * The MUX's channel packs every message with {@code packager}.\n */\npublic class Submitter {\n    public enum Outcome { ANSWERED, NO_ANSWER, NOT_SENT }\n\n    /** What became of one request. {@code response} is set only when ANSWERED, {@code reason} only when NOT_SENT. */\n    public record Result(Outcome outcome, ISOMsg response, String reason) { }\n\n    private final MUX mux;\n    private final ISOPackager packager;\n    private final long timeout;\n\n    public Submitter(MUX mux, ISOPackager packager, long timeout) {\n        this.mux = mux;\n        this.packager = packager;\n        this.timeout = timeout;\n    }\n\n    public Result submit(ISOMsg request) throws ISOException {\n        // TODO: Today every request goes straight to the MUX. Make sure a request the link can't\n        //       carry is reported as NOT_SENT, with the reason, and never reaches the MUX.\n        ISOMsg response = mux.request(request, timeout);\n        return outcomeOf(response);\n    }\n\n    /** Null when the link can carry this request as it is; otherwise what is wrong with it. */\n    String packProblem(ISOMsg request) {\n        // TODO: Find out whether this request can go out on this link, the way the channel would.\n        throw new IllegalStateException(\"TODO: packProblem\");\n    }\n\n    /** The result of a request that went to the MUX, given what came back (null: nothing in time). */\n    Result outcomeOf(ISOMsg response) {\n        // TODO: Say what the caller now knows about a request that went to the MUX.\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-02/practice-1/src/main/java/com/example/practice/RequestFactory.java",
-    "test_path": "practice/jpos-client/prose/unit-02/practice-1/src/test/java/com/example/practice/RequestFactoryTest.java",
+    "main_path": "practice/jpos-client/prose/unit-02/practice-1/src/main/java/com/example/practice/Submitter.java",
+    "test_path": "practice/jpos-client/prose/unit-02/practice-1/src/test/java/com/example/practice/SubmitterTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -114,24 +97,29 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.RequestFactoryTest#authorizationAndFinancialShareTheCommonFields",
+        "id": "com.example.practice.SubmitterTest#aRequestThatFitsIsAnswered",
         "kind": "main",
-        "says": "an authorization and a financial request carry their own MTI and fields plus the common date-time, terminal and consecutive trace numbers"
+        "says": "a request the link can carry is sent once and the caller gets the host's answer"
       },
       {
-        "id": "com.example.practice.RequestFactoryTest#aReversalPointsBackAtTheOriginal",
-        "kind": "main",
-        "says": "a reversal is an 0400 with the original's card, amount and currency, and field 90 built from the original's MTI, trace number and date-time"
-      },
-      {
-        "id": "com.example.practice.RequestFactoryTest#theTraceNumberWrapsPastSixNines",
+        "id": "com.example.practice.SubmitterTest#aRequestThatDoesNotFitNeverReachesTheHost",
         "kind": "edge",
-        "says": "after 999999 the trace number starts again at 000001, never 000000"
+        "says": "a request that cannot be packed is reported as not sent and is never queued for the host"
       },
       {
-        "id": "com.example.practice.RequestFactoryTest#aReversalGetsItsOwnTraceNumber",
+        "id": "com.example.practice.SubmitterTest#silenceIsNotTheSameAsNotSent",
         "kind": "edge",
-        "says": "a reversal takes a fresh trace number of its own instead of copying the original's"
+        "says": "a request that went out and got no answer is reported as unanswered, not as unsent"
+      },
+      {
+        "id": "com.example.practice.SubmitterTest#anyFieldThatDoesNotFitIsCaught",
+        "kind": "edge",
+        "says": "the check catches any field that does not fit, not only the one that failed before"
+      },
+      {
+        "id": "com.example.practice.SubmitterTest#theLinksOwnPackagerDecides",
+        "kind": "edge",
+        "says": "whether a request fits is decided by the packager of the link it goes to, not by the standard's"
       }
     ],
     "report": {
@@ -140,12 +128,10 @@
     },
     "origin": {
       "path": "src/c2.md",
-      "section": "2.3 Handling Different Message Types"
+      "section": "2.2 A Message That Doesn't Pack Fails on the Channel Thread"
     },
     "concepts": [
-      "A factory stamps the fields every request shares (transmission date-time, trace number, terminal) so each message type adds only its own fields.",
-      "Authorization, financial and reversal requests differ by MTI, and a reversal carries the original request's identifying data in field 90.",
-      "Every request needs its own system trace audit number, not a fixed value, so a response and a reversal can be matched to it."
+      "A message that does not pack fails on the channel thread: the caller sees only a timeout and the 2.1.7 adaptor drops the link, so pack with the link's packager before queueing and report such a message as not sent."
     ]
   }
 }

@@ -8,7 +8,7 @@
   "unit": 10,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Testing",
   "blocks": [
     {
@@ -18,114 +18,493 @@
     },
     {
       "type": "para",
-      "text": "Testing is a crucial part of developing a robust jPOS client. It ensures that your ISO-8583 message creation, sending, and processing work correctly. We'll cover various aspects of testing, including unit tests, integration tests, and simulating server responses."
+      "text": "The client's test suite is green, run every night against the acquirer's certification host. Then the host stays silent for a minute in production, and `request` returns a `null` that no test has produced. A certification host won't decline, answer late or stay silent on demand, so a test has to play the host itself. Where to put that stand-in, and what each kind catches, comes down to five rules, one per section heading. Every output is from jPOS 2.1.7, in one JVM."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.1 Unit Testing"
+      "text": "10.1 A Test Plays the Host Through the `MUX` Interface"
     },
     {
       "type": "para",
-      "text": "Unit tests are essential for testing individual components of your jPOS client. Let's start with a simple example of testing a message creation service."
+      "text": "Unit c4's client, unchanged:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport static org.assertj.core.api.Assertions.assertThat;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\npublic class MessageCreationServiceTest {\n\n    @Mock\n    private ISOFactory isoFactory;\n\n    @InjectMocks\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testCreateAuthorizationRequest() throws Exception {\n        // Arrange\n        ISOMsg mockMsg = new ISOMsg();\n        when(isoFactory.createMsg(\"0100\")).thenReturn(mockMsg);\n\n        // Act\n        ISOMsg result = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n\n        // Assert\n        assertThat(result).isNotNull();\n        assertThat(result.getMTI()).isEqualTo(\"0100\");\n        assertThat(result.getString(2)).isEqualTo(\"1234567890123456\");\n        assertThat(result.getString(4)).isEqualTo(\"000000010000\");\n    }\n}"
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\npublic class AuthorizationClient {\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER, HOST_UNAVAILABLE }\n\n    private final MUX mux;\n    private final long timeout;\n\n    public AuthorizationClient(MUX mux, long timeout) {\n        this.mux = mux;\n        this.timeout = timeout;\n    }\n\n    public Outcome authorize(ISOMsg request) throws ISOException {\n        if (!mux.isConnected())\n            return Outcome.HOST_UNAVAILABLE;           // nothing left our side\n        ISOMsg response = mux.request(request, timeout);\n        if (response == null)\n            return Outcome.NO_ANSWER;                  // unknown: unit c12 reverses it\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}"
     },
     {
       "type": "para",
-      "text": "In this example, we're testing the `MessageCreationService` class, which is responsible for creating ISO-8583 messages. We use Mockito to mock the `ISOFactory` and AssertJ for fluent assertions."
+      "text": "It takes a `MUX`, an interface with four methods: `request` with a timeout, `request` with a listener, `send`, and `isConnected`. Anything that implements them can stand in for the host:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.function.Function;\n\n/** The host, as a test wants it: each answer is decided by the test, in the test's thread. */\npublic class FakeMux implements MUX {\n    private final Function<ISOMsg, String> host;     // field 39 for a request, or null: no answer\n    private final List<ISOMsg> sent = new ArrayList<>();\n    private boolean connected = true;\n\n    public FakeMux(Function<ISOMsg, String> host) {\n        this.host = host;\n    }\n\n    public static FakeMux answering(String responseCode) {\n        return new FakeMux(request -> responseCode);\n    }\n\n    public FakeMux down() {\n        connected = false;\n        return this;\n    }\n\n    public synchronized List<ISOMsg> sent() {\n        return new ArrayList<>(sent);\n    }\n\n    @Override\n    public synchronized ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n        sent.add(m);                                  // counted even when nobody answers\n        String code = host.apply(m);\n        if (code == null)\n            return null;                              // what QMUX returns when the time is up\n        ISOMsg response = (ISOMsg) m.clone();         // a new message; the caller keeps its own\n        response.setResponseMTI();\n        response.set(39, code);\n        return response;\n    }\n\n    @Override\n    public void request(ISOMsg m, long timeout, ISOResponseListener listener, Object handBack)\n            throws ISOException {\n        ISOMsg response = request(m, timeout);\n        if (response != null)\n            listener.responseReceived(response, handBack);\n        else\n            listener.expired(handBack);\n    }\n\n    @Override\n    public synchronized void send(ISOMsg m) {\n        sent.add(m);\n    }\n\n    @Override\n    public boolean isConnected() {\n        return connected;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Each of the client's four endings is now a short test:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\n\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.APPROVED;\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.DECLINED;\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.HOST_UNAVAILABLE;\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.NO_ANSWER;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass AuthorizationClientTest {\n\n    static ISOMsg purchase(String stan, String amount) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, \"4111111111111111\");\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, stan);\n        m.set(41, \"29110001\");\n        return m;\n    }\n\n    @Test\n    void approved() throws Exception {\n        FakeMux host = FakeMux.answering(\"00\");\n        assertEquals(APPROVED, new AuthorizationClient(host, 30000).authorize(purchase(\"000101\", \"000000001000\")));\n    }\n\n    @Test\n    void declined() throws Exception {\n        FakeMux host = FakeMux.answering(\"51\");\n        assertEquals(DECLINED, new AuthorizationClient(host, 30000).authorize(purchase(\"000102\", \"000000001000\")));\n    }\n\n    @Test\n    void noAnswerIsSentOnce() throws Exception {\n        FakeMux host = new FakeMux(request -> null);\n        assertEquals(NO_ANSWER, new AuthorizationClient(host, 30000).authorize(purchase(\"000103\", \"000000001000\")));\n        assertEquals(1, host.sent().size());\n    }\n\n    @Test\n    void downLinkSendsNothing() throws Exception {\n        FakeMux host = FakeMux.answering(\"00\").down();\n        assertEquals(HOST_UNAVAILABLE, new AuthorizationClient(host, 30000).authorize(purchase(\"000104\", \"000000001000\")));\n        assertEquals(0, host.sent().size());\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "AuthorizationClientTest\napproved               passed (8 ms)\ndeclined               passed (0 ms)\ndownLinkSendsNothing   passed (0 ms)\nnoAnswerIsSentOnce     passed (0 ms)"
+    },
+    {
+      "type": "para",
+      "text": "The fake returns `null` at once, although the client asked for 30 seconds. It also records what it was sent, which a cashier never sees: the unanswered purchase went out exactly once (unit c12 explains why a second attempt would be a second charge), and on a down link nothing went out."
+    },
+    {
+      "type": "para",
+      "text": "A hand-written fake reads better than Mockito once the answer depends on the request. Either way, the fake has to answer the way QMUX does, and that is easy to get wrong."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.1.1 Spot the Problem: The Fake That Answered With the Request"
+    },
+    {
+      "type": "para",
+      "text": "A team's three-line fake, and a slip in its client:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "public ISOMsg request(ISOMsg m, long timeout) throws ISOException {\n    m.setResponseMTI();                                                    // (1)\n    m.set(39, code);\n    return m;\n}\n// ... and in the client:\nISOMsg response = mux.request(request, timeout);\nif (response == null) return Outcome.NO_ANSWER;\nreturn \"00\".equals(request.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;   // (2)"
+    },
+    {
+      "type": "para",
+      "text": "Every test passed. What did production do?"
+    },
+    {
+      "type": "para",
+      "text": "Line (2) reads field 39 from the request instead of the response. Against this fake that makes no difference, because line (1) turns the request into the response: they are one object. QMUX hands back a different message, unpacked from the wire, and the request never gets a field 39:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mutating fake, host approves: APPROVED   (request is now 0210)\nmutating fake, host declines: DECLINED\ncloning fake,  host approves: DECLINED\nreal QMUX,     host approves: DECLINED"
+    },
+    {
+      "type": "para",
+      "text": "In production every approval is reported as a decline. The host has moved the money, the cashier says the card was refused, and the client sends no reversal, because a decline needs none. The cardholder pays with another card and is charged twice, until reconciliation or a dispute catches it."
+    },
+    {
+      "type": "para",
+      "text": "So a fake answers with a new message and leaves the request alone. Like QMUX, it returns `null`, never an exception, when nobody answers, and calls `expired` on the listener form."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.2 Integration Testing"
+      "text": "10.2 A Fake Checks Your Decisions, and Only QMUX Checks jPOS's Rules"
     },
     {
       "type": "para",
-      "text": "Integration tests ensure that different components of your jPOS client work together correctly. Here's an example of an integration test that sends a message and verifies the response:"
+      "text": "The fake decides answers and nothing else. QMUX builds a key from each request, by default from fields 41 and 11, refuses to send a request it could never match, and hands an answer only to the request with the same key (unit c12 takes the key apart). `FakeMux` does none of this."
+    },
+    {
+      "type": "para",
+      "text": "QMUX needs no socket for it: it writes requests to its `<out>` queue, `host-send`, and reads answers from its `<in>` queue, `host-receive`. A listener on those two queues, in the same Space, can play the host for a real QMUX in the test:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class TransactionSenderIntegrationTest {\n\n    @Autowired\n    private MUX mux;\n\n    @Autowired\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testSendAuthorizationRequest() throws Exception {\n        // Arrange\n        ISOMsg request = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n\n        // Act\n        ISOMsg response = mux.request(request, 30000);\n\n        // Assert\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0110\");\n        assertThat(response.getString(39)).isEqualTo(\"00\"); // Assuming '00' is approval code\n    }\n}"
+      "text": "package com.example.jpos.client.testing;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceListener;\n\nimport java.util.Date;\nimport java.util.function.UnaryOperator;\n\n/** Sits where the ChannelAdaptor would: takes requests from host-send, answers on host-receive. */\npublic final class QueueHost implements SpaceListener<String, Object> {\n    private final LocalSpace<String, Object> sp;\n    private final UnaryOperator<ISOMsg> host;          // the response to a request, or null\n\n    public QueueHost(LocalSpace<String, Object> sp, UnaryOperator<ISOMsg> host) {\n        this.sp = sp;\n        this.host = host;\n        sp.addListener(\"host-send\", this);\n        sp.out(\"host-channel.ready\", new Date());      // what the adaptor does when it connects\n    }\n\n    public static ISOMsg answer(ISOMsg request, String responseCode) {\n        try {\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setResponseMTI();\n            response.set(39, responseCode);\n            return response;\n        } catch (ISOException e) {\n            throw new IllegalStateException(e);\n        }\n    }\n\n    @Override\n    public void notify(String queue, Object value) {\n        ISOMsg request = (ISOMsg) sp.inp(queue);\n        if (request == null)\n            return;\n        ISOMsg response = host.apply(request);\n        if (response != null)\n            sp.out(\"host-receive\", response);\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This integration test creates an authorization request, sends it through the MUX, and verifies the response. It uses the actual Spring context, so it's closer to real-world scenarios."
+      "text": "That QMUX is unit c1's `deploy/20_host_mux.xml`, unchanged, deployed by Q2. It names no `<space>`, so it and the queue host share `SpaceFactory.getSpace()`, where the queue host's ready entry makes `isConnected` true."
+    },
+    {
+      "type": "para",
+      "text": "Three situations, each sent through `FakeMux` and through QMUX with a `QueueHost`, with a one-second timeout. Does the fake notice anything?"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "an 0800 echo with only field 70, no STAN or terminal ID;",
+        "a purchase for terminal `29110001`, STAN `000417`, sent while another with the same pair is waiting;",
+        "a purchase, STAN `000418`, to a host that answers without field 41."
+      ]
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "echo without 11/41   fake: 0810 39=00 | qmux: ISOException: Key fields not found - not sending host-send.080\nsame key, in flight  fake: 0210 39=00, 0210 39=00 | qmux: 0210 39=00, ISOException: Duplicate key 'host-send.0200000000029110001000417.req' detected\nanswer without 41    fake: 0210 39=00 | qmux: null after 1000 ms\nhost-unhandled: 0210 11=000418"
+    },
+    {
+      "type": "para",
+      "text": "The fake answered all four requests. QMUX refused the echo before sending it: its key held only the queue name and the MTI, so no answer could match it. It refused the second purchase, because one answer would match both. The answer without field 41 matched no key, so the caller got `null` after its full second and the answer went to the `<unhandled>` queue, `host-unhandled`."
+    },
+    {
+      "type": "para",
+      "text": "The fake compares no keys, so it answered both purchases that shared one. In production that collision takes two requests in flight at once, and unit c12 shows a gateway whose STANs collide while its tests stay green. A host that doesn't echo a key field is worse: every purchase is a `null`, and every `null` becomes a reversal."
+    },
+    {
+      "type": "para",
+      "text": "Keep the fake for decisions. When the test is about what QMUX does with your messages (concurrency, STANs, a host's echo), run the real QMUX against a queue host: it starts in a few hundred milliseconds and opens no socket."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.3 Simulating Server Responses"
+      "text": "10.3 Only a Test That Deploys Your Files Tests Them"
     },
     {
       "type": "para",
-      "text": "To test various scenarios without relying on an actual server, we can use Wiremock to simulate server responses. Here's an example of how to set up a Wiremock server to simulate ISO-8583 responses:"
+      "text": "Neither the fake nor the queue host packs a byte or opens a connection. The channel, packager, host, port, adaptor name and queues live in deploy files that no test has run yet."
+    },
+    {
+      "type": "para",
+      "text": "A client gets a second network, and someone renames the adaptor in `10_host_channel.xml` from `host-channel` to `visa-channel` to tell the links apart in the log. The QMUX descriptor still says `<ready>host-channel.ready</ready>`. The fake reads no descriptor, and the queue host writes `host-channel.ready` itself, so neither notices. The client against those two files and a host on 127.0.0.1:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "visa-channel.ready present: true\nhost-mux isConnected: false\nauthorize: HOST_UNAVAILABLE\nhost received: 0"
+    },
+    {
+      "type": "para",
+      "text": "The link is up, announced under the new name, but QMUX looks for the old one and reports the link down, so the client sends nothing and returns `HOST_UNAVAILABLE`. In production every cardholder is asked for another payment method while the link is healthy, and the host sees no traffic, so nothing fails on its side."
+    },
+    {
+      "type": "para",
+      "text": "The test that catches this plays the host with an `ISOServer` on 127.0.0.1:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import com.github.tomakehurst.wiremock.WireMockServer;\nimport com.github.tomakehurst.wiremock.core.WireMockConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.junit.jupiter.api.AfterEach;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport static com.github.tomakehurst.wiremock.client.WireMock.*;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class ISOClientWiremockTest {\n\n    private WireMockServer wireMockServer;\n    private NACChannel channel;\n\n    @BeforeEach\n    void setup() throws Exception {\n        wireMockServer = new WireMockServer(WireMockConfiguration.options().port(8888));\n        wireMockServer.start();\n\n        GenericPackager packager = new GenericPackager(\"packager/iso87ascii.xml\");\n        channel = new NACChannel(\"localhost\", 8888, packager);\n        channel.connect();\n    }\n\n    @AfterEach\n    void teardown() {\n        channel.disconnect();\n        wireMockServer.stop();\n    }\n\n    @Test\n    void testAuthorizationRequest() throws Exception {\n        // Arrange\n        String responseHex = \"30313130F23C46D129E09180000000000000001000000000000010000301000000301000012345678901234560000\";\n        wireMockServer.stubFor(any(urlEqualTo(\"/\"))\n                .willReturn(aResponse()\n                        .withStatus(200)\n                        .withBody(hexStringToByteArray(responseHex))));\n\n        // Act\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"1234567890123456\");\n        request.set(4, \"000000010000\");\n        \n        ISOMsg response = channel.send(request);\n\n        // Assert\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0110\");\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n    }\n\n    private byte[] hexStringToByteArray(String s) {\n        int len = s.length();\n        byte[] data = new byte[len / 2];\n        for (int i = 0; i < len; i += 2) {\n            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)\n                    + Character.digit(s.charAt(i+1), 16));\n        }\n        return data;\n    }\n}"
+      "text": "package com.example.jpos.client.testing;\n\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.GenericPackager;\n\nimport java.net.ServerSocket;\nimport java.util.function.UnaryOperator;\n\n/** The host for tests that use the real channel: an ISOServer on 127.0.0.1 in the test's JVM. */\npublic final class LoopbackHost implements ISORequestListener {\n    private final UnaryOperator<ISOMsg> host;          // the response to a request, or null\n    private final ISOServer server;\n    public final int port;\n\n    public LoopbackHost(UnaryOperator<ISOMsg> host) throws Exception {\n        this.host = host;\n        try (ServerSocket probe = new ServerSocket(0)) {\n            port = probe.getLocalPort();                // a free port, chosen by the OS\n        }\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        server = new ISOServer(port, new ASCIIChannel(packager), null);\n        SimpleConfiguration cfg = new SimpleConfiguration();\n        cfg.put(\"bind-address\", \"127.0.0.1\");\n        server.setConfiguration(cfg);\n        server.addISORequestListener(this);\n        new Thread(server, \"loopback-host\").start();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg response = host.apply(request);\n            if (response != null)\n                source.send(response);\n        } catch (Exception e) {\n            throw new IllegalStateException(e);\n        }\n        return true;\n    }\n\n    public void stop() {\n        server.shutdown();\n    }\n}"
     },
     {
       "type": "para",
-      "text": "This test sets up a Wiremock server to simulate an ISO-8583 server. It stubs a response for any incoming request and then sends a request using the NACChannel. The test verifies that the response is correctly parsed and contains the expected data."
+      "text": "Then it starts Q2 in the test's JVM on copies of the descriptors you ship. Unit c1's channel descriptor reads its port as `${host.port:8000}`, so the test sets the system property `host.port`:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport com.example.jpos.client.testing.LoopbackHost;\nimport com.example.jpos.client.testing.QueueHost;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.Q2;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.util.NameRegistrar;\nimport org.junit.jupiter.api.AfterAll;\nimport org.junit.jupiter.api.BeforeAll;\nimport org.junit.jupiter.api.Test;\n\nimport java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.List;\n\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.APPROVED;\nimport static com.example.jpos.client.send.AuthorizationClient.Outcome.NO_ANSWER;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertNotNull;\n\nclass EmbeddedClientTest {\n    private static LoopbackHost host;\n    private static Q2 q2;\n\n    @BeforeAll\n    static void start() throws Exception {\n        host = new LoopbackHost(request ->\n                request.getString(4).endsWith(\"1\") ? null : QueueHost.answer(request, \"00\"));\n        System.setProperty(\"host.port\", String.valueOf(host.port));   // ${host.port} in the descriptor\n        Path deploy = Files.createTempDirectory(\"deploy\");\n        for (String f : List.of(\"10_host_channel.xml\", \"20_host_mux.xml\"))\n            Files.copy(Path.of(\"deploy\", f), deploy.resolve(f));        // the files you ship\n        q2 = new Q2(deploy.toString());\n        q2.start();\n        assertNotNull(NameRegistrar.get(\"mux.host-mux\", 10000), \"host-mux deployed\");\n        assertNotNull(SpaceFactory.getSpace().rd(\"host-channel.ready\", 10000), \"link up\");\n    }\n\n    @AfterAll\n    static void stop() {\n        q2.shutdown(true);\n        host.stop();\n    }\n\n    private static MUX mux() {\n        return NameRegistrar.getIfExists(\"mux.host-mux\");\n    }\n\n    @Test\n    void approvedOverTheWire() throws Exception {\n        ISOMsg purchase = AuthorizationClientTest.purchase(\"000301\", \"000000004200\");\n        assertEquals(APPROVED, new AuthorizationClient(mux(), 2000).authorize(purchase));\n    }\n\n    @Test\n    void silentHostIsNoAnswer() throws Exception {\n        ISOMsg purchase = AuthorizationClientTest.purchase(\"000302\", \"000000004201\");\n        assertEquals(NO_ANSWER, new AuthorizationClient(mux(), 300).authorize(purchase));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "EmbeddedClientTest\napprovedOverTheWire    passed (1 ms)\nsilentHostIsNoAnswer   passed (300 ms)"
+    },
+    {
+      "type": "para",
+      "text": "With the renamed adaptor, this test fails in its setup, at \"link up\", after ten seconds."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**An environment variable wins.** jPOS 2.1.7 reads `${host.port}` from the environment (`host.port`, then `HOST_PORT`) before the system property, so a `HOST_PORT` on a build machine silently overrides the test."
+        }
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Q2 has to run in the test's JVM: `QMUX.getMUX` and `NameRegistrar.get` read the `NameRegistrar`, a static map per JVM (unit c1), so a test can't reach a Q2 that a script started in another process."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Q2 can end the JVM.** In 2.1.7 an exception that escapes Q2's main loop ends in `System.exit(1)`. Maven Surefire forks a JVM for tests by default, so the build reports a crashed fork instead of disappearing. Keep it forked."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.3.1 The Packager Without the Socket"
+    },
+    {
+      "type": "para",
+      "text": "Unit c9 sent the bakery's 41-character merchant name into a field that holds 40. Nothing checked it on the way in: `ISOMsg.set` accepts any string, and QMUX queues the message as it is. The adaptor's thread packed it when it wrote to the socket, failed, and dropped the link. A test can load the same packager file without a socket: pack a copy, unpack it into a fresh message, and compare."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.junit.jupiter.api.Test;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass WireRoundTripTest {\n    private static final String PACKAGER = \"jar:packager/iso87ascii.xml\";  // as in 10_host_channel.xml\n\n    static ISOMsg roundTrip(ISOMsg m) throws Exception {\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.setPackager(new GenericPackager(PACKAGER));\n        ISOMsg back = new ISOMsg();\n        back.setPackager(new GenericPackager(PACKAGER));\n        back.unpack(copy.pack());\n        return back;\n    }\n\n    @Test\n    void purchaseSurvivesTheWire() throws Exception {\n        ISOMsg purchase = AuthorizationClientTest.purchase(\"000401\", \"1500\");\n        ISOMsg back = roundTrip(purchase);\n        assertEquals(\"000000001500\", back.getString(4));\n        assertEquals(purchase.getString(41), back.getString(41));\n    }\n\n    @Test\n    void bakeryNameFitsField43() throws Exception {\n        ISOMsg purchase = AuthorizationClientTest.purchase(\"000402\", \"000000001500\");\n        purchase.set(43, \"THE CORNER BAKERY AND COFFEE HOUSE LONDON\");\n        roundTrip(purchase);\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "WireRoundTripTest\nbakeryNameFitsField43  FAILED: ISOException: error packing field 43 (6 ms)\npurchaseSurvivesTheWire passed (3 ms)"
+    },
+    {
+      "type": "para",
+      "text": "The bakery's name is now refused in the build, and the test stays red until the client checks the name before sending it, as unit c9 does. The first test shows why a test compares what was sent the way the packager writes it: the client set `1500`, and the host receives `000000001500`. The test packs a clone because `setPackager` changes the message it is called on."
+    },
+    {
+      "type": "para",
+      "text": "Use the packager file the channel descriptor names. Another packager proves only that the message fits that one."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.4 Testing with Q2"
+      "text": "10.4 A Test Waits for a Condition, Never for a Time"
     },
     {
       "type": "para",
-      "text": "jPOS provides a Q2 container that can be useful for testing. Here's an example of how to set up a test using Q2:"
+      "text": "`q2.start()` returns at once. Q2 deploys the directory on its own thread, and the adaptor connects on another. So when can the test send? One start, with the host already listening:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.q2.Q2;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.junit.jupiter.api.AfterAll;\nimport org.junit.jupiter.api.BeforeAll;\nimport org.junit.jupiter.api.Test;\nimport static org.assertj.core.api.Assertions.assertThat;\n\npublic class Q2Test {\n\n    private static Q2 q2;\n\n    @BeforeAll\n    static void setup() throws Exception {\n        q2 = new Q2();\n        q2.start();\n        Thread.sleep(2000); // Wait for Q2 to start\n    }\n\n    @AfterAll\n    static void teardown() {\n        q2.stop();\n    }\n\n    @Test\n    void testQMUX() throws Exception {\n        QMUX qmux = (QMUX) NameRegistrar.get(\"mux.mymux\");\n        assertThat(qmux).isNotNull();\n        assertThat(qmux.isConnected()).isTrue();\n\n        ISOMsg msg = new ISOMsg(\"0800\");\n        msg.set(11, \"000001\");\n        msg.set(70, \"301\");\n\n        ISOMsg response = qmux.request(msg, 30000);\n        assertThat(response).isNotNull();\n        assertThat(response.getMTI()).isEqualTo(\"0810\");\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n    }\n}"
+      "lang": "text",
+      "text": "t=3 ms  q2.start() returned; getMUX: NotFoundException mux.host-mux\nt=276 ms  q2.ready() returned; host-mux registered, isConnected false\nt=277 ms  host-channel.ready present; isConnected true"
     },
     {
       "type": "para",
-      "text": "This test starts a Q2 instance, retrieves a QMUX from the NameRegistrar, and sends a network management request. It then verifies the response."
+      "text": "Right after `start`, the QMUX doesn't exist yet. `q2.ready(timeout)` waits until Q2 has deployed the directory once, so the QMUX is registered, but the adaptor may not have connected. In eight of twelve runs the link was still down at that moment, and a millisecond later it was up in all twelve."
+    },
+    {
+      "type": "para",
+      "text": "That millisecond makes a test flaky. It is longer on a loaded build server, and much longer when the host isn't listening at the first attempt. Here the host started 200 ms after Q2:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "t=5 ms  q2.start() returned; getMUX: NotFoundException mux.host-mux\nt=282 ms  q2.ready() returned; host-mux registered, isConnected false\nt=490 ms  host starts listening\nt=10284 ms  host-channel.ready present; isConnected true"
+    },
+    {
+      "type": "para",
+      "text": "The first connect failed, and the adaptor tried again after its `reconnect-delay` of 10 seconds. A test that sleeps two seconds after `start` passes on the developer's machine and fails on the build server whenever the host is slow to listen. A test that fails now and then gets re-run until it passes, and then its real failures get re-run too."
+    },
+    {
+      "type": "para",
+      "text": "So the test in 10.3 waits for the two things it needs with jPOS's blocking reads. `NameRegistrar.get(\"mux.host-mux\", 10000)` returns once the QMUX is registered, and `SpaceFactory.getSpace().rd(\"host-channel.ready\", 10000)` once the adaptor announces the link, the entry that `isConnected` reads (unit c1). Each returns `null` after 10 seconds. When the condition holds after 3 ms, the test goes on after 3 ms, and the 10 seconds only bound a failure. Start the host before Q2, too, so the first connect succeeds."
+    },
+    {
+      "type": "para",
+      "text": "The no-answer path waits the whole request timeout, so give it a short one: `silentHostIsNoAnswer` waits 300 ms, not production's 30 seconds. And a test that checks something on another thread, such as a reversal reaching the host from a store-and-forward queue (unit c12), waits for the host to receive it, not for a guessed number of milliseconds."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "10.5 Performance Testing"
+      "text": "10.5 A Load Test Is Judged by Its Slow Tail and Its Nulls"
     },
     {
       "type": "para",
-      "text": "For performance testing, you might want to simulate multiple concurrent requests. Here's a simple example using Java's ExecutorService:"
+      "text": "A load test runs outside the unit suite, against the embedded stack or a simulator (unit c16), never a certification or production host."
+    },
+    {
+      "type": "para",
+      "text": "Here 2000 purchases from 20 threads go through the stack of 10.3 with a 500 ms request timeout, and the host ignores one purchase in fifty. Each purchase takes its STAN from one `StanSequencer` (unit c4), because random STANs on one terminal ID would sooner or later collide in QMUX:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.Future;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class PerformanceTest {\n\n    @Autowired\n    private MUX mux;\n\n    @Autowired\n    private MessageCreationService messageCreationService;\n\n    @Test\n    void testConcurrentRequests() throws Exception {\n        int numRequests = 100;\n        ExecutorService executor = Executors.newFixedThreadPool(10);\n        List<Future<ISOMsg>> futures = new ArrayList<>();\n\n        for (int i = 0; i < numRequests; i++) {\n            futures.add(executor.submit(() -> {\n                ISOMsg request = messageCreationService.createAuthorizationRequest(\"1234567890123456\", 100.00);\n                return mux.request(request, 30000);\n            }));\n        }\n\n        for (Future<ISOMsg> future : futures) {\n            ISOMsg response = future.get();\n            assertThat(response).isNotNull();\n            assertThat(response.getMTI()).isEqualTo(\"0110\");\n            assertThat(response.getString(39)).isEqualTo(\"00\");\n        }\n\n        executor.shutdown();\n    }\n}"
+      "text": "long t0 = System.nanoTime();\nISOMsg r = mux.request(m, timeout);\nmicros[i] = (System.nanoTime() - t0) / 1_000;\nanswered[i] = r != null;"
     },
     {
       "type": "para",
-      "text": "This test simulates 100 concurrent authorization requests and verifies that all responses are successful."
+      "text": "The mean is about 11 ms. Is the client fast?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "2000 requests, 20 threads, timeout 500 ms, took 1226 ms\nall requests   n=2000  mean=10.9  p50=0.3  p95=4.1  p99=500.4  max=501.2  nulls=40   (ms)\nanswered only  n=1960  mean=0.9  p50=0.3  p95=3.4  p99=6.1  max=42.4  nulls=0   (ms)"
+    },
+    {
+      "type": "para",
+      "text": "Half the purchases took under 0.3 ms, and 40 took the full 500 ms and came back `null`. The mean describes neither group."
+    },
+    {
+      "type": "para",
+      "text": "The second line is what a report shows when it drops the `null` samples as \"errors\": a p99 of 6.1 ms. Yet 40 cardholders waited the whole timeout for \"outcome unknown\", and each of those purchases now needs a reversal. A `null` is a request that took as long as you let it, so it goes into the latencies at that time, and the null count goes beside the percentiles."
+    },
+    {
+      "type": "para",
+      "text": "Size the load as a rate from the business: the busiest hour's purchases divided by 3600, times a factor for bursts. Threads are only what it takes to reach that rate."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.6 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A test plays the host through `MUX`.** Declines, silence and a down link become short tests, if the fake answers as QMUX does. Otherwise it hides bugs production finds.",
+        "**A fake checks decisions; QMUX checks the rules.** Key fields, duplicate keys and a missing key field show up only with a real QMUX, against a queue host.",
+        "**Only a test that deploys your files tests them.** Run Q2 in the test's JVM on the shipped descriptors, and round-trip through the link's packager.",
+        "**Wait for a condition.** `q2.ready` means deployed, not connected: block on the registry and ready entries.",
+        "**A load test is judged by its tail and its nulls.** Count a `null` at the time it waited, and report how many there were."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.7 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**What each stand-in exercises:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Stand-in",
+        "Your decisions",
+        "QMUX keys and matching",
+        "Descriptors and `<ready>`",
+        "Packager and framing",
+        "Start-up"
+      ],
+      "rows": [
+        [
+          "`FakeMux`",
+          "yes",
+          "no",
+          "no",
+          "no",
+          "none"
+        ],
+        [
+          "real QMUX + `QueueHost`",
+          "yes",
+          "yes",
+          "the QMUX file only",
+          "no",
+          "a few hundred ms"
+        ],
+        [
+          "Q2 + `LoopbackHost` on 127.0.0.1",
+          "yes",
+          "yes",
+          "yes",
+          "your side, against the stand-in's channel",
+          "under a second, plus the first connect"
+        ],
+        [
+          "packager round trip",
+          "no",
+          "no",
+          "no",
+          "the packager only",
+          "none"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Waits in a 2.1.7 test:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Call",
+        "Returns when",
+        "On timeout"
+      ],
+      "rows": [
+        [
+          "`q2.ready(ms)`",
+          "Q2 has deployed the directory once",
+          "`false`"
+        ],
+        [
+          "`NameRegistrar.get(\"mux.host-mux\", ms)`",
+          "the QMUX is registered",
+          "`null`"
+        ],
+        [
+          "`QMUX.getMUX(\"host-mux\")`",
+          "at once",
+          "`NameRegistrar.NotFoundException` if not registered"
+        ],
+        [
+          "`SpaceFactory.getSpace().rd(\"host-channel.ready\", ms)`",
+          "the adaptor has announced the link",
+          "`null`"
+        ],
+        [
+          "`mux.request(m, ms)`",
+          "the answer arrives",
+          "`null` (an answer already being delivered can add up to 10 s)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What a fake MUX must reproduce:** a new message per answer (the request unchanged), the response MTI, `null` and `listener.expired(handBack)` for no answer, and a controllable `isConnected`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.8 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your suite has 300 fake-MUX tests, 20 queue-host tests and 3 embedded-Q2 tests. A release mishandles a host that echoes field 37 with trailing spaces. Which level should have caught it, and with what test?",
+        "The embedded tests take 12 seconds, mostly Q2's start and the no-answer timeouts. Find two ways to speed them up without waiting for time, and what each costs.",
+        "With the host ignoring 1 purchase in 200 instead of 1 in 50, which percentile still shows the problem, and how many requests make the p99 stable?",
+        "A colleague would replace the embedded tests with a script that starts the client and unit c16's simulator before the build. What does the build lose and gain?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10.9 Design Note: Why Cut at the `MUX` Interface?"
+    },
+    {
+      "type": "para",
+      "text": "Above the `MUX` interface are your decisions; below it are jPOS's keys, queues, adaptor, packager and socket. Its four methods are small enough to fake in about fifty lines."
+    },
+    {
+      "type": "para",
+      "text": "Cutting higher, behind your own interface such as a `PaymentGateway`, makes the fake easier to write and lets it drift from jPOS: it returns what the team wishes the network did, such as an exception for a timeout instead of QMUX's `null`. Cutting lower, at the socket, makes every test pay for framing, a packager and a server. An HTTP mock such as WireMock can't stand there at all: a jPOS channel writes a length header and an ISO 8583 message, not an HTTP request."
+    },
+    {
+      "type": "para",
+      "text": "The price of the `MUX` cut is that the fake has to keep the interface's promises, which 10.1.1 shows breaking, and that it can't keep QMUX's, which is why the queue host and the embedded stack exist."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 6,
-    "paras": 11,
-    "code": 5,
-    "tables": 0,
-    "lists": 0,
+    "headings": 12,
+    "paras": 46,
+    "code": 18,
+    "tables": 2,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "c5c25906de8dad702272a7b54b0ea519c61af7db7d0e861adf7cd4652ba451a3"
+  "content_sha256": "7d78d94d1fe73274313e03a7fbd3618bde199a1358dd6f08d85f226f5c2f69d1"
 }

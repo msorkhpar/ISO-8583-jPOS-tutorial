@@ -1,0 +1,187 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 20,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: Store-and-Forward and Reversals",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-link-down-purchase",
+        "stem": "A terminal's link to its acquirer has been down for six minutes. A customer buys 23.80 of groceries, above the terminal's floor limit, so the terminal can't approve it offline, and its 0200 can't be sent. What should the terminal do with this purchase?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Report the purchase as failed at once, and queue the 0200 to send when the link returns.",
+            "correct": false,
+            "says": "20.1: a request asks for a decision; sent later it is approved after the terminal showed failure and the customer paid another way."
+          },
+          {
+            "id": "b",
+            "text": "Report the purchase as failed at once, and queue nothing to send when the link returns.",
+            "correct": true,
+            "says": "20.1: a request that can't be sent fails at once; only one that was sent and got no answer is reversed. 20.3: only an attempt that went out counts."
+          },
+          {
+            "id": "c",
+            "text": "Report the purchase as pending, and queue the 0200 to send when the link returns.",
+            "correct": false,
+            "says": "20.1: requests never go into a SAF; delivered late, the decision arrives after the customer has left or paid another way."
+          },
+          {
+            "id": "d",
+            "text": "Report the purchase as pending, and queue nothing to send when the link returns.",
+            "correct": false,
+            "says": "20.1: a request that can't be sent fails at once; it is not left pending."
+          }
+        ],
+        "origin": {
+          "path": "src/20.md",
+          "section": "20.1. A SAF Holds Reports of Decisions Already Taken, Never a Request"
+        }
+      },
+      {
+        "id": "q-tell-order",
+        "stem": "After a purchase gets no answer, a switch tells the terminal FAILED, then inserts the reversal into its queue table, then marks the journal row, each step in its own commit. A reviewer asks to move the message to the terminal to the end. A colleague answers that the three steps take under a millisecond together. Who is right?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The reviewer, since a crash right after telling the terminal can leave nothing queued to undo an approval.",
+            "correct": true,
+            "says": "20.2: the crash after telling is the one that leaves the cardholder paying; store first, then tell."
+          },
+          {
+            "id": "b",
+            "text": "The reviewer, since a crash right after telling the terminal can leave the terminal waiting for an answer.",
+            "correct": false,
+            "says": "20.2: the harm of a crash after telling is that no reversal was stored, so an approval the host may have given is never undone."
+          },
+          {
+            "id": "c",
+            "text": "The colleague, since a crash right after telling the terminal is too rare to leave anything worth fixing.",
+            "correct": false,
+            "says": "20.2: that crash leaves the cardholder paying for a failed purchase with nothing queued to undo it, however short the window."
+          },
+          {
+            "id": "d",
+            "text": "The colleague, since a crash right after telling the terminal still ends with the purchase shown as failed.",
+            "correct": false,
+            "says": "20.2: the terminal shows failure either way, but only a stored reversal undoes the approval the host may have given."
+          }
+        ],
+        "origin": {
+          "path": "src/20.md",
+          "section": "20.2. An Entry Is Stored Before Anyone Is Told, and Leaves Only When It Is Acknowledged"
+        }
+      },
+      {
+        "id": "q-flapping-link",
+        "stem": "An acquirer's queue parks an advice after 10 unanswered attempts, waits 30 seconds after the first failure and doubles the wait after each further one. Its sender sets an entry's attempt count back to zero whenever the link reconnects. One night the link drops and returns every 4 minutes, and the host never answers reversal 002215 at the head of the queue. What happens that night?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The reversal is repeated all night without being parked, and the advices queued behind it wait until morning.",
+            "correct": true,
+            "says": "20.3: a reconnect that resets the count never lets the head reach its limit, and every entry behind it waits; 20.5: nothing behind the head goes out."
+          },
+          {
+            "id": "b",
+            "text": "The reversal is repeated all night without being parked, and the advices queued behind it go out between its attempts.",
+            "correct": false,
+            "says": "20.5: one sender takes the head and nothing else; while it waits, the entries behind it wait too."
+          },
+          {
+            "id": "c",
+            "text": "The reversal is parked after its tenth attempt, since a reconnect only brings its next attempt forward.",
+            "correct": false,
+            "says": "20.3: that holds for a sender that keeps the count; this one resets it, and with 4 minutes between drops it never gets past a few attempts."
+          },
+          {
+            "id": "d",
+            "text": "The reversal is parked within the hour, since the minutes with the link down count toward its attempts.",
+            "correct": false,
+            "says": "20.3: only an attempt that went out counts; nothing is sent while the link is down."
+          }
+        ],
+        "origin": {
+          "path": "src/20.md",
+          "section": "20.3. Every Later Attempt Is a Repeat, and the Wait Grows Until a Reconnect Cuts It Short"
+        }
+      },
+      {
+        "id": "q-reversal-first",
+        "stem": "An issuer's host receives an 0420 whose field 90 names purchase 000233 from acquirer 61250. It has no record of that purchase. Three seconds later the 0200 for purchase 000233 arrives. What should the host do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Acknowledge the 0420 and keep what it named, then decline the 0200, since that purchase must not be posted.",
+            "correct": true,
+            "says": "20.6: a reversal that found nothing is remembered, and its original is never posted; a request is declined."
+          },
+          {
+            "id": "b",
+            "text": "Acknowledge the 0420 and keep what it named, then approve the 0200, since it arrived as a new purchase.",
+            "correct": false,
+            "says": "20.6: the original is never posted once a reversal has named it."
+          },
+          {
+            "id": "c",
+            "text": "Decline the 0420, since it names nothing yet, then approve the 0200, since it arrived as a new purchase.",
+            "correct": false,
+            "says": "20.1: an advice can't be refused, only acknowledged; 20.6: the late original would be posted after its reversal."
+          },
+          {
+            "id": "d",
+            "text": "Decline the 0420, since it names nothing yet, then decline the 0200, since that purchase must not be posted.",
+            "correct": false,
+            "says": "20.1: the receiver can't refuse an advice, only acknowledge it; 20.6: a reversal that found nothing is acknowledged without effect and remembered."
+          }
+        ],
+        "origin": {
+          "path": "src/20.md",
+          "section": "20.6. The Receiver Applies Each Advice Once, by an Identity Its Repeats Share"
+        }
+      }
+    ],
+    "concepts": [
+      "A SAF stores advices (0120, 0220, 0420) in their first form, never a request, a response or a repeat, and nothing that proves the card; a request that can't be sent fails at once."
+    ]
+  }
+}

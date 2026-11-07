@@ -8,7 +8,7 @@
   "unit": 3,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Channel Management",
   "blocks": [
     {
@@ -18,139 +18,482 @@
     },
     {
       "type": "para",
-      "text": "Channel management is a crucial aspect of implementing a jPOS client. It involves setting up and managing the communication channels between the client and the server. In this section, we'll focus on two main components: a client channel and SSL/TLS on that channel."
+      "text": "The acquirer's interface spec says: \"Each message is preceded by a 2-byte binary length.\" We set up the client with the course's usual `ASCIIChannel` and a three-second read timeout, and send an echo. No answer comes, and nobody logs a format error:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    5 ms  client: sent 0800 11=000201\n    5 ms  host: length header says 12336 bytes\n 3013 ms  host: EOFException\n 3013 ms  client: SocketTimeoutException"
+    },
+    {
+      "type": "para",
+      "text": "Every field was right. The client and the host disagreed about where a message ends, so the host waited for 12336 bytes that never came. The object that owns that decision is the **channel**. The unit comes down to six rules, one per section heading."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "3.1 Client Channel (org.jpos.iso.channel.ASCIIChannel)"
+      "text": "3.1 The Channel Decides Where a Message Ends"
     },
     {
       "type": "para",
-      "text": "jPOS 2.1.7 has no `ISOClient` class. A client connects to an ISO-8583 server through an `ISOChannel`, such as `ASCIIChannel`, which provides methods for connecting, sending messages, and receiving responses."
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3.1.1 Basic Implementation"
+      "text": "An `ISOChannel` owns one TCP connection. `send(ISOMsg)` asks the packager for the message's bytes, writes a **frame** around them and returns `void`. `receive()` reads one frame, hands its bytes to the packager and returns the `ISOMsg`. The packager knows how each field is encoded. The channel knows what goes around the whole message: a length, sometimes a header."
     },
     {
       "type": "para",
-      "text": "Here's a basic example of how to set up a client channel:"
+      "text": "The same 55-byte echo, written by three channels from `org.jpos.iso.channel` (the frame bytes before `|`, in hex):"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class BasicISOClientExample {\n    public static void main(String[] args) throws Exception {\n        // Create a new client channel\n        ASCIIChannel client = new ASCIIChannel(\"localhost\", 7000, new ISO87APackager());\n        client.setTimeout(30000); // 30 seconds timeout\n\n        // Connect to the server\n        client.connect();\n\n        // Create a sample ISO message\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0800\");\n        msg.set(3, \"000000\");\n        msg.set(11, \"000001\");\n        msg.set(41, \"12345678\");\n        msg.set(70, \"301\");\n\n        // Send the message and receive the response\n        client.send(msg);\n        ISOMsg response = client.receive();\n\n        // Process the response\n        if (response != null) {\n            System.out.println(\"Received response: \" + response.getMTI());\n        } else {\n            System.out.println(\"No response received\");\n        }\n\n        // Disconnect\n        client.disconnect();\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3.1.2 Spring Configuration"
+      "lang": "text",
+      "text": "ASCIIChannel 30303535 | 0800...  (55 bytes of message)\nNACChannel   0037 | 0800...  (55 bytes of message)\nPostChannel  0037 | 0800...  (55 bytes of message)"
     },
     {
       "type": "para",
-      "text": "In a Spring-based application, you can configure the client channel as a bean:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ISOClientConfig {\n\n    @Bean\n    public ASCIIChannel isoClient() {\n        return new ASCIIChannel(\"localhost\", 7000, new ISO87APackager());\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "3.1.3 Advanced Usage with Connection Pool"
+      "text": "`ASCIIChannel` writes the length as four ASCII digits, `0055`. `NACChannel` and `PostChannel` write it as a 2-byte unsigned binary number, high byte first: `0x0037` is 55. The message itself is identical."
     },
     {
       "type": "para",
-      "text": "For better performance and resource management, you can use a connection pool of client channels. Here's an example using Apache Commons Pool:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.apache.commons.pool2.BasePooledObjectFactory;\nimport org.apache.commons.pool2.PooledObject;\nimport org.apache.commons.pool2.impl.DefaultPooledObject;\nimport org.apache.commons.pool2.impl.GenericObjectPool;\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class ISOClientPool {\n    private final GenericObjectPool<ISOChannel> pool;\n\n    public ISOClientPool(String host, int port, int maxTotal) {\n        pool = new GenericObjectPool<>(new ISOClientFactory(host, port));\n        pool.setMaxTotal(maxTotal);\n    }\n\n    public ISOChannel borrowClient() throws Exception {\n        return pool.borrowObject();\n    }\n\n    public void returnClient(ISOChannel client) {\n        pool.returnObject(client);\n    }\n\n    private static class ISOClientFactory extends BasePooledObjectFactory<ISOChannel> {\n        private final String host;\n        private final int port;\n\n        public ISOClientFactory(String host, int port) {\n            this.host = host;\n            this.port = port;\n        }\n\n        @Override\n        public ISOChannel create() throws Exception {\n            ISOChannel client = new ASCIIChannel(host, port, new ISO87APackager());\n            client.connect();\n            return client;\n        }\n\n        @Override\n        public PooledObject<ISOChannel> wrap(ISOChannel client) {\n            return new DefaultPooledObject<>(client);\n        }\n\n        @Override\n        public void destroyObject(PooledObject<ISOChannel> p) throws Exception {\n            p.getObject().disconnect();\n        }\n    }\n}"
+      "text": "In the opening run the host has a `NACChannel`. It reads the ASCII digits `00`, bytes `0x30 0x30`, as a binary length: 12336. Both sides wait until the client times out and closes, and the host's read ends with `EOFException`. No message was ever complete, so nothing logged a format error."
     },
     {
       "type": "para",
-      "text": "Usage of the `ISOClientPool`:"
+      "text": "The host's spec decides two things independently: the packager from its field table, the channel from its paragraph about message boundaries. A wrong packager shows up as format errors or unpack failures; a wrong channel usually shows up as silence. The Reference lists the common channel classes and their frames."
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "ISOClientPool clientPool = new ISOClientPool(\"localhost\", 7000, 10);\n\nISOChannel client = clientPool.borrowClient();\ntry {\n    // Use the client\n    client.send(msg);\n    ISOMsg response = client.receive();\n    // Process response\n} finally {\n    clientPool.returnClient(client);\n}"
+      "type": "para",
+      "text": "Inside this course both ends use `ASCIIChannel` with `GenericPackager` and `jar:packager/iso87ascii.xml`, because the frame is readable in a hex dump. Unit c13 covers packagers."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "3.2 SSL/TLS on a Channel (org.jpos.iso.channel.NACChannel)"
+      "text": "3.2 One Read Is Not One Message"
     },
     {
       "type": "para",
-      "text": "For secure communications, a jPOS channel such as `NACChannel` runs over SSL/TLS when you give it an SSL socket factory, `SunJSSESocketFactory`. Here's how to set up and use a channel over SSL/TLS:"
+      "text": "TCP delivers a stream of bytes. The sender's stack may merge two small writes into one segment or cut a large one into several, and a busy receiver may find several messages waiting in its buffer. The frame lets the receiver find where each message ends."
+    },
+    {
+      "type": "para",
+      "text": "A raw socket writes one frame in three pieces, 300 ms apart, then two frames in a single write. An `ASCIIChannel` on the other end calls `receive()` three times:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "   59 ms  wrote 2 bytes\n  370 ms  wrote 20 bytes\n  672 ms  wrote 37 bytes\n  674 ms  receive() -> 0800 11=000301\n  990 ms  wrote 118 bytes\n  990 ms  receive() -> 0800 11=000302\n  990 ms  receive() -> 0800 11=000303"
+    },
+    {
+      "type": "para",
+      "text": "Why did the first `receive()` wait for the third piece?"
+    },
+    {
+      "type": "para",
+      "text": "The channel read the four length digits, which took two writes, then exactly 55 more bytes, across as many network reads as that needed. The 118-byte write held two frames, and the channel took one per call and left the rest in the stream for the next."
+    },
+    {
+      "type": "para",
+      "text": "On loopback small writes usually arrive whole, so code that treats one read as one message passes its tests. Over a WAN, or under load, it unpacks half messages as garbage. When two answers arrive in one read, it loses the second, perhaps an approval."
+    },
+    {
+      "type": "para",
+      "text": "A frame can also be empty. A sender with nothing to say may write a zero-length frame to keep the connection busy. The adaptor element `<keep-alive>` sends one; the channel property `keep-alive` is different and turns on TCP keep-alive probes. `ASCIIChannel` writes `0000` back and reads on. `NACChannel` and `PostChannel` accept it only with the property `expect-keep-alive`. A `NACChannel` receives a keep-alive and then an echo:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "expect-keep-alive=false: receive() threw ISOException: receive length 0 seems strange - maxPacketLength = 100000\nexpect-keep-alive=true: receive() -> 0800 11=000701"
+    },
+    {
+      "type": "para",
+      "text": "Without the property, the first keep-alive is an error, and a ChannelAdaptor drops the connection on it (unless it has `<ignore-iso-exceptions>`)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
     },
     {
       "type": "heading",
-      "level": 3,
-      "text": "3.2.1 SSL Socket Factory Configuration"
+      "level": 2,
+      "text": "3.3 `receive()` Returns the Next Frame, Not Your Answer"
     },
     {
       "type": "para",
-      "text": "First, you need to set up your SSL certificates and keystore. Then, you can create an `NACChannel` with an SSL socket factory like this:"
+      "text": "Four scripted hosts run against the same client, which sends one echo and then calls `receive()` until it has the answer or an exception:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SSLChannelExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        \n        // Set SSL properties\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n        \n        // Connect\n        channel.connect();\n        \n        // Use the channel for communication\n        // ...\n        \n        // Disconnect\n        channel.disconnect();\n    }\n}"
+      "text": "ASCIIChannel c = new ASCIIChannel(\"127.0.0.1\", port, packager);   // port of the scripted host\nc.setTimeout(1000);                                // read timeout: 1 second\nc.connect();\nc.send(echo(\"000401\"));                            // 0800 with field 11 = 000401\nISOMsg m = c.receive();"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "-- the host sends its own echo before answering\n    7 ms  receive() -> 0800 11=900001\n   15 ms  receive() -> 0810 11=000401 39=00\n-- the answer takes 1400 ms; other traffic arrives at 700 ms\n  701 ms  receive() -> 0800 11=900002\n 1401 ms  receive() -> 0810 11=000401 39=00\n-- the answer takes 1400 ms; nothing else arrives\n 1044 ms  receive() threw SocketTimeoutException; isConnected() = false\n 1048 ms  send() threw unconnected ISOChannel\n 1401 ms  host: sent the answer\n-- the host closes the connection\n    1 ms  receive() threw EOFException; isConnected() = false\n    1 ms  send() threw unconnected ISOChannel"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The first frame isn't necessarily yours.** Hosts send messages of their own (echoes, sign-on requests, key exchanges), and `receive()` returns whatever arrives first.",
+        "**The read timeout measures silence, not your wait.** The second answer took 1400 ms against a 1000 ms timeout and still arrived, because the host's echo at 700 ms restarted the clock. A host that keeps talking can keep a reader waiting for its answer forever.",
+        "**Silence ends the connection.** `receive()` never returns `null`. When the timeout fires it throws `SocketTimeoutException`, and in 2.1.7 the channel closes its socket before it throws. The host's answer, sent 357 ms later, went into a connection that no longer existed.",
+        "**A closed connection is a different exception.** When the host hangs up, `receive()` throws `EOFException`, and waiting longer is pointless. (A frame the packager can't unpack throws `ISOException`, and that one leaves the socket open, out of step with the stream.) Only the timeout means \"the host may still be working on it\"."
+      ]
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "3.2.2 Using the SSL-Configured Channel as the Client"
+      "text": "3.3.1 Spot the Problem: A Pool of Channels"
     },
     {
       "type": "para",
-      "text": "jPOS 2.1.7 has no `ISOClient`, so the SSL-configured `NACChannel` is itself the client:"
+      "text": "A team coming from JDBC keeps a few connected channels and lends one to each request:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\n\npublic class SecureISOClientExample {\n    public static void main(String[] args) throws Exception {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        channel.setSocketFactory(sslFactory);\n\n        // Connect and use the channel as the client\n        channel.connect();\n\n        // Send and receive messages\n        // ...\n\n        channel.disconnect();\n    }\n}"
+      "text": "package com.example.jpos.client.channel;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.util.concurrent.ArrayBlockingQueue;\nimport java.util.concurrent.BlockingQueue;\n\n/** Borrow a connected channel, send, read the answer, give it back. Don't do this. */\npublic class ChannelPool {\n    private final BlockingQueue<ISOChannel> idle;\n\n    public ChannelPool(ISOChannel... connected) {\n        idle = new ArrayBlockingQueue<>(connected.length);\n        for (ISOChannel c : connected)\n            idle.add(c);\n    }\n\n    public ISOMsg request(ISOMsg m) throws IOException, ISOException, InterruptedException {\n        ISOChannel c = idle.take();                    // (1)\n        try {\n            c.send(m);\n            return c.receive();                        // (2)\n        } finally {\n            idle.add(c);                               // (3)\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Two channels with a one-second read timeout and four purchases, one after the other. The host sends its own echo on the first connection before it answers, and it is slow on the second. What does each purchase get?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "purchase 000801 -> 0800 11=900001\npurchase 000802 -> SocketTimeoutException: Read timed out\npurchase 000803 -> 0210 11=000801 39=00\npurchase 000804 -> IOException: unconnected ISOChannel"
+    },
+    {
+      "type": "para",
+      "text": "Line (2) takes whatever comes next, so purchase 801 is \"answered\" by the host's echo. Purchase 802 waits through the read timeout. Its channel closes, and the host's approval for it is lost. Line (3) returns the closed channel to the pool anyway. Purchase 803 gets the first connection again and reads the approval meant for 801. Purchase 804 gets the dead channel and fails at once."
+    },
+    {
+      "type": "para",
+      "text": "Checking the response and reconnecting don't fix it: a message that arrives while nobody holds the channel still goes to the wrong borrower or to no one. Networks also tend to limit an acquirer to one connection or a few, each signed on (unit c11), so a pool of ten may be refused. **On a link, reading is a job for one thread that never stops**, and matching answers to requests is a separate job."
+    },
+    {
+      "type": "para",
+      "text": "jPOS 2.1.7 has a class named `org.jpos.iso.channel.ChannelPool`. Despite the name, it is a failover list: `connect()` uses the first channel that connects."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.4 A Link Has One Reader That Never Stops: the ChannelAdaptor"
+    },
+    {
+      "type": "para",
+      "text": "`org.jpos.q2.iso.ChannelAdaptor` is a QBean that owns one channel and runs two threads:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "the **Receiver** calls `receive()` in a loop and puts every message it reads on the `<out>` queue, whatever the message is;",
+        "the **Sender** takes messages from the `<in>` queue and calls `send`."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Application code never touches the channel. It writes requests to one Space queue and reads everything the host sent from another. QMUX (unit c4) does both and matches each answer to its request. Q2 deploys the adaptor from `deploy/10_host_channel.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name=\"host-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\">\n    <property name=\"host\" value=\"127.0.0.1\"/>\n    <property name=\"port\" value=\"8000\"/>\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n    <property name=\"connect-timeout\" value=\"10000\"/>\n    <property name=\"timeout\" value=\"360000\"/>\n  </channel>\n  <in>host-send</in>\n  <out>host-receive</out>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "para",
+      "text": "The `<channel>` element names the channel and packager classes. Q2 gives its `<property>` children to both: the channel reads `host`, `port`, `timeout` and the like, and the packager reads `packager-config`. `<in>` is the queue the adaptor sends from, and `<out>` the queue it delivers to. From the application's side that reads backwards, so name the queues after the peer and the direction (`host-send`, `host-receive`). A second link (`acquirer-b-send`) then never collides with the first."
+    },
+    {
+      "type": "para",
+      "text": "`timeout` is the read timeout, six minutes here. The Receiver always reads, so it fires only after six minutes of silence on the whole link. An echo every few minutes prevents that (unit c11 sets it up, and unit c12 relates all the timeouts)."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.5 The Adaptor Reconnects and Announces the Link"
+    },
+    {
+      "type": "para",
+      "text": "We deploy the adaptor above in a real Q2 against a host that answers echoes, with `reconnect-delay` at 3000 to keep the run short, and the host drops the connection:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  296 ms  host-channel.ready = Date\n  301 ms  from host-receive: 0810 11=000501 39=00\n  303 ms  host: closed the connection\n  314 ms  host-channel.ready is gone\n 4305 ms  host: connection accepted\n 4305 ms  host-channel.ready is back; same object as before: false\n 4307 ms  from host-receive: 0810 11=000502 39=00"
+    },
+    {
+      "type": "para",
+      "text": "Once the Sender has a connection it puts a `java.util.Date` in the Space under **`host-channel.ready`**, the adaptor's name plus `.ready`. When the Receiver hits EOF, a read timeout or an unpack error, it removes that entry, disconnects, and leaves a `host-channel.reconnect` entry that lives for `reconnect-delay`. The Sender won't connect while that entry exists, so a host that keeps dropping you is retried every few seconds instead of in a tight loop. Across runs the reconnect came after 3 to 4 seconds: the delay, plus the adaptor's own one-second pauses."
+    },
+    {
+      "type": "para",
+      "text": "QMUX watches the ready entry through its `<ready>` element, so `mux.isConnected()` reports the real link state (unit c4). Each connection puts a **new** `Date` there, so code that has to act once per connection, such as a sign-on, compares the object it saw last with the one there now (unit c11). A cached flag can't tell that the link went down, or that it came back as a new connection."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "3.2.3 Spring Configuration for the SSL-Configured Channel"
+      "text": "3.5.1 Two Settings That Do Nothing"
     },
     {
       "type": "para",
-      "text": "In a Spring-based application, you can configure the channel over SSL/TLS as a bean:"
+      "text": "We deploy this descriptor, often copied between projects, and ask the running channel for its read timeout and the Space for the ready key the descriptor names:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name=\"host-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\" timeout=\"360000\"\n           packager=\"org.jpos.iso.packager.GenericPackager\">\n    <property name=\"host\" value=\"127.0.0.1\"/>\n    <property name=\"port\" value=\"8000\"/>\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  </channel>\n  <in>host-send</in>\n  <out>host-receive</out>\n  <ready>acquirer.ready</ready>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  269 ms  host-channel.ready = Date\n         acquirer.ready = null\n         channel read timeout = 300000 ms"
+    },
+    {
+      "type": "para",
+      "text": "The `timeout` **attribute** is ignored. The channel reads only the `timeout` **property** and falls back to its default of five minutes. With an echo every five minutes, the link can then be torn down and rebuilt whenever an echo comes a little late. The `<ready>` element is ignored too: the adaptor's ready key is always its name plus `.ready`, and `<ready>` belongs to QMUX. A QMUX pointed at `acquirer.ready` would report the link down forever."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3.** The adaptor gains elements such as `soft-stop` and a reworked reconnect, neither of which exists in 2.1.7."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.6 A TLS Channel Checks the Host Only When You Tell It To"
+    },
+    {
+      "type": "para",
+      "text": "TLS is not a channel class. A channel that extends `BaseChannel` opens its socket through a socket factory, and with an SSL factory the same frames travel inside a TLS session. In a ChannelAdaptor you name the factory in the channel property `socketFactory`, and the factory reads the channel's other properties:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel-adaptor name=\"host-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\">\n    <property name=\"host\" value=\"127.0.0.1\"/>\n    <property name=\"port\" value=\"8000\"/>\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n    <property name=\"timeout\" value=\"360000\"/>\n    <property name=\"socketFactory\" value=\"org.jpos.iso.GenericSSLSocketFactory\"/>\n    <property name=\"keystore\" value=\"cfg/client.jks\"/>\n    <property name=\"storepassword\" value=\"${KEYSTORE_PASSWORD}\"/>\n    <property name=\"keypassword\" value=\"${KEY_PASSWORD}\"/>\n    <property name=\"serverauth\" value=\"true\"/>\n    <property name=\"servername\" value=\"host.example.com\"/>\n  </channel>\n  <in>host-send</in>\n  <out>host-receive</out>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
+    },
+    {
+      "type": "para",
+      "text": "What happens without the `serverauth` line? We start a TLS host whose certificate (`CN=host.example.com`) the client has never been told to trust, and connect four ways:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "serverauth=false, keystore without the host's certificate                        -> 0810 11=000601 39=00\nserverauth=true,  keystore without the host's certificate                        -> IOException: Unable to connect\n                                                                                    because SSLPeerUnverifiedException: peer not authenticated\nserverauth=true,  host's certificate trusted, servername host.example.com        -> 0810 11=000601 39=00\nserverauth=true,  host's certificate trusted, servername acquirer.example.com    -> IOException: Unable to connect\n                                                                                    because SSLPeerUnverifiedException: Invalid SSL server name. Expected 'acquirer.example.com', got 'host.example.com'"
+    },
+    {
+      "type": "para",
+      "text": "With `serverauth` false, which is the default, the 2.1.7 factory accepts **any** certificate. The link is encrypted, but anyone who can get between you and the host can play the host and collect every PAN you send. With `serverauth=true` the factory trusts what is in the keystore, which is also the trust store, so it needs the host's CA or certificate next to your own key pair."
+    },
+    {
+      "type": "para",
+      "text": "The factory then compares `servername` (or, if that is missing, the peer's host name) with the certificate's **CN**, exactly: it does not look at Subject Alternative Names, and a wildcard CN such as `*.example.com` never matches. So `host` (or `servername`) must be the certificate's name, not an IP address the certificate doesn't carry. With a socket factory, the channel's `connect-timeout` is not used."
+    },
+    {
+      "type": "para",
+      "text": "Don't write the passwords in the file. Q2 replaces `${KEYSTORE_PASSWORD}` with the environment variable of that name, or a system property, or a value from the active environment file under `cfg/`. Leave them out, and the factory falls back to the system properties `jpos.ssl.storepass` and `jpos.ssl.keypass`, whose default is the literal `password`. Leave out `keystore`, and it reads `~/.keystore`. Set all three."
+    },
+    {
+      "type": "para",
+      "text": "For a test or a diagnostic tool, the same factory can be set up in code:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.SunJSSESocketFactory;\nimport org.jpos.iso.channel.NACChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class SSLChannelConfig {\n\n    @Bean\n    public SunJSSESocketFactory sslSocketFactory() {\n        SunJSSESocketFactory sslFactory = new SunJSSESocketFactory();\n        sslFactory.setKeyStore(\"path/to/keystore.jks\");\n        sslFactory.setPassword(\"keystorePassword\");\n        sslFactory.setKeyPassword(\"keyPassword\");\n        sslFactory.setServerAuthNeeded(true); // trust the server via the keystore's certificates\n        return sslFactory;\n    }\n\n    @Bean\n    public NACChannel nacChannel(SunJSSESocketFactory sslSocketFactory) {\n        NACChannel channel = new NACChannel(\"localhost\", 7000, new ISO87APackager(), null);\n        channel.setSocketFactory(sslSocketFactory);\n        return channel;\n    }\n}"
+      "text": "package com.example.jpos.client.channel;\n\nimport org.jpos.iso.GenericSSLSocketFactory;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.GenericPackager;\n\npublic final class TlsChannels {\n    private TlsChannels() { }\n\n    public static ASCIIChannel tlsChannel(String host, int port, String keystorePath)\n            throws ISOException {\n        String storePass = System.getenv(\"KEYSTORE_PASSWORD\");\n        String keyPass = System.getenv(\"KEY_PASSWORD\");\n        if (storePass == null || keyPass == null)\n            throw new IllegalStateException(\"KEYSTORE_PASSWORD and KEY_PASSWORD must be set\");\n\n        GenericSSLSocketFactory tls = new GenericSSLSocketFactory();\n        tls.setKeyStore(keystorePath);\n        tls.setPassword(storePass);\n        tls.setKeyPassword(keyPass);\n        tls.setServerAuthNeeded(true);      // without this, any certificate is accepted\n        tls.setServerName(host);            // compared with the certificate's CN\n\n        ASCIIChannel channel = new ASCIIChannel(host, port,\n                new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        channel.setSocketFactory(tls);\n        return channel;\n    }\n}"
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**In jPOS 3.** Host names are checked by the JDK, which reads Subject Alternative Names, so test certificates need a matching SAN (unit s13)."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The channel decides where a message ends**, the packager what is inside. Both come from the host's spec, and a wrong channel usually shows up as silence, not as an error.",
+        "**One read is not one message.** A channel reads exactly the announced length, across as many reads as needed and one frame per call. A zero-length frame is a keep-alive, and `NACChannel` or `PostChannel` needs `expect-keep-alive` to accept it.",
+        "**`receive()` returns the next frame, not your answer.** It never returns `null`. The read timeout measures silence, and when it fires the 2.1.7 channel closes the connection, losing any answer still on its way.",
+        "**A link has one reader that never stops.** Never pool raw channels. Deploy one ChannelAdaptor per link and let QMUX match the answers.",
+        "**The adaptor reconnects by itself**, after `reconnect-delay`, and puts a new `Date` under `<name>.ready` for each connection. The `timeout` attribute and the adaptor's `<ready>` element do nothing.",
+        "**TLS checks the host only with `serverauth=true`**, against the CN, with the keystore as trust store and the passwords from the environment."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.8 Reference"
     },
     {
       "type": "para",
-      "text": "This covers the essential aspects of Channel Management for a jPOS client, including the client channel that takes the place of `ISOClient` and the use of channels over SSL/TLS for secure communication. These components form the foundation for establishing reliable and secure connections between your client application and ISO-8583 servers."
+      "text": "**Client channels in jPOS 2.1.7** (all in `org.jpos.iso.channel`). Each also has a no-argument constructor, which Q2 uses, and constructors that take a `ServerSocket`."
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Channel",
+        "Frame on the wire",
+        "Client constructor"
+      ],
+      "rows": [
+        [
+          "`ASCIIChannel`",
+          "4 ASCII decimal digits of length (property `length-digits` changes the count); answers a `0000` keep-alive with `0000`",
+          "`ASCIIChannel(String host, int port, ISOPackager p)`"
+        ],
+        [
+          "`NACChannel`",
+          "2-byte binary length, then an optional TPDU header (`null` for none); `include-header-length` counts the two length bytes",
+          "`NACChannel(String host, int port, ISOPackager p, byte[] tpdu)`"
+        ],
+        [
+          "`PostChannel`",
+          "2-byte binary length, optional header",
+          "`PostChannel(String host, int port, ISOPackager p)`"
+        ],
+        [
+          "`VAPChannel`",
+          "2-byte length and 2 zero bytes, then a Visa Base I header; skips zero-length polls itself",
+          "`VAPChannel(String host, int port, ISOPackager p)`"
+        ],
+        [
+          "`XMLChannel`",
+          "no length: reads up to `</isomsg>`; pair it with `XMLPackager`",
+          "`XMLChannel(String host, int port, ISOPackager p)`"
+        ],
+        [
+          "`PADChannel`",
+          "no length: the packager parses the stream to find the end; after one bad message there is no way to find the next",
+          "`PADChannel(String host, int port, ISOPackager p)`"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**`ISOChannel` methods:** `connect()`, `disconnect()`, `isConnected()`, `send(ISOMsg)` (returns `void`), `receive()` (blocks for one frame; throws `SocketTimeoutException` on silence, `EOFException` when the peer closes, `ISOException` on a bad frame or unpack error; on an `IOException` the 2.1.7 `BaseChannel` has already closed its socket, on an `ISOException` it has not; `PADChannel` closes on neither)."
+    },
+    {
+      "type": "para",
+      "text": "**Channel properties used on this page:** `host`, `port`, `timeout` (read timeout in ms, default 300000, `0` disables it), `connect-timeout` (default: same as `timeout`; not used when a `socketFactory` is set), `keep-alive` (TCP `SO_KEEPALIVE`, default false), `expect-keep-alive` (accept zero-length frames on channels such as `NACChannel` and `PostChannel`, default false), `socketFactory`."
+    },
+    {
+      "type": "para",
+      "text": "**ChannelAdaptor elements in 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Element",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<in>` / `<out>`",
+          "queue the adaptor sends from / delivers received messages to"
+        ],
+        [
+          "`<reconnect-delay>`",
+          "ms between connect attempts and after a dropped link (default 10000); also the idle period for `<keep-alive>`"
+        ],
+        [
+          "`<keep-alive>yes</keep-alive>`",
+          "when nothing was sent for `reconnect-delay` ms, write a zero-length frame"
+        ],
+        [
+          "`<timeout>`",
+          "lifetime of each received message in `<out>` (default 0, no expiry); not a socket timeout"
+        ],
+        [
+          "`<write-only>yes</write-only>`",
+          "no Receiver thread"
+        ],
+        [
+          "`<ignore-iso-exceptions>yes</ignore-iso-exceptions>`",
+          "keep the connection after a pack or unpack error"
+        ],
+        [
+          "`<wait-for-workers-on-stop>yes</wait-for-workers-on-stop>`",
+          "on stop, wait for the Sender and Receiver to finish"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The ready key is always `<name>.ready`; the reconnect guard is `<name>.reconnect`."
+    },
+    {
+      "type": "para",
+      "text": "**`GenericSSLSocketFactory` properties:** `keystore` (JKS; default `~/.keystore`), `storepassword`, `keypassword`, `serverauth` (default false: any certificate accepted), `servername` (compared with the CN), `clientauth` (server side), and the repeatable `addEnabledProtocol` and `addEnabledCipherSuite`. `SunJSSESocketFactory` is a deprecated subclass."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.9 Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "A host's spec says \"2-byte length\", without saying binary or ASCII, or whether the length counts itself. What one test message, and what view of the bytes on the wire, would settle all three questions on the first connection?",
+        "Your link carries an echo every five minutes, but the host answers echoes only while it is signed on. Choose a read timeout and an echo interval, and say what happens to a link whose sign-on fails at 3 a.m.",
+        "A host allows two connections. Would you deploy two adaptors with one QMUX each behind a `MUXPool` (unit c4), or one adaptor? What does each choice do to message order, and to the reversals of unit c12?",
+        "You have to accept a host whose certificate's CN is not its host name, with only a SAN that matches. What are your options in 2.1.7, and what does each one cost?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.10 Design Note: Why the Channel Knows Nothing About Requests"
+    },
+    {
+      "type": "para",
+      "text": "A JDBC connection is request-and-response: you send a query and the next thing on the wire is its result. ISO 8583 links are not: either side may start a conversation at any time, answers can come back in a different order from the requests, and the host sends messages of its own. A channel that paired each `send` with the next `receive` would be wrong whenever any of that happens."
+    },
+    {
+      "type": "para",
+      "text": "So jPOS splits the work. The channel only moves frames, in both directions at once, with no idea what they mean. The adaptor keeps one connection open and drains it into a queue. The MUX, a layer above, matches what it reads to what was sent. A different frame is then a different channel class, and a second link a second adaptor; neither touches the matching."
+    },
+    {
+      "type": "para",
+      "text": "The cost is indirection. A round trip passes through two queues and three threads (the caller, the Sender, the Receiver), and a simple \"send and wait\" test needs a QMUX or a scripted host. Use the raw channel to see what crosses the wire, not to run a link."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 9,
-    "paras": 11,
-    "code": 7,
-    "tables": 0,
-    "lists": 0,
+    "headings": 13,
+    "paras": 45,
+    "code": 15,
+    "tables": 2,
+    "lists": 4,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 2,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "4f8c5b0291c80e766dcf4f13ec0dfde8fcef3b4dbddfa571e1d08982d00f01b6"
+  "content_sha256": "fc68030c9a738ae23681ad8eb3a66e0c1871c46aedcc141d571678af7dcc2649"
 }

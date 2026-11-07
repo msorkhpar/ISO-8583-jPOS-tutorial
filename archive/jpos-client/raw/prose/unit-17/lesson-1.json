@@ -1,0 +1,629 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "kind": "lesson",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "The Debugging Toolbox",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "17. The Debugging Toolbox"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer's support desk opens a ticket. Their host rejected your purchase with STAN 000913 at 10:15 with code 30, format error, and they attach the bytes it received, dumped with the Unix tool `hexdump -C`. You want a failing test built from their bytes, so that nobody has to argue about what the message \"looked like\"."
+    },
+    {
+      "type": "para",
+      "text": "You paste the attachment into a test, read it with `ISOUtil.decodeHexDump`, unpack it with your packager, and the packager blames field 62. The purchase has no field 62."
+    },
+    {
+      "type": "para",
+      "text": "Getting from the evidence you are handed to a message you can test and compare, without putting card data in the log, comes down to six rules, one per section heading."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.1 A Dump Is Evidence Only When It Reads Back to the Bytes It Shows"
+    },
+    {
+      "type": "para",
+      "text": "The attachment, the same 99 bytes as our client packed them, and what our packager makes of each:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The rejected purchase, as the support desk's dump and as jPOS's own, read back. */\npublic class ReadTicket {\n    /** What the support desk attached: their host's bytes, dumped with `hexdump -C`. */\n    static final String TICKET = \"\"\"\n        00000000  30 32 30 30 37 32 32 30  30 34 30 30 30 30 38 30  |0200722004000080|\n        00000010  31 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  |1000164111111111|\n        00000020  31 31 31 31 31 31 30 30  30 30 30 30 30 30 30 30  |1111110000000000|\n        00000030  30 30 30 30 34 37 35 30  31 31 30 36 31 30 31 35  |0000475011061015|\n        00000040  30 30 30 30 30 39 31 33  30 32 31 32 39 31 31 30  |0000091302129110|\n        00000050  30 30 31 30 31 32 33 34  35 36 37 38 39 41 42 43  |0010123456789ABC|\n        00000060  44 45 46                                          |DEF|\n        00000063\n        \"\"\";\n\n    /** The same 99 bytes, as our client packed them. */\n    static final byte[] WIRE = ISOUtil.hex2byte(\n              \"3032303037323230303430303030383031303030313634313131313131313131\"\n            + \"3131313131313030303030303030303030303030343735303131303631303135\"\n            + \"3030303030393133303231323931313030303130313233343536373839414243\"\n            + \"444546\");\n\n    public static void main(String[] args) throws ISOException {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n\n        byte[] fromTicket = ISOUtil.decodeHexDump(TICKET);\n        System.out.println(\"ticket:      \" + fromTicket.length + \" bytes, starts \" + ISOUtil.hexString(fromTicket, 0, 6));\n        read(packager, fromTicket);\n\n        String ours = ISOUtil.hexdump(WIRE);\n        System.out.println(\"jPOS layout: \" + ISOUtil.decodeHexDump(ours).length + \" bytes\");\n        read(packager, ISOUtil.decodeHexDump(ours));\n\n        String gap = ours.lines().filter(l -> !l.startsWith(\"0030\"))      // a line lost in an e-mail\n                .reduce(\"\", (a, b) -> a + b + \"\\n\");\n        System.out.println(\"line 0030 lost: \" + ISOUtil.decodeHexDump(gap).length + \" bytes\");\n        read(packager, ISOUtil.decodeHexDump(gap));\n    }\n\n    static void read(GenericPackager packager, byte[] bytes) {\n        ISOMsg m = new ISOMsg();\n        m.setPackager(packager);\n        try {\n            int used = m.unpack(bytes);\n            System.out.println(\"  unpacked \" + used + \" of \" + bytes.length + \": 4=\" + m.getString(4)\n                + \" 11=\" + m.getString(11) + \" 49=\" + m.getString(49));\n        } catch (ISOException e) {\n            System.out.println(\"  \" + e.getMessage());\n        }\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`ISOUtil.hexdump` (unit c8) writes a four-digit offset, eight digits only past 64 KiB. What will `decodeHexDump` do with an offset of eight digits?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "ticket:      125 bytes, starts 000000003032\n  org.jpos.iso.IFA_LLLCHAR: Problem unpacking field 62 (org.jpos.iso.ISOException: Invalid character found. Expected digit.) unpacking field=62, consumed=56\njPOS layout: 99 bytes\n  unpacked 99 of 99: 4=000000004750 11=000913 49=null\nline 0030 lost: 83 bytes\n  org.jpos.iso.IFA_BINARY: Problem unpacking field 52 (java.lang.ArrayIndexOutOfBoundsException: Index 83 out of bounds for length 83) unpacking field=52, consumed=83"
+    },
+    {
+      "type": "para",
+      "text": "`decodeHexDump` knows one layout, the one `ISOUtil.hexdump` writes: four characters of offset, two spaces, then up to sixteen hex pairs. Given eight digits of offset, it strips nothing and reads each line's offset as four bytes of data, the final `00000063` line included. It also takes at most sixteen pairs from a line, so it drops the last real byte of every full line. The 99 bytes become 125 (99, less 6 dropped, plus 8 offsets of 4 bytes). They begin with four zero bytes where the MTI should be, and the packager fails at field 62, which the host never saw."
+    },
+    {
+      "type": "para",
+      "text": "A dump with a line missing is worse, because nothing about it looks wrong. Lines go missing when a dump is copied out of a mail client or a chat window. `decodeHexDump` joins the 83 bytes left, and the packager blames field 52, the PIN block. Neither error is the real problem, which 17.3 finds: the purchase has no currency code (`49=null`)."
+    },
+    {
+      "type": "para",
+      "text": "Ask the acquirer about field 62 and they answer that there is no field 62, and the ticket has lost a round trip between two companies. A dump from outside needs a reader that checks it:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Each line's offset is the number of bytes read before it.** That catches a missing or repeated line on the spot: `0030` right after `0010` means 16 bytes were lost.",
+        "**Bytes come from their columns.** The text column is never data, even when it looks like hex: a field holding the text `AB 12 CD` shows exactly that in the text column.",
+        "**The layout is recognised, not assumed.** Four or eight digits of offset, a text column with or without bars, a final line with only the offset (`00000063` is the length, 99, in hex)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Our own logs need the same care. When a channel can't unpack what it read, its `receive` event ends with the bytes (17.6 shows the whole event), and the writer indents only the first line:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    --- data ---\n    0000  30 31 31 30 37 30 32 30  30 30 30 30 30 32 38 30  0110702000000280\n0010  30 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  0000164111111111"
+    },
+    {
+      "type": "para",
+      "text": "Copied as it stands, the indent hides the offset from `decodeHexDump`, which reads two bytes of the offset as data and drops the line's last byte: these two lines decode to 33 bytes, starting `0000`, instead of 32. A reader that skips leading spaces handles it, and the offsets prove nothing was lost on the way."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.2 A Logged Message Gives Back the Bytes Only After You Put Back What the Log Masked"
+    },
+    {
+      "type": "para",
+      "text": "Our own log of the same purchase, written through `ProtectedLogListener` as in unit c8, is a second piece of evidence. `XMLPackager` reads the `<isomsg>` block that `ISOMsg.dump` writes, so the log seems to hold the message already. What will the masked fields do when it is packed again?"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport java.nio.charset.StandardCharsets;\nimport java.util.Arrays;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.iso.packager.XMLPackager;\n\n/** The rejected purchase as our own log wrote it, packed again. */\npublic class FromTheLog {\n    static final String LOGGED = \"\"\"\n        <isomsg direction=\"outgoing\">\n          <!-- org.jpos.iso.packager.GenericPackager[jar:packager/iso87ascii.xml] -->\n          <field id=\"0\" value=\"0200\"/>\n          <field id=\"2\" value=\"411111______1111\"/>\n          <field id=\"3\" value=\"000000\"/>\n          <field id=\"4\" value=\"000000004750\"/>\n          <field id=\"7\" value=\"1106101500\"/>\n          <field id=\"11\" value=\"000913\"/>\n          <field id=\"22\" value=\"021\"/>\n          <field id=\"41\" value=\"29110001\"/>\n          <field id=\"52\" value=\"AA55AA55\" type=\"binary\"/>\n        </isomsg>\n        \"\"\";\n\n    public static void main(String[] args) throws ISOException {\n        GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n        ISOMsg m = new ISOMsg();\n        m.setPackager(new XMLPackager());\n        m.unpack(LOGGED.getBytes(StandardCharsets.UTF_8));\n        System.out.println(\"(1) pack() as read: \" + new String(m.pack(), StandardCharsets.UTF_8).lines().findFirst().get());\n\n        m.setPackager(packager);\n        try {\n            m.pack();\n        } catch (ISOException e) {\n            System.out.println(\"(2) with our packager: \" + e.getMessage());\n        }\n\n        m.set(52, ISOUtil.hex2byte(\"0123456789ABCDEF\"));                // (3) a test PIN block\n        byte[] bytes = m.pack();\n        System.out.println(\"(3) PIN block put back: \" + bytes.length + \" bytes, same as sent: \"\n            + Arrays.equals(ReadTicket.WIRE, bytes) + \", field 2 on the wire: \" + m.getString(2));\n\n        m.set(2, \"4111111111111111\");                                     // (4) the test card\n        System.out.println(\"(4) card put back: same as sent: \" + Arrays.equals(ReadTicket.WIRE, m.pack()));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "(1) pack() as read: <isomsg>\n(2) with our packager: error packing field 52\n(3) PIN block put back: 99 bytes, same as sent: false, field 2 on the wire: 411111______1111\n(4) card put back: same as sent: true"
+    },
+    {
+      "type": "para",
+      "text": "(1) The message still has the `XMLPackager` it was unpacked with, so `pack()` writes XML again. Set your own packager first."
+    },
+    {
+      "type": "para",
+      "text": "(2) The wiped PIN block comes back as the four bytes `AA55AA55`, and field 52 must be eight. This error at least tells you what the log took away."
+    },
+    {
+      "type": "para",
+      "text": "(3) The masked card number fails silently. `411111______1111` has the right length, and the numeric field packager doesn't check that a value is digits when it packs, so the message packs to 99 bytes, but not the ones that were sent. A test built from them reproduces a message nobody sent, and if it passes, you close the ticket on the wrong evidence."
+    },
+    {
+      "type": "para",
+      "text": "(4) With a test card in field 2 and a test PIN block in 52, the bytes are the ones that left. They match exactly here because our purchase carried those test values. For a production ticket, put back test values of the same length: every length, prefix and position then stays as the host saw it, and that is what a format error is about."
+    },
+    {
+      "type": "para",
+      "text": "For every field your `protect` and `wipe` lists name, put a test value back before you pack. Don't ask for the unmasked log instead; that only moves the card data into your test suite."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.3 Two Messages Are Compared Field by Field, and Binary Fields by Content"
+    },
+    {
+      "type": "para",
+      "text": "The same terminal had a purchase approved yesterday, and the support desk sent its bytes too. What is different about today's?"
+    },
+    {
+      "type": "para",
+      "text": "The quick answer compares the values of both messages' fields with `equals`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "-- equals() on every value\n-1: {2, 3, 4, 7, 11, 22, 41, 49, 52} != {2, 3, 4, 7, 11, 22, 41, 52}\n4: 000000002500 != 000000004750\n7: 1105100200 != 1106101500\n11: 000871 != 000913\n49: 978 != null\n52: [B@244038d0 != [B@5680a178"
+    },
+    {
+      "type": "para",
+      "text": "Two of those six lines are noise. An unpacked message keeps the bitmap it read under key -1, and the bitmap only restates which fields are present. Field 52's value is a `byte[]`, and two arrays are `equals` only when they are the same object, so equal PIN blocks are reported as different. With twenty fields and a few binary ones, the real difference hides among false ones. Had the card numbers differed, both would have gone into the ticket in clear."
+    },
+    {
+      "type": "para",
+      "text": "A diff that handles each of those:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeSet;\n\nimport org.jpos.iso.ISOComponent;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Field-by-field differences between two messages, safe to paste into a ticket. */\npublic final class MessageDiff {\n    private static final Set<String> PROTECT = Set.of(\"2\", \"35\", \"45\");\n    private static final Set<String> WIPE = Set.of(\"52\", \"55\");\n\n    private MessageDiff() { }\n\n    public static List<String> diff(ISOMsg a, ISOMsg b) {\n        List<String> out = new ArrayList<>();\n        diff(\"\", a, b, out);\n        return out;\n    }\n\n    @SuppressWarnings(\"unchecked\")\n    private static void diff(String prefix, ISOMsg a, ISOMsg b, List<String> out) {\n        Set<Integer> fields = new TreeSet<>();\n        if (a != null) fields.addAll(((Map<Integer, ?>) a.getChildren()).keySet());\n        if (b != null) fields.addAll(((Map<Integer, ?>) b.getChildren()).keySet());\n        fields.remove(-1);                                    // the bitmap is the packager's business\n        for (int f : fields) {\n            String path = prefix + f;\n            ISOComponent ca = a == null ? null : a.getComponent(f);\n            ISOComponent cb = b == null ? null : b.getComponent(f);\n            if ((ca == null || ca instanceof ISOMsg) && (cb == null || cb instanceof ISOMsg)) {\n                diff(path + \".\", (ISOMsg) ca, (ISOMsg) cb, out);\n                continue;\n            }\n            Object va = ca == null ? null : value(ca);\n            Object vb = cb == null ? null : value(cb);\n            boolean same = va instanceof byte[] && vb instanceof byte[]\n                ? Arrays.equals((byte[]) va, (byte[]) vb)\n                : va != null && va.equals(vb);\n            if (!same)\n                out.add(path + \": \" + show(path, va) + \" != \" + show(path, vb));\n        }\n    }\n\n    private static Object value(ISOComponent c) {\n        try {\n            return c.getValue();\n        } catch (Exception e) {\n            return null;\n        }\n    }\n\n    private static String show(String path, Object v) {\n        if (v == null) return \"(absent)\";\n        if (WIPE.contains(path)) return \"[WIPED]\";\n        String s = v instanceof byte[] ? ISOUtil.hexString((byte[]) v) : v.toString();\n        return PROTECT.contains(path) ? ISOUtil.protect(s) : s;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "On the same two purchases, and then on two messages built in a test with a nested field 48 and different cards:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "-- MessageDiff\n4: 000000002500 != 000000004750\n7: 1105100200 != 1106101500\n11: 000871 != 000913\n49: 978 != (absent)\n-- MessageDiff, two messages built in a test\n2: 411111______1111 != 555555______4444\n48.2: ORD-7731 != ORD-7732"
+    },
+    {
+      "type": "para",
+      "text": "The amount, the transmission time and the STAN differ on every purchase. Field 49 is the difference that matters: today's purchase went out without its currency code, and that is the format error."
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The bitmap is left out.** It is recomputed at pack time.",
+        "**Binary values compare by content**, with `Arrays.equals`, and print as hex.",
+        "**A nested message is compared sub-field by sub-field**, with a dotted path (`48.2`). `ISOMsg` doesn't override `equals`, so comparing two nested messages as values would always report them different.",
+        "**Card data stays protected**, because a diff goes into tickets: fields 2, 35 and 45 go through `ISOUtil.protect`, and the PIN block and chip data (52, 55) are only reported as different, never shown."
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.4 Each View of the Bytes Answers a Different Question"
+    },
+    {
+      "type": "para",
+      "text": "When the diff is empty and the host still says the bytes are wrong, the problem is in bytes that aren't fields: framing around the message, or a character set the host reads differently. `ISOUtil` has a view for each:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport org.jpos.iso.ISOUtil;\n\npublic class ByteViews {\n    public static void main(String[] args) {\n        byte[] framed = ISOUtil.concat(new byte[] { 0x02 }, \"0800\".getBytes());\n        framed = ISOUtil.concat(framed, new byte[] { 0x03, 0x1C });\n\n        System.out.println(ISOUtil.hexString(framed));            // compact, for assertions\n        System.out.println(ISOUtil.dumpString(framed));           // control bytes by name\n        System.out.print(ISOUtil.hexdump(framed));                // offset, hex, printable text\n\n        byte[] ebcdic = ISOUtil.asciiToEbcdic(\"0800 T1\");\n        System.out.print(ISOUtil.hexdump(ebcdic));                // text column is meaningless\n        System.out.print(ISOUtil.hexDump(ebcdic, 0, ebcdic.length, ISOUtil.EBCDIC));\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "0230383030031C\n{STX}0800{ETX}{FS}\n0000  02 30 38 30 30 03 1C                              .0800..\n0000  F0 F8 F0 F0 40 E3 F1                              ....@..\n000000:  F0 F8 F0 F0 40 E3 F1                              |  0800 T1"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**`hexString`** is one unbroken string: the form for an assertion or a value in a ticket.",
+        "**`dumpString`** keeps the printable characters and names the control bytes. On a link that frames messages with `STX` and `ETX`, it shows whether the frame is there, where `hexdump`'s text column shows dots.",
+        "**`hexdump`** reads every byte as ASCII in its text column, so for an EBCDIC peer a message that is fine looks corrupt.",
+        "**`hexDump` with a character set** (capital D) reads the text column as EBCDIC (`ISOUtil.EBCDIC`, code page IBM1047), and the message reads `0800 T1`. Its layout is different (a decimal offset, a bar before the text), so use it for reading and `hexdump` for anything you will paste back into a test."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "For the bytes the channel read next to the message it made of them, `org.jpos.iso.filter.DebugFilter` adds them to the `receive` event of every message the channel unpacks. It is a raw incoming filter, so the channel hands it the header and the image:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<channel class=\"org.jpos.iso.channel.ASCIIChannel\" logger=\"Q2\" realm=\"host-channel\"\n         packager=\"org.jpos.iso.packager.GenericPackager\">\n  <property name=\"host\" value=\"127.0.0.1\"/>\n  <property name=\"port\" value=\"8000\"/>\n  <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  <filter class=\"org.jpos.iso.filter.DebugFilter\" direction=\"incoming\"/>\n</channel>"
+    },
+    {
+      "type": "para",
+      "text": "We ran an `ASCIIChannel` with this filter against a peer on 127.0.0.1 that sent one 0110, with `ProtectedLogListener` in front of the writer:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <receive>\n    <isomsg direction=\"incoming\">\n      <!-- org.jpos.iso.packager.GenericPackager[jar:packager/iso87ascii.xml] -->\n      <field id=\"0\" value=\"0110\"/>\n      <field id=\"2\" value=\"411111______1111\"/>\n      <field id=\"3\" value=\"000000\"/>\n      <field id=\"4\" value=\"000000004750\"/>\n      <field id=\"11\" value=\"000913\"/>\n      <field id=\"39\" value=\"30\"/>\n      <field id=\"41\" value=\"29110001\"/>\n    </isomsg>\n    <image>\n0000  30 31 31 30 37 30 32 30  30 30 30 30 30 32 38 30  0110702000000280\n0010  30 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  0000164111111111\n0020  31 31 31 31 31 31 30 30  30 30 30 30 30 30 30 30  1111110000000000\n0030  30 30 30 30 34 37 35 30  30 30 30 39 31 33 33 30  0000475000091330\n0040  32 39 31 31 30 30 30 31                           29110001\n    </image>\n  </receive>"
+    },
+    {
+      "type": "para",
+      "text": "The message is masked, but the image shows the card number in clear, across the end of line 0010 and the start of line 0020. 17.6 deals with it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.5 ISOUtil's Helpers Fail Quietly Where You Expect an Error"
+    },
+    {
+      "type": "para",
+      "text": "Several `ISOUtil` helpers don't complain when a value doesn't fit:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport java.util.BitSet;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOUtil;\n\npublic class Helpers {\n    public static void main(String[] args) {\n        for (long sent : new long[] { 999_999, 1_000_000, 1_000_001 })      // a counter that never wraps\n            System.out.println(\"message \" + sent + \": STAN \" + ISOUtil.zeropad(sent, 6));\n        try {\n            ISOUtil.zeropad(Long.toString(1_000_000), 6);\n        } catch (ISOException e) {\n            System.out.println(\"zeropad(String): \" + e.getMessage());\n        }\n\n        System.out.println(ISOUtil.protect(\"4111111111111111=28121010000000000000\"));\n\n        BitSet fields = ISOUtil.hex2BitSet(\"7220040000801000\".getBytes(), 0, 64);\n        System.out.println(fields);\n        String bits = ISOUtil.bitSet2String(fields);\n        System.out.println(bits.substring(0, 24) + \"  first 1 at index \" + bits.indexOf('1'));\n\n        System.out.println(ISOUtil.calcLUHN(\"555555555555444\"));            // check digit for a test BIN\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "message 999999: STAN 999999\nmessage 1000000: STAN 000000\nmessage 1000001: STAN 000001\nzeropad(String): invalid len 7/6\n411111______1111=____________________\n{2, 3, 4, 7, 11, 22, 41, 52}\n001110010001000000000010  first 1 at index 2\n4"
+    },
+    {
+      "type": "para",
+      "text": "**`zeropad(long, len)` keeps the last `len` digits.** A STAN counter that nobody wrapped sends its millionth message as `000000`, then `000001`, `000002`: the numbers the host saw a million messages earlier. If an earlier request with the same terminal and STAN is still waiting, you get the duplicate keys of unit c12; if not, a host that checks for duplicates declines a purchase it has never seen. `zeropad(String, len)` refuses the same value. Use the `String` form where a value that doesn't fit is a bug, and the `long` form only where wrapping is what you mean, and then wrap on purpose (unit c12 wraps from 999999 to 000001)."
+    },
+    {
+      "type": "para",
+      "text": "**On a track 2, `protect` masks everything after the separator** (`=`, or `D`): the expiry date and the service code go too. A protected log can never show you a track 2 problem, so that one needs a test card. (A track 1, with `^`, follows other rules; check what your log shows of field 45.)"
+    },
+    {
+      "type": "para",
+      "text": "**`bitSet2String` starts at bit 0**, which is not a field. The character at index *n* stands for field *n*, so the first `1` above, at index 2, is field 2. Count from one and you read every field one number too high."
+    },
+    {
+      "type": "para",
+      "text": "`calcLUHN` is the one you can rely on: it gives the check digit for the digits you pass, which is how a test BIN becomes a valid test card. `5555555555554444` is `555555555555444` plus `4`."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.6 Raw Bytes in the Log Are Text, So a Filter of Your Own Has to Withhold Them"
+    },
+    {
+      "type": "para",
+      "text": "`ProtectedLogListener` masks the `ISOMsg` objects of an event and no text (unit c8). A channel puts raw bytes into its `receive` event in two forms that are not `ISOMsg` objects: DebugFilter's image above, and a dump when a reply can't be unpacked. The same 0110, sent with its last byte missing:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "  <receive>\n    <iso-exception>\n      org.jpos.iso.IF_CHAR: Problem unpacking field 41 (java.lang.StringIndexOutOfBoundsException: Range [64, 64 + 8) out of bounds for length 71) unpacking field=41, consumed=64\n      ...\n    </iso-exception>\n    --- data ---\n    0000  30 31 31 30 37 30 32 30  30 30 30 30 30 32 38 30  0110702000000280\n0010  30 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  0000164111111111\n0020  31 31 31 31 31 31 30 30  30 30 30 30 30 30 30 30  1111110000000000\n0030  30 30 30 30 34 37 35 30  30 30 30 39 31 33 33 30  0000475000091330\n0040  32 39 31 31 30 30 30                              2911000\n  </receive>"
+    },
+    {
+      "type": "para",
+      "text": "The event holds no message, only the exception, the string `--- data ---` and the hex dump as a second string (and `--- header ---` with its dump when the channel has a header). DebugFilter's image is an `org.jpos.util.Dumpable`. Neither is an `ISOMsg`, so `ProtectedLogListener` passes both through, card number included. The number is split across two lines of the text column, `4111111111` and `111111`, so a scan of the log for sixteen digits in a row reports it clean. Every message your side can't unpack puts its card number, if it carries one, into a log that was assessed as masked."
+    },
+    {
+      "type": "para",
+      "text": "A listener is one method, `LogEvent log(LogEvent ev)`. This one withholds both kinds:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.debug;\n\nimport java.util.List;\n\nimport org.jpos.util.Dumpable;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogListener;\n\n/** Withholds raw message bytes that a channel logs as text, which ProtectedLogListener cannot mask. */\npublic class RawDataScrubber implements LogListener {\n    public static final String WITHHELD = \"[raw bytes withheld]\";\n\n    @Override\n    public LogEvent log(LogEvent ev) {\n        List<Object> payload = ev.getPayLoad();\n        synchronized (payload) {\n            for (int i = 0; i < payload.size(); i++) {\n                Object o = payload.get(i);\n                if (o instanceof Dumpable)                          // DebugFilter's <image>, <header>\n                    payload.set(i, WITHHELD);\n                else if ((\"--- data ---\".equals(o) || \"--- header ---\".equals(o)) && i + 1 < payload.size())\n                    payload.set(i + 1, WITHHELD);                   // BaseChannel's dump after a failed unpack\n            }\n        }\n        return ev;                                                  // keep the chain going\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<logger name=\"Q2\" class=\"org.jpos.q2.qbean.LoggerAdaptor\">\n  <log-listener class=\"org.jpos.util.ProtectedLogListener\">\n    <property name=\"protect\" value=\"2 35 45\"/>\n    <property name=\"wipe\" value=\"52 55\"/>\n  </log-listener>\n  <log-listener class=\"com.example.jpos.client.debug.RawDataScrubber\"/>\n  <log-listener class=\"org.jpos.util.SimpleLogListener\"/>\n</logger>"
+    },
+    {
+      "type": "para",
+      "text": "The same two runs with the scrubber after `ProtectedLogListener`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "    --- data ---\n    [raw bytes withheld]\n  </receive>"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "      <field id=\"41\" value=\"29110001\"/>\n    </isomsg>\n    [raw bytes withheld]\n  </receive>"
+    },
+    {
+      "type": "para",
+      "text": "The markers stay, so the log still shows that bytes were withheld, and the masked message is as `ProtectedLogListener` left it. Any listener you write needs four properties:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**It returns the event.** A listener that returns `null` stops the chain, and no writer after it sees the event.",
+        "**It replaces entries in the list and leaves the objects alone**, as `ProtectedLogListener` does with its masked copy. Masking the `ISOMsg` itself would change a message your code still holds, such as a response the MUX handed back or a request kept for a reversal.",
+        "**It holds the list's lock while it walks it**, as `ProtectedLogListener` does, because the component that created the event may still be adding to it.",
+        "**It sits after `ProtectedLogListener` and before every writer.** A filter protects only the listeners after it."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "You lose the bytes of a failed unpack, which 17.1 needs to build a test. Get them from the peer's trace, or from a test link with a test card where the scrubber is off."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.6.1 Spot the Problem: One Line per Event"
+    },
+    {
+      "type": "para",
+      "text": "The operations team ships the log to a platform that reads one event per line. `org.jpos.util.FlatLogListener` renders the event, removes the line breaks, and passes a one-line event on (`combine-spaces` also folds runs of spaces). Someone adds it at the top of the chain, and later a realm filter to keep only the sender:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<logger name=\"Q2\" class=\"org.jpos.q2.qbean.LoggerAdaptor\">\n  <log-listener class=\"org.jpos.util.FlatLogListener\">          <!-- (1) -->\n    <property name=\"combine-spaces\" value=\"true\"/>\n  </log-listener>\n  <log-listener class=\"org.jpos.util.ProtectedLogListener\">     <!-- (2) -->\n    <property name=\"protect\" value=\"2 35 45\"/>\n    <property name=\"wipe\" value=\"52 55\"/>\n  </log-listener>\n  <log-listener class=\"org.jpos.util.RealmLogFilter\">           <!-- (3) -->\n    <enabled>client.sender</enabled>\n  </log-listener>\n  <log-listener class=\"org.jpos.util.SimpleLogListener\"/>\n</logger>"
+    },
+    {
+      "type": "para",
+      "text": "Every listener in it is a stock jPOS class with the usual settings. What reaches the platform?"
+    },
+    {
+      "type": "para",
+      "text": "Nothing. We built chains of these listeners in several orders and logged one purchase from the realm `client.sender` through each:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "flat, protect, writer:\n<log realm=\"client.sender\" at=\"...\"> <send> <isomsg> <field id=\"0\" value=\"0200\"/> <field id=\"2\" value=\"4111111111111111\"/> <field id=\"4\" value=\"000000004750\"/> <field id=\"11\" value=\"000913\"/> </isomsg> </send></log>\nprotect, flat, writer:\n<log realm=\"client.sender\" at=\"...\"> <send> <isomsg> <field id=\"0\" value=\"0200\"/> <field id=\"2\" value=\"411111______1111\"/> <field id=\"4\" value=\"000000004750\"/> <field id=\"11\" value=\"000913\"/> </isomsg> </send></log>\nprotect, flat, realm filter, writer:\n(nothing written)\nprotect, realm filter, flat, writer:\n<log realm=\"client.sender\" at=\"...\"> <send> <isomsg> <field id=\"0\" value=\"0200\"/> <field id=\"2\" value=\"411111______1111\"/> <field id=\"4\" value=\"000000004750\"/> <field id=\"11\" value=\"000913\"/> </isomsg> </send></log>"
+    },
+    {
+      "type": "para",
+      "text": "`FlatLogListener` doesn't pass the event on. It passes a new, frozen event that holds only text: no `ISOMsg` for (2) to mask, and no source, so no realm for (3) to keep. With (1) first and no realm filter, the platform gets every card number in clear. With the realm filter added after (1), it gets nothing at all."
+    },
+    {
+      "type": "para",
+      "text": "**A listener can only work on objects that are still in the event.** Filters that look at messages or realms come first, `FlatLogListener` after them, and the writers last. The same holds for anything that turns the event into text, such as the SLF4J bridge of unit c8."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A dump is evidence only when it reads back to the bytes it shows.** `decodeHexDump` reads one layout and checks nothing: a `hexdump -C` dump or a lost line gives other bytes, and the packager then blames a field that is fine. Check every line's offset and read bytes from their columns.",
+        "**A logged message gives back the bytes only after you put back what the log masked.** A wiped binary field fails to pack, a masked card number packs silently into different bytes, and a message read from XML still has `XMLPackager` until you set yours.",
+        "**Compare two messages field by field**: without the bitmap, binary values by content, nested fields by path, card data protected. Comparing values with `equals` reports equal binary fields as different.",
+        "**Pick the view for the question**: `hexString` for assertions, `dumpString` for framing, `hexdump` for text you paste back, `hexDump` with a character set for EBCDIC, DebugFilter for the bytes beside the message.",
+        "**ISOUtil's helpers fail quietly**: `zeropad(long)` cuts a STAN to `000000`, `protect` hides the whole of track 2 after the separator, `bitSet2String` counts from bit 0.",
+        "**Raw bytes in the log are text.** A failed unpack and DebugFilter put card numbers into the log past `ProtectedLogListener`. Withhold them with a listener that replaces list entries and returns the event, placed after the masking filter and before `FlatLogListener` and every writer."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**ISOUtil for debugging (2.1.7):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Method",
+        "Gives",
+        "Watch for"
+      ],
+      "rows": [
+        [
+          "`hexString(byte[])`",
+          "one upper-case hex string",
+          ""
+        ],
+        [
+          "`hex2byte(String)`",
+          "bytes from a hex string",
+          ""
+        ],
+        [
+          "`dumpString(byte[])`",
+          "printable characters, control bytes by name (`{STX}`, `{ETX}`, `{FS}`, `{CR}`)",
+          ""
+        ],
+        [
+          "`hexdump(byte[])`",
+          "four-digit hex offset (eight past 64 KiB), sixteen hex pairs (extra space after eight), ASCII text column",
+          "the text column reads every byte as ASCII"
+        ],
+        [
+          "`hexDump(byte[], offset, len, charset)`",
+          "six-digit decimal offset, hex, a bar and the text in the given character set",
+          "a different layout from `hexdump`"
+        ],
+        [
+          "`decodeHexDump(String)`",
+          "bytes from `hexdump`'s layout",
+          "no checks: other layouts and missing lines decode silently"
+        ],
+        [
+          "`asciiToEbcdic`, `ebcdicToAscii`",
+          "IBM1047 conversion",
+          ""
+        ],
+        [
+          "`str2bcd`, `bcd2str`",
+          "BCD conversion; `padLeft` sets the filler side (unit c13)",
+          ""
+        ],
+        [
+          "`zeropad(String, len)`",
+          "left-padded with zeros",
+          "throws when the value is longer than `len`"
+        ],
+        [
+          "`zeropad(long, len)`",
+          "left-padded with zeros",
+          "keeps only the last `len` digits"
+        ],
+        [
+          "`protect(String)`",
+          "first six and last four digits, the rest `_`",
+          "on a track 2, masks everything after `=` or `D`; a track 1 (`^`) follows other rules"
+        ],
+        [
+          "`hex2BitSet(byte[], offset, bits)`",
+          "the set of field numbers in a hex bitmap",
+          ""
+        ],
+        [
+          "`bitSet2String(BitSet)`",
+          "one character per bit",
+          "starts at bit 0, which is not a field"
+        ],
+        [
+          "`calcLUHN(String)`",
+          "the Luhn check digit for the digits given",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Where raw bytes reach the log:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Source",
+        "Payload entry",
+        "Masked by `ProtectedLogListener`"
+      ],
+      "rows": [
+        [
+          "a channel's `receive` after a failed unpack",
+          "strings `--- header ---` and `--- data ---`, each followed by a `hexdump` string",
+          "no"
+        ],
+        [
+          "`DebugFilter` on a channel",
+          "`Dumpable` entries `<header>` and `<image>`",
+          "no"
+        ],
+        [
+          "a packager with `packager-logger` (unit c8)",
+          "the whole message as a hex string, then `<pack>` and `<unpack>` field values",
+          "no"
+        ],
+        [
+          "`ISOUtil.hexdump` in your own code",
+          "a string",
+          "no"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Order of a logger's listeners:** masking filters (`ProtectedLogListener`, then filters such as `RawDataScrubber`), then `RealmLogFilter`, then `FlatLogListener`, then the writers."
+    },
+    {
+      "type": "para",
+      "text": "**Choosing the tool:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Symptom",
+        "First tool",
+        "Then"
+      ],
+      "rows": [
+        [
+          "a ticket with a dump",
+          "a checked dump reader (17.1)",
+          "unpack with your packager, diff against a message that worked (17.3)"
+        ],
+        [
+          "a ticket about a message in your own log",
+          "`XMLPackager`, test values put back (17.2)",
+          "pack and compare with the host's bytes"
+        ],
+        [
+          "host says \"format error\"",
+          "a diff against an approved message or the specification's sample (17.3, unit c13)",
+          "the row of the first differing field (unit c13)"
+        ],
+        [
+          "your side can't unpack a reply",
+          "the peer's trace or a test link",
+          "the first wrong field (unit c13)"
+        ],
+        [
+          "fields agree, host disagrees about the bytes",
+          "`dumpString`, `hexDump` with EBCDIC, `DebugFilter` on a test link (17.4)",
+          "the channel's framing and header (unit c3)"
+        ],
+        [
+          "an event is missing from the log",
+          "the event's source and logger (unit c8)",
+          "the order of the listeners (17.6.1)"
+        ],
+        [
+          "card data in the log",
+          "the payload entries that aren't `ISOMsg` (17.6)",
+          "a scrubber after `ProtectedLogListener`"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.9 Challenges"
+    },
+    {
+      "type": "para",
+      "text": "These have no single answer."
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The support desk can send its traces only as screenshots of their tool, which shows decimal offsets and no text column. What can a reader still check, and what evidence would you ask for instead?",
+        "Pick the fields that differ on every purchase in your network (17.3 had 4, 7 and 11). Which of them could also be the cause of a format error, and how would a diff that ignores them hide it?",
+        "`DebugFilter` adds a hex dump of every message it receives to the log. Measure the log volume of a test link with and without it at 50 messages a second, and decide how long you could leave it on.",
+        "`RawDataScrubber` recognises the channel's dump by the exact strings `--- data ---` and `--- header ---`. What happens after a jPOS upgrade that changes them, and what test in your build would notice before production does?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17.10 Design Note: Why the Log Is a Format a Packager Can Read"
+    },
+    {
+      "type": "para",
+      "text": "jPOS writes messages to the log as `<isomsg>` blocks, the format `XMLPackager` reads and writes, rather than in a format meant only for people. A block can be read back into a message, as 17.2 did, and a simulator or a test can replay it with no parsing code of its own."
+    },
+    {
+      "type": "para",
+      "text": "One cost is card data: the log has to be masked, so every block needs repair before it means anything on the wire. The other is size: a line of XML per field, for every message of the day."
+    },
+    {
+      "type": "para",
+      "text": "The listener chain follows from the same choice. Listeners receive objects, not text, so a filter can mask a message and leave the rest of the event alone, but only while the objects are still there, which is why 17.6.1 puts every flattening step after the filters."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 12,
+    "paras": 50,
+    "code": 21,
+    "tables": 3,
+    "lists": 6,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 4,
+    "disclosures": 0
+  },
+  "content_sha256": "e648af123487ffd8cb4a6b4f5a6cfefbeeb366bfb0b59d870d1d372f6386a9e9"
+}

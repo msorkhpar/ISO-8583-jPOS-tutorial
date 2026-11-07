@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 8,
+  "ordinal": 3,
+  "title": "Check yourself: what the server's log can tell you",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-participant-without-logger",
+        "stem": "A new participant, VelocityCheck, extends org.jpos.util.Log and writes one event per transaction with its reasons. In production its descriptor element is <participant class=\"com.example.VelocityCheck\" realm=\"velocity\">. The TransactionManager runs with debug on and debug-context off. VelocityCheck refuses a purchase. What does the server's log hold from VelocityCheck?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Its event, under the realm velocity, since the element's realm attribute is where the participant logs",
+            "correct": false,
+            "says": "the factory calls setLogger, with the realm, only when the element has a logger attribute"
+          },
+          {
+            "id": "b",
+            "text": "Its event, inside the TransactionManager's event, since with debug on the TransactionManager collects participant events",
+            "correct": false,
+            "says": "the TransactionManager's event lists votes and timings; a participant's events are separate, and need a logger"
+          },
+          {
+            "id": "c",
+            "text": "Nothing from it, since the element names no logger, and an event from a Log without one goes nowhere",
+            "correct": true,
+            "says": "without logger the factory never calls setLogger, and an event from a Log with no logger is dropped silently"
+          },
+          {
+            "id": "d",
+            "text": "Nothing from it, since debug-context is off, and participant events are printed as part of the Context dump",
+            "correct": false,
+            "says": "that is ctx.log; a participant's own events don't depend on debug-context, only on having a logger"
+          }
+        ],
+        "origin": {
+          "path": "src/s8.md",
+          "section": "8.2 A Participant Writes Its Own Event, and Only If Its Element Names a Logger"
+        }
+      },
+      {
+        "id": "q-caught-exception",
+        "stem": "A participant reads a card table. When the query throws an SQLException, it catches it, calls ctx.log(e), puts a 96 response in the Context and votes ABORTED. It writes no event of its own. The logger has ProtectedLogListener first; the TransactionManager has debug on and debug-context off. The table goes offline for ten minutes. Where can an operator read those SQLExceptions?",
+        "options": [
+          {
+            "id": "a",
+            "text": "In a warn event from the TransactionManager, since with debug on it logs every exception its participants run into",
+            "correct": false,
+            "says": "the TransactionManager logs a warn only for an exception that escapes prepare; this one was caught"
+          },
+          {
+            "id": "b",
+            "text": "In the TransactionManager's event for each transaction, since ctx.log adds a line under the participant's vote",
+            "correct": false,
+            "says": "the event lists votes and timings; ctx.log writes into the Context, which the event leaves out"
+          },
+          {
+            "id": "c",
+            "text": "Nowhere in the log, since ProtectedLogListener drops exceptions that might carry card data",
+            "correct": false,
+            "says": "the filter masks ISOMsg fields and leaves other entries alone; it drops nothing"
+          },
+          {
+            "id": "d",
+            "text": "Nowhere in the log, since ctx.log writes into the Context, which is printed only in its dump",
+            "correct": true,
+            "says": "with debug-context off the Context dump is off, so what ctx.log collected is never written"
+          }
+        ],
+        "origin": {
+          "path": "src/s8.md",
+          "section": "8.1 The Transaction Event Says Who Voted, Never Why"
+        }
+      },
+      {
+        "id": "q-checkpoints-in-production",
+        "stem": "A participant marks its three steps with ctx.checkPoint(\"...\"). The TransactionManager has profiler on and debug-context off. The participant's prepare takes about 900 ms. What does the TransactionManager's profiler show for that participant?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Only the participant's line, since checkpoints go to a profiler kept in the Context, printed only in its dump",
+            "correct": true,
+            "says": "ctx.checkPoint writes to the Context's profiler, printed only with the Context dump"
+          },
+          {
+            "id": "b",
+            "text": "Only the participant's line, since checkpoints are printed only when the participant also writes an event of its own",
+            "correct": false,
+            "says": "a participant's own event doesn't print the Context's profiler; checkpoints need the Context dump"
+          },
+          {
+            "id": "c",
+            "text": "A line per step after the participant's line, since checkpoints are added to the TransactionManager's profiler",
+            "correct": false,
+            "says": "the TransactionManager's profiler is its own; ctx.checkPoint never reaches it"
+          },
+          {
+            "id": "d",
+            "text": "A line per step in place of the participant's line, since checkpoints split the participant's time into parts",
+            "correct": false,
+            "says": "the TransactionManager's line for the participant is unchanged, and the steps don't appear at all"
+          }
+        ],
+        "origin": {
+          "path": "src/s8.md",
+          "section": "8.4 The TransactionManager Times Participants; a Profiler of Your Own Times the Steps"
+        }
+      },
+      {
+        "id": "q-tail-not-moving",
+        "stem": "A server runs four sessions. At 14:00 the TransactionManager's events show tail=812. At 14:05 they still show tail=812, while head has gone from 840 to 1310, and paused stays at 0. What does that say about transaction 812?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is waiting in the queue for a session, since tail is the oldest Context no session has taken yet",
+            "correct": false,
+            "says": "Contexts waiting in the queue are counted by outstanding; tail is the oldest transaction that hasn't finished"
+          },
+          {
+            "id": "b",
+            "text": "It is still running in a participant, since tail is the oldest transaction that hasn't finished",
+            "correct": true,
+            "says": "head moves with every new transaction while tail stays at the one that never ended"
+          },
+          {
+            "id": "c",
+            "text": "Nothing about it, since tail only moves when the TransactionManager is restarted",
+            "correct": false,
+            "says": "tail moves every time the oldest unfinished transaction finishes"
+          },
+          {
+            "id": "d",
+            "text": "Nothing about it, since tail is the first id handed out since the last restart",
+            "correct": false,
+            "says": "tail is the oldest unfinished id; on an idle server it equals head"
+          }
+        ],
+        "origin": {
+          "path": "src/s8.md",
+          "section": "8.5 A Transaction That Never Ends Writes Nothing, and the Ones After It Show Where It Is"
+        }
+      }
+    ]
+  }
+}

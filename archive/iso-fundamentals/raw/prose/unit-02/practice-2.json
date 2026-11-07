@@ -8,8 +8,8 @@
   "unit": 2,
   "kind": "practice",
   "ordinal": 2,
-  "ingested": "2026-09-21",
-  "title": "Read which data elements a bitmap says are present",
+  "ingested": "2026-11-05",
+  "title": "Read which fields a captured message carries",
   "blocks": [
     {
       "type": "heading",
@@ -18,20 +18,28 @@
     },
     {
       "type": "para",
-      "text": "The receiving side of a link never sees your `ISOMsg`: it sees bytes, and the bitmap is how it learns which data elements follow. Reading it wrongly shifts every field after the mistake, so the whole message parses as nonsense."
+      "text": "Support pastes messages captured on hex-ASCII links into tickets. The first questions are always the same: which fields does the sender say it sent, and where do they begin? Today someone answers them with a pencil, and gets them wrong about once a week."
     },
     {
       "type": "para",
-      "text": "Write `BitmapReader.present(String bitmapHex)`. It takes the bitmap part of a message as hexadecimal digits (either case) and returns, in ascending order, every data element it says is present."
+      "text": "`DumpReader` in `src/main/java/com/example/practice/DumpReader.java` takes one capture, from the MTI on, exactly as the link carried it. Its constructor and `mti()` already work. Write the three methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "The first sixteen digits are the primary bitmap. Bit *n*, counted from 1, most significant first, stands for data element *n*, from 2 to 64.",
-        "Bit 1 of the primary bitmap is not a data element. When it is set, a secondary bitmap of sixteen more digits follows, and its bit *n* stands for data element 64 + *n*, from 65 to 128. Only the primary's bit 1 is a flag: there is no tertiary bitmap here.",
-        "The length must agree with bit 1: sixteen digits when it is clear, thirty-two when it is set. Anything else, including a digit that is not hexadecimal, is refused with an `IllegalArgumentException`."
+        "`bit(from, n)`, which the other two use;",
+        "`fields()`, every field the capture says is present, in ascending order;",
+        "`dataStart()`, the index in the capture where the first field's characters begin."
       ]
+    },
+    {
+      "type": "para",
+      "text": "The tool reads at most two bitmaps. A capture that announces a third one must not be reported as something it isn't: `fields()` refuses it with an `IllegalArgumentException`."
+    },
+    {
+      "type": "para",
+      "text": "About fifteen lines in total."
     },
     {
       "type": "heading",
@@ -46,7 +54,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        if (bitmapHex == null || !bitmapHex.matches(\"[0-9A-Fa-f]{16}([0-9A-Fa-f]{16})?\")) {\n            throw new IllegalArgumentException(\"a bitmap is sixteen or thirty-two hexadecimal digits\");\n        }\n        long primary = Long.parseUnsignedLong(bitmapHex.substring(0, 16), 16);\n        boolean secondaryFollows = primary < 0;\n        if (secondaryFollows != (bitmapHex.length() == 32)) {\n            throw new IllegalArgumentException(\"bit 1 and the bitmap's length disagree\");\n        }\n        List<Integer> found = new ArrayList<>();\n        for (int bit = 2; bit <= 64; bit++) {\n            if ((primary & (1L << (64 - bit))) != 0) {\n                found.add(bit);\n            }\n        }\n        if (secondaryFollows) {\n            long secondary = Long.parseUnsignedLong(bitmapHex.substring(16), 16);\n            for (int bit = 1; bit <= 64; bit++) {\n                if ((secondary & (1L << (64 - bit))) != 0) {\n                    found.add(64 + bit);\n                }\n            }\n        }\n        return found;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        List<Integer> found = new ArrayList<>();\n        for (int b = 2; b <= 64; b++) {\n            if (bit(4, b)) {\n                found.add(b);\n            }\n        }\n        if (bit(4, 1)) {\n            if (bit(20, 1)) {\n                throw new IllegalArgumentException(\"a third bitmap follows, and this tool reads two\");\n            }\n            for (int b = 2; b <= 64; b++) {\n                if (bit(20, b)) {\n                    found.add(64 + b);\n                }\n            }\n        }\n        return found;\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        return bit(4, 1) ? 36 : 20;\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        int digit = Character.digit(dump.charAt(from + (n - 1) / 4), 16);\n        return (digit & (8 >> ((n - 1) % 4))) != 0;\n    }\n}\n"
         }
       ]
     },
@@ -58,7 +66,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        throw new UnsupportedOperationException(\"write present\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        // TODO: the list a support engineer checks against what the sender says it sent.\n        //       Refuse a capture this tool can't read completely (see the statement).\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        // TODO: where reading the fields would start.\n        throw new IllegalStateException(\"TODO: dataStart\");\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        // TODO: from is the index of the bitmap's first hexadecimal character in the capture.\n        throw new IllegalStateException(\"TODO: bit\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -66,7 +74,7 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 2,
+    "paras": 4,
     "code": 1,
     "tables": 0,
     "lists": 1,
@@ -77,11 +85,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "40ac7bd1a29b3aa1a058df96f4a67dcc5c934bd9c59f0d2eaa8739f111701298",
-  "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/** Which data elements a message's bitmaps say are present. */\npublic final class BitmapReader {\n\n    private BitmapReader() {\n    }\n\n    /** Every data element the primary and any secondary bitmap flag, ascending. */\n    public static List<Integer> present(String bitmapHex) {\n        throw new UnsupportedOperationException(\"write present\");\n    }\n}\n",
+  "content_sha256": "4f2e2a8a2264b9f2765867b7c36be7fe26b183c85dda38bb485ffcea0e6bf342",
+  "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        // TODO: the list a support engineer checks against what the sender says it sent.\n        //       Refuse a capture this tool can't read completely (see the statement).\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        // TODO: where reading the fields would start.\n        throw new IllegalStateException(\"TODO: dataStart\");\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        // TODO: from is the index of the bitmap's first hexadecimal character in the capture.\n        throw new IllegalStateException(\"TODO: bit\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/BitmapReader.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/test/java/com/example/practice/BitmapReaderTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/DumpReader.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/test/java/com/example/practice/DumpReaderTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -102,19 +110,24 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.BitmapReaderTest#listsTheFieldsBothBitmapsFlag",
+        "id": "com.example.practice.DumpReaderTest#readsTheFieldsAndWhereTheyStart",
         "kind": "main",
-        "says": "lists, in ascending order, every data element the primary and any secondary bitmap flag"
+        "says": "a capture with one bitmap gives its MTI, every field its bitmap marks, in ascending order, and the index where the fields begin"
       },
       {
-        "id": "com.example.practice.BitmapReaderTest#fieldSixtyFiveIsTheSecondarysFirstBit",
+        "id": "com.example.practice.DumpReaderTest#bitOneIsNotAField",
         "kind": "edge",
-        "says": "the secondary bitmap's first bit is data element 65, not another flag"
+        "says": "a capture with two bitmaps lists the fields of both, and the bit that announces the second bitmap is not listed as a field"
       },
       {
-        "id": "com.example.practice.BitmapReaderTest#refusesALengthThatDisagreesWithBitOne",
+        "id": "com.example.practice.DumpReaderTest#theFieldsStartAfterTheSecondBitmap",
         "kind": "edge",
-        "says": "a secondary bitmap must be there when bit 1 is set, and must not be there when it is clear"
+        "says": "when a second bitmap follows the first, the fields begin after it, not after the first"
+      },
+      {
+        "id": "com.example.practice.DumpReaderTest#aThirdBitmapIsRefusedNotReadAsAField",
+        "kind": "edge",
+        "says": "a capture whose second bitmap announces a third one is refused, never read as carrying field 65"
       }
     ],
     "report": {
@@ -123,11 +136,12 @@
     },
     "origin": {
       "path": "src/2.md",
-      "section": "2.2. Bitmaps"
+      "section": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
     },
     "concepts": [
-      "A receiver learns which data elements follow by reading the bitmap: a data element is present exactly when its bit is 1.",
-      "Data elements 65 to 128 are flagged in a secondary bitmap, which follows the primary one only when the primary's bit 1 is set."
+      "Bit 65 announces a tertiary bitmap the way bit 1 announces the secondary one, so field 65 carries no data.",
+      "Bit 1 announces a secondary bitmap for fields 65 to 128, which comes before the first field; bit 1 itself is not a field.",
+      "Bit n of a bitmap says field n is present, counted from 1 at the most significant bit of the first byte."
     ]
   }
 }

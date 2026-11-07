@@ -1,0 +1,155 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "MAC both ways on a host link, and know when you don't know",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "The acquirer's host MACs every message in both directions, and its spec, copied into the class comment of `src/main/java/com/example/practice/MacLink.java`, differs from the one on the page in one point: when a message has any field above 64, the MAC goes in field 128 instead of 64. Your reversals carry field 90, so they are such messages."
+    },
+    {
+      "type": "para",
+      "text": "Two problems reached operations this month:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "every reversal the client sends is answered `63`, security violation;",
+        "on a day the host's MAC key was being changed, a few hundred cardholders were told \"declined\" for purchases that their banks show as paid."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Finish the four methods marked `TODO`: `macField`, `macInput`, `sign` and `outcomeOf`. `send` already signs a copy of the request and passes the response, or `null` when none came, to `outcomeOf`. About twenty lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests use a real `JCESecurityModule` with a test MAC key on each side and the course's `iso87ascii.xml` packager on every message. The host behind the fake `MUX` checks your MAC with its own code, answers `63` when it doesn't verify, and declines amounts over 500.00. Some tests change its answer on the way back."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * The client's link to a host that MACs every message, both ways. The host's spec: the MAC covers\n * the packed message up to the MAC field, with the MAC field's bit set; the MAC goes in field 64,\n * or in field 128 when the message has any field above 64.\n */\npublic class MacLink {\n    public enum Outcome { APPROVED, DECLINED, UNKNOWN }\n\n    private final MUX mux;\n    private final SMAdapter<SecureDESKey> hsm;\n    private final SecureDESKey macKey;\n\n    public MacLink(MUX mux, SMAdapter<SecureDESKey> hsm, SecureDESKey macKey) {\n        this.mux = mux;\n        this.hsm = hsm;\n        this.macKey = macKey;\n    }\n\n    /** Signs a copy of the request, sends it and says what became of it. */\n    public Outcome send(ISOMsg request, long timeout) throws ISOException, SMException {\n        ISOMsg out = (ISOMsg) request.clone();\n        sign(out);\n        return outcomeOf(mux.request(out, timeout));\n    }\n\n    /** The field that carries this message's MAC. */\n    static int macField(ISOMsg m) {\n        for (int f = 65; f < 128; f++)\n            if (m.hasField(f))\n                return 128;\n        return 64;\n    }\n\n    /** The bytes the MAC of this message covers. */\n    static byte[] macInput(ISOMsg m) throws ISOException {\n        int field = macField(m);\n        ISOMsg copy = (ISOMsg) m.clone();\n        copy.set(field, new byte[8]);\n        byte[] packed = copy.pack();\n        int macLength = ((ISOBasePackager) copy.getPackager()).getFieldPackager(field).getMaxPackedLength();\n        return Arrays.copyOf(packed, packed.length - macLength);\n    }\n\n    /** Adds the MAC to a message that is otherwise ready to go. */\n    void sign(ISOMsg m) throws ISOException, SMException {\n        m.set(macField(m), hsm.generateCBC_MAC(macInput(m), macKey));\n    }\n\n    /** What the client may conclude from the host's response, or from no response (null). */\n    Outcome outcomeOf(ISOMsg response) throws ISOException, SMException {\n        if (response == null)\n            return Outcome.UNKNOWN;\n        byte[] received = response.getBytes(macField(response));\n        if (received == null || !MessageDigest.isEqual(received, hsm.generateCBC_MAC(macInput(response), macKey)))\n            return Outcome.UNKNOWN;\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * The client's link to a host that MACs every message, both ways. The host's spec: the MAC covers\n * the packed message up to the MAC field, with the MAC field's bit set; the MAC goes in field 64,\n * or in field 128 when the message has any field above 64.\n */\npublic class MacLink {\n    public enum Outcome { APPROVED, DECLINED, UNKNOWN }\n\n    private final MUX mux;\n    private final SMAdapter<SecureDESKey> hsm;\n    private final SecureDESKey macKey;\n\n    public MacLink(MUX mux, SMAdapter<SecureDESKey> hsm, SecureDESKey macKey) {\n        this.mux = mux;\n        this.hsm = hsm;\n        this.macKey = macKey;\n    }\n\n    /** Signs a copy of the request, sends it and says what became of it. */\n    public Outcome send(ISOMsg request, long timeout) throws ISOException, SMException {\n        ISOMsg out = (ISOMsg) request.clone();\n        sign(out);\n        return outcomeOf(mux.request(out, timeout));\n    }\n\n    /** The field that carries this message's MAC. */\n    static int macField(ISOMsg m) {\n        // TODO: 64 or 128, as the host's spec (in the class comment) says for this message.\n        throw new IllegalStateException(\"TODO: macField\");\n    }\n\n    /** The bytes the MAC of this message covers. */\n    static byte[] macInput(ISOMsg m) throws ISOException {\n        // TODO: Exactly what the host's spec says the MAC covers. The same method serves a request\n        //       about to be signed and a response that arrived with its MAC, so leave `m` as it is.\n        throw new IllegalStateException(\"TODO: macInput\");\n    }\n\n    /** Adds the MAC to a message that is otherwise ready to go. */\n    void sign(ISOMsg m) throws ISOException, SMException {\n        // TODO: One line. The module computes MACs with generateCBC_MAC(data, macKey).\n        throw new IllegalStateException(\"TODO: sign\");\n    }\n\n    /** What the client may conclude from the host's response, or from no response (null). */\n    Outcome outcomeOf(ISOMsg response) throws ISOException, SMException {\n        // TODO: APPROVED or DECLINED only when the client can rely on what the response says;\n        //       UNKNOWN whenever the purchase may or may not have gone through. Field 39 \"00\" is\n        //       an approval.\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "a75c8e68482600036cfe26521e64de6fde8f2137371ba1414c0ef4f189ae908e",
+  "starting_code": "package com.example.practice;\n\nimport java.security.MessageDigest;\nimport java.util.Arrays;\n\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.security.SMAdapter;\nimport org.jpos.security.SMException;\nimport org.jpos.security.SecureDESKey;\n\n/**\n * The client's link to a host that MACs every message, both ways. The host's spec: the MAC covers\n * the packed message up to the MAC field, with the MAC field's bit set; the MAC goes in field 64,\n * or in field 128 when the message has any field above 64.\n */\npublic class MacLink {\n    public enum Outcome { APPROVED, DECLINED, UNKNOWN }\n\n    private final MUX mux;\n    private final SMAdapter<SecureDESKey> hsm;\n    private final SecureDESKey macKey;\n\n    public MacLink(MUX mux, SMAdapter<SecureDESKey> hsm, SecureDESKey macKey) {\n        this.mux = mux;\n        this.hsm = hsm;\n        this.macKey = macKey;\n    }\n\n    /** Signs a copy of the request, sends it and says what became of it. */\n    public Outcome send(ISOMsg request, long timeout) throws ISOException, SMException {\n        ISOMsg out = (ISOMsg) request.clone();\n        sign(out);\n        return outcomeOf(mux.request(out, timeout));\n    }\n\n    /** The field that carries this message's MAC. */\n    static int macField(ISOMsg m) {\n        // TODO: 64 or 128, as the host's spec (in the class comment) says for this message.\n        throw new IllegalStateException(\"TODO: macField\");\n    }\n\n    /** The bytes the MAC of this message covers. */\n    static byte[] macInput(ISOMsg m) throws ISOException {\n        // TODO: Exactly what the host's spec says the MAC covers. The same method serves a request\n        //       about to be signed and a response that arrived with its MAC, so leave `m` as it is.\n        throw new IllegalStateException(\"TODO: macInput\");\n    }\n\n    /** Adds the MAC to a message that is otherwise ready to go. */\n    void sign(ISOMsg m) throws ISOException, SMException {\n        // TODO: One line. The module computes MACs with generateCBC_MAC(data, macKey).\n        throw new IllegalStateException(\"TODO: sign\");\n    }\n\n    /** What the client may conclude from the host's response, or from no response (null). */\n    Outcome outcomeOf(ISOMsg response) throws ISOException, SMException {\n        // TODO: APPROVED or DECLINED only when the client can rely on what the response says;\n        //       UNKNOWN whenever the purchase may or may not have gone through. Field 39 \"00\" is\n        //       an approval.\n        throw new IllegalStateException(\"TODO: outcomeOf\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-07/practice-2/src/main/java/com/example/practice/MacLink.java",
+    "test_path": "practice/jpos-client/prose/unit-07/practice-2/src/test/java/com/example/practice/MacLinkTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-07/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-07/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.MacLinkTest#aSignedPurchaseIsApproved",
+        "kind": "main",
+        "says": "a purchase goes out with a MAC the host verifies, and the host's signed approval is an approval"
+      },
+      {
+        "id": "com.example.practice.MacLinkTest#aDeclineThatVerifiesIsADecline",
+        "kind": "main",
+        "says": "a signed decline whose MAC verifies is a decline, and the caller's request is left unsigned"
+      },
+      {
+        "id": "com.example.practice.MacLinkTest#aReversalCarriesItsMacInField128",
+        "kind": "edge",
+        "says": "a message with fields above 64, such as a reversal with field 90, carries its MAC in field 128, and the response is checked the same way"
+      },
+      {
+        "id": "com.example.practice.MacLinkTest#anApprovalChangedOnTheWayBackIsUnknown",
+        "kind": "edge",
+        "says": "a response whose MAC does not verify proves nothing, so the outcome is unknown rather than a decline"
+      },
+      {
+        "id": "com.example.practice.MacLinkTest#anApprovalThatArrivesWithoutItsMacIsUnknown",
+        "kind": "edge",
+        "says": "a response with no MAC is handled like one with a wrong MAC, not accepted"
+      },
+      {
+        "id": "com.example.practice.MacLinkTest#noAnswerIsUnknown",
+        "kind": "edge",
+        "says": "no answer leaves the outcome unknown, the same as a response that cannot be trusted"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-07/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c7.md",
+      "section": "7.6 A Response That Fails Its MAC Is an Unknown Outcome, Not a Decline"
+    },
+    "concepts": [
+      "A response with a wrong or missing MAC proves nothing, so the outcome is unknown, as with no answer: reverse and alert, never report a decline.",
+      "The MAC covers the packed message as sent, with the MAC field's bit set and its own bytes left out, computed on a copy so a received MAC is never overwritten."
+    ]
+  }
+}

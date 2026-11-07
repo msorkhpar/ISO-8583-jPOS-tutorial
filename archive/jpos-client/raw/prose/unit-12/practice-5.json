@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 5,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: who is waiting, and for what",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-silent-firewall-server",
+        "stem": "Your QServer has no read timeout. A firewall in front of it drops idle sessions after 15 minutes without telling either side, and terminals simply reconnect when they need to. What becomes of the server-side sessions that those reconnects leave behind?",
+        "options": [
+          {
+            "id": "a",
+            "text": "They are closed by the server when the same terminal connects again, so their number stays level",
+            "correct": false,
+            "says": "QServer opens a new session per connection and does not recognise a terminal reconnecting"
+          },
+          {
+            "id": "b",
+            "text": "They stay open and accumulate, but the server reuses their slots, so new connections keep being accepted",
+            "correct": false,
+            "says": "a session that never ends keeps its slot; nothing reuses it, so they pile up until the session limit is reached"
+          },
+          {
+            "id": "c",
+            "text": "They stay open and accumulate, until the server reaches its session limit and refuses new connections",
+            "correct": true,
+            "says": "without a read timeout a silently dropped session waits forever; each reconnect adds one until QServer refuses connections"
+          },
+          {
+            "id": "d",
+            "text": "They are closed at both ends when the firewall drops them, so the server never holds them at all",
+            "correct": false,
+            "says": "the firewall drops the session silently: neither end receives anything, so neither end closes"
+          }
+        ],
+        "origin": {
+          "path": "src/c12.md",
+          "section": "12.4 Every Timeout Guards a Different Wait"
+        }
+      },
+      {
+        "id": "q-terminal-gives-up-first",
+        "stem": "Terminals give up on a purchase after 30 seconds. Your client calls mux.request with a 45-second timeout, and the host approves a purchase at second 40. What happens to that purchase?",
+        "options": [
+          {
+            "id": "a",
+            "text": "QMUX drops the approval at second 30, so the terminal and the host both treat the purchase as failed",
+            "correct": false,
+            "says": "QMUX knows nothing about the terminal's limit; it delivers the approval to the request still waiting for it"
+          },
+          {
+            "id": "b",
+            "text": "At second 40 the host charges the cardholder, though the terminal showed a failure at second 30",
+            "correct": true,
+            "says": "the request timeout must end before the caller gives up; an approval after that point is a payment nobody completed at the counter"
+          },
+          {
+            "id": "c",
+            "text": "QMUX sends a reversal at second 30, so the terminal's failure and the host's records agree",
+            "correct": false,
+            "says": "QMUX never sends reversals; reversing is the application's job"
+          },
+          {
+            "id": "d",
+            "text": "At second 40 the terminal is still waiting, so the cardholder sees the approval on its screen",
+            "correct": false,
+            "says": "the terminal gave up at second 30; it does not wait for the client's longer timeout"
+          }
+        ],
+        "origin": {
+          "path": "src/c12.md",
+          "section": "12.4 Every Timeout Guards a Different Wait"
+        }
+      },
+      {
+        "id": "q-echo-slower-than-timeout",
+        "stem": "A client link carries no traffic at night. Its channel read timeout is 6 minutes and the echo QBean sends an 0800 every 10 minutes. What do you see in the night's log?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The link stays up all night, since each echo restarts the 6-minute read timeout",
+            "correct": false,
+            "says": "a received echo response does reset the timer, but it comes after the 6-minute timeout has already fired"
+          },
+          {
+            "id": "b",
+            "text": "The link stays up all night, since the read timeout counts only while a request waits",
+            "correct": false,
+            "says": "the channel read timeout fires when no byte at all is read for that long, waiting request or not"
+          },
+          {
+            "id": "c",
+            "text": "The link is closed once, at the first timeout, and then stays up, since reconnecting resets it for good",
+            "correct": false,
+            "says": "the read timeout keeps firing whenever 6 minutes pass with nothing read; a reconnect does not change that"
+          },
+          {
+            "id": "d",
+            "text": "The link is closed and reopened again and again, since 6 minutes keep passing with nothing read",
+            "correct": true,
+            "says": "the read timeout fires before the next echo, so a quiet link looks dead; echoes must come more often than the read timeout"
+          }
+        ],
+        "origin": {
+          "path": "src/c12.md",
+          "section": "12.4 Every Timeout Guards a Different Wait"
+        }
+      },
+      {
+        "id": "q-late-approval",
+        "stem": "A purchase request returned null after 20 seconds. At second 21 the host's approval for it arrives. The QMUX is configured as in 12.1, with no request listener. What happens to that approval?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It lands on the unhandled queue, since no request is waiting for its key any more",
+            "correct": true,
+            "says": "nobody is waiting for its key, so QMUX treats it like any message it never asked for"
+          },
+          {
+            "id": "b",
+            "text": "It goes back to the host as an error, since QMUX rejects responses nobody asked for",
+            "correct": false,
+            "says": "QMUX never answers on its own; unmatched messages go to request listeners or the unhandled queue"
+          },
+          {
+            "id": "c",
+            "text": "It reaches the next request that is sent, since that request is now the one waiting",
+            "correct": false,
+            "says": "a response only reaches a request with the same key; the next request has a different STAN"
+          },
+          {
+            "id": "d",
+            "text": "It reaches the original caller after all, since QMUX keeps the request for a grace period",
+            "correct": false,
+            "says": "the request already returned null and its marker was removed, so the approval has nobody to go to"
+          }
+        ],
+        "origin": {
+          "path": "src/c12.md",
+          "section": "12.2.1 A Late Answer Has Nobody to Go To"
+        }
+      }
+    ],
+    "concepts": [
+      "An answer that arrives after its request gave up has nobody waiting and goes to the request listeners or the unhandled queue.",
+      "Each timeout guards a different wait: servers need a read timeout, echoes must come more often than it fires, and the request timeout ends before the caller gives up."
+    ]
+  }
+}

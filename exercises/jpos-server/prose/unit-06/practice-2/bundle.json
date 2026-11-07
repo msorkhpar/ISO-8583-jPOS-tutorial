@@ -1,0 +1,79 @@
+{
+  "bundle_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "ordinal": 2,
+  "title": "Refuse requests sent too long ago, all year round",
+  "lang": "java",
+  "main_file": "src/main/java/com/example/practice/TransmissionWindow.java",
+  "test_file": "src/test/java/com/example/practice/TransmissionWindowTest.java",
+  "build": [
+    "pom.xml"
+  ],
+  "run_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-server/prose/unit-06/practice-2/pom.xml",
+    "compile"
+  ],
+  "test_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-server/prose/unit-06/practice-2/pom.xml",
+    "test"
+  ],
+  "provenance": "generated",
+  "trust": "advisory",
+  "cases": [
+    {
+      "id": "com.example.practice.TransmissionWindowTest#aRecentRequestPassesWithItsSendingTime",
+      "kind": "main",
+      "says": "a request sent a couple of minutes ago passes, with the moment field 7 names recorded in the Context"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#anOldRequestIsRefused",
+      "kind": "main",
+      "says": "a request sent half an hour ago is refused with a 30 response"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#aRequestFromJustBeforeNewYearPasses",
+      "kind": "edge",
+      "says": "a request sent just before midnight on 31 December and received after it is seconds old, because field 7 takes the year closest to the clock"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#aServerOutsideUtcReadsTheSameMoment",
+      "kind": "edge",
+      "says": "field 7 is read in GMT whatever the JVM's default zone is"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#aRequestFromTheFutureIsRefused",
+      "kind": "edge",
+      "says": "a request dated beyond the window ahead of the clock is refused too"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#anUnreadableField7IsAnsweredWithAFormatError",
+      "kind": "edge",
+      "says": "a field 7 that is not ten digits gets a 30 response instead of an exception from the date parser"
+    },
+    {
+      "id": "com.example.practice.TransmissionWindowTest#aMissingField7IsAnsweredWithAFormatError",
+      "kind": "edge",
+      "says": "a request without field 7 gets a 30 response instead of an exception, since the missing field reads as null"
+    }
+  ],
+  "report": {
+    "format": "junit",
+    "path": "target/surefire-reports"
+  },
+  "origin": {
+    "path": "src/s6.md",
+    "section": "6.4 A Date Without a Year Takes the Year Closest to the Clock, Read in GMT"
+  }
+}

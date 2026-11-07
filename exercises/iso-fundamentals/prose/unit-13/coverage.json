@@ -1,88 +1,160 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/13.md",
   "kind": "code",
+  "quiz": "compliance-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/13.md": "sha256:42ee224be34707da22af3ed98144767df32cddbb00ec8e93beee5612e5bf6def"
+    "src/13.md": "sha256:15510eae3958320d32936de0b5fad097dfceabc9a9537c6c7ad8120fe976730a"
   },
   "plan": {
     "plan_api": 2,
     "tier": "introductory",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "access-control",
-        "says": "Access to cardholder data is limited to those who need it, each with a unique identity and strong authentication.",
+        "id": "card-data-hides",
+        "says": "Card data ends up in stores nobody listed: a message taken out of a persistent queue stays in its file and backups, in a form a plain text scan may miss, so reversals are built from listed fields.",
         "basis": [
-          "example:src/13.md:4",
-          "section:13.1.3. Access Control"
+          "section:13.3. Card Data Ends Up Where Nobody Meant to Store It",
+          "example:src/13.md:3"
         ],
-        "exercise": null,
-        "reason": "the example is Spring Security web configuration, which a graded run does not have"
-      },
-      {
-        "id": "encrypt-and-manage-keys",
-        "says": "Sensitive data, PANs included, is encrypted in transit and at rest, under properly managed cryptographic keys.",
-        "basis": [
-          "section:13.1.1. Data Protection"
-        ],
-        "exercise": null,
-        "reason": "the page names the requirement without code to practise; keys and ciphers are a subject of their own"
-      },
-      {
-        "id": "pan-masking",
-        "says": "A PAN that is displayed shows only its first six and last four digits, and the masking is applied to what is shown, never to the data being processed.",
-        "basis": [
-          "example:src/13.md:1",
-          "example:src/13.md:2",
-          "section:13.1.1. Data Protection"
-        ],
-        "exercise": "mask-for-display",
+        "exercise": "compliance-quiz",
         "reason": null
       },
       {
-        "id": "privacy-rights",
-        "says": "Regional laws such as GDPR and CCPA give people rights over their data, to know, export, erase and opt out, and a system handles each region's rules through its own strategy.",
+        "id": "card-number-recognised",
+        "says": "A card number is 13 to 19 digits that are not part of a longer run and end in a valid Luhn check digit; a scan's hits are places to look at, and its report is masked.",
         "basis": [
-          "section:13.2. Regional Regulations",
-          "example:src/13.md:5",
-          "example:src/13.md:7"
+          "section:13.2. A Card Number Is Recognised by Its Length and Its Check Digit",
+          "example:src/13.md:1",
+          "example:src/13.md:2"
         ],
-        "exercise": null,
-        "reason": "the examples are empty service and controller methods; the obligations are legal ones, not a behaviour a graded run can check"
+        "exercise": "find-typed-card-numbers",
+        "reason": null
       },
       {
-        "id": "secure-transport",
-        "says": "Cardholder data travels only over strong protocols such as TLS 1.2 or higher, which in jPOS means giving the channel an SSL socket factory.",
+        "id": "finding-triaged-and-recorded",
+        "says": "A scanner finding is triaged for confirmation, reachability, exposure, exploit conditions, existing controls and change risk, then patched, overridden or deferred with a written risk acceptance.",
         "basis": [
-          "example:src/13.md:3",
-          "section:13.1.2. Network Security"
+          "section:13.5. A Scanner Finding Is a Question, and the Answer Is Written Down"
+        ],
+        "exercise": "compliance-quiz",
+        "reason": null
+      },
+      {
+        "id": "identities-personal-and-limited",
+        "says": "Every person and process in the CDE has its own identity and only the rights it needs, and an AI agent is a privileged component with its own host, identity and read-only rights.",
+        "basis": [
+          "section:13.6. Every Identity in the CDE Is Personal and Limited, an AI Agent's Too"
         ],
         "exercise": null,
-        "reason": "a channel configuration that connects to a live host over TLS; a graded run has no network and no peer"
+        "reason": "organisational controls on accounts, hosts and agents that no deterministic test can observe; the quiz's four questions go to the rules a reader is likelier to get wrong"
+      },
+      {
+        "id": "privacy-law-versus-retention",
+        "says": "Data protection law covers the same records as PCI DSS and can ask for erasure where retention rules ask to keep; legal decides, and the system must be able to find, export and erase a person's data.",
+        "basis": [
+          "section:13.7. Data Protection Law Covers the Same Records and Can Ask for the Opposite"
+        ],
+        "exercise": "compliance-quiz",
+        "reason": null
+      },
+      {
+        "id": "record-names-its-key",
+        "says": "Each encrypted card number carries the id of its key, so new records use the new key, old ones open through their label until re-encrypted, and the lookup key rotates separately.",
+        "basis": [
+          "section:13.4. A Stored Card Number Names the Key That Opens It",
+          "example:src/13.md:4",
+          "example:src/13.md:5"
+        ],
+        "exercise": "rotate-pan-keys",
+        "reason": null
+      },
+      {
+        "id": "scope-reaches-connected-systems",
+        "says": "PCI DSS applies to every system that stores, processes or transmits card data and to every system that can reach one or affect its security, so keeping card data out of systems is what makes the scope small.",
+        "basis": [
+          "section:13.1. PCI DSS Covers Every System That Touches Card Data, and Every System That Can Reach One"
+        ],
+        "exercise": "compliance-quiz",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "mask-for-display",
+        "name": "find-typed-card-numbers",
         "aspects": [
-          "pan-masking"
+          "card-number-recognised"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "rotate-pan-keys",
+        "aspects": [
+          "record-names-its-key"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "compliance-quiz",
+        "aspects": [
+          "card-data-hides",
+          "finding-triaged-and-recorded",
+          "privacy-law-versus-retention",
+          "scope-reaches-connected-systems"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-13/practice-1"
+    "exercises/iso-fundamentals/prose/unit-13/practice-1",
+    "exercises/iso-fundamentals/prose/unit-13/practice-2",
+    "exercises/iso-fundamentals/prose/unit-13/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-1",
       "origin": {
         "path": "src/13.md",
-        "section": "13.1.1. Data Protection"
+        "section": "13.2. A Card Number Is Recognised by Its Length and Its Check Digit"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-2",
+      "origin": {
+        "path": "src/13.md",
+        "section": "13.4. A Stored Card Number Names the Key That Opens It"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-3:q-build-server-scope",
+      "origin": {
+        "path": "src/13.md",
+        "section": "13.1. PCI DSS Covers Every System That Touches Card Data, and Every System That Can Reach One"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-3:q-empty-queue-on-disk",
+      "origin": {
+        "path": "src/13.md",
+        "section": "13.3. Card Data Ends Up Where Nobody Meant to Store It"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-3:q-critical-but-unexposed",
+      "origin": {
+        "path": "src/13.md",
+        "section": "13.5. A Scanner Finding Is a Question, and the Answer Is Written Down"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-13/practice-3:q-erasure-and-retention",
+      "origin": {
+        "path": "src/13.md",
+        "section": "13.7. Data Protection Law Covers the Same Records and Can Ask for the Opposite"
       }
     }
   ],

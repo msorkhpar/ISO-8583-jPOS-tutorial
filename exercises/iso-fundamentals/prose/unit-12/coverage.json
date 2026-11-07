@@ -1,78 +1,187 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/12.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/12.md": "sha256:d89eb047e85d8b71c8e314fa87422b420f6db8eab7aac6d21e5702eda77ff34c"
+    "src/12.md": "sha256:4945a6329e0da7b1f493afa9917705259b5e90d4d90d03ddea0b7f59ffcad4d7"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 3,
     "aspects": [
       {
-        "id": "field-mapping",
-        "says": "Each ISO-8583 field the gateway needs is read into its API parameter, and the processing code is mapped to a transaction type, refusing a code the gateway has no type for.",
+        "id": "amount-by-currency-exponent",
+        "says": "Field 4 is minor units and the currency in field 49 places the decimal point; amounts stay BigDecimal, and only the gateway's own list of currencies is accepted.",
         "basis": [
-          "example:src/12.md:1",
-          "section:12.2.1. Field mapping strategies"
-        ],
-        "exercise": "bridge-to-a-gateway",
-        "reason": null
-      },
-      {
-        "id": "format-transformation",
-        "says": "Values are reshaped on the way: an amount in minor units gains its decimal point, a YYMM expiry becomes MM/YY, and an MMDD date gets its year, the previous one when the day is still ahead.",
-        "basis": [
-          "example:src/12.md:2",
+          "section:12.2. An Amount Is Minor Units, and the Currency Says Where the Point Goes",
           "example:src/12.md:3",
-          "section:12.2.2. Data transformation"
+          "example:src/12.md:4",
+          "example:src/12.md:5",
+          "example:src/12.md:6"
         ],
-        "exercise": "bridge-to-a-gateway",
+        "exercise": "map-into-the-gateway",
         "reason": null
       },
       {
-        "id": "gateway-interfaces",
-        "says": "Payment gateways usually expose a REST interface with JSON or a SOAP interface with XML rather than ISO-8583.",
+        "id": "idempotency-key-applied-once",
+        "says": "The gateway claims each idempotency key atomically, refuses it for another payment and answers every retry with the stored outcome, failures included, so one key sends at most one 0200.",
         "basis": [
-          "section:12.1. Common gateway interfaces"
+          "section:12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once",
+          "example:src/12.md:11",
+          "example:src/12.md:12",
+          "example:src/12.md:13"
+        ],
+        "exercise": "apply-each-key-once",
+        "reason": null
+      },
+      {
+        "id": "no-gateway-text-in-responses",
+        "says": "None of the gateway's error text is copied into the ISO response.",
+        "basis": [
+          "section:12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
         ],
         "exercise": null,
-        "reason": "background that sets the scene; the page's work is the mapping, which the exercise practises"
+        "reason": "a rule about what to leave out of free-text fields; the mapping practice's refusals and the quiz cover the table it belongs to, and a test could only check one invented message"
       },
       {
-        "id": "response-back-to-iso",
-        "says": "The gateway's answer is mapped back into the ISO-8583 response to the original request: 00 with the gateway's transaction id when it succeeded, 05 with its error text when it did not.",
+        "id": "one-internal-format",
+        "says": "Each endpoint maps into one internal format of full values and out of it, so a new endpoint adds one mapping and each decision about amounts, dates and codes is taken once.",
         "basis": [
-          "example:src/12.md:5"
+          "section:12.1. Each Endpoint Maps Into One Internal Format and Out of It",
+          "example:src/12.md:1",
+          "example:src/12.md:2"
         ],
-        "exercise": "bridge-to-a-gateway",
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "refuse-what-the-table-lacks",
+        "says": "Processing codes map on their transaction type through an explicit table, and a type the table lacks is refused rather than sent as a sale.",
+        "basis": [
+          "section:12.4. A Value With No Entry in the Table Is Refused, Never Guessed",
+          "example:src/12.md:8",
+          "example:src/12.md:9",
+          "example:src/12.md:10"
+        ],
+        "exercise": "map-into-the-gateway",
+        "reason": null
+      },
+      {
+        "id": "rest-client-retries-with-the-key",
+        "says": "As a REST client, the switch repeats a timed-out call with the same key to learn its outcome, and a new attempt after a stored failure needs a new key.",
+        "basis": [
+          "section:12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "unlisted-reply-status",
+        "says": "A gateway status the reply table lacks gets 96 and a cancellation at the gateway, since it may have been an approval.",
+        "basis": [
+          "section:12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "where-the-memory-lives",
+        "says": "ISO 8583 keeps the memory of an unknown outcome on the sender, which reverses; REST with keys keeps it on the receiver, which answers retries.",
+        "basis": [
+          "section:12.9. Design Note: Why REST Retries and ISO 8583 Reverses"
+        ],
+        "exercise": null,
+        "reason": "a design essay comparing two protocols; its consequences are graded through the idempotency practice"
+      },
+      {
+        "id": "year-nearest-the-clock",
+        "says": "A date without a year takes the year that puts it nearest to a clock passed in, so a delayed advice keeps last year and a fast terminal's message at New Year gets the new one.",
+        "basis": [
+          "section:12.3. A Date Without a Year Takes the Year Nearest to the Clock You Pass In",
+          "example:src/12.md:7"
+        ],
+        "exercise": "map-into-the-gateway",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "bridge-to-a-gateway",
+        "name": "map-into-the-gateway",
         "aspects": [
-          "field-mapping",
-          "format-transformation",
-          "response-back-to-iso"
+          "amount-by-currency-exponent",
+          "refuse-what-the-table-lacks",
+          "year-nearest-the-clock"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "apply-each-key-once",
+        "aspects": [
+          "idempotency-key-applied-once"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "one-internal-format",
+          "rest-client-retries-with-the-key",
+          "unlisted-reply-status"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-12/practice-1"
+    "exercises/iso-fundamentals/prose/unit-12/practice-1",
+    "exercises/iso-fundamentals/prose/unit-12/practice-2",
+    "exercises/iso-fundamentals/prose/unit-12/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-1",
       "origin": {
         "path": "src/12.md",
-        "section": "12.2. Mapping ISO-8583 to API calls"
+        "section": "12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-2",
+      "origin": {
+        "path": "src/12.md",
+        "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-3:q-second-gateway",
+      "origin": {
+        "path": "src/12.md",
+        "section": "12.1. Each Endpoint Maps Into One Internal Format and Out of It"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-3:q-unlisted-status",
+      "origin": {
+        "path": "src/12.md",
+        "section": "12.4. A Value With No Entry in the Table Is Refused, Never Guessed"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-3:q-post-times-out",
+      "origin": {
+        "path": "src/12.md",
+        "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-12/practice-3:q-try-again",
+      "origin": {
+        "path": "src/12.md",
+        "section": "12.5. A Retried Call Carries the Same Idempotency Key, So It Is Applied Once"
       }
     }
   ],

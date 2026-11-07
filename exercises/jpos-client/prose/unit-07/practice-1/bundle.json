@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 7,
   "ordinal": 1,
-  "title": "Encrypt the PIN, sign the request, check the response",
+  "title": "Relay each terminal's PIN so the host can read it",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/SecureClient.java",
-  "test_file": "src/test/java/com/example/practice/SecureClientTest.java",
+  "main_file": "src/main/java/com/example/practice/PinRelay.java",
+  "test_file": "src/test/java/com/example/practice/PinRelayTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.SecureClientTest#sendsAnEncryptedPinAndAMacOverWhatItSends",
+      "id": "com.example.practice.PinRelayTest#aChipPurchaseWithItsPinIsApproved",
       "kind": "main",
-      "says": "the request goes out with its PIN encrypted and a MAC in field 64 computed over the message as sent, and a correctly signed response is returned"
+      "says": "a chip purchase from a terminal reaches the host with a PIN block the host reads as the PIN the cardholder typed"
     },
     {
-      "id": "com.example.practice.SecureClientTest#aTamperedResponseIsRefused",
-      "kind": "edge",
-      "says": "a response whose MAC does not match its content is refused with a SecurityException"
+      "id": "com.example.practice.PinRelayTest#theHostGetsThePurchaseAsTheTerminalSentItApartFromThePin",
+      "kind": "main",
+      "says": "the host receives the terminal's fields unchanged and an 8-byte block that is not the terminal's, and a purchase without a PIN passes as it is"
     },
     {
-      "id": "com.example.practice.SecureClientTest#aResponseWithoutAMacIsRefused",
+      "id": "com.example.practice.PinRelayTest#aSwipedCardArrivesWithOnlyItsTrack",
       "kind": "edge",
-      "says": "a response that carries no MAC at all is refused, not waved through"
+      "says": "a format 0 block is tied to the card number, so for a swiped card without field 2 the card number comes from track 2"
+    },
+    {
+      "id": "com.example.practice.PinRelayTest#theNewTerminalModelSendsIsoFormat1",
+      "kind": "edge",
+      "says": "translation changes the format as well as the key: a terminal's ISO format 1 block reaches the host in the format the host reads"
+    },
+    {
+      "id": "com.example.practice.PinRelayTest#aTerminalWithAStaleKeyGetsNothingPastTheRelay",
+      "kind": "edge",
+      "says": "a block the module cannot translate stops the purchase at the relay; it never reaches the host without its PIN"
     }
   ],
   "report": {
@@ -54,6 +64,6 @@
   },
   "origin": {
     "path": "src/c7.md",
-    "section": "7.2 Implementing Security in a jPOS Client"
+    "section": "7.3 The Client Translates the PIN and Never Sees It"
   }
 }

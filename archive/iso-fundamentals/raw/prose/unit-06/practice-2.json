@@ -1,0 +1,140 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Read field 48 by tag",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An issuer's authorization rules need two or three items from field 48 of every incoming request. The team keeps field 48 in the packager as plain text, so that a network release that adds a subelement can never stop a message from unpacking, and reads the items in code."
+    },
+    {
+      "type": "para",
+      "text": "`src/main/java/com/example/practice/Field48Reader.java` already hands the rules what they ask for through `wanted`. Finish the two methods it relies on:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`categoryCode`: the transaction category code, or `null` when the field has none;",
+        "`value`: the data of the subelement with a given two-digit tag, or `null` when the field doesn't carry that tag."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The field arrives exactly as the network sent it. About ten lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Reads field 48 of a network message, kept by the packager as plain text: an optional\n * transaction category code, then subelements of a two-digit tag, a two-digit length and the data.\n */\npublic final class Field48Reader {\n\n    private Field48Reader() {\n    }\n\n    /** The decisions the issuer's rules need from field 48, by tag. */\n    public static Map<String, String> wanted(String field48, String... tags) {\n        Map<String, String> found = new TreeMap<>();\n        for (String tag : tags) {\n            String v = value(field48, tag);\n            if (v != null)\n                found.put(tag, v);\n        }\n        return found;\n    }\n\n    /** The category code, or null when the field starts with a subelement. */\n    static String categoryCode(String field48) {\n        char first = field48.charAt(0);\n        return Character.isDigit(first) ? null : String.valueOf(first);\n    }\n\n    /** The data of the subelement with this two-digit tag, or null when the field has none. */\n    static String value(String field48, String tag) {\n        int at = categoryCode(field48) == null ? 0 : 1;\n        while (at + 4 <= field48.length()) {\n            String t = field48.substring(at, at + 2);\n            int len = Integer.parseInt(field48.substring(at + 2, at + 4));\n            if (t.equals(tag))\n                return field48.substring(at + 4, at + 4 + len);\n            at += 4 + len;\n        }\n        return null;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Reads field 48 of a network message, kept by the packager as plain text: an optional\n * transaction category code, then subelements of a two-digit tag, a two-digit length and the data.\n */\npublic final class Field48Reader {\n\n    private Field48Reader() {\n    }\n\n    /** The decisions the issuer's rules need from field 48, by tag. */\n    public static Map<String, String> wanted(String field48, String... tags) {\n        Map<String, String> found = new TreeMap<>();\n        for (String tag : tags) {\n            String v = value(field48, tag);\n            if (v != null)\n                found.put(tag, v);\n        }\n        return found;\n    }\n\n    /** The category code, or null when the field starts with a subelement. */\n    static String categoryCode(String field48) {\n        // TODO: the field's category code, when it has one.\n        throw new IllegalStateException(\"TODO: categoryCode\");\n    }\n\n    /** The data of the subelement with this two-digit tag, or null when the field has none. */\n    static String value(String field48, String tag) {\n        // TODO: the data the sender put under this tag.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "abe17fd31023a35a14b1e98d46f82aedff836226d931a6a5f573ff5241eac491",
+  "starting_code": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.TreeMap;\n\n/**\n * Reads field 48 of a network message, kept by the packager as plain text: an optional\n * transaction category code, then subelements of a two-digit tag, a two-digit length and the data.\n */\npublic final class Field48Reader {\n\n    private Field48Reader() {\n    }\n\n    /** The decisions the issuer's rules need from field 48, by tag. */\n    public static Map<String, String> wanted(String field48, String... tags) {\n        Map<String, String> found = new TreeMap<>();\n        for (String tag : tags) {\n            String v = value(field48, tag);\n            if (v != null)\n                found.put(tag, v);\n        }\n        return found;\n    }\n\n    /** The category code, or null when the field starts with a subelement. */\n    static String categoryCode(String field48) {\n        // TODO: the field's category code, when it has one.\n        throw new IllegalStateException(\"TODO: categoryCode\");\n    }\n\n    /** The data of the subelement with this two-digit tag, or null when the field has none. */\n    static String value(String field48, String tag) {\n        // TODO: the data the sender put under this tag.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-06/practice-2/src/main/java/com/example/practice/Field48Reader.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-06/practice-2/src/test/java/com/example/practice/Field48ReaderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-06/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-06/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.Field48ReaderTest#readsTheCategoryCodeAndTheWantedSubelements",
+        "kind": "main",
+        "says": "the category code and the data of each wanted tag are read, and a tag the field doesn't carry gives null"
+      },
+      {
+        "id": "com.example.practice.Field48ReaderTest#aTagsDigitsInsideAnotherSubelementAreData",
+        "kind": "edge",
+        "says": "a tag's digits inside another subelement's data are data, so a tag is found only where a subelement starts"
+      },
+      {
+        "id": "com.example.practice.Field48ReaderTest#aFieldWithoutCategoryCodeStartsWithATag",
+        "kind": "edge",
+        "says": "a field whose first character is a digit has no category code and starts with a subelement"
+      },
+      {
+        "id": "com.example.practice.Field48ReaderTest#aSubelementNobodyToldYouAboutIsSteppedOver",
+        "kind": "edge",
+        "says": "a subelement with a tag the application doesn't use is stepped over by its length, and the ones after it are still read"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-06/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/6.md",
+      "section": "6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message"
+    },
+    "concepts": [
+      "Field 48 is an optional category code then tag-length-value subelements, found by walking lengths, never at fixed offsets or by searching for the tag's digits."
+    ]
+  }
+}

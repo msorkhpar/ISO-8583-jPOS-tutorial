@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 10,
   "ordinal": 1,
-  "title": "Stand in for the host so client tests run offline",
+  "title": "Make the fake host keep the promises QMUX keeps",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/SimulatedHost.java",
-  "test_file": "src/test/java/com/example/practice/SimulatedHostTest.java",
+  "main_file": "src/main/java/com/example/practice/ScriptedMux.java",
+  "test_file": "src/test/java/com/example/practice/ScriptedMuxTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.SimulatedHostTest#aRequestWithinTheLimitIsApprovedWithItsFieldsEchoed",
+      "id": "com.example.practice.ScriptedMuxTest#theScriptDecidesEachAnswer",
       "kind": "main",
-      "says": "a request within the limit is answered with the response MTI, its own fields echoed and response code 00"
+      "says": "each request gets the scripted answer in order, a silent step gives null, and after the script every request is approved"
     },
     {
-      "id": "com.example.practice.SimulatedHostTest#aRequestOverTheLimitIsDeclinedWith51",
+      "id": "com.example.practice.ScriptedMuxTest#theListenerGetsTheAnswer",
       "kind": "main",
-      "says": "a request whose amount is over the limit is answered with response code 51"
+      "says": "the listener form hands an answered request's response to responseReceived with the hand-back"
     },
     {
-      "id": "com.example.practice.SimulatedHostTest#theRequestItselfIsLeftUntouched",
+      "id": "com.example.practice.ScriptedMuxTest#aRequestNobodyAnsweredWasStillSent",
       "kind": "edge",
-      "says": "answering leaves the client's own request message unchanged"
+      "says": "a request the host left unanswered is still recorded as sent, so a test can tell a resend from a single attempt"
     },
     {
-      "id": "com.example.practice.SimulatedHostTest#aRequestWithoutAnAmountIsApproved",
+      "id": "com.example.practice.ScriptedMuxTest#theClientKeepsItsRequestUnchanged",
       "kind": "edge",
-      "says": "a request that carries no amount, such as an echo test, is approved"
+      "says": "the response is a new message and the client's request is left unchanged, as with QMUX"
+    },
+    {
+      "id": "com.example.practice.ScriptedMuxTest#theResponseMtiFollowsTheRequest",
+      "kind": "edge",
+      "says": "the response MTI is derived from the request's: an 0100 is answered by an 0110 and an 0420 by an 0430"
+    },
+    {
+      "id": "com.example.practice.ScriptedMuxTest#theListenerHearsExpiredWhenNobodyAnswers",
+      "kind": "edge",
+      "says": "with no answer the listener form calls expired once and never passes null to responseReceived"
+    },
+    {
+      "id": "com.example.practice.ScriptedMuxTest#theResponseCarriesTheRequestsFields",
+      "kind": "edge",
+      "says": "the response echoes the request's fields, as a host's answer does, besides adding field 39"
     }
   ],
   "report": {
@@ -59,6 +74,6 @@
   },
   "origin": {
     "path": "src/c10.md",
-    "section": "10.3 Simulating Server Responses"
+    "section": "10.1.1 Spot the Problem: The Fake That Answered With the Request"
   }
 }

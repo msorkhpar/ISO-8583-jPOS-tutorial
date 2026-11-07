@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 6,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: reading what a request carries",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-missing-entry-mode",
+        "stem": "A participant reads the POS entry mode with Integer.parseInt(request.getString(22)), inside a try with catch (ISOException e). An e-commerce purchase arrives without field 22. What does the client that sent it get?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A response with 30, since the TransactionManager answers for a participant that fails in prepare",
+            "correct": false,
+            "says": "the TransactionManager logs a warning and counts the vote as ABORTED; it builds no response"
+          },
+          {
+            "id": "b",
+            "text": "A response with 96, since SendResponse builds a system error when it runs on the abort path",
+            "correct": false,
+            "says": "SendResponse only sends what is under RESPONSE; with nothing there it sends nothing"
+          },
+          {
+            "id": "c",
+            "text": "No response, since the transaction aborts before the participant has put anything under RESPONSE",
+            "correct": true,
+            "says": "parseInt(null) throws a NumberFormatException the catch doesn't cover, the vote counts as ABORTED, and SendResponse has nothing to send"
+          },
+          {
+            "id": "d",
+            "text": "No response, since the session that ran the participant stops and the request stays in the queue",
+            "correct": false,
+            "says": "the TransactionManager catches the exception and the session carries on with the abort path"
+          }
+        ],
+        "origin": {
+          "path": "src/s6.md",
+          "section": "6.1 A Missing Field Reads as `null`, and a Participant That Throws Answers Nobody"
+        }
+      },
+      {
+        "id": "q-signed-amount",
+        "stem": "A participant checks hasField(4), converts field 4 with Long.parseLong and approves anything up to 30000 cents. Both ends use iso87ascii.xml. A purchase arrives whose field 4 reads -00000004000. What happens to it?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is approved, since the value parseLong returns is below the limit",
+            "correct": true,
+            "says": "parseLong accepts a leading sign, so -4000 passes the limit check; only a digits check would refuse it"
+          },
+          {
+            "id": "b",
+            "text": "It is refused with 30, since parseLong rejects a sign in a numeric field",
+            "correct": false,
+            "says": "parseLong accepts a leading minus or plus sign"
+          },
+          {
+            "id": "c",
+            "text": "It never reaches the participant, since the server's packager rejects the minus sign",
+            "correct": false,
+            "says": "the ASCII numeric field packager checks the length, not the characters"
+          },
+          {
+            "id": "d",
+            "text": "It never reaches the participant, since the client's packager refuses to pack it",
+            "correct": false,
+            "says": "the client's packager doesn't look at the characters either; the field goes out as it was set"
+          }
+        ],
+        "origin": {
+          "path": "src/s6.md",
+          "section": "6.2 A Numeric Field Is Text That Nobody Checked"
+        }
+      },
+      {
+        "id": "q-won-and-dinar",
+        "stem": "A limit participant divides field 4 by 100 for every currency. Its limits are 1,000,000 won (410, a currency with no minor unit) and 400.000 Kuwaiti dinars (414, a currency with three decimals). One purchase arrives with field 4 = 000003000000 in won, another with field 4 = 000000350000 in dinars. What does the participant answer?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It approves the won purchase and declines the dinar one, since it reads 30,000 won and 3,500 dinars",
+            "correct": true,
+            "says": "the won has no minor unit and the dinar has three decimals, so dividing by 100 shrinks one and inflates the other"
+          },
+          {
+            "id": "b",
+            "text": "It declines the won purchase and approves the dinar one, since it reads 3,000,000 won and 350 dinars",
+            "correct": false,
+            "says": "those are the real amounts; reading them needs each currency's decimals, which dividing by 100 ignores"
+          },
+          {
+            "id": "c",
+            "text": "It approves both purchases, since dividing by 100 makes every amount smaller than it is",
+            "correct": false,
+            "says": "for a currency with three decimals, dividing by 100 makes the amount ten times larger than it is"
+          },
+          {
+            "id": "d",
+            "text": "It declines both purchases, since dividing by 100 makes every amount larger than it is",
+            "correct": false,
+            "says": "for a currency without a minor unit, dividing by 100 makes the amount a hundred times smaller"
+          }
+        ],
+        "origin": {
+          "path": "src/s6.md",
+          "section": "6.3 An Amount Counts the Minor Units of the Currency in Field 49"
+        }
+      },
+      {
+        "id": "q-long-reason-text",
+        "stem": "A participant declines a purchase, sets field 44 of its response to a 30-character reason from the core system, puts the response in the Context and votes ABORTED. The server's layout is iso87ascii.xml, where field 44 holds up to 25 characters. What reaches the terminal?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The decline with field 44 cut to 25 characters, since the packager shortens a value that is too long",
+            "correct": false,
+            "says": "the packager refuses a value that is too long; it never shortens it"
+          },
+          {
+            "id": "b",
+            "text": "The decline without field 44, since the packager leaves out a field it can't pack",
+            "correct": false,
+            "says": "a field that can't be packed makes the whole pack fail; nothing is sent"
+          },
+          {
+            "id": "c",
+            "text": "Nothing, since the pack fails inside SendResponse and the channel logs that send with the error under it",
+            "correct": true,
+            "says": "set accepts any length; the packager checks when SendResponse sends, after the vote, and the channel's log shows a send that never left"
+          },
+          {
+            "id": "d",
+            "text": "Nothing, since set refuses the text and the exception leaves prepare before the response is in the Context",
+            "correct": false,
+            "says": "set checks nothing; the value is stored and only fails when the message is packed"
+          }
+        ],
+        "origin": {
+          "path": "src/s6.md",
+          "section": "6.5 `set` Checks Nothing; the Packager Checks After the Vote"
+        }
+      }
+    ],
+    "concepts": [
+      "A response that fails to pack is logged by the channel as a send with the error under it, while the TransactionManager's event shows a clean transaction.",
+      "A missing field reads as null; a participant that throws while reading it gets an ABORTED vote and leaves no response, so the client gets nothing."
+    ]
+  }
+}

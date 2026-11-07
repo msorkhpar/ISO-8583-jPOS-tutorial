@@ -8,8 +8,8 @@
   "unit": 6,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Answer a request without spoiling it",
+  "ingested": "2026-11-05",
+  "title": "Hand the terminal's chip data and PIN block to the host intact",
   "blocks": [
     {
       "type": "heading",
@@ -18,33 +18,28 @@
     },
     {
       "type": "para",
-      "text": "The page turns a request into a response by changing it in place: a new MTI, a response code, the EMV data removed. That is a hazard in a client or server that still holds the request, to log it, match it or retry it, because after the call the request is no longer the request."
+      "text": "The fuel stations' new pay-at-pump terminals talk to `TerminalBridge`, in `src/main/java/com/example/practice/TerminalBridge.java`. Their software sends everything as hex text, and the PIN pad driver hands over each PIN block in a buffer that it fills again for the next customer. The client sends to two hosts: the course's ASCII link and a second link whose packager treats field 55 as binary."
     },
     {
       "type": "para",
-      "text": "Write `ResponseMaker` with `respond(ISOMsg request, String responseCode)`. It returns a new `ISOMsg` that:"
+      "text": "`purchase` already builds the request. Finish the three methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "has the response MTI for the request's MTI: the third digit goes up by one, so a `0200` is answered with a `0210`;",
-        "carries every field of the request, with the same values;",
-        "carries `responseCode` in field 39;",
-        "does not carry field 55 (the chip's EMV data), whether or not the request had it."
+        "`putChipData`: the chip's data into the request;",
+        "`putPinBlock`: the PIN block into the request;",
+        "`chipDataForTerminal`: the host's chip data, from field 55 of a response, back to the terminal."
       ]
     },
     {
       "type": "para",
-      "text": "Mind these:"
+      "text": "When you're done, both hosts receive exactly the bytes the chip produced and the PIN block each customer typed, even when a request is packed after the next customer has used the PIN pad. The terminal gets the host's chip data as hex from either link, and `null` when the host sent none. About five lines in total."
     },
     {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Do not assume every request is a `0200`. An authorization `0100` is answered with a `0110`.",
-        "The request passed in must come out of the call exactly as it went in: same MTI, same fields, its field 55 still there, and no field 39 added to it."
-      ]
+      "type": "para",
+      "text": "The tests pack each message with the link's packager and unpack it again, as the other end does."
     },
     {
       "type": "heading",
@@ -59,7 +54,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        ISOMsg response = (ISOMsg) request.clone();\n        response.setResponseMTI();\n        response.set(39, responseCode);\n        response.unset(55);\n        return response;\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Sits between the terminal application and the ISOMsg the client sends. The terminal speaks hex\n * strings; its PIN pad driver writes each PIN block into one buffer that it reuses.\n */\npublic class TerminalBridge {\n\n    /** The PIN pad driver: writes the PIN block the cardholder just entered into {@code buffer}. */\n    public interface PinPad {\n        void readInto(byte[] buffer);\n    }\n\n    private final PinPad pinPad;\n    private final byte[] buffer = new byte[8];\n\n    public TerminalBridge(PinPad pinPad) {\n        this.pinPad = pinPad;\n    }\n\n    /** The purchase for the cardholder at the terminal now. {@code iccHex} is null for a swiped card. */\n    public ISOMsg purchase(String pan, long amountMinor, String stan, String iccHex)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(Long.toString(amountMinor), 12));\n        m.set(11, stan);\n        m.set(41, \"29110001\");\n        pinPad.readInto(buffer);\n        putPinBlock(m, buffer);\n        if (iccHex != null)\n            putChipData(m, iccHex);\n        return m;\n    }\n\n    /** Puts the chip data the terminal read, given as hex text, into the request. */\n    void putChipData(ISOMsg request, String iccHex) {\n        request.set(55, ISOUtil.hex2byte(iccHex));\n    }\n\n    /** Puts the PIN block the PIN pad produced into the request. */\n    void putPinBlock(ISOMsg request, byte[] fromPinPad) {\n        request.set(52, fromPinPad.clone());\n    }\n\n    /** The host's chip data (field 55 of the response) as the terminal wants it: hex text, or null. */\n    String chipDataForTerminal(ISOMsg response) {\n        byte[] icc = response.getBytes(55);\n        return icc == null ? null : ISOUtil.hexString(icc);\n    }\n}\n"
         }
       ]
     },
@@ -71,7 +66,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Sits between the terminal application and the ISOMsg the client sends. The terminal speaks hex\n * strings; its PIN pad driver writes each PIN block into one buffer that it reuses.\n */\npublic class TerminalBridge {\n\n    /** The PIN pad driver: writes the PIN block the cardholder just entered into {@code buffer}. */\n    public interface PinPad {\n        void readInto(byte[] buffer);\n    }\n\n    private final PinPad pinPad;\n    private final byte[] buffer = new byte[8];\n\n    public TerminalBridge(PinPad pinPad) {\n        this.pinPad = pinPad;\n    }\n\n    /** The purchase for the cardholder at the terminal now. {@code iccHex} is null for a swiped card. */\n    public ISOMsg purchase(String pan, long amountMinor, String stan, String iccHex)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(Long.toString(amountMinor), 12));\n        m.set(11, stan);\n        m.set(41, \"29110001\");\n        pinPad.readInto(buffer);\n        putPinBlock(m, buffer);\n        if (iccHex != null)\n            putChipData(m, iccHex);\n        return m;\n    }\n\n    /** Puts the chip data the terminal read, given as hex text, into the request. */\n    void putChipData(ISOMsg request, String iccHex) {\n        // TODO: The terminal hands over what the chip produced as hex text, two characters per\n        //       byte. The host must receive the chip's bytes, whatever packager the link uses.\n        throw new IllegalStateException(\"TODO: putChipData\");\n    }\n\n    /** Puts the PIN block the PIN pad produced into the request. */\n    void putPinBlock(ISOMsg request, byte[] fromPinPad) {\n        // TODO: The driver writes every cardholder's PIN block into the same buffer. A request may\n        //       wait to be packed until after the next cardholder has typed a PIN.\n        throw new IllegalStateException(\"TODO: putPinBlock\");\n    }\n\n    /** The host's chip data (field 55 of the response) as the terminal wants it: hex text, or null. */\n    String chipDataForTerminal(ISOMsg response) {\n        // TODO: Responses come from links with different packagers, so field 55 may arrive as an\n        //       ISOBinaryField or as an ISOField. The terminal wants the same hex either way, and\n        //       null when the host sent no chip data.\n        throw new IllegalStateException(\"TODO: chipDataForTerminal\");\n    }\n}\n"
     }
   ],
   "video": null,
@@ -79,10 +74,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 4,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 1,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -90,11 +85,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "f10c502784f91e2966f0bbfe95b33a4ec964bb05a9ea5654846c130b6e66d66d",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/** Builds the response to a request, leaving the request alone. */\npublic final class ResponseMaker {\n\n    public ISOMsg respond(ISOMsg request, String responseCode) throws ISOException {\n        throw new UnsupportedOperationException(\"write respond\");\n    }\n}\n",
+  "content_sha256": "6bede2f542bc0ebf3d8a50e983995ad23f1eaa788940f85424a2bfeea8407571",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Sits between the terminal application and the ISOMsg the client sends. The terminal speaks hex\n * strings; its PIN pad driver writes each PIN block into one buffer that it reuses.\n */\npublic class TerminalBridge {\n\n    /** The PIN pad driver: writes the PIN block the cardholder just entered into {@code buffer}. */\n    public interface PinPad {\n        void readInto(byte[] buffer);\n    }\n\n    private final PinPad pinPad;\n    private final byte[] buffer = new byte[8];\n\n    public TerminalBridge(PinPad pinPad) {\n        this.pinPad = pinPad;\n    }\n\n    /** The purchase for the cardholder at the terminal now. {@code iccHex} is null for a swiped card. */\n    public ISOMsg purchase(String pan, long amountMinor, String stan, String iccHex)\n            throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, ISOUtil.zeropad(Long.toString(amountMinor), 12));\n        m.set(11, stan);\n        m.set(41, \"29110001\");\n        pinPad.readInto(buffer);\n        putPinBlock(m, buffer);\n        if (iccHex != null)\n            putChipData(m, iccHex);\n        return m;\n    }\n\n    /** Puts the chip data the terminal read, given as hex text, into the request. */\n    void putChipData(ISOMsg request, String iccHex) {\n        // TODO: The terminal hands over what the chip produced as hex text, two characters per\n        //       byte. The host must receive the chip's bytes, whatever packager the link uses.\n        throw new IllegalStateException(\"TODO: putChipData\");\n    }\n\n    /** Puts the PIN block the PIN pad produced into the request. */\n    void putPinBlock(ISOMsg request, byte[] fromPinPad) {\n        // TODO: The driver writes every cardholder's PIN block into the same buffer. A request may\n        //       wait to be packed until after the next cardholder has typed a PIN.\n        throw new IllegalStateException(\"TODO: putPinBlock\");\n    }\n\n    /** The host's chip data (field 55 of the response) as the terminal wants it: hex text, or null. */\n    String chipDataForTerminal(ISOMsg response) {\n        // TODO: Responses come from links with different packagers, so field 55 may arrive as an\n        //       ISOBinaryField or as an ISOField. The terminal wants the same hex either way, and\n        //       null when the host sent no chip data.\n        throw new IllegalStateException(\"TODO: chipDataForTerminal\");\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-client/prose/unit-06/practice-1/src/main/java/com/example/practice/ResponseMaker.java",
-    "test_path": "practice/jpos-client/prose/unit-06/practice-1/src/test/java/com/example/practice/ResponseMakerTest.java",
+    "main_path": "practice/jpos-client/prose/unit-06/practice-1/src/main/java/com/example/practice/TerminalBridge.java",
+    "test_path": "practice/jpos-client/prose/unit-06/practice-1/src/test/java/com/example/practice/TerminalBridgeTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -115,19 +110,34 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ResponseMakerTest#aPurchaseIsAnsweredWithItsFieldsAndAResponseCode",
+        "id": "com.example.practice.TerminalBridgeTest#aPurchaseCarriesThePinBlockTheCardholderTyped",
         "kind": "main",
-        "says": "a 0200 request is answered with a 0210 that echoes its fields, carries the response code in field 39 and drops the EMV data in field 55"
+        "says": "a purchase reaches the host with the PIN block the cardholder typed"
       },
       {
-        "id": "com.example.practice.ResponseMakerTest#anAuthorizationIsAnsweredWith0110",
-        "kind": "edge",
-        "says": "the response MTI follows the request's MTI, so a 0100 is answered with a 0110"
+        "id": "com.example.practice.TerminalBridgeTest#theHostsChipDataReachesTheTerminalAsHex",
+        "kind": "main",
+        "says": "chip data in the host's response reaches the terminal as hex text"
       },
       {
-        "id": "com.example.practice.ResponseMakerTest#theRequestIsLeftUntouched",
+        "id": "com.example.practice.TerminalBridgeTest#chipDataGoesOutAsTheBytesTheChipProduced",
         "kind": "edge",
-        "says": "the request is left exactly as it came in"
+        "says": "the host receives the chip's bytes, not the hex text the terminal handed over, on an ASCII link and on a binary one"
+      },
+      {
+        "id": "com.example.practice.TerminalBridgeTest#eachRequestKeepsItsOwnPinBlock",
+        "kind": "edge",
+        "says": "a request keeps its own PIN block after the PIN pad reuses its buffer for the next cardholder"
+      },
+      {
+        "id": "com.example.practice.TerminalBridgeTest#chipDataFromAnAsciiLinkReachesTheTerminalAsHex",
+        "kind": "edge",
+        "says": "chip data unpacked as text by an ASCII packager still reaches the terminal as the hex of its bytes"
+      },
+      {
+        "id": "com.example.practice.TerminalBridgeTest#aResponseWithoutChipDataGivesTheTerminalNothing",
+        "kind": "edge",
+        "says": "a response without field 55 gives the terminal null rather than an exception"
       }
     ],
     "report": {
@@ -136,11 +146,12 @@
     },
     "origin": {
       "path": "src/c6.md",
-      "section": "6.1 ISOMsg"
+      "section": "6.2 Binary Data Goes In as Bytes"
     },
     "concepts": [
-      "An ISOMsg holds an MTI and values keyed by field number: set puts one, getString reads one, and hasField asks whether an optional field is present before it is read.",
-      "A response is built from its request by changing the MTI, adding the response code in field 39 and removing what must not travel back, such as the EMV data in field 55."
+      "An absent field reads as null from every getter but getMTI, so optional fields are read with a null check.",
+      "Binary data is set as bytes; a hex string becomes bytes only if a packager is attached when it is set, so in a client it goes out as text or fails to pack.",
+      "set(n, byte[]) keeps the caller's array, so a reused buffer changes a request that has not been packed yet."
     ]
   }
 }

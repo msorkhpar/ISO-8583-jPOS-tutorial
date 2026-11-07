@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 5,
   "ordinal": 1,
-  "title": "Approve Visa purchases in a transaction participant",
+  "title": "Split a capture from a Visa link into frames",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/VisaPurchaseParticipant.java",
-  "test_file": "src/test/java/com/example/practice/VisaPurchaseParticipantTest.java",
+  "main_file": "src/main/java/com/example/practice/Base1Frames.java",
+  "test_file": "src/test/java/com/example/practice/Base1FramesTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,29 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.VisaPurchaseParticipantTest#namesTheTransactionTypeFromTheProcessingCode",
+      "id": "com.example.practice.Base1FramesTest#splitsOneFrame",
       "kind": "main",
-      "says": "names purchase, cash advance, void and refund from the processing code, and nothing else"
+      "says": "a frame comes out as its header bytes and its message bytes, and the capture then ends"
     },
     {
-      "id": "com.example.practice.VisaPurchaseParticipantTest#preparesAnApprovedResponseForAPurchase",
+      "id": "com.example.practice.Base1FramesTest#splitsFramesBackToBack",
       "kind": "main",
-      "says": "prepares an approved 0110 with the merchant fields padded to width for a purchase, and aborts with a reason for anything else"
+      "says": "frames that follow each other come out one by one, in order"
     },
     {
-      "id": "com.example.practice.VisaPurchaseParticipantTest#aPurchaseFromAnyAccountIsStillAPurchase",
+      "id": "com.example.practice.Base1FramesTest#answersAPoll",
       "kind": "edge",
-      "says": "only the processing code's first two digits name the transaction, so 003000 is a purchase too"
+      "says": "a frame with length zero is no message and is written back to the network as it came"
     },
     {
-      "id": "com.example.practice.VisaPurchaseParticipantTest#leavesTheRequestAsItArrived",
+      "id": "com.example.practice.Base1FramesTest#readsARejectHeaderWhole",
       "kind": "edge",
-      "says": "the request in the context is left as it arrived; the response is a separate message"
+      "says": "a reject header and the original header behind it are both read as header, whatever their lengths"
+    },
+    {
+      "id": "com.example.practice.Base1FramesTest#theNextFrameStartsWhereARejectEnds",
+      "kind": "edge",
+      "says": "the prefix's length counts every header byte, so a message ends where its frame ends even behind a longer header"
     }
   ],
   "report": {
@@ -59,6 +64,6 @@
   },
   "origin": {
     "path": "src/5.md",
-    "section": "5.3. Visa processing codes"
+    "section": "5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
   }
 }

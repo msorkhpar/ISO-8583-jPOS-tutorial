@@ -1,98 +1,204 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/11.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/11.md": "sha256:265954a1dd4c0b390045fdd6138ebf3c32b68c2467ab8896069a13b864dc838c"
+    "src/11.md": "sha256:a14b84a8bdb5eaad5ccf2a2d233fd6dd1d2d7c472ab867cb8138a485bcabab87"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 4,
     "aspects": [
       {
-        "id": "error-logging",
-        "says": "An ISOException that escapes is logged with its stack trace in one central handler and turned into a plain error answer.",
+        "id": "amount-by-currency",
+        "says": "Field 4 counts minor units of the currency in field 49, so the amount is scaled by that currency's decimals, exactly, and an amount finer than the currency allows is refused.",
         "basis": [
-          "example:src/11.md:4",
-          "section:11.2.2. Error Logging"
-        ],
-        "exercise": null,
-        "reason": "the handler is Spring MVC controller advice, which a graded run does not have; its content is one log call"
-      },
-      {
-        "id": "modular-layout",
-        "says": "An ISO-8583 project is split into packages by responsibility: configuration, channels, packagers, participants, services and utilities.",
-        "basis": [
+          "section:11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One",
           "example:src/11.md:1",
-          "section:11.1.1. Modular Design"
+          "example:src/11.md:2"
         ],
-        "exercise": null,
-        "reason": "a directory layout is a convention to follow, not behaviour a graded run can check"
+        "exercise": "field-4-by-currency",
+        "reason": null
       },
       {
-        "id": "participant-tracing",
-        "says": "A debugging participant writes a line to the transaction's context at prepare, commit and abort, so a trace shows how far each transaction went.",
+        "id": "judge-by-percentile",
+        "says": "The mean hides answers that arrive after the terminal's timeout; the 99th percentile shows them, and each one becomes a reversal.",
         "basis": [
-          "example:src/11.md:5",
-          "section:11.2.3. Debugging Techniques"
+          "section:11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers",
+          "example:src/11.md:7"
         ],
-        "exercise": null,
-        "reason": "the participant lifecycle is the transaction manager's subject; here it only carries a log line, which the logging exercise already practises"
+        "exercise": "check-yourself",
+        "reason": null
       },
       {
-        "id": "performance-reuse",
-        "says": "Performance comes from reusing work: a tuned packager, a pool of connections instead of one per message, and a cache for results read again and again.",
+        "id": "limit-per-destination",
+        "says": "Each destination gets its own limit of requests in flight, so a slow issuer cannot take the sessions of healthy ones.",
         "basis": [
-          "section:11.3. Performance Optimization",
-          "example:src/11.md:7",
+          "section:11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91",
           "example:src/11.md:8"
         ],
-        "exercise": null,
-        "reason": "the examples are empty packager overrides, a pool factory that is not a jPOS class and needs a live peer, and Spring cache configuration; none has a behaviour to check offline"
+        "exercise": "issuer-limit",
+        "reason": null
       },
       {
-        "id": "separate-concerns",
-        "says": "Transaction processing and channel management live in separate classes, each handed what it needs rather than building it.",
+        "id": "most-specific-route",
+        "says": "A card goes to the destination of the most specific entry that holds it, whatever the entry's length or its place in the table.",
         "basis": [
-          "example:src/11.md:2",
-          "section:11.1.2. Separation of Concerns"
-        ],
-        "exercise": null,
-        "reason": "the example is Spring wiring around an empty method and a live ISOServer; there is no behaviour of its own to practise"
-      },
-      {
-        "id": "transaction-logging",
-        "says": "A jPOS LogListener sees every event the logger delivers, picks out the transaction events by their tag, and hands every event on so the listeners after it still see it.",
-        "basis": [
+          "section:11.2. A Card Goes to the Destination of Its Longest Matching Prefix",
           "example:src/11.md:3",
-          "section:11.2.1. Transaction Logging"
+          "example:src/11.md:5"
         ],
-        "exercise": "record-transactions",
+        "exercise": "range-routing",
+        "reason": null
+      },
+      {
+        "id": "no-double-for-money",
+        "says": "A double cannot hold most decimal amounts exactly, so a multiply-and-cast loses a minor unit.",
+        "basis": [
+          "section:11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "off-the-path",
+        "says": "Reports, settlement files and batch work run outside the authorization path, which keeps only what decides the answer.",
+        "basis": [
+          "section:11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+        ],
+        "exercise": null,
+        "reason": "a design rule about where work runs, with no behaviour a deterministic test can observe"
+      },
+      {
+        "id": "reference-data-swapped-whole",
+        "says": "Routing tables are kept in memory and replaced whole, so a lookup sees one version of the table.",
+        "basis": [
+          "section:11.2. A Card Goes to the Destination of Its Longest Matching Prefix",
+          "example:src/11.md:3"
+        ],
+        "exercise": "range-routing",
+        "reason": null
+      },
+      {
+        "id": "refuse-with-91",
+        "says": "A request beyond the limit is answered at once with 91, an error, not a decline, and its place is given back however the request ends.",
+        "basis": [
+          "section:11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+        ],
+        "exercise": "issuer-limit",
+        "reason": null
+      },
+      {
+        "id": "size-from-busiest-second",
+        "says": "Capacity comes from the busiest hour times the burst factor, and in-flight requests are that rate times the answer time.",
+        "basis": [
+          "section:11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers",
+          "example:src/11.md:6"
+        ],
+        "exercise": "check-yourself",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "record-transactions",
+        "name": "field-4-by-currency",
         "aspects": [
-          "transaction-logging"
+          "amount-by-currency"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "range-routing",
+        "aspects": [
+          "most-specific-route",
+          "reference-data-swapped-whole"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "issuer-limit",
+        "aspects": [
+          "limit-per-destination",
+          "refuse-with-91"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "check-yourself",
+        "aspects": [
+          "judge-by-percentile",
+          "no-double-for-money",
+          "size-from-busiest-second"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-11/practice-1"
+    "exercises/iso-fundamentals/prose/unit-11/practice-1",
+    "exercises/iso-fundamentals/prose/unit-11/practice-2",
+    "exercises/iso-fundamentals/prose/unit-11/practice-3",
+    "exercises/iso-fundamentals/prose/unit-11/practice-4"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-1",
       "origin": {
         "path": "src/11.md",
-        "section": "11.2.1. Transaction Logging"
+        "section": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-2",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.2. A Card Goes to the Destination of Its Longest Matching Prefix"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-3",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-4:q-refund-through-double",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.1. An Amount Counts Minor Units, and Its Currency Says How Many Make One"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-4:q-sized-by-average",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-4:q-dashboard",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.3. Capacity Is Sized From the Busiest Second, and Judged by the Slowest Answers"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-4:q-shared-pool",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-11/practice-4:q-refusal-code",
+      "origin": {
+        "path": "src/11.md",
+        "section": "11.4. A Slow Destination Gets a Limit of Its Own, and Past It an Immediate 91"
       }
     }
   ],

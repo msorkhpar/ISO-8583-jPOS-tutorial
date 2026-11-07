@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 7,
   "ordinal": 1,
-  "title": "Put the PIN block for the next hop into field 52",
+  "title": "Let only genuine requests through to the network",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/PinEncryptionService.java",
-  "test_file": "src/test/java/com/example/practice/PinEncryptionServiceTest.java",
+  "main_file": "src/main/java/com/example/practice/TerminalGate.java",
+  "test_file": "src/test/java/com/example/practice/TerminalGateTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,19 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.PinEncryptionServiceTest#theModuleEncryptsThePinWithTheCardNumber",
+      "id": "com.example.practice.TerminalGateTest#aGenuinePurchaseIsApproved",
       "kind": "main",
-      "says": "the security module encrypts the PIN with the card number from field 2, the result is exported under the zone PIN key in the service's format, and field 52 carries that exported block, not the LMK one, with no clear PIN anywhere in the message"
+      "says": "a purchase signed by a known terminal reaches the network and comes back approved"
     },
     {
-      "id": "com.example.practice.PinEncryptionServiceTest#thePinBlockGoesInAsItsRawBytes",
-      "kind": "edge",
-      "says": "field 52 carries the exported block's raw bytes, not a hex or text rendering of them"
+      "id": "com.example.practice.TerminalGateTest#aForgedMacReachesNobody",
+      "kind": "main",
+      "says": "a request changed after the terminal signed it is refused with 63 and never reaches the network"
     },
     {
-      "id": "com.example.practice.PinEncryptionServiceTest#aMessageWithNoCardNumberIsRefusedBeforeTheModuleIsAsked",
+      "id": "com.example.practice.TerminalGateTest#aRequestWithoutAMacReachesNobody",
       "kind": "edge",
-      "says": "a message with no card number is refused, and the security module is never asked"
+      "says": "a request with no MAC at all is refused like a forged one"
+    },
+    {
+      "id": "com.example.practice.TerminalGateTest#aTerminalNobodyKnowsIsAnswered",
+      "kind": "edge",
+      "says": "a terminal with no key on file is answered 63 rather than left without an answer"
+    },
+    {
+      "id": "com.example.practice.TerminalGateTest#theTerminalsMacStaysOnItsLink",
+      "kind": "edge",
+      "says": "what the network receives carries no MAC under the terminal's key"
+    },
+    {
+      "id": "com.example.practice.TerminalGateTest#aPinPurchaseIsApproved",
+      "kind": "edge",
+      "says": "a PIN purchase reaches the network with the PIN under the key the network shares, so the network can check it"
+    },
+    {
+      "id": "com.example.practice.TerminalGateTest#aPinWithNoKeyOnFileGoesNowhere",
+      "kind": "edge",
+      "says": "a PIN purchase whose PIN can't be translated is refused with 96 and never reaches the network, not sent on without its PIN"
     }
   ],
   "report": {
@@ -54,6 +74,6 @@
   },
   "origin": {
     "path": "src/s7.md",
-    "section": "7.3 Implementing PIN Encryption"
+    "section": "7.3 A PIN Block Is Safe Only While Its Key and the LMK Stay Apart"
   }
 }

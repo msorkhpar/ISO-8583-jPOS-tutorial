@@ -1,0 +1,225 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 7,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: PINs, keys and MACs in the client",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-missing-provider",
+        "stem": "A team copies the security module's deploy file from an old Java 8 project into a client that runs on Java 17. The file names the JCESecurityModule implementation and an LMK file, and nothing else. Q2 starts, and the link to the host comes up. What happens next?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The module starts on the JDK's built-in provider, so PIN translation and MACs work as they did on Java 8",
+            "correct": false,
+            "says": "2.1.7 loads com.sun.crypto.provider.SunJCE by class name when no provider is named, and Java 17 refuses that, so the module does not start."
+          },
+          {
+            "id": "b",
+            "text": "The module starts on the JDK's built-in provider, so PINs translate but every MAC computation fails",
+            "correct": false,
+            "says": "Every MAC failing is what happens only after opening the package with --add-exports; without it the module never registers at all."
+          },
+          {
+            "id": "c",
+            "text": "The module is never registered, so the first lookup of it fails while everything else keeps running",
+            "correct": true,
+            "says": "Q2 logs the provider error once as a warning, deploys the rest, and the module is simply missing until something looks it up."
+          },
+          {
+            "id": "d",
+            "text": "The module is never registered, so Q2 retries it every few seconds until a provider loads",
+            "correct": false,
+            "says": "Q2 logs the failure once as a warning while it starts and deploys everything else; the module stays missing and the failure shows at the first lookup."
+          }
+        ],
+        "origin": {
+          "path": "src/c7.md",
+          "section": "7.4 Keys Live Under the Module's Master Key and Are Known by Their Check Value"
+        }
+      },
+      {
+        "id": "q-key-bytes",
+        "stem": "After a key exchange, an engineer wants to confirm that your module and the host's HSM now hold the same new PIN key. The host's operations team can read out anything their HSM shows about the key. What should the two sides compare?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Each side's check value for the key, since the stored digits differ under each module's own master key",
+            "correct": true,
+            "says": "Each module holds a key under its own LMK, so the stored digits always differ; the check value is computed from the clear key and identifies it."
+          },
+          {
+            "id": "b",
+            "text": "Each side's stored digits for the key, since the check value differs under each module's own master key",
+            "correct": false,
+            "says": "It is the other way round: the check value comes from the clear key and matches, while the stored digits differ under each LMK."
+          },
+          {
+            "id": "c",
+            "text": "The digits of the key as it travelled under the ZMK, since both sides saw those same digits in the exchange",
+            "correct": false,
+            "says": "Seeing the same transport digits proves nothing about what each side decrypted; a mistyped ZMK imports a different key from the same digits."
+          },
+          {
+            "id": "d",
+            "text": "The check value of the ZMK, since any key imported under matching ZMKs is bound to be the same key",
+            "correct": false,
+            "says": "Matching ZMKs are necessary but the imported key itself is confirmed by its own check value, compared at every exchange."
+          }
+        ],
+        "origin": {
+          "path": "src/c7.md",
+          "section": "7.4.1 Two Modules, One Key, Different Bytes"
+        }
+      },
+      {
+        "id": "q-tls-instead",
+        "stem": "Your client receives PIN purchases from a store's controller over TLS and forwards them to the acquirer over TLS. A developer proposes that the client decrypt each PIN with the module and send it to the acquirer in a private field, because both connections use TLS. Is that safe?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is unsafe, since the PIN would then be plain data inside the client, where TLS does not reach",
+            "correct": true,
+            "says": "TLS is removed at each end of each connection; a clear PIN in the client is plain data in its memory, logs and queues."
+          },
+          {
+            "id": "b",
+            "text": "It is unsafe, since the PIN would then be plain data inside the TLS records, where the module does not reach",
+            "correct": false,
+            "says": "TLS records are encrypted on the wire; the exposure is in the process at each end."
+          },
+          {
+            "id": "c",
+            "text": "It is safe, since the PIN would then be plain data only inside the client, which runs as a trusted process",
+            "correct": false,
+            "says": "A clear PIN may exist only inside a secure device; an ordinary process exposes it in its heap, logs, queues and dumps."
+          },
+          {
+            "id": "d",
+            "text": "It is safe, since the PIN would then be plain data only inside the TLS records, which are encrypted",
+            "correct": false,
+            "says": "Before and after the TLS records the PIN would be plain data in the client's process."
+          }
+        ],
+        "origin": {
+          "path": "src/c7.md",
+          "section": "7.2 A PIN Block Means Nothing Without Its Key and Its Card Number"
+        }
+      },
+      {
+        "id": "q-field7-after-mac",
+        "stem": "A client's send path translates the PIN, computes the MAC, and then a step added later sets field 7 to the current time just before mux.request. From that release on, the host answers 63 to every purchase, with or without a PIN. Why?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The MAC no longer matches, since the host computes it over the bytes of the message as they arrived",
+            "correct": true,
+            "says": "The MAC covers the packed bytes as sent; any change after signing breaks it, so signing must be the last step."
+          },
+          {
+            "id": "b",
+            "text": "The MAC no longer matches, since the host computes it with field 7's time as part of the key",
+            "correct": false,
+            "says": "The MAC key is the shared ZAK; field 7 matters only because it was added to the bytes after the MAC was computed."
+          },
+          {
+            "id": "c",
+            "text": "The host rejects the message as a replay, since the time in field 7 is older than it allows",
+            "correct": false,
+            "says": "63 here comes from a MAC that doesn't verify; field 7 is set just before sending."
+          },
+          {
+            "id": "d",
+            "text": "The host rejects the message as unprotected, since a MAC must also cover the key of the PIN block",
+            "correct": false,
+            "says": "Purchases without a PIN fail too; the MAC covers the message's bytes, and the stamp after signing changed them."
+          }
+        ],
+        "origin": {
+          "path": "src/c7.md",
+          "section": "7.5 A MAC Covers the Bytes as Sent, So It Is the Last Thing You Add"
+        }
+      },
+      {
+        "id": "q-masked-pan",
+        "stem": "On a link without MACs, a developer replaces field 2 with ISOUtil.protect(pan) just before mux.request, to keep card numbers out of q2.log. What happens to the purchase?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The purchase is sent and declined, since the host receives a card number with underscores in it",
+            "correct": true,
+            "says": "jPOS packs the masked number without complaint; the host cannot authorize 411111______1111."
+          },
+          {
+            "id": "b",
+            "text": "The purchase is sent and approved, since the host skips the underscores and reads the digits around them",
+            "correct": false,
+            "says": "Eight digits are gone; the host cannot authorize a card number it can't read. Masking is for logs and displays, never the message."
+          },
+          {
+            "id": "c",
+            "text": "The purchase is never sent, since jPOS refuses to pack a card number with underscores in it",
+            "correct": false,
+            "says": "The 2.1.7 IFA_LLNUM packer packs the masked value without complaint."
+          },
+          {
+            "id": "d",
+            "text": "The purchase is never sent, since the MUX refuses a request whose card number has underscores in it",
+            "correct": false,
+            "says": "The page shows the masked number packed and received by the host, so the message is sent."
+          }
+        ],
+        "origin": {
+          "path": "src/c7.md",
+          "section": "7.7 Card Data Crosses the Client Intact and Stays Nowhere"
+        }
+      }
+    ],
+    "concepts": [
+      "Card numbers travel intact and are masked only in logs and displays; track data, CVV and PIN blocks are never kept after the purchase.",
+      "A key's bytes differ between modules because each holds it under its own LMK; the check value identifies the key and is compared at every load, import and exchange.",
+      "The module is deployed as an SMAdaptor QBean; on Java 17 without a named provider it never registers, while the rest of Q2 runs, and SunJCE lacks the default MAC.",
+      "Signing is the last change before a message leaves; any field set after it makes the host reject the message.",
+      "TLS protects one connection and ends in an ordinary process at each end, while a PIN block stays encrypted until it reaches a module that holds its key."
+    ]
+  }
+}

@@ -1,80 +1,155 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s2.md",
   "kind": "code",
+  "quiz": "handling-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s2.md": "sha256:ee2ed55f017893204437f5f09623efa43a558e51b9c640d2ccd225386dc8c86e"
+    "src/s2.md": "sha256:3b9de6d56739442ec60659eaf08eb9af5c6f7ab9c7d8d139c6d2bd12036acda0"
   },
   "plan": {
     "plan_api": 2,
-    "tier": "introductory",
-    "count": 1,
+    "tier": "core",
+    "count": 3,
     "aspects": [
       {
-        "id": "generic-packager-xml",
-        "says": "A GenericPackager reads each field's number, length and encoding class from an XML definition, so a message format can change without Java code.",
+        "id": "answer-key-fields",
+        "says": "The client finds an answer by its key fields, so a response must carry each of them unchanged; a response built from scratch or renumbered by the server matches nothing.",
         "basis": [
-          "example:src/s2.md:4",
-          "section:2.3 Generic Packager"
+          "section:2.3 The Client Finds Your Answer by the Fields You Echo"
         ],
-        "exercise": null,
-        "reason": "it needs a packager definition file, and a graded run has none; the exercise uses a packager built in code instead"
-      },
-      {
-        "id": "iso-factory",
-        "says": "jPOS components such as channels, packagers and fields can be created from their class names.",
-        "basis": [
-          "example:src/s2.md:1",
-          "section:2.1 ISO Factory"
-        ],
-        "exercise": null,
-        "reason": "creating channels, packagers and fields with their constructors is incidental to message handling, as the page itself says"
-      },
-      {
-        "id": "messages-from-templates",
-        "says": "Messages of one kind are built from a named template that fixes the MTI and the constant fields, so each new message only adds what varies per transaction.",
-        "basis": [
-          "example:src/s2.md:2",
-          "example:src/s2.md:5",
-          "section:2.2 Message Factory"
-        ],
-        "exercise": "message-templates",
+        "exercise": "answer-any-request",
         "reason": null
       },
       {
-        "id": "packager-round-trip",
-        "says": "A packager turns a message into the bytes that go on the wire and back, and unpacking what it packed gives the same fields again.",
+        "id": "answer-mti-every-kind",
+        "says": "setResponseMTI turns any request into its response MTI, while a hand-written MTI leaves other kinds of request, such as advices, unanswered.",
         "basis": [
-          "example:src/s2.md:3",
-          "example:src/s2.md:5",
-          "section:2.4 Putting It All Together"
+          "section:2.4 `setResponseMTI` Answers Every Kind of Request"
         ],
-        "exercise": "message-templates",
+        "exercise": "answer-any-request",
+        "reason": null
+      },
+      {
+        "id": "client-rig",
+        "says": "A server's answers are judged by the client's QMUX, which can run in the same JVM, joined to the answering code by the wire format alone.",
+        "basis": [
+          "section:2.1 A Client You Can Point at Your Code"
+        ],
+        "exercise": null,
+        "reason": "the rig is the tool the practices' tests use, not a skill to practise"
+      },
+      {
+        "id": "initiated-fresh-copy",
+        "says": "A message the server starts is a fresh copy of its template, numbered from the server's one sequence for the link and stamped with the time in GMT.",
+        "basis": [
+          "section:2.6 A Message the Server Starts Is a Fresh Copy, Numbered by the Server"
+        ],
+        "exercise": "terminal-notices",
+        "reason": null
+      },
+      {
+        "id": "layouts-both-directions",
+        "says": "The server reads with its descriptor's packager and the client with its own; layouts that differ only in fields the requests lack unpack every request and garble every answer.",
+        "basis": [
+          "section:2.2 The Server Reads With Its Packager, the Client With Its Own"
+        ],
+        "exercise": "handling-quiz",
+        "reason": null
+      },
+      {
+        "id": "repeat-answer-matches",
+        "says": "A repeat is answered with the plain response MTI, which matches because the client's key leaves out the fourth digit.",
+        "basis": [
+          "section:2.4 `setResponseMTI` Answers Every Kind of Request"
+        ],
+        "exercise": "handling-quiz",
+        "reason": null
+      },
+      {
+        "id": "response-copies-list",
+        "says": "A response is a new message holding only the listed fields, so card secrets stay behind and the request in the Context stays a request; the approval code goes only with an approval.",
+        "basis": [
+          "section:2.5 A Response Copies What Identifies the Request, and Leaves the Request Alone"
+        ],
+        "exercise": "answer-any-request",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "message-templates",
+        "name": "answer-any-request",
         "aspects": [
-          "messages-from-templates",
-          "packager-round-trip"
+          "answer-key-fields",
+          "answer-mti-every-kind",
+          "response-copies-list"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "terminal-notices",
+        "aspects": [
+          "initiated-fresh-copy"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "handling-quiz",
+        "aspects": [
+          "layouts-both-directions",
+          "repeat-answer-matches"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-server/prose/unit-02/practice-1"
+    "exercises/jpos-server/prose/unit-02/practice-1",
+    "exercises/jpos-server/prose/unit-02/practice-2",
+    "exercises/jpos-server/prose/unit-02/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-server/prose/unit-02/practice-1",
       "origin": {
         "path": "src/s2.md",
-        "section": "2.4 Putting It All Together"
+        "section": "2.5 A Response Copies What Identifies the Request, and Leaves the Request Alone"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-02/practice-2",
+      "origin": {
+        "path": "src/s2.md",
+        "section": "2.6 A Message the Server Starts Is a Fresh Copy, Numbered by the Server"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-02/practice-3:q-layout-one-way",
+      "origin": {
+        "path": "src/s2.md",
+        "section": "2.2 The Server Reads With Its Packager, the Client With Its Own"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-02/practice-3:q-built-from-scratch",
+      "origin": {
+        "path": "src/s2.md",
+        "section": "2.3 The Client Finds Your Answer by the Fields You Echo"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-02/practice-3:q-advice-answered-as-purchase",
+      "origin": {
+        "path": "src/s2.md",
+        "section": "2.4 `setResponseMTI` Answers Every Kind of Request"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-02/practice-3:q-repeat-answer",
+      "origin": {
+        "path": "src/s2.md",
+        "section": "2.4 `setResponseMTI` Answers Every Kind of Request"
       }
     }
   ],

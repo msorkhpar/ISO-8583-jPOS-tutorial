@@ -1,79 +1,178 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/6.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/6.md": "sha256:3865837fe82c0d492cd06cf4f5c9f4bdb4aea205614efff19fb1593ef23b8ffc"
+    "src/6.md": "sha256:0a030ea8df799be2a64a7472ca29d69a0eeccd3551a4d0777394405c7060a401"
   },
   "plan": {
     "plan_api": 2,
-    "tier": "introductory",
-    "count": 1,
+    "tier": "core",
+    "count": 3,
     "aspects": [
       {
-        "id": "approved-means-00",
-        "says": "A response is approved only when its field 39 is 00; any other code, or none, is not an approval.",
+        "id": "borrowed-packager-mti",
+        "says": "A packager borrowed from a BCD link with only its text fields switched to EBCDIC still sends a BCD MTI the host can't read.",
         "basis": [
-          "example:src/6.md:3",
-          "example:src/6.md:4"
+          "section:6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap"
         ],
-        "exercise": "build-mastercard-requests",
+        "exercise": "check-yourself",
         "reason": null
       },
       {
-        "id": "private-use-fields",
-        "says": "Fields 48, 61 and 63 carry Mastercard's additional private data, point-of-service data and network data.",
+        "id": "clearing-1993",
+        "says": "Mastercard's clearing files are described as 1993-edition messages, unlike the 1987 online authorizations.",
         "basis": [
-          "example:src/6.md:1",
-          "section:6.2. Mastercard-specific data elements"
+          "section:6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap"
         ],
         "exercise": null,
-        "reason": "the page sets and reads them as plain strings; there is no rule of their own to practise"
+        "reason": "a hedged side note about a confidential file format, which nothing offline can check"
       },
       {
-        "id": "request-core-fields",
-        "says": "Every financial request is an 0200 carrying the card number, processing code, amount and merchant id, and a refund also carries the original transaction's reference in field 37.",
+        "id": "ebcdic-behind-binary-bitmap",
+        "says": "On a Mastercard-style link the MTI, numbers, length prefixes and text are one EBCDIC byte each and only the bitmap is binary, so a BCD packager's MTI can't be read.",
         "basis": [
-          "example:src/6.md:3",
-          "section:6.1. Mastercard transaction types"
+          "section:6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap",
+          "example:src/6.md:1",
+          "example:src/6.md:2",
+          "example:src/6.md:3"
         ],
-        "exercise": "build-mastercard-requests",
+        "exercise": "write-an-ebcdic-layout",
         "reason": null
       },
       {
-        "id": "type-in-processing-code",
-        "says": "A Mastercard transaction's type travels as its processing code in field 3, and a code the scheme does not define is refused rather than guessed.",
+        "id": "field-48-by-tag",
+        "says": "Field 48 is an optional category code then tag-length-value subelements, found by walking lengths, never at fixed offsets or by searching for the tag's digits.",
         "basis": [
-          "example:src/6.md:2",
-          "section:6.3. Mastercard processing codes"
+          "section:6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message",
+          "example:src/6.md:11",
+          "example:src/6.md:12"
         ],
-        "exercise": "build-mastercard-requests",
+        "exercise": "read-field-48",
+        "reason": null
+      },
+      {
+        "id": "postchannel-descriptor",
+        "says": "PostChannel in a ChannelAdaptor descriptor frames a Mastercard-style link in Q2.",
+        "basis": [
+          "section:6.3. A Frame Is a Two-Byte Binary Length, Then the Message",
+          "example:src/6.md:10"
+        ],
+        "exercise": null,
+        "reason": "deploying a live channel needs a network host; the framing it produces is checked by the quiz"
+      },
+      {
+        "id": "round-trip-proves-nothing",
+        "says": "A wrong field class packs and unpacks its own bytes, so only a comparison with the specification's sample bytes catches it.",
+        "basis": [
+          "section:6.2. A Packager That Reads Its Own Messages Back Proves Nothing",
+          "example:src/6.md:4",
+          "example:src/6.md:5",
+          "example:src/6.md:6",
+          "example:src/6.md:7"
+        ],
+        "exercise": "write-an-ebcdic-layout",
+        "reason": null
+      },
+      {
+        "id": "two-byte-length",
+        "says": "The frame is a two-byte binary length and the message; a binary-length host reading ASCII digits waits for 12336 bytes until its read timeout.",
+        "basis": [
+          "section:6.3. A Frame Is a Two-Byte Binary Length, Then the Message",
+          "example:src/6.md:8",
+          "example:src/6.md:9"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "unknown-tag-stops-message",
+        "says": "jPOS's subfield packager refuses a tag it has no definition for, and the whole message with it, so every tag is declared or the field is split in code.",
+        "basis": [
+          "section:6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message",
+          "example:src/6.md:12",
+          "example:src/6.md:13"
+        ],
+        "exercise": "check-yourself",
         "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "build-mastercard-requests",
+        "name": "write-an-ebcdic-layout",
         "aspects": [
-          "approved-means-00",
-          "request-core-fields",
-          "type-in-processing-code"
+          "ebcdic-behind-binary-bitmap",
+          "round-trip-proves-nothing"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "read-field-48",
+        "aspects": [
+          "field-48-by-tag"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "borrowed-packager-mti",
+          "two-byte-length",
+          "unknown-tag-stops-message"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/iso-fundamentals/prose/unit-06/practice-1"
+    "exercises/iso-fundamentals/prose/unit-06/practice-1",
+    "exercises/iso-fundamentals/prose/unit-06/practice-2",
+    "exercises/iso-fundamentals/prose/unit-06/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-1",
       "origin": {
         "path": "src/6.md",
-        "section": "6.3. Mastercard processing codes"
+        "section": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-2",
+      "origin": {
+        "path": "src/6.md",
+        "section": "6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-3:q-visa-packager-reuse",
+      "origin": {
+        "path": "src/6.md",
+        "section": "6.1. A Mastercard Message Is EBCDIC Characters Behind a Binary Bitmap"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-3:q-round-trip-test",
+      "origin": {
+        "path": "src/6.md",
+        "section": "6.2. A Packager That Reads Its Own Messages Back Proves Nothing"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-3:q-length-mismatch",
+      "origin": {
+        "path": "src/6.md",
+        "section": "6.3. A Frame Is a Two-Byte Binary Length, Then the Message"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-06/practice-3:q-new-subelement",
+      "origin": {
+        "path": "src/6.md",
+        "section": "6.4. Field 48 Is Read Tag by Tag, and an Unknown Tag Must Not Stop the Message"
       }
     }
   ],

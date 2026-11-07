@@ -8,8 +8,8 @@
   "unit": 11,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Screen only a valid amount, with the fraud service mocked",
+  "ingested": "2026-11-05",
+  "title": "Write the checks that catch a lost hold",
   "blocks": [
     {
       "type": "heading",
@@ -18,32 +18,11 @@
     },
     {
       "type": "para",
-      "text": "A participant that calls an outside service is hard to test against the real thing: it may be slow, down, or unable to give you the verdict you want to check. The page tests such a participant with the service mocked, and tests a validating participant on its own with a fresh `Context`. This participant does both jobs, and the tests you are graded by mock its service exactly that way."
+      "text": "A prepaid card can't spend more than its balance. `HoldFunds` takes the purchase amount off the card while the issuer decides, and must give it back when the purchase doesn't go through. An earlier version passed every test the team had, and still lost cardholders' money in production."
     },
     {
       "type": "para",
-      "text": "Write `FraudScreeningParticipant`, a jPOS `TransactionParticipant` built from a `FraudService` (declared for you as a nested interface). In `prepare`, read the context entries `amount` and `cardNumber` (strings), then:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "no amount (or an empty one): put `Amount is missing` in the context entry `error`;",
-        "an amount that is not a number: `Invalid amount format`;",
-        "an amount that is not positive: `Amount must be positive`."
-      ]
-    },
-    {
-      "type": "para",
-      "text": "In each of those cases return `ABORTED` without calling the service: there is no point screening a transaction that is already refused. Otherwise ask the service `isFraudulent(cardNumber, amount)`, with the amount as a `BigDecimal`. A fraud verdict puts `Boolean.TRUE` in `fraudDetected` and returns `ABORTED`; a clean verdict returns `PREPARED` and leaves `fraudDetected` unset."
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Zero is not a positive amount.",
-        "If the service itself fails (it throws), `prepare` must not throw: put `Fraud check unavailable` in `error` and return `ABORTED`."
-      ]
+      "text": "The team's checks are in `src/main/java/com/example/practice/HoldFundsChecks.java`. The tests run them against a real TransactionManager whose chain is `HoldFunds`, an issuer stand-in and `SendResponse`, each check on a fresh chain (the `Chain` interface says what a check can do). `approvedPurchase` is written. Finish the two checks marked `TODO`, so that a correct `HoldFunds` passes all three, and a `HoldFunds` that gets the cardholder's money or the terminal's answer wrong fails at least one. The tests try several wrong versions. About ten lines in total."
     },
     {
       "type": "heading",
@@ -58,7 +37,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Refuses a bad amount, then screens the transaction with an external fraud service. */\npublic final class FraudScreeningParticipant implements TransactionParticipant {\n\n    /** The external fraud check. */\n    public interface FraudService {\n        boolean isFraudulent(String cardNumber, BigDecimal amount);\n    }\n\n    private final FraudService fraudService;\n\n    public FraudScreeningParticipant(FraudService fraudService) {\n        this.fraudService = fraudService;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        String text = (String) ctx.get(\"amount\");\n        if (text == null || text.isEmpty()) {\n            ctx.put(\"error\", \"Amount is missing\");\n            return ABORTED;\n        }\n        BigDecimal amount;\n        try {\n            amount = new BigDecimal(text);\n        } catch (NumberFormatException e) {\n            ctx.put(\"error\", \"Invalid amount format\");\n            return ABORTED;\n        }\n        if (amount.signum() <= 0) {\n            ctx.put(\"error\", \"Amount must be positive\");\n            return ABORTED;\n        }\n        boolean fraudulent;\n        try {\n            fraudulent = fraudService.isFraudulent((String) ctx.get(\"cardNumber\"), amount);\n        } catch (RuntimeException e) {\n            ctx.put(\"error\", \"Fraud check unavailable\");\n            return ABORTED;\n        }\n        if (fraudulent) {\n            ctx.put(\"fraudDetected\", Boolean.TRUE);\n            return ABORTED;\n        }\n        return PREPARED;\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for HoldFunds, the participant that holds the purchase amount on a prepaid\n * card while the issuer decides. The tests run them against a real TransactionManager whose chain\n * is HoldFunds, an issuer stand-in and SendResponse. A check throws AssertionError when HoldFunds\n * gets something wrong.\n */\npublic class HoldFundsChecks {\n\n    /** One chain with fresh balances, as a check sees it. */\n    public interface Chain {\n        /** Sets the card's prepaid balance, in minor units. */\n        void open(String card, long balance);\n\n        /** The card's balance now, in minor units. */\n        long balance(String card);\n\n        /** What the issuer stand-in answers in field 39 from now on. A fresh chain answers \"00\". */\n        void issuerAnswers(String responseCode);\n\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        approvedPurchase(chains.get());\n        purchaseTheIssuerDeclines(chains.get());\n        purchaseOverTheBalance(chains.get());\n    }\n\n    /** An approved purchase is answered 00, and the card keeps the rest of its balance. */\n    static void approvedPurchase(Chain chain) throws Exception {\n        chain.open(\"4000000000000002\", 20000);\n        ISOMsg answer = chain.send(purchase(\"4000000000000002\", \"000000007500\"));\n        expect(\"00\", answer == null ? null : answer.getString(39), \"approved purchase: field 39\");\n        expect(12500L, chain.balance(\"4000000000000002\"), \"approved purchase: balance\");\n    }\n\n    /** A purchase the card could pay, which the issuer declines with 05. */\n    static void purchaseTheIssuerDeclines(Chain chain) throws Exception {\n        chain.open(\"4000000000000010\", 20000);\n        chain.issuerAnswers(\"05\");\n        ISOMsg answer = chain.send(purchase(\"4000000000000010\", \"000000007500\"));\n        expect(\"05\", answer == null ? null : answer.getString(39), \"issuer decline: field 39\");\n        expect(20000L, chain.balance(\"4000000000000010\"), \"issuer decline: balance\");\n    }\n\n    /** A purchase larger than the card's balance, which HoldFunds refuses with 51. */\n    static void purchaseOverTheBalance(Chain chain) throws Exception {\n        chain.open(\"4000000000000028\", 5000);\n        ISOMsg answer = chain.send(purchase(\"4000000000000028\", \"000000007500\"));\n        expect(\"51\", answer == null ? null : answer.getString(39), \"refusal: field 39\");\n        expect(5000L, chain.balance(\"4000000000000028\"), \"refusal: balance\");\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase from terminal 29110051, with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, \"29110051\");\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n"
         }
       ]
     },
@@ -70,7 +49,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Refuses a bad amount, then screens the transaction with an external fraud service. */\npublic final class FraudScreeningParticipant implements TransactionParticipant {\n\n    /** The external fraud check. */\n    public interface FraudService {\n        boolean isFraudulent(String cardNumber, BigDecimal amount);\n    }\n\n    public FraudScreeningParticipant(FraudService fraudService) {\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for HoldFunds, the participant that holds the purchase amount on a prepaid\n * card while the issuer decides. The tests run them against a real TransactionManager whose chain\n * is HoldFunds, an issuer stand-in and SendResponse. A check throws AssertionError when HoldFunds\n * gets something wrong.\n */\npublic class HoldFundsChecks {\n\n    /** One chain with fresh balances, as a check sees it. */\n    public interface Chain {\n        /** Sets the card's prepaid balance, in minor units. */\n        void open(String card, long balance);\n\n        /** The card's balance now, in minor units. */\n        long balance(String card);\n\n        /** What the issuer stand-in answers in field 39 from now on. A fresh chain answers \"00\". */\n        void issuerAnswers(String responseCode);\n\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        approvedPurchase(chains.get());\n        purchaseTheIssuerDeclines(chains.get());\n        purchaseOverTheBalance(chains.get());\n    }\n\n    /** An approved purchase is answered 00, and the card keeps the rest of its balance. */\n    static void approvedPurchase(Chain chain) throws Exception {\n        chain.open(\"4000000000000002\", 20000);\n        ISOMsg answer = chain.send(purchase(\"4000000000000002\", \"000000007500\"));\n        expect(\"00\", answer == null ? null : answer.getString(39), \"approved purchase: field 39\");\n        expect(12500L, chain.balance(\"4000000000000002\"), \"approved purchase: balance\");\n    }\n\n    /** A purchase the card could pay, which the issuer declines with 05. */\n    static void purchaseTheIssuerDeclines(Chain chain) throws Exception {\n        // TODO: The card could pay for this purchase, but the issuer declines it with 05. The check\n        //       must fail for a HoldFunds that handles this case wrongly for the cardholder or for\n        //       the terminal, and pass for one that handles it right.\n        throw new IllegalStateException(\"TODO: purchaseTheIssuerDeclines\");\n    }\n\n    /** A purchase larger than the card's balance, which HoldFunds refuses with 51. */\n    static void purchaseOverTheBalance(Chain chain) throws Exception {\n        // TODO: The purchase is larger than the card's balance, and HoldFunds refuses it with 51.\n        //       The check must fail for a HoldFunds that handles this case wrongly for the cardholder\n        //       or for the terminal, and pass for one that handles it right.\n        throw new IllegalStateException(\"TODO: purchaseOverTheBalance\");\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase from terminal 29110051, with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, \"29110051\");\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n"
     }
   ],
   "video": null,
@@ -78,10 +57,10 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 2,
     "code": 1,
     "tables": 0,
-    "lists": 2,
+    "lists": 0,
     "images": 0,
     "videos": 0,
     "rules": 0,
@@ -89,11 +68,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "fbbfd7464ee37f5352e2e08207cab84ef887ba4fd7e927e9006b890d82e8dd05",
-  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport java.math.BigDecimal;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** Refuses a bad amount, then screens the transaction with an external fraud service. */\npublic final class FraudScreeningParticipant implements TransactionParticipant {\n\n    /** The external fraud check. */\n    public interface FraudService {\n        boolean isFraudulent(String cardNumber, BigDecimal amount);\n    }\n\n    public FraudScreeningParticipant(FraudService fraudService) {\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n",
+  "content_sha256": "fe520afb616b2f5931f3b5669cab13dc2556446bf6b435585d3f7e6a0d1f7c34",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.Objects;\nimport java.util.function.Supplier;\n\n/**\n * The team's checks for HoldFunds, the participant that holds the purchase amount on a prepaid\n * card while the issuer decides. The tests run them against a real TransactionManager whose chain\n * is HoldFunds, an issuer stand-in and SendResponse. A check throws AssertionError when HoldFunds\n * gets something wrong.\n */\npublic class HoldFundsChecks {\n\n    /** One chain with fresh balances, as a check sees it. */\n    public interface Chain {\n        /** Sets the card's prepaid balance, in minor units. */\n        void open(String card, long balance);\n\n        /** The card's balance now, in minor units. */\n        long balance(String card);\n\n        /** What the issuer stand-in answers in field 39 from now on. A fresh chain answers \"00\". */\n        void issuerAnswers(String responseCode);\n\n        /** Sends a request as a terminal would. Returns its answer once the transaction has ended, or null. */\n        ISOMsg send(ISOMsg request) throws Exception;\n    }\n\n    /** Runs every check, each on a fresh chain. */\n    public static void checkAll(Supplier<Chain> chains) throws Exception {\n        approvedPurchase(chains.get());\n        purchaseTheIssuerDeclines(chains.get());\n        purchaseOverTheBalance(chains.get());\n    }\n\n    /** An approved purchase is answered 00, and the card keeps the rest of its balance. */\n    static void approvedPurchase(Chain chain) throws Exception {\n        chain.open(\"4000000000000002\", 20000);\n        ISOMsg answer = chain.send(purchase(\"4000000000000002\", \"000000007500\"));\n        expect(\"00\", answer == null ? null : answer.getString(39), \"approved purchase: field 39\");\n        expect(12500L, chain.balance(\"4000000000000002\"), \"approved purchase: balance\");\n    }\n\n    /** A purchase the card could pay, which the issuer declines with 05. */\n    static void purchaseTheIssuerDeclines(Chain chain) throws Exception {\n        // TODO: The card could pay for this purchase, but the issuer declines it with 05. The check\n        //       must fail for a HoldFunds that handles this case wrongly for the cardholder or for\n        //       the terminal, and pass for one that handles it right.\n        throw new IllegalStateException(\"TODO: purchaseTheIssuerDeclines\");\n    }\n\n    /** A purchase larger than the card's balance, which HoldFunds refuses with 51. */\n    static void purchaseOverTheBalance(Chain chain) throws Exception {\n        // TODO: The purchase is larger than the card's balance, and HoldFunds refuses it with 51.\n        //       The check must fail for a HoldFunds that handles this case wrongly for the cardholder\n        //       or for the terminal, and pass for one that handles it right.\n        throw new IllegalStateException(\"TODO: purchaseOverTheBalance\");\n    }\n\n    // ---- helpers ----\n\n    private static int stan;\n\n    /** A purchase from terminal 29110051, with the next STAN. */\n    static synchronized ISOMsg purchase(String card, String amount) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, card);\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, String.format(\"%06d\", ++stan));\n        m.set(41, \"29110051\");\n        return m;\n    }\n\n    /** Fails the check unless the two values are equal. */\n    static void expect(Object expected, Object actual, String what) {\n        if (!Objects.equals(expected, actual))\n            throw new AssertionError(what + \": expected \" + expected + \" but was \" + actual);\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-11/practice-1/src/main/java/com/example/practice/FraudScreeningParticipant.java",
-    "test_path": "practice/jpos-server/prose/unit-11/practice-1/src/test/java/com/example/practice/FraudScreeningParticipantTest.java",
+    "main_path": "practice/jpos-server/prose/unit-11/practice-1/src/main/java/com/example/practice/HoldFundsChecks.java",
+    "test_path": "practice/jpos-server/prose/unit-11/practice-1/src/test/java/com/example/practice/HoldFundsChecksTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -114,24 +93,24 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.FraudScreeningParticipantTest#aValidAmountIsScreenedAndTheVerdictDecides",
+        "id": "com.example.practice.HoldFundsChecksTest#aCorrectHoldFundsPassesEveryCheck",
         "kind": "main",
-        "says": "a valid amount is sent to the fraud service with the card number; a clean verdict prepares and a fraud verdict aborts and marks the context"
+        "says": "the checks pass for a HoldFunds that answers every purchase and leaves each card with the right balance"
       },
       {
-        "id": "com.example.practice.FraudScreeningParticipantTest#aMissingMalformedOrNegativeAmountAbortsWithoutAskingTheService",
-        "kind": "main",
-        "says": "a missing, malformed or negative amount aborts with its own reason, and the fraud service is never called"
-      },
-      {
-        "id": "com.example.practice.FraudScreeningParticipantTest#aZeroAmountIsNotPositive",
+        "id": "com.example.practice.HoldFundsChecksTest#aHoldThatTheIssuersDeclineNeverReturnsIsCaught",
         "kind": "edge",
-        "says": "an amount of zero is rejected as not positive, before any screening"
+        "says": "the checks fail for a HoldFunds that votes NO_JOIN after holding the money, so the real TransactionManager never gives it back when the issuer declines"
       },
       {
-        "id": "com.example.practice.FraudScreeningParticipantTest#aFailingFraudServiceAbortsInsteadOfThrowing",
+        "id": "com.example.practice.HoldFundsChecksTest#aRefusalThatAddsMoneyToTheCardIsCaught",
         "kind": "edge",
-        "says": "a fraud service that fails aborts the transaction with a reason instead of throwing out of prepare"
+        "says": "the checks fail for a HoldFunds whose own refusal joins and whose abort credits an amount it never held"
+      },
+      {
+        "id": "com.example.practice.HoldFundsChecksTest#aRefusalThatLeavesTheTerminalWithoutAnAnswerIsCaught",
+        "kind": "edge",
+        "says": "the checks fail for a HoldFunds that refuses without leaving a response, because the terminal then gets nothing"
       }
     ],
     "report": {
@@ -140,11 +119,10 @@
     },
     "origin": {
       "path": "src/s11.md",
-      "section": "11.3 Mock Testing"
+      "section": "11.2 Only the Real TransactionManager Decides Who Hears the Outcome"
     },
     "concepts": [
-      "A participant that calls an external service is tested with that service mocked, so each verdict, and the calls it should and should not receive, can be set up and checked without a network.",
-      "A participant is unit-tested on its own by handing prepare a fresh Context and checking both its answer and what it left in the context, for good input and for each kind of bad input."
+      "A test that calls commit or abort by hand checks its author's idea of the TransactionManager; the vote decides who hears the outcome, so the whole vote is asserted and the abort path is tested through the real TransactionManager."
     ]
   }
 }

@@ -1,73 +1,149 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/15.md",
   "kind": "code",
+  "quiz": "check-yourself",
   "case": "code-no-tests",
   "digests": {
-    "src/15.md": "sha256:e3ea9367e756e83d918e5c698ac9de278dadec2da7368fe2431631c4446b7fff"
+    "src/15.md": "sha256:9a36104f551ffc1dbfb3685044dc637c3ff27597607707f7bc000c4899fa0515"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 2,
+    "count": 3,
     "aspects": [
       {
-        "id": "bitmap-agrees-with-fields",
-        "says": "A message's primary bitmap must agree with the data elements it carries, and bit 1 flags a secondary bitmap rather than a field.",
+        "id": "compare-shapes-not-values",
+        "says": "A rejected message is compared with approved ones by each field's presence, length and kind of characters, because values differ between any two purchases.",
         "basis": [
-          "example:src/15.md:1",
-          "section:15.1.1. Bitmap inconsistencies"
-        ],
-        "exercise": "bitmap-mismatches",
-        "reason": null
-      },
-      {
-        "id": "day-balances",
-        "says": "A business day balances when the processed amounts add up to the network's total and every expected transaction was processed.",
-        "basis": [
-          "example:src/15.md:8",
-          "example:src/15.md:9",
-          "example:src/15.md:10",
-          "section:15.3. Reconciliation problems"
-        ],
-        "exercise": "reconcile-day",
-        "reason": null
-      },
-      {
-        "id": "field-length-check",
-        "says": "Each field's value is checked against the length its definition allows before the message is trusted.",
-        "basis": [
+          "section:15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field",
+          "example:src/15.md:2",
           "example:src/15.md:3",
-          "section:15.1.2. Field length mismatches"
+          "example:src/15.md:4"
         ],
-        "exercise": null,
-        "reason": "the same check-the-message-against-its-definition habit the bitmap exercise practises; not practised a second time"
+        "exercise": "unseen-shapes",
+        "reason": null
       },
       {
-        "id": "timeout-and-retry",
-        "says": "A request that times out is retried a bounded number of times, with a pause between tries, before it is declared failed.",
+        "id": "error-names-a-later-field",
+        "says": "A packager's error names a field after the one that is wrong, so the search starts from the first field whose shape changed.",
         "basis": [
-          "example:src/15.md:5",
-          "example:src/15.md:6",
-          "section:15.2. Network connectivity issues"
+          "section:15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field"
         ],
         "exercise": null,
-        "reason": "the page's code is built on a live channel and a peer, and a graded run is offline with no peer to time out against"
+        "reason": "a pointer to unit 3, whose shifted-field example and practices grade it"
+      },
+      {
+        "id": "match-every-transaction",
+        "says": "Equal totals can hide differences that cancel, so every day is matched transaction by transaction by terminal and RRN.",
+        "basis": [
+          "section:15.4. A Difference in Totals Is Explained Transaction by Transaction, Even When the Totals Agree",
+          "example:src/15.md:6"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "message-named-by-three-fields",
+        "says": "A logged message is found by its terminal, STAN and transmission time together, because STANs repeat across terminals and across days.",
+        "basis": [
+          "section:15.1. A Message Is Named by Its Terminal, STAN and Transmission Time, and the Time Is UTC",
+          "example:src/15.md:1"
+        ],
+        "exercise": "find-the-message",
+        "reason": null
+      },
+      {
+        "id": "nearest-approved-messages",
+        "says": "The comparison is with approved messages of the same release and kind of purchase, and a shape any of them has is not a fault.",
+        "basis": [
+          "section:15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field"
+        ],
+        "exercise": "unseen-shapes",
+        "reason": null
+      },
+      {
+        "id": "pairing-fields-echoed",
+        "says": "An answer that adds, drops or rewrites a pairing field matches nothing and looks like silence, so pairing uses only fields every request carries and the host echoes unchanged.",
+        "basis": [
+          "section:15.3.1. Spot the Problem: The Terminal Whose Approvals Never Arrived",
+          "example:src/15.md:5"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "partial-booked-whole",
+        "says": "A partial approval booked at the requested amount shows the terminal a full approval and leaves the merchant short by the difference.",
+        "basis": [
+          "section:15.4. A Difference in Totals Is Explained Transaction by Transaction, Even When the Totals Agree"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "place-the-missing-answer",
+        "says": "An unanswered request is placed by the last log that saw it; one that left is reversed wherever it stopped, and the place says what to fix.",
+        "basis": [
+          "section:15.3. A Missing Answer Is Placed by the Last Log That Saw the Message"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "rrn-across-hops",
+        "says": "Field 11 names a message on one link only; across hops the transaction is asked for by its retrieval reference number.",
+        "basis": [
+          "section:15.1. A Message Is Named by Its Terminal, STAN and Transmission Time, and the Time Is UTC"
+        ],
+        "exercise": null,
+        "reason": "which hop renumbers a message happens between companies and can't be run offline; unit c12's gateway practice grades the renumbering itself"
+      },
+      {
+        "id": "three-dates",
+        "says": "A purchase carries the terminal's local date, the UTC transmission time and the settlement date, each for a different party.",
+        "basis": [
+          "section:15.8. Design Note: Why a Purchase Carries Three Dates"
+        ],
+        "exercise": null,
+        "reason": "a design note explaining a choice of the standard; 15.1's practice grades the UTC transmission time it rests on"
+      },
+      {
+        "id": "transmission-time-is-utc",
+        "says": "Field 7 holds the transmission time in UTC, while a log and fields 12 and 13 are local, so a ticket's time is matched against field 7.",
+        "basis": [
+          "section:15.1. A Message Is Named by Its Terminal, STAN and Transmission Time, and the Time Is UTC",
+          "example:src/15.md:1"
+        ],
+        "exercise": "find-the-message",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "bitmap-mismatches",
+        "name": "find-the-message",
         "aspects": [
-          "bitmap-agrees-with-fields"
+          "message-named-by-three-fields",
+          "transmission-time-is-utc"
         ]
       },
       {
         "slot": 2,
-        "name": "reconcile-day",
+        "name": "unseen-shapes",
         "aspects": [
-          "day-balances"
+          "compare-shapes-not-values",
+          "nearest-approved-messages"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "check-yourself",
+        "aspects": [
+          "match-every-transaction",
+          "pairing-fields-echoed",
+          "partial-booked-whole",
+          "place-the-missing-answer"
         ]
       }
     ],
@@ -75,21 +151,50 @@
   },
   "shipped": [
     "exercises/iso-fundamentals/prose/unit-15/practice-1",
-    "exercises/iso-fundamentals/prose/unit-15/practice-2"
+    "exercises/iso-fundamentals/prose/unit-15/practice-2",
+    "exercises/iso-fundamentals/prose/unit-15/practice-3"
   ],
   "accounts": [
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-1",
       "origin": {
         "path": "src/15.md",
-        "section": "15.1.1. Bitmap inconsistencies"
+        "section": "15.1. A Message Is Named by Its Terminal, STAN and Transmission Time, and the Time Is UTC"
       }
     },
     {
       "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-2",
       "origin": {
         "path": "src/15.md",
-        "section": "15.3. Reconciliation problems"
+        "section": "15.2. A Rejected Message Is Compared With Approved Ones by the Shape of Each Field"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-3:q-left-not-logged",
+      "origin": {
+        "path": "src/15.md",
+        "section": "15.3. A Missing Answer Is Placed by the Last Log That Saw the Message"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-3:q-where-answers-stop",
+      "origin": {
+        "path": "src/15.md",
+        "section": "15.3.1. Spot the Problem: The Terminal Whose Approvals Never Arrived"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-3:q-equal-totals",
+      "origin": {
+        "path": "src/15.md",
+        "section": "15.4. A Difference in Totals Is Explained Transaction by Transaction, Even When the Totals Agree"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-15/practice-3:q-partial-booked",
+      "origin": {
+        "path": "src/15.md",
+        "section": "15.4. A Difference in Totals Is Explained Transaction by Transaction, Even When the Totals Agree"
       }
     }
   ],

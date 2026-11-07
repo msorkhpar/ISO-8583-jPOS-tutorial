@@ -1,0 +1,142 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Park the advice the host never answers",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "This picks up where the previous practice ended. The file already contains its solution."
+    },
+    {
+      "type": "para",
+      "text": "An advice that the host never answers would sit at the front of the line forever, and every advice behind it would wait too. The network allows a fixed number of attempts per advice. After the last one, the advice goes to a second table, `parked`, where an operator deals with it, and the line moves on."
+    },
+    {
+      "type": "para",
+      "text": "Finish `notAnswered` in `src/main/java/com/example/practice/AdviceSaf.java`. The `Store` rows already have an `attempts` column. The tests restart the SAF between attempts, and they also keep the link down for a while. About 7 lines."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them. An advice the host never answers is parked\n * after {@code maxAttempts} attempts, so it doesn't block the ones behind it.\n */\npublic class AdviceSaf {\n    private final Store store;\n    private final Store parked;\n    private final int maxAttempts;\n\n    public AdviceSaf(Store store, Store parked, int maxAttempts) {\n        this.store = store;\n        this.parked = parked;\n        this.maxAttempts = maxAttempts;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        if (row == null || !mux.isConnected())\n            return false;\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        return store.oldest();\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        store.delete(row.id());\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        ISOMsg advice = row.msg();\n        if (!advice.isRetransmission()) {\n            advice = (ISOMsg) advice.clone();\n            advice.setRetransmissionMTI();\n        }\n        int attempts = row.attempts() + 1;\n        if (attempts >= maxAttempts) {\n            parked.insert(advice);\n            store.delete(row.id());\n        } else {\n            store.update(row.id(), advice, attempts);\n        }\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them. An advice the host never answers is parked\n * after {@code maxAttempts} attempts, so it doesn't block the ones behind it.\n */\npublic class AdviceSaf {\n    private final Store store;\n    private final Store parked;\n    private final int maxAttempts;\n\n    public AdviceSaf(Store store, Store parked, int maxAttempts) {\n        this.store = store;\n        this.parked = parked;\n        this.maxAttempts = maxAttempts;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        if (row == null || !mux.isConnected())\n            return false;\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        return store.oldest();\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        store.delete(row.id());\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        ISOMsg advice = row.msg();\n        if (!advice.isRetransmission()) {\n            advice = (ISOMsg) advice.clone();\n            advice.setRetransmissionMTI();\n        }\n        // TODO: This was attempt number row.attempts() + 1. After maxAttempts attempts, move the\n        //       advice to `parked` so the next one can go. An operator works through `parked`.\n        //       A restart must not give the advice a fresh set of attempts. (about 7 lines)\n        throw new IllegalStateException(\"TODO: count and park\");\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "29663fa75ae4208857139bca2b2fb7199d3fae7292625edbd68b221c4e58e179",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\n/**\n * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the\n * {@link Store} until the host has answered them. An advice the host never answers is parked\n * after {@code maxAttempts} attempts, so it doesn't block the ones behind it.\n */\npublic class AdviceSaf {\n    private final Store store;\n    private final Store parked;\n    private final int maxAttempts;\n\n    public AdviceSaf(Store store, Store parked, int maxAttempts) {\n        this.store = store;\n        this.parked = parked;\n        this.maxAttempts = maxAttempts;\n    }\n\n    public void add(ISOMsg advice) {\n        store.insert(advice);\n    }\n\n    public boolean isEmpty() {\n        return store.oldest() == null;\n    }\n\n    /** One attempt for the oldest advice. True when the host has answered it. */\n    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {\n        Store.Row row = next();\n        if (row == null || !mux.isConnected())\n            return false;\n        ISOMsg answer = mux.request(row.msg(), timeout);\n        if (answer != null) {\n            answered(row);\n            return true;\n        }\n        notAnswered(row);\n        return false;\n    }\n\n    /** The advice to send now. */\n    Store.Row next() {\n        return store.oldest();\n    }\n\n    /** The host has seen it. */\n    void answered(Store.Row row) {\n        store.delete(row.id());\n    }\n\n    /** The attempt went out and got no answer. */\n    void notAnswered(Store.Row row) throws ISOException {\n        ISOMsg advice = row.msg();\n        if (!advice.isRetransmission()) {\n            advice = (ISOMsg) advice.clone();\n            advice.setRetransmissionMTI();\n        }\n        // TODO: This was attempt number row.attempts() + 1. After maxAttempts attempts, move the\n        //       advice to `parked` so the next one can go. An operator works through `parked`.\n        //       A restart must not give the advice a fresh set of attempts. (about 7 lines)\n        throw new IllegalStateException(\"TODO: count and park\");\n    }\n\n    /**\n     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row\n     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database\n     * outlives a process.\n     */\n    public static final class Store {\n        public record Row(long id, ISOMsg msg, int attempts) {}\n\n        private final java.util.TreeMap<Long, Row> rows = new java.util.TreeMap<>();\n        private long lastId;\n\n        public synchronized long insert(ISOMsg msg) {\n            long id = ++lastId;\n            rows.put(id, new Row(id, msg, 0));\n            return id;\n        }\n\n        /** The oldest row, or null. The row stays in the table. */\n        public synchronized Row oldest() {\n            return rows.isEmpty() ? null : rows.firstEntry().getValue();\n        }\n\n        /** Changes a row in place: same id, so the same place in the line. */\n        public synchronized void update(long id, ISOMsg msg, int attempts) {\n            rows.put(id, new Row(id, msg, attempts));\n        }\n\n        public synchronized void delete(long id) {\n            rows.remove(id);\n        }\n\n        public synchronized java.util.List<ISOMsg> all() {\n            return rows.values().stream().map(Row::msg).toList();\n        }\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-12/practice-4/src/main/java/com/example/practice/AdviceSaf.java",
+    "test_path": "practice/jpos-client/prose/unit-12/practice-4/src/test/java/com/example/practice/AdviceSafTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-4/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-4/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.AdviceSafTest#aStuckAdviceDoesNotBlockTheNextOne",
+        "kind": "main",
+        "says": "an advice the host never answers stops being retried, and the advice behind it is delivered"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#aParkedAdviceIsKept",
+        "kind": "edge",
+        "says": "a parked advice is kept for an operator, never deleted"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#attemptsAreNotForgottenByARestart",
+        "kind": "edge",
+        "says": "the attempt count is stored with the advice, so a restart does not grant fresh attempts"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#timeWithTheLinkDownIsNotAnAttempt",
+        "kind": "edge",
+        "says": "only attempts that went out count; time with the link down does not"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#theLastAllowedAttemptIsMade",
+        "kind": "edge",
+        "says": "with a limit of three, the third attempt is made before the advice is parked"
+      },
+      {
+        "id": "com.example.practice.AdviceSafTest#anAdviceIsParkedAfterItsLastAttempt",
+        "kind": "edge",
+        "says": "with a limit of two, an advice is parked after its second unanswered attempt, with no third"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-12/practice-4/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c12.md",
+      "section": "12.7 A Reversal Must Outlive the Process and Wait Its Turn"
+    },
+    "concepts": [
+      "A message the host never answers is parked after the allowed attempts, with the count stored alongside it, so it neither blocks the line nor gets deleted."
+    ]
+  }
+}

@@ -8,7 +8,7 @@
   "unit": 10,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Testing and Certification",
   "blocks": [
     {
@@ -17,205 +17,320 @@
       "text": "10. Testing and Certification"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "10.1. Visa testing requirements"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "10.1.1. Visa Acquirer Device Validation Toolkit (ADVT)"
+      "type": "para",
+      "text": "Your acquirer has booked two three-hour sessions on the card network's test host and sent the network's script: 52 cases, from an approved purchase to the reversal of one whose answer never came. In the first session case 9 fails. The analyst says your amount arrived as `000000015.00`. Your log says `15.00`. Who is right, and what should have been true before the session started? Six rules, one per section heading."
     },
     {
       "type": "para",
-      "text": "The ADVT is a set of test cases provided by Visa to validate that payment devices and software correctly handle Visa smart card transactions. It's essential for ensuring that your implementation can process EMV chip cards correctly."
-    },
-    {
-      "type": "para",
-      "text": "Key points:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Covers contact and contactless EMV transactions",
-        "Includes positive and negative test scenarios",
-        "Validates correct handling of various card types and transaction scenarios"
-      ]
-    },
-    {
-      "type": "para",
-      "text": "To implement ADVT testing in your jPOS application, you'll need to create a test suite that simulates these scenarios. Here's an example of how you might structure a test class for ADVT:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class ADVTTest {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testStandardEMVPurchase() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"4111111111111111\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000010000\");\n        msg.set(22, \"051\"); // EMV data present\n        msg.set(55, \"5F2A020840950500000000009A031901019C01009F02060000000100009F03060000000000009F1A0208409F34034203009F3501229F360200019F37045EED3A8E9F4104000000015F3401019F0702FF009F0802008C9F0902008C9F0D05B8508000009F0E0500000000009F0F05B8708098009F10120110A0000F040000000000000000000000FF9F2701809F360200019F530152\");\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n        assertThat(response.getString(55)).isNotEmpty();\n    }\n\n    // Add more test methods for other ADVT scenarios\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "10.1.2. Visa Global Acquirer Testing (VGAT)"
-    },
-    {
-      "type": "para",
-      "text": "VGAT is a comprehensive testing solution that covers a wider range of Visa transaction types and scenarios. It's designed to validate that acquirers can correctly process Visa transactions across various payment channels."
-    },
-    {
-      "type": "para",
-      "text": "Key points:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Includes tests for e-commerce, mobile, and other card-not-present scenarios",
-        "Validates correct handling of Visa's value-added services",
-        "Covers both authorization and clearing processes"
-      ]
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how you might implement a VGAT test case for an e-commerce transaction:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class VGATTest {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testECommerceTransaction() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"4111111111111111\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000010000\");\n        msg.set(22, \"812\"); // E-commerce indicator\n        msg.set(25, \"59\"); // POS Condition Code for e-commerce\n        msg.set(42, \"TESTMERCHANT12345\");\n        msg.set(48, \"985632147896325\"); // Additional Data - Private Use (e.g., order ID)\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n        assertThat(response.getString(44)).isNotEmpty(); // Additional Response Data\n    }\n\n    // Add more test methods for other VGAT scenarios\n}"
+      "text": "Networks own their certification programmes and change them. This unit covers what most host certifications share and reproduces no network's specification; your network's current documentation and your acquirer contact decide what you must test."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "10.2. Mastercard testing requirements"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "10.2.1. Mastercard Terminal Integration Process (M-TIP)"
+      "text": "10.1. Certification Proves One Host Link Against One Network's Specification"
     },
     {
       "type": "para",
-      "text": "M-TIP is Mastercard's testing and certification process for ensuring that payment terminals and software can correctly process Mastercard transactions, particularly focusing on EMV chip card transactions."
-    },
-    {
-      "type": "para",
-      "text": "Key points:"
+      "text": "Three things get certified:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "Covers contact and contactless EMV transactions",
-        "Includes tests for various Mastercard products and services",
-        "Validates correct handling of card authentication, risk management, and transaction cryptography"
+        "**The terminal and its chip software.** EMVCo approves the card reader (level 1) and the EMV kernel (level 2). Each network then tests the terminal together with the acquirer's host behind it, using its own test cards (level 3).",
+        "**The host interface.** An acquirer, processor or switch shows that its messages follow the network's specification: the fields each MTI carries, how they are encoded, how reversals and advices behave, and how sign-on, echo and key exchange work. This is the certification an ISO 8583 developer usually takes part in.",
+        "**Security.** PIN handling, key management and the systems that hold card data are assessed under separate PCI programmes, such as PCI PIN and PCI DSS (unit 13). None of them tests messages."
       ]
     },
     {
       "type": "para",
-      "text": "Here's an example of how you might implement an M-TIP test case:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class MTIPTest {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testMastercardEMVPurchase() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"5555555555554444\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000010000\");\n        msg.set(22, \"051\"); // EMV data present\n        msg.set(55, \"9F26088930C2854FB3D39F2701809F10120110A00003220000000000000000000000FF9F37045EED3A8E9F36020001950500000000009A031901019C01009F02060000000100009F03060000000000009F1A0208409F3303E0F8C89F34034203009F3501229F1E0835303030303030318408A0000000041010\");\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n        assertThat(response.getString(55)).isNotEmpty();\n    }\n\n    // Add more test methods for other M-TIP scenarios\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "10.2.2. Mastercard Interface Processor (MIP)"
+      "text": "A processor whose terminals run an approved EMV kernel, and which passed its last PCI DSS assessment, is about to connect to a second network. Does any of that count?"
     },
     {
       "type": "para",
-      "text": "MIP is Mastercard's system for processing authorization, clearing, and settlement messages. Testing against MIP ensures that your implementation can correctly communicate with Mastercard's network."
-    },
-    {
-      "type": "para",
-      "text": "Key points:"
-    },
-    {
-      "type": "list",
-      "ordered": false,
-      "items": [
-        "Covers end-to-end transaction processing",
-        "Includes tests for various Mastercard message types and formats",
-        "Validates correct handling of Mastercard-specific fields and requirements"
-      ]
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how you might implement a MIP test case:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class MIPTest {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testMastercardAuthorizationRequest() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"5555555555554444\");\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000010000\");\n        msg.set(7, \"0609173030\");\n        msg.set(11, \"123456\");\n        msg.set(22, \"012\");\n        msg.set(25, \"00\");\n        msg.set(42, \"TESTMERCHANT12345\");\n        msg.set(48, \"1234567890123456789012\");\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n        assertThat(response.getString(48)).isNotEmpty(); // Additional Data - Private Use\n    }\n\n    // Add more test methods for other MIP scenarios\n}"
+      "text": "None of it covers the new link. The kernel approval is about the terminal, the assessment about how card data is kept. Even a host certification with the first network says nothing about the second, because each hop is a link of its own with its own specification (unit 7): its own header, private fields and encodings (units 5 and 6). The network switches on live traffic only after its own script has passed on its own test host."
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "10.3. Simulation and test environments"
+      "text": "10.2. Your Own Suite Runs Every Case Before the Test Host Sees One"
+    },
+    {
+      "type": "para",
+      "text": "A host certification usually runs like this:"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The network sends its message specification and a test script: cases such as \"approved purchase\", \"purchase with wrong PIN\", \"reversal of an approved purchase\", \"echo test\", each with what you send and what must come back.",
+        "You connect to the network's test host, over a VPN or a leased line, with test keys and test cards the network supplies.",
+        "You run the cases, often while an analyst watches the network's side, and you keep the evidence of each one (10.5).",
+        "The analyst reviews the results. Failed cases are fixed and run again, in a later session."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A bug found in a session costs a second session. Sessions are booked weeks ahead and last a few hours, and the test host is sometimes down or behaves differently between sessions. A packager error found with the analyst watching ends the useful part of the session; every later case waits for the next booking."
+    },
+    {
+      "type": "para",
+      "text": "So the whole script runs against your own simulator of the network, on every build, before the first session. Unit c10 shows this in jPOS with stand-ins inside the tests, unit c16 with a simulator that runs beside the system and grades every field of each case, and unit s11 for the server side. When the simulator and the test host disagree, the test host's answer is the one that counts: find out why, then fix the simulator."
+    },
+    {
+      "type": "para",
+      "text": "A functional suite proves that each case gets the right answer. It says nothing about a few hundred transactions a second against a slow database. Load tests are a separate job (unit c10)."
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "10.3.1. Host simulators"
+      "level": 3,
+      "text": "10.3. A Case Is a Request Template and Every Field Its Answer Must Carry"
     },
     {
       "type": "para",
-      "text": "Host simulators are essential tools for testing your ISO-8583 implementation without connecting to live payment networks. They allow you to simulate various response scenarios and test your error handling."
+      "text": "A case from a script, written as data a program can run:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "case 14  reversal of an approved purchase\nsetup    test card A approves; the host answers this case's 0200 late\nsend     0200  2=<test card A> 3=000000 4=000000004250 41=29110001\n         11, 7, 37 generated for this run\nexpect   no 0210 within the timeout\nthen     0420 naming that 0200 in field 90 (unit 4), expect 0430 39=00"
     },
     {
       "type": "para",
-      "text": "Here's an example of how you might implement a simple host simulator using jPOS:"
+      "text": "It has four parts. The **setup** names what the case needs: a card the host declines, a host that answers late. The **request** is a template, and the fields that must be unique per message are generated each time it runs. The **expectation** grades the answer field by field: the MTI, field 39, the fields that must come back unchanged (11, 37, 41), and the fields that must be there or must not (38 present on an approval, absent on a decline). The **side effect** is what has to happen next, here a reversal."
+    },
+    {
+      "type": "para",
+      "text": "Keeping each case as a recorded message and replaying it unchanged fails on the second run: the STAN and field 7 repeat what the host already saw, and a host that checks for duplicates answers `94`, duplicate transmission. The case then tests the duplicate check instead of the purchase."
+    },
+    {
+      "type": "para",
+      "text": "Grading on field 39 alone fails too. Say the host you certify is an issuer's, and it answers an approval with a STAN of its own instead of the request's. Field 39 says `00`, and your suite passes. In production nothing pairs that answer with its request (unit 4): the acquirer times out and reverses a purchase your host approved."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.4. A Test Card Is Issued for Testing, and the Luhn Check Only Says It Is Well Formed"
+    },
+    {
+      "type": "para",
+      "text": "The network issues its own test cards for certification, sometimes physical chip cards, with keys and expected results that match its test host. For your own suites this course uses two numbers that payment processors publish for testing, `4111111111111111` and `5555555555554444`."
+    },
+    {
+      "type": "para",
+      "text": "Both pass the **Luhn check**: the last digit is computed from the others, so that one mistyped digit, or most swaps of two neighbours, can be refused before the number goes anywhere. jPOS computes that digit with `ISOUtil.calcLUHN`, and a number is valid when its last digit is the one computed from the rest:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "4111111111111111  valid   published test number, Visa range\n5555555555554444  valid   published test number, Mastercard range\n4111111111111121  INVALID one digit mistyped\n5555555555545444  INVALID two neighbouring digits swapped\ncheck digit for 555555555555444: 4"
+    },
+    {
+      "type": "para",
+      "text": "The check digit says nothing about who the card belongs to: real cards pass it too."
+    },
+    {
+      "type": "para",
+      "text": "A made-up number usually fails the check, and the host answers `14`, invalid card number, before anything the case was meant to test has run. A number generated under a network's prefix with a correct check digit passes, and it may be a real cardholder's. Your own card, used \"just once\" to see whether the link works, is worse: once a real card number is in a log, a hex dump or a ticket, every copy of it is card data under PCI DSS (unit 13)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.5. The Evidence Is the Bytes That Left, Kept as Text and Found by STAN"
+    },
+    {
+      "type": "para",
+      "text": "The code that built case 9, cut down to the fields that matter, then what the team's masked log kept and the bytes that left:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOServer;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport org.jpos.iso.packager.ISO87APackager;\nimport org.jpos.util.Logger;\nimport org.jpos.util.SimpleLogListener;\n\npublic class HostSimulator implements Runnable {\n\n    private ISOServer server;\n\n    public HostSimulator(int port) throws Exception {\n        Logger logger = new Logger();\n        logger.addListener(new SimpleLogListener(System.out));\n\n        server = new ISOServer(port, new ASCIIChannel(new ISO87APackager()), null);\n        server.setLogger(logger, \"host-simulator\");\n    }\n\n    @Override\n    public void run() {\n        try {\n            server.addISORequestListener((source, m) -> {\n                try {\n                    ISOMsg response = (ISOMsg) m.clone();\n                    response.setResponseMTI();\n                    response.set(39, \"00\"); // Approval\n                    response.set(38, \"123456\"); // Approval code\n                    source.send(response);\n                } catch (Exception e) {\n                    e.printStackTrace();\n                }\n                return true;\n            });\n            server.start();\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n    }\n\n    public static void main(String[] args) throws Exception {\n        new Thread(new HostSimulator(8000)).start();\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 4,
-      "text": "10.3.2. Test card numbers"
-    },
-    {
-      "type": "para",
-      "text": "When testing your ISO-8583 implementation, it's crucial to use designated test card numbers provided by Visa and Mastercard. These numbers allow you to simulate various card types and scenarios without using real card data."
-    },
-    {
-      "type": "para",
-      "text": "Here's an example of how you might structure a test class using test card numbers:"
+      "text": "m.set(2, \"4111111111111111\");\nm.set(3, \"000000\");\nm.set(4, \"15.00\");                       // the amount as the checkout page formats it\nm.set(11, \"000731\");\nm.set(41, \"29110001\");"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class TestCardNumberTest {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testVisaApproval() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"4111111111111111\"); // Visa test card number\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000010000\");\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"00\");\n    }\n\n    @Test\n    public void testMastercardDecline() throws ISOException {\n        ISOMsg msg = new ISOMsg();\n        msg.setMTI(\"0100\");\n        msg.set(2, \"5555555555554444\"); // Mastercard test card number\n        msg.set(3, \"000000\");\n        msg.set(4, \"000000020000\");\n\n        ISOMsg response = isoMessageHandler.handle(msg);\n\n        assertThat(response.getString(39)).isEqualTo(\"05\"); // Do not honor\n    }\n\n    // Add more test methods for other test card scenarios\n}"
+      "lang": "text",
+      "text": "-- what the log kept --\n<field id=\"0\" value=\"0200\"/>\n<field id=\"2\" value=\"411111______1111\"/>\n<field id=\"3\" value=\"000000\"/>\n<field id=\"4\" value=\"15.00\"/>\n<field id=\"11\" value=\"000731\"/>\n<field id=\"41\" value=\"29110001\"/>\n-- what left --\n0000  30 32 30 30 37 30 32 30  30 30 30 30 30 30 38 30  0200702000000080\n0010  30 30 30 30 31 36 34 31  31 31 31 31 31 31 31 31  0000164111111111\n0020  31 31 31 31 31 31 30 30  30 30 30 30 30 30 30 30  1111110000000000\n0030  30 30 30 31 35 2E 30 30  30 30 30 37 33 31 32 39  00015.0000073129\n0040  31 31 30 30 30 31                                 110001"
+    },
+    {
+      "type": "para",
+      "text": "The analyst is right. The log shows the message as the program built it, and the packager padded the short value to twelve characters on the way out without checking that it holds digits (unit 3). The network's host read `000000015.00` as an amount and refused it with `13`, invalid amount."
+    },
+    {
+      "type": "para",
+      "text": "So keep a hex dump of every message, from every session, as text. Text can be pasted into a ticket and read back into bytes (unit c17 does it in jPOS); a screenshot can't. Number the messages with one increasing STAN per link, wrapping after 999999 (unit c12), so that the analyst's \"STAN 000731\" finds the same message in your logs."
+    },
+    {
+      "type": "para",
+      "text": "The dump also shows field 2 in clear. Masking applies to the log, not to the bytes, so a dump is safe to hand over only because the card in it is a test card."
     },
     {
       "type": "heading",
-      "level": 4,
-      "text": "10.3.3. Regression testing suites"
+      "level": 3,
+      "text": "10.6. The Certified Build Is the One That Goes Live"
     },
     {
       "type": "para",
-      "text": "Regression testing is crucial to ensure that new changes don't break existing functionality. You should create comprehensive test suites that cover all aspects of your ISO-8583 implementation."
+      "text": "A month after certification, a team upgrades its ISO 8583 library and changes the definition of one field in its packager, \"to tidy it up\". Neither touches the business logic. Must the network know?"
     },
     {
       "type": "para",
-      "text": "Here's an example of how you might structure a regression test suite:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport static org.assertj.core.api.Assertions.assertThat;\n\n@SpringBootTest\npublic class RegressionTestSuite {\n\n    @Autowired\n    private ISOMessageHandler isoMessageHandler;\n\n    @Test\n    public void testAuthorizationFlow() {\n        // Test various authorization scenarios\n    }\n\n    @Test\n    public void testFinancialFlow() {\n        // Test various financial transaction scenarios\n    }\n\n    @Test\n    public void testReversalFlow() {\n        // Test reversal scenarios\n    }\n\n    @Test\n    public void testErrorHandling() {\n        // Test various error scenarios\n    }\n\n    @Test\n    public void testSecurityFeatures() {\n        // Test encryption, MAC validation, etc.\n    }\n\n    // Add more test methods to cover all aspects of your implementation\n}"
+      "text": "The network certified bytes, and either change can alter them. Unit 1 packed one message with two packagers and got two different messages. A field that is now padded on the other side, or whose length prefix now counts bytes instead of characters, goes live untested, and the network rejects every message that carries it. Your own suite may not notice: a simulator built on the same library changes with it."
     },
     {
       "type": "para",
-      "text": "This regression test suite should be run regularly, especially before deploying any changes to your production environment."
+      "text": "Certify a specific build, and deploy that same build to the test host and to production; only the host, the port and the keys differ, in configuration kept per environment. After a change to the library version, a packager definition or the channel, ask the network whether you must certify again."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.7. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Certification proves one host link against one network's specification.** An EMV approval, a PCI assessment or another network's certification does not cover it, and the network switches on live traffic only after its own script passes.",
+        "**Your own suite runs every case before the test host sees one.** Test-host sessions are scarce, and a bug found in one costs another session. A functional suite is not a load test.",
+        "**A case is a request template and every field its answer must carry.** A replayed message repeats its STAN and tests the duplicate check; a case graded on field 39 alone passes answers nothing can pair with their requests.",
+        "**A test card is issued for testing.** The Luhn check only catches typing errors. A real card number in a log or a dump puts every copy of it under PCI DSS.",
+        "**The evidence is the bytes that left**, kept as text dumps and found by STAN. The log shows what the program built, not what the host received.",
+        "**The certified build is the one that goes live.** A library, packager or channel change can change the bytes, so ask the network before you ship it."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.8. Reference"
     },
     {
       "type": "para",
-      "text": "In conclusion, thorough testing and certification are critical steps in implementing an ISO-8583 solution for Visa and Mastercard transactions. By following the testing requirements set by these card networks and implementing comprehensive test suites, you can ensure that your system is reliable, compliant, and ready for production use."
+      "text": "**What gets certified:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "What",
+        "Who decides",
+        "How"
+      ],
+      "rows": [
+        [
+          "card reader (EMV level 1), EMV kernel (level 2)",
+          "EMVCo",
+          "lab approval of the terminal"
+        ],
+        [
+          "terminal with its acquirer host (level 3)",
+          "each network",
+          "the network's test cards and script"
+        ],
+        [
+          "host interface (acquirer, processor, switch)",
+          "each network",
+          "the network's script on its test host"
+        ],
+        [
+          "PIN handling, key management, card data",
+          "PCI programmes",
+          "assessments and audits (unit 13)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**The parts of a case:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Part",
+        "Holds"
+      ],
+      "rows": [
+        [
+          "setup",
+          "the card, the account or the host behaviour the case needs"
+        ],
+        [
+          "request",
+          "a template; STAN (11), transmission time (7) and RRN (37) generated per run"
+        ],
+        [
+          "expectation",
+          "MTI, field 39, fields echoed (11, 37, 41), fields present or absent (38)"
+        ],
+        [
+          "side effect",
+          "a reversal sent, a ledger entry, a log line without a clear card number"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Response codes (1987 edition) that a certification run often meets:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Code",
+        "Meaning",
+        "Usual cause in a test"
+      ],
+      "rows": [
+        [
+          "`13`",
+          "invalid amount",
+          "an amount that is not digits, or out of the allowed range"
+        ],
+        [
+          "`14`",
+          "invalid card number",
+          "a made-up or mistyped card number"
+        ],
+        [
+          "`30`",
+          "format error",
+          "a field the host can't parse"
+        ],
+        [
+          "`94`",
+          "duplicate transmission",
+          "a request replayed with the STAN and time of an earlier one"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.9. Challenges"
+    },
+    {
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "The network's script has 52 cases and you get two three-hour sessions. Which cases would you run first in the first session, and why?",
+        "Your simulator approves a purchase that the network's test host declines with `05`. Before you change the simulator, how do you find out whether the simulator or your reading of the specification is wrong?",
+        "A tester needs 2000 distinct card numbers for a load run against your own simulator. Where do they come from, given what 10.4 says about generated numbers?",
+        "Your team ships a new build every week. Which changes would you agree with the network to announce, and which would you treat as needing a new certification?"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "10.10. Design Note: Why the Network Tests Your Messages"
+    },
+    {
+      "type": "para",
+      "text": "The network publishes its specification, so why doesn't it trust you to read it? Because the specification is prose and tables, and two careful teams read it differently: whether a length counts bytes or characters, whether an optional field may be absent or must be sent empty, what an advice's answer must echo. Each reading is reasonable, and only one matches the network's own code. A test host that runs that code settles the question once, before thousands of members send live traffic to it."
+    },
+    {
+      "type": "para",
+      "text": "The price is that the test host becomes the only judge, and it is scarce. That is why the script belongs in your own build: the session can only confirm what your simulator already shows, and the simulator is right only as far as you have read the specification right."
     }
   ],
   "video": null,
@@ -223,16 +338,16 @@
   "attachments": [],
   "counts": {
     "headings": 11,
-    "paras": 20,
-    "code": 7,
-    "tables": 0,
+    "paras": 29,
+    "code": 4,
+    "tables": 3,
     "lists": 4,
     "images": 0,
     "videos": 0,
     "rules": 0,
     "quotes": 0,
-    "html": 0,
+    "html": 1,
     "disclosures": 0
   },
-  "content_sha256": "6421f9cc84a4cd13c8381de20fc714d2948e25af695dc46c457a6f3764f651eb"
+  "content_sha256": "24e167b58d5752191fefa595e1ce98e9fa984964195ef48aed60484445fd9aaf"
 }

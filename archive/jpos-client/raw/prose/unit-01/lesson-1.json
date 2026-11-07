@@ -8,7 +8,7 @@
   "unit": 1,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Basic Setup",
   "blocks": [
     {
@@ -17,175 +17,524 @@
       "text": "jPOS Client: 1. Basic Setup"
     },
     {
+      "type": "para",
+      "text": "You start a new client for the first time. Q2 reports that it deployed the channel and the multiplexer, your code sends an `0800` echo, and after the full timeout the answer is `null`. Is the host down, or is the client wired wrong?"
+    },
+    {
+      "type": "para",
+      "text": "Your code sees nothing come back either way. The client itself can tell the two apart, if you know what each of its pieces does and what it reports when something is missing. The unit has six rules, one per section heading. Every output is from a jPOS 2.1.7 client talking to a small host on `127.0.0.1:8000` that answers every request with `39=00`."
+    },
+    {
       "type": "heading",
       "level": 2,
-      "text": "Introduction"
+      "text": "1.1 Q2 Builds the Client From the Files in `deploy/`"
     },
     {
       "type": "para",
-      "text": "Setting up a jPOS client involves configuring the Spring framework and Q2, which is jPOS's deployment and runtime environment. This setup allows you to create a robust and flexible ISO-8583 client application."
+      "text": "A jPOS client is a directory with three descriptors in it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "iso-client/\n├── pom.xml\n├── deploy/\n│   ├── 00_logger.xml         the logger every component writes to\n│   ├── 10_host_channel.xml   the ChannelAdaptor: one TCP connection to the host\n│   └── 20_host_mux.xml       the QMUX: matches responses to requests\n├── cfg/\n│   └── default.yml           values for ${...} in the descriptors (optional)\n└── log/                      must exist: the file logger does not create it"
+    },
+    {
+      "type": "para",
+      "text": "Q2 is the jPOS runtime. You start it with `org.jpos.q2.Q2` as the main class and the project root as the working directory. For every file in `deploy/` it creates the component the file names, configures it from the XML and starts it. Such components are called QBeans. Q2 started from `/iso-client`, then stopped with Ctrl-C:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "Q2 started, deployDir=/iso-client/deploy, environment=default\ndeploy: /iso-client/deploy/10_host_channel.xml\ndeploy: /iso-client/deploy/20_host_mux.xml\n  Connection established to 127.0.0.1:8000\nshutting down (hook)\nundeploying:/iso-client/deploy/20_host_mux.xml\nundeployed:/iso-client/deploy/20_host_mux.xml\nundeploying:/iso-client/deploy/10_host_channel.xml\nundeployed:/iso-client/deploy/10_host_channel.xml\nundeploying:/iso-client/deploy/00_logger.xml"
+    },
+    {
+      "type": "para",
+      "text": "Q2 initialises every new file in name order, then starts them in the same order, and stops them in reverse. `00_logger.xml` is the one fixed name: Q2 deploys it first, even before it logs \"Q2 started\". The other prefixes are a convention (`10_` channels, `20_` multiplexers, `30_` transaction managers, `50_` servers) that puts each component after the ones it uses."
+    },
+    {
+      "type": "para",
+      "text": "Q2 also watches the directory. A new file is deployed, a deleted one undeployed. Change one, even just its timestamp, and Q2 throws the running component away and builds a new one. Touching `20_host_mux.xml` while the client runs:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "undeploying:/iso-client/deploy/20_host_mux.xml\nundeployed:/iso-client/deploy/20_host_mux.xml\ndeploy: /iso-client/deploy/20_host_mux.xml"
+    },
+    {
+      "type": "para",
+      "text": "So you never create the channel or the multiplexer in your code, or as Spring beans configured with setters. A `QMUX` built with `new` has no queues, is never started, and is registered under no name."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Versions.** The course runs on jPOS 2.1.7, Java 17 and Maven, the combination the practices are graded on (the build file is in 1.8). 2.1.x is jPOS's maintenance (\"tail\") line and 2.1.9 is its latest release. jPOS 3.x is the current line; it needs Java 23 or later and its tooling is Gradle-based. Unit s13 lists what changes there."
+        }
+      ]
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Licence.** Q2 prints its licence when it starts: `jPOS Community Edition, licensed under GNU AGPL v3.0`. If users reach your modified jPOS application over a network, the AGPL requires you to offer them its source. The jPOS project sells a commercial licence for those who can't."
+        }
+      ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "1.1 Spring Configuration"
+      "text": "1.2 The Channel and the Multiplexer Share Only Two Queues, and the Queues Cross"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": " your code ──request()──▶ QMUX \"host-mux\" ──\"host-send\"──▶ ChannelAdaptor \"host-channel\" ──TCP──▶ host\n           ◀──response─── QMUX \"host-mux\" ◀─\"host-receive\"─ ChannelAdaptor \"host-channel\" ◀──TCP─── host"
     },
     {
       "type": "para",
-      "text": "Spring is used to manage dependencies and configure the application context. jPOS 2.1.7 has no Spring container for Q2, so the main application class in section 1.3 doubles as a small QBean that starts the Spring context inside Q2."
+      "text": "The ChannelAdaptor owns the TCP connection. It connects, reconnects when the link drops, sends every message that appears in one queue and puts every message it receives into another. It knows nothing about requests and responses. The QMUX knows nothing about sockets: it writes requests to one queue, reads from the other, and hands each response to the thread waiting for it. The queues live in a Space, the in-memory store that jPOS components share. The channel logs each connection attempt (`<connect>`) and every message it sends (`<send>`) and receives (`<receive>`) to the logger named in `logger=\"Q2\"`, which `00_logger.xml` defines (1.6). Unit c3 covers the adaptor in depth, unit c4 the multiplexer."
     },
     {
       "type": "para",
-      "text": "First, let's set up the necessary dependencies in your `pom.xml`:"
+      "text": "`deploy/10_host_channel.xml`:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<dependencies>\n    <dependency>\n        <groupId>org.jpos</groupId>\n        <artifactId>jpos</artifactId>\n        <version>2.1.7</version>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework</groupId>\n        <artifactId>spring-context</artifactId>\n        <version>5.3.20</version>\n    </dependency>\n</dependencies>"
+      "text": "<channel-adaptor name=\"host-channel\" class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n  <channel class=\"org.jpos.iso.channel.ASCIIChannel\"\n           packager=\"org.jpos.iso.packager.GenericPackager\" logger=\"Q2\">\n    <property name=\"host\" value=\"${host.address:127.0.0.1}\"/>\n    <property name=\"port\" value=\"${host.port:8000}\"/>\n    <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\"/>\n  </channel>\n  <in>host-send</in>\n  <out>host-receive</out>\n  <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
     },
     {
       "type": "para",
-      "text": "Now, let's create a Spring configuration class:"
+      "text": "`deploy/20_host_mux.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux name=\"host-mux\" class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\">\n  <in>host-receive</in>\n  <out>host-send</out>\n  <ready>host-channel.ready</ready>\n  <unhandled>host-unhandled</unhandled>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "Each component names its queues from its own point of view: `<in>` is what it reads, `<out>` what it writes. The adaptor reads `host-send` and writes it to the socket; the multiplexer writes `host-send`. So the multiplexer's `<out>` is the adaptor's `<in>`, and the other way round. `<unhandled>` is where the multiplexer puts a message that no request is waiting for (1.5.1)."
+    },
+    {
+      "type": "para",
+      "text": "The mistake is to make the two descriptors look alike. With the adaptor's values in the multiplexer, `<in>host-send</in>` and `<out>host-receive</out>`, one echo with a five-second timeout gives:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected: true\nrequest: null after 5000 ms"
+    },
+    {
+      "type": "para",
+      "text": "The request went into `host-receive`, which only the multiplexer was meant to read, and nobody read it. The channel's log has no `<send>` entry, and the host's log stays empty. To the caller this looks exactly like a host that doesn't answer."
+    },
+    {
+      "type": "para",
+      "text": "Q2 fills in the `${host.address:127.0.0.1}` values when it reads the file. jPOS looks for an environment variable (`host.address`, then `HOST_ADDRESS`), then a Java system property, then `cfg/default.yml`, and uses the text after the colon only when all of them are missing. Started with `HOST_PORT=8001`, with `-Dhost.port=8001`, and with `port: 8001` under `host:` in `cfg/default.yml`, the client connected to port 8001 each time. Keep real host names and credentials out of the descriptor."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
+    },
+    {
+      "type": "para",
+      "text": "While its connection is up, the adaptor keeps an entry named after itself plus `.ready` (`host-channel.ready`) in the Space, and removes it when the connection drops. The multiplexer's `<ready>` points at that entry, and `isConnected()` does nothing more than check that the multiplexer is running and look for it."
+    },
+    {
+      "type": "para",
+      "text": "Here the host is stopped for maintenance, so every connection attempt is refused. First without `<ready>`, then with it:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "mode: noready\nisConnected: true\nrequest: null after 5000 ms\nmode: ready\nisConnected: false\nrequest: null after 5000 ms"
+    },
+    {
+      "type": "para",
+      "text": "With `<ready>`, the client can answer the opening question:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`isConnected()` is false: the link is down. The channel's `<connect>` entries in the log say why (`Connection refused`, for instance).",
+        "`isConnected()` is true, and the channel never logged a `<send>`: the request didn't reach the adaptor. Check the queue names.",
+        "The channel logged a `<send>` and no `<receive>`: the host has the request and didn't answer."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Without `<ready>` the first case looks like the second, and you debug the queue names while the link is down."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.4 `request` Returns `null` When Nothing Comes Back"
+    },
+    {
+      "type": "para",
+      "text": "The first code you write is an echo: the `0800` network message with field 70 set to `301`, which asks the host \"are you there?\"."
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.config;\n\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class JposConfig {\n\n    @Bean\n    public MUX qmux() throws NameRegistrar.NotFoundException {\n        return QMUX.getMUX(\"mux\");\n    }\n\n    // Add more beans as needed\n}"
+      "text": "package com.example.jpos.client;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\nimport org.jpos.space.SpaceFactory;\nimport org.jpos.space.SpaceUtil;\n\nimport java.util.Date;\nimport java.util.TimeZone;\n\npublic class EchoClient {\n    private final MUX mux;\n    private final long timeout;\n\n    public EchoClient(MUX mux, long timeout) {\n        this.mux = mux;\n        this.timeout = timeout;\n    }\n\n    /** True when the host approved an 0800 echo; false when the link is down or nothing came back. */\n    public boolean echo() throws ISOException {\n        if (!mux.isConnected())\n            return false;                                // (1) nothing is sent on a dead link\n\n        ISOMsg request = new ISOMsg(\"0800\");\n        request.set(7, ISODate.getDateTime(new Date(), TimeZone.getTimeZone(\"UTC\")));\n        request.set(11, nextStan());\n        request.set(70, \"301\");                          // echo test\n\n        ISOMsg response = mux.request(request, timeout);\n        if (response == null)\n            return false;                                // (2) no answer within the timeout\n        return \"00\".equals(response.getString(39));\n    }\n\n    static String nextStan() {\n        long n = SpaceUtil.nextLong(SpaceFactory.getSpace(), \"stan.host\");\n        return ISOUtil.zeropad((n - 1) % 999999 + 1, 6);  // 000001 .. 999999, then again\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "The channel's log for one call:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<send>\n  <isomsg direction=\"outgoing\">\n    <field id=\"0\" value=\"0800\"/>\n    <field id=\"7\" value=\"1106172029\"/>\n    <field id=\"11\" value=\"000001\"/>\n    <field id=\"70\" value=\"301\"/>\n  </isomsg>\n</send>\n<receive>\n  <isomsg direction=\"incoming\">\n    <field id=\"0\" value=\"0810\"/>\n    <field id=\"7\" value=\"1106172029\"/>\n    <field id=\"11\" value=\"000001\"/>\n    <field id=\"39\" value=\"00\"/>\n    <field id=\"70\" value=\"301\"/>\n  </isomsg>\n</receive>"
+    },
+    {
+      "type": "para",
+      "text": "**(1) Check the link before you send.** In 2.1.7 a request on a dead link doesn't fail at once: `request` never looks at `isConnected()`. It puts the message in `host-send` with the timeout as its lifetime and waits. Here the link is down when the client calls `request` with a 15-second timeout, and the host comes back three seconds later:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "isConnected: false\nrequest: 0810 39=00 after 10000 ms"
+    },
+    {
+      "type": "para",
+      "text": "The request waited in `host-send` until the adaptor's next connection attempt, ten seconds after the refused one (its `<reconnect-delay>`), and then went out. A purchase would have kept the cardholder waiting ten seconds, and with a slightly later reconnect it would have expired unsent and `request` would have returned `null`. With `<ready>` configured, `false` from line (1) means nothing was sent, so you can say \"host unavailable\" right away."
+    },
+    {
+      "type": "para",
+      "text": "**(2) `null` is how jPOS says \"no answer\".** `request` doesn't throw when the time is up; it returns `null`, and every call site has to check for it. Code that goes straight to `response.getString(39)` passes every test against a quick host and throws a `NullPointerException` the first time the host is slow. For an echo, `null` only means that the host didn't answer. For a purchase it means you don't know whether the host took the money: you reverse it, never simply send it again (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "The STAN (field 11) comes from one counter for the link, kept in the Space. Unit c2 explains why it must never be random."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "1.2 Q2 Configuration"
+      "text": "1.5 Your Code Finds the Multiplexer by Name, Inside Q2's JVM, When It Needs It"
     },
     {
       "type": "para",
-      "text": "Q2 is configured using XML files. Create a file named `05_spring_client_context.xml` in the `deploy` directory:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<spring-context class=\"com.example.jpos.JposClientApplication\">\n    <property name=\"config\" value=\"classpath:applicationContext.xml\" />\n</spring-context>"
+      "text": "Q2 registers the multiplexer under its name in the `NameRegistrar`, a registry inside the JVM, and `QMUX.getMUX(\"host-mux\")` looks it up."
     },
     {
       "type": "para",
-      "text": "Now, create the `applicationContext.xml` file in the `src/main/resources` directory:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<beans xmlns=\"http://www.springframework.org/schema/beans\"\n       xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n       xmlns:context=\"http://www.springframework.org/schema/context\"\n       xsi:schemaLocation=\"http://www.springframework.org/schema/beans\n                           http://www.springframework.org/schema/beans/spring-beans.xsd\n                           http://www.springframework.org/schema/context\n                           http://www.springframework.org/schema/context/spring-context.xsd\">\n\n    <context:component-scan base-package=\"com.example.jpos\"/>\n    <context:annotation-config/>\n\n    <!-- Add any additional bean definitions here -->\n\n</beans>"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "1.3 Creating the Main Application"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's create the main application class. Its `main` starts the Q2 container, and Q2 runs the same class as the QBean in `05_spring_client_context.xml`, which starts the Spring context:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "package com.example.jpos;\n\nimport org.jpos.q2.Q2;\nimport org.jpos.q2.QBeanSupport;\nimport org.springframework.context.support.ClassPathXmlApplicationContext;\n\npublic class JposClientApplication extends QBeanSupport {\n    private ClassPathXmlApplicationContext context;\n\n    public static void main(String[] args) {\n        Q2 q2 = new Q2();\n        q2.start();\n    }\n\n    @Override\n    protected void startService() {\n        context = new ClassPathXmlApplicationContext(cfg.get(\"config\"));\n    }\n\n    @Override\n    protected void stopService() {\n        context.close();\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "1.4 Setting up the Client Channel"
-    },
-    {
-      "type": "para",
-      "text": "To communicate with the server, we need to set up a client channel. Create a file named `10_client_channel.xml` in the `deploy` directory:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<channel-adaptor name='client-channel' class=\"org.jpos.q2.iso.ChannelAdaptor\" logger=\"Q2\">\n <channel class=\"org.jpos.iso.channel.NACChannel\" packager=\"org.jpos.iso.packager.GenericPackager\">\n   <property name=\"host\" value=\"localhost\" />\n   <property name=\"port\" value=\"10000\" />\n   <property name=\"packager-config\" value=\"jar:packager/iso87ascii.xml\" />\n </channel>\n <in>send</in>\n <out>receive</out>\n <reconnect-delay>10000</reconnect-delay>\n</channel-adaptor>"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "1.5 Setting up the QMUX"
-    },
-    {
-      "type": "para",
-      "text": "QMUX is used for multiplexing ISO messages. Create a file named `20_mux.xml` in the `deploy` directory:"
-    },
-    {
-      "type": "code",
-      "lang": "xml",
-      "text": "<mux class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\" name=\"mux\">\n <in>receive</in>\n <out>send</out>\n</mux>"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "1.6 Creating a Simple ISO-8583 Client Service"
-    },
-    {
-      "type": "para",
-      "text": "Let's create a simple service that will send ISO-8583 messages:"
+      "text": "**The lookup works only in the JVM that runs Q2.** A Q2 in another process is invisible. An application with its own `main` starts Q2 itself, as a library, with the same `deploy/` directory:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos.service;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class IsoClientService {\n\n    private final MUX qmux;\n\n    @Autowired\n    public IsoClientService(MUX qmux) {\n        this.qmux = qmux;\n    }\n\n    public ISOMsg sendMessage(ISOMsg message) throws ISOException {\n        return qmux.request(message, 30000);\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "1.7 Testing the Setup"
+      "text": "package com.example.jpos.client;\n\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.Q2;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.SpaceFactory;\n\npublic class ClientApplication {\n    public static void main(String[] args) throws Exception {\n        Q2 q2 = new Q2(\"deploy\");\n        q2.start();\n        if (!q2.ready(30_000))\n            throw new IllegalStateException(\"Q2 did not finish deploying\");\n\n        // ready() means \"deployed\", not \"connected\": wait for the channel's ready entry\n        if (SpaceFactory.getSpace().rd(\"host-channel.ready\", 60_000) == null)\n            throw new IllegalStateException(\"host-channel did not connect\");\n\n        MUX mux = QMUX.getMUX(\"host-mux\");\n        System.out.println(new EchoClient(mux, 10_000).echo() ? \"echo approved\" : \"echo failed\");\n        q2.stop();\n    }\n}"
     },
     {
       "type": "para",
-      "text": "To ensure everything is set up correctly, let's create a simple test:"
+      "text": "**The multiplexer exists only after Q2 has deployed it, and is connected only later.** The same JVM, asked at three moments:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "before Q2 starts: NotFoundException: mux.host-mux\nright after ready: isConnected=false\n2 s later: isConnected=true"
+    },
+    {
+      "type": "para",
+      "text": "`q2.ready(...)` returns once every descriptor is deployed. The channel connects on its own thread a moment later, so `ClientApplication` waits for `host-channel.ready` with `Space.rd`, a read that blocks until the entry appears or the time runs out."
+    },
+    {
+      "type": "para",
+      "text": "**A redeploy replaces the object** (the three log lines at the end of 1.1)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.5.1 Spot the Problem: The Cached Multiplexer"
+    },
+    {
+      "type": "para",
+      "text": "A payment service looks the multiplexer up once, when it starts, and keeps it in a field:"
     },
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.jpos;\n\nimport com.example.jpos.service.IsoClientService;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.Test;\nimport org.springframework.context.support.ClassPathXmlApplicationContext;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertNotNull;\n\npublic class JposClientApplicationTests {\n\n    @Test\n    public void testSendMessage() throws ISOException {\n        try (ClassPathXmlApplicationContext context =\n                     new ClassPathXmlApplicationContext(\"applicationContext.xml\")) {\n            IsoClientService isoClientService = context.getBean(IsoClientService.class);\n\n            ISOMsg message = new ISOMsg();\n            message.setMTI(\"0800\");\n            message.set(7, \"0110122359\");\n            message.set(11, \"000001\");\n            message.set(70, \"301\");\n\n            ISOMsg response = isoClientService.sendMessage(message);\n\n            assertNotNull(response);\n            assertEquals(\"0810\", response.getMTI());\n        }\n    }\n}"
+      "text": "private final MUX mux = QMUX.getMUX(\"host-mux\");   // (1) looked up once\n...\nISOMsg response = mux.request(echo, 5000);          // (2) used for weeks"
     },
     {
       "type": "para",
-      "text": "This test assumes Q2 is running with the channel and QMUX above deployed, and a server that can respond to the 0800 message with a 0810 message."
+      "text": "One afternoon an operator renames the unhandled queue in `20_host_mux.xml`. From then on every request returns `null`, while the host is up and answering."
+    },
+    {
+      "type": "para",
+      "text": "One echo, then a touch of `20_host_mux.xml`, then one echo through the kept reference and one through a fresh lookup:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "cached mux, before: 0810 39=00 after 0 ms\nredeployed; same object? false\ncached mux isConnected: false\ncached mux, after:  null after 5000 ms\nlooked up again:    0810 39=00 after 0 ms\nin host-unhandled: 0810 11=000002"
+    },
+    {
+      "type": "para",
+      "text": "The host's log shows all three echoes arriving, and it answered each one. Q2 stopped the old multiplexer and deployed a new one under the same name. The old object still writes to `host-send`, so its request went out, but a stopped multiplexer no longer reads `host-receive`. The new one read the answer, found nobody waiting for it, and put it on the unhandled queue."
+    },
+    {
+      "type": "para",
+      "text": "**Look the multiplexer up each time you use it.** The lookup is a map read. Catch `NameRegistrar.NotFoundException` and report it as \"not deployed\", a different problem from \"link down\"."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "1.5.2 Spring Starts and Stops Q2, and Nothing Else"
+    },
+    {
+      "type": "para",
+      "text": "jPOS 2.1.7 has no Spring integration of its own. In a Spring Boot application, for example a REST service that forwards payments, Q2 still runs the channel and the multiplexer from `deploy/`. Spring only starts Q2 with the application and stops it on shutdown:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.spring;\n\nimport org.jpos.q2.Q2;\nimport org.springframework.context.SmartLifecycle;\n\n/** Starts Q2 when the Spring context starts, and stops it when the context closes. */\npublic class EmbeddedQ2 implements SmartLifecycle {\n    private final String deployDir;\n    private Q2 q2;\n\n    public EmbeddedQ2(String deployDir) {\n        this.deployDir = deployDir;\n    }\n\n    @Override\n    public synchronized void start() {\n        q2 = new Q2(deployDir);\n        q2.start();\n        if (!q2.ready(30_000))\n            throw new IllegalStateException(\"Q2 did not finish deploying \" + deployDir);\n    }\n\n    @Override\n    public synchronized void stop() {\n        if (q2 != null) {\n            q2.stop();\n            q2 = null;\n        }\n    }\n\n    @Override\n    public synchronized boolean isRunning() {\n        return q2 != null && q2.running();\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.spring;\n\nimport com.example.jpos.client.EchoClient;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class HostEchoService {\n    public boolean echo() throws ISOException {\n        MUX mux;\n        try {\n            mux = QMUX.getMUX(\"host-mux\");               // looked up on every call\n        } catch (NameRegistrar.NotFoundException e) {\n            return false;                                // Q2 has not deployed it (yet)\n        }\n        return new EchoClient(mux, 10_000).echo();\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.spring;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.context.annotation.Bean;\n\n@SpringBootApplication\npublic class ClientBootApplication {\n    public static void main(String[] args) {\n        SpringApplication.run(ClientBootApplication.class, args);\n    }\n\n    @Bean\n    public EmbeddedQ2 embeddedQ2() {\n        return new EmbeddedQ2(\"deploy\");\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "One call to the service, then one after the context closed (Q2 undeployed both descriptors):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "echo through the Spring service: true\nafter close: NotFoundException mux.host-mux\nafter close, echo: false"
+    },
+    {
+      "type": "para",
+      "text": "Spring starts lifecycle beans such as `EmbeddedQ2` only after it has created every ordinary bean. A service that calls `QMUX.getMUX` in its constructor therefore runs before Q2 exists, and the application never starts: the constructor threw `NotFoundException: mux.host-mux`, and Spring gave up on the context."
+    },
+    {
+      "type": "para",
+      "text": "Connection and send failures happen on the channel's own threads. Spring's `@ControllerAdvice` never sees them; they are in the jPOS log. Only what `request` throws to its caller, such as an `ISOException`, reaches the web request's thread."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Spring versions.** The example uses Spring Boot 2.6 (`spring-boot-starter`), the line built on the Spring 5.3 that the course pins. Nothing in it depends on that version."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Conclusion"
+      "text": "1.6 The Log Is Masked Before Anything Writes It"
     },
     {
       "type": "para",
-      "text": "This setup provides a basic foundation for a jPOS client using Spring and Q2. It includes:"
+      "text": "The channel logs every message it sends and receives, field by field. A purchase carries the card number (field 2), track 2 (field 35) and the PIN block (field 52). `deploy/00_logger.xml` keeps them out of the log in clear:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<logger name=\"Q2\" class=\"org.jpos.q2.qbean.LoggerAdaptor\">\n  <log-listener class=\"org.jpos.util.ProtectedLogListener\">\n    <property name=\"protect\" value=\"2 35 45\"/>\n    <property name=\"wipe\" value=\"52 55\"/>\n  </log-listener>\n  <log-listener class=\"org.jpos.util.SimpleLogListener\"/>\n  <log-listener class=\"org.jpos.util.RotateLogListener\">\n    <property name=\"file\" value=\"log/q2.log\"/>\n    <property name=\"window\" value=\"86400\"/>\n    <property name=\"copies\" value=\"10\"/>\n    <property name=\"maxsize\" value=\"100000000\"/>\n  </log-listener>\n</logger>"
+    },
+    {
+      "type": "para",
+      "text": "A logger hands each log event to its listeners in the order they are listed. `SimpleLogListener` writes to the console, `RotateLogListener` to `log/q2.log`. `ProtectedLogListener` writes nothing: it masks the fields listed in `protect` and blanks the ones in `wipe`, in the event that the listeners after it receive. One purchase with the test card `4111111111111111`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<field id=\"2\" value=\"411111______1111\"/>\n<field id=\"35\" value=\"411111______1111=____________________\"/>\n<field id=\"52\" value=\"AA55AA55\" type=\"binary\"/>\nPAN in the message we sent: 4111111111111111"
+    },
+    {
+      "type": "para",
+      "text": "The log is masked, and the message on the wire is not. With `SimpleLogListener` moved above `ProtectedLogListener`, as someone might to \"see the messages sooner\", the console shows:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "<field id=\"2\" value=\"4111111111111111\"/>\n<field id=\"35\" value=\"4111111111111111=28121010000000000000\"/>\n<field id=\"52\" value=\"0123456789ABCDEF\" type=\"binary\"/>"
+    },
+    {
+      "type": "para",
+      "text": "`log/q2.log` is still masked, because its listener still comes after the masking one. Whoever checks the log file finds nothing wrong, while the console, and whatever collects it from the container, holds card numbers and PIN blocks in clear. Put `ProtectedLogListener` first."
+    },
+    {
+      "type": "para",
+      "text": "`log/` must exist. Without it, Q2 prints a `FileNotFoundException: log/q2.log` warning among its first lines and keeps running, with the console working and nothing ever written to the file."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.7 Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**Q2 builds the client from `deploy/`**, in file-name order, stops it in reverse, and replaces a component as soon as its file changes. A QMUX created with `new` is one that nothing can find.",
+        "**The queues cross.** The multiplexer's `<out>` is the adaptor's `<in>`. Get it backwards and every request times out while the host sees nothing.",
+        "**`isConnected()` is only as good as `<ready>`.** Without it a dead link reports connected, and a link problem looks like a wiring problem.",
+        "**`null` means no answer**, and a request on a dead link waits and may go out late. Check the link first, so that each outcome means one thing.",
+        "**Look the multiplexer up when you use it**, in the JVM that runs Q2. A kept reference stops hearing answers after a redeploy, and a lookup in a Spring constructor runs before Q2 exists.",
+        "**Mask first.** `ProtectedLogListener` protects only the listeners listed after it."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.8 Reference"
+    },
+    {
+      "type": "para",
+      "text": "**`pom.xml`** for the client:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\"\n         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd\">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>com.example.jpos</groupId>\n  <artifactId>iso-client</artifactId>\n  <version>1.0.0</version>\n\n  <properties>\n    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n    <maven.compiler.release>17</maven.compiler.release>\n  </properties>\n\n  <dependencies>\n    <dependency>\n      <groupId>org.jpos</groupId>\n      <artifactId>jpos</artifactId>\n      <version>2.1.7</version>\n    </dependency>\n    <dependency>\n      <groupId>org.junit.jupiter</groupId>\n      <artifactId>junit-jupiter</artifactId>\n      <version>5.14.4</version>\n      <scope>test</scope>\n    </dependency>\n  </dependencies>\n</project>"
+    },
+    {
+      "type": "para",
+      "text": "Unit s1 shows the plugins that build a runnable jar with its dependencies in `lib/`. Pin the jPOS version, and when a scanner flags one of its transitive dependencies, override that version in your own `dependencyManagement`."
+    },
+    {
+      "type": "para",
+      "text": "**Descriptor elements used in this unit (2.1.7):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Element",
+        "Component",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<in>`",
+          "ChannelAdaptor",
+          "queue it reads and sends to the host"
+        ],
+        [
+          "`<out>`",
+          "ChannelAdaptor",
+          "queue it writes received messages to"
+        ],
+        [
+          "`<reconnect-delay>`",
+          "ChannelAdaptor",
+          "ms between connection attempts (default 10000)"
+        ],
+        [
+          "`<in>`",
+          "QMUX",
+          "queue it reads responses from: the adaptor's `<out>`"
+        ],
+        [
+          "`<out>`",
+          "QMUX",
+          "queue it writes requests to: the adaptor's `<in>`"
+        ],
+        [
+          "`<ready>`",
+          "QMUX",
+          "Space entry that means \"link up\": the adaptor's name plus `.ready`"
+        ],
+        [
+          "`<unhandled>`",
+          "QMUX",
+          "queue for messages nobody waits for; each expires after two minutes"
+        ],
+        [
+          "`<key>`",
+          "QMUX",
+          "fields that match a response to its request; default `41, 11` (unit c12)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**Where `${name:default}` comes from**, first match wins: the environment variable `name`; the environment variable with dots turned into underscores, in upper case (`HOST_PORT`); the Java system property `name`; `cfg/default.yml` (`cfg/prod.yml` when started with `-Djpos.env=prod`); the default after the colon."
+    },
+    {
+      "type": "para",
+      "text": "**`ProtectedLogListener`:** `protect` lists fields to mask (a PAN keeps its first six and last four digits); `wipe` lists fields to blank. It changes the log event only, never the message."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.9 Challenges"
+    },
+    {
+      "type": "para",
+      "text": "These have no single answer."
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Spring configuration for dependency injection",
-        "Q2 configuration for the jPOS runtime environment",
-        "A client channel setup for communication",
-        "A QMUX configuration for message multiplexing",
-        "A simple service for sending ISO-8583 messages",
-        "A basic test to verify the setup"
+        "Your client runs in a container that ships its console output to a central log service. Which listeners do you keep, in which order, and how would you prove in a test that no card number leaves the container?",
+        "A request made on a dead link waits in `host-send` for up to its timeout. Pick a timeout for an echo and for a purchase, given a `<reconnect-delay>` of 10 seconds. What does each choice cost when the link comes back after 4 seconds, and after 12?",
+        "Operations want to change the host's port without restarting the client. Compare editing `10_host_channel.xml`, changing `cfg/default.yml`, and changing an environment variable. Which of them take effect without a restart, and what happens to a request in flight?",
+        "Your Spring service must answer \"is the host reachable?\" in under 100 ms for a load balancer's health check. What can it look at without sending anything, and what can't it know that way?"
       ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1.10 Design Note: Why Queues Between the Channel and the Multiplexer?"
+    },
+    {
+      "type": "para",
+      "text": "The adaptor and the multiplexer could have been one object that sends a request on the socket and reads the response from it. jPOS puts a pair of Space queues between them instead, at the price of two names to keep in step and a ready entry to tie the two components together."
+    },
+    {
+      "type": "para",
+      "text": "In return, the adaptor can drop and rebuild its connection while the multiplexer sees only the ready entry come and go. Anything that reads and writes the two queues can stand in for the adaptor: unit c12 replaces it with a test host in the same JVM, and the multiplexer can't tell the difference."
+    },
+    {
+      "type": "para",
+      "text": "A wrong queue name doesn't throw; it only makes requests wait. With `<ready>` in place and the channel's log in view (1.3), a wiring mistake shows up the first time you send an echo."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 10,
-    "paras": 13,
-    "code": 9,
-    "tables": 0,
-    "lists": 1,
+    "headings": 13,
+    "paras": 52,
+    "code": 23,
+    "tables": 1,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 3,
+    "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "86869191f4d79977eddf6172f37a97d6abe387b3518d677a1aae2ff00ed46119"
+  "content_sha256": "e38891fcff836555bfe401e65680cde9c0474137bfa836d0bf791b053b80307f"
 }

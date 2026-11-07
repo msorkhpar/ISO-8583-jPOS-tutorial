@@ -1,0 +1,79 @@
+{
+  "bundle_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "ordinal": 2,
+  "title": "Stop charging twice when the host is slow",
+  "lang": "java",
+  "main_file": "src/main/java/com/example/practice/PaymentClient.java",
+  "test_file": "src/test/java/com/example/practice/PaymentClientTest.java",
+  "build": [
+    "pom.xml"
+  ],
+  "run_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-client/prose/unit-12/practice-2/pom.xml",
+    "compile"
+  ],
+  "test_command": [
+    "mvn",
+    "-o",
+    "-q",
+    "-f",
+    "practice/jpos-client/prose/unit-12/practice-2/pom.xml",
+    "test"
+  ],
+  "provenance": "generated",
+  "trust": "advisory",
+  "cases": [
+    {
+      "id": "com.example.practice.PaymentClientTest#aQuickApprovalIsApproved",
+      "kind": "main",
+      "says": "an answered purchase with 39=00 is approved and leaves nothing to send"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aDeclineIsADecline",
+      "kind": "edge",
+      "says": "an answer whose field 39 is not 00 is a decline, and a decline needs no reversal"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aPurchaseWithNoAnswerIsReversedNotSentAgain",
+      "kind": "edge",
+      "says": "a purchase with no answer goes to the host once and is reversed, never resent"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#theReversalPointsAtThePurchase",
+      "kind": "edge",
+      "says": "the reversal is a new message with its own STAN that points at the original through field 90"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#anAdviceWithNoAnswerIsQueuedAsItIs",
+      "kind": "edge",
+      "says": "an advice with no answer reports something that already happened, so it is queued to be repeated rather than reversed"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#anEchoWithNoAnswerNeedsNothing",
+      "kind": "edge",
+      "says": "a network message with no answer moved no money, so nothing is queued or resent"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aPurchaseOnADownLinkIsNeitherSentNorReversed",
+      "kind": "edge",
+      "says": "with the link down nothing is sent, so nothing needs reversing"
+    }
+  ],
+  "report": {
+    "format": "junit",
+    "path": "target/surefire-reports"
+  },
+  "origin": {
+    "path": "src/c12.md",
+    "section": "12.5 No Answer Means You Don't Know"
+  }
+}

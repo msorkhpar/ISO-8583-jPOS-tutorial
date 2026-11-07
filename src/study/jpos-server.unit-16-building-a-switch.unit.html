@@ -1,0 +1,1256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f5f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a">
+<script>try{var t=sessionStorage.getItem("studyforge.boot.theme.v1");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}</script>
+<title>Building a Switch</title>
+<link rel="stylesheet" href="../../.studyforge/assets/page.css">
+<script type="application/json" id="studyforge-identity">{"identity_api":1,"corpus":"iso-8583-jpos-tutorial","address":["jpos-server"],"unit":16,"kind":"unit","variant":"prose"}</script>
+</head>
+<body>
+<a href="#content">Skip to the content</a>
+<header>
+<div role="toolbar" aria-label="Site tools" data-section="topbar">
+<button type="button" data-section="search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K /" aria-label="Search the course" data-keys-mac="&#8984; K" data-keys-other="Ctrl K" hidden>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-label>Search</span><kbd></kbd></button>
+<button type="button" data-section="theme" data-theme-choice="toggle" data-to-dark="Switch to the dark theme" data-to-light="Switch to the light theme" aria-label="Switch theme" hidden>
+<svg data-icon="sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M 12 2 v 2 M 12 20 v 2 M 2 12 h 2 M 20 12 h 2 M 4.9 4.9 l 1.4 1.4 M 17.7 17.7 l 1.4 1.4 M 4.9 19.1 l 1.4 -1.4 M 17.7 6.3 l 1.4 -1.4"></path></svg>
+<svg data-icon="moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 21 13.2 A 9 9 0 1 1 10.8 3 a 7 7 0 0 0 10.2 10.2 z"></path></svg>
+</button>
+</div>
+<div role="dialog" aria-modal="true" aria-label="Search" data-section="search" data-search-placeholder="Search the course" data-search-loading="Preparing the search..." data-search-none="No results for" data-search-failed="The search index could not be loaded on this page." data-search-hint-open="Enter to open" data-search-hint-move="Up and down to move" data-search-hint-close="Esc to close" data-search-count-one="1 result" data-search-count-many="{n} results" hidden>
+<div data-search-box>
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-field></span>
+<button type="button" data-search-close aria-label="Close the search">Esc</button>
+</div>
+<div id="search-results" role="listbox" aria-label="Results" data-search-results></div>
+<p data-search-status role="status" aria-live="polite"></p>
+<p data-search-hints></p>
+</div>
+<nav aria-label="Breadcrumb"><ol><li><a href="../../index.html">ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></li><li><span aria-hidden="true">› </span><a href="jpos-server-implementation.section.html"><span data-kind="level">group</span> jPOS Server Implementation</a></li><li aria-current="page"><span aria-hidden="true">› </span>Building a Switch</li></ol></nav>
+<h1 id="prose-b0">Building a Switch</h1>
+</header>
+<nav aria-label="Containers"><details open><summary>Course contents</summary><ol><li data-readable="true"><details><summary><a href="iso-8583-for-visa-and-mastercard-transactions-a-comprehensive-developers-guide.section.html"><span data-kind="level">group</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></summary><ol><li data-unit="iso-fundamentals/unit-01" data-readable="true"><a href="iso-fundamentals.unit-01-introduction-to-iso-8583.unit.html"><span data-kind="numbering">1</span> Introduction to ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-02" data-readable="true"><a href="iso-fundamentals.unit-02-iso-8583-message-structure.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Structure<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-03" data-readable="true"><a href="iso-fundamentals.unit-03-data-elements.unit.html"><span data-kind="numbering">3</span> Data Elements<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-04" data-readable="true"><a href="iso-fundamentals.unit-04-message-type-indicators-mtis.unit.html"><span data-kind="numbering">4</span> Message Type Indicators (MTIs)<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-05" data-readable="true"><a href="iso-fundamentals.unit-05-visa-specific-implementation.unit.html"><span data-kind="numbering">5</span> Visa-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-06" data-readable="true"><a href="iso-fundamentals.unit-06-mastercard-specific-implementation.unit.html"><span data-kind="numbering">6</span> Mastercard-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-07" data-readable="true"><a href="iso-fundamentals.unit-07-transaction-flow.unit.html"><span data-kind="numbering">7</span> Transaction Flow<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-08" data-readable="true"><a href="iso-fundamentals.unit-08-security-and-encryption.unit.html"><span data-kind="numbering">8</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-09" data-readable="true"><a href="iso-fundamentals.unit-09-error-handling-and-response-codes.unit.html"><span data-kind="numbering">9</span> Error Handling and Response Codes<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-10" data-readable="true"><a href="iso-fundamentals.unit-10-testing-and-certification.unit.html"><span data-kind="numbering">10</span> Testing and Certification<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-11" data-readable="true"><a href="iso-fundamentals.unit-11-best-practices-for-iso-8583-development.unit.html"><span data-kind="numbering">11</span> Best Practices for ISO-8583 Development<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-12" data-readable="true"><a href="iso-fundamentals.unit-12-integration-with-payment-gateways.unit.html"><span data-kind="numbering">12</span> Integration with Payment Gateways<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-13" data-readable="true"><a href="iso-fundamentals.unit-13-compliance-and-regulations.unit.html"><span data-kind="numbering">13</span> Compliance and Regulations<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-14" data-readable="true"><a href="iso-fundamentals.unit-14-advanced-topics.unit.html"><span data-kind="numbering">14</span> Advanced Topics<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-15" data-readable="true"><a href="iso-fundamentals.unit-15-troubleshooting-and-common-issues.unit.html"><span data-kind="numbering">15</span> Troubleshooting and Common Issues<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-16" data-readable="true"><a href="iso-fundamentals.unit-16-future-of-iso-8583.unit.html"><span data-kind="numbering">16</span> Future of ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-17" data-readable="true"><a href="iso-fundamentals.unit-17-iso-8583-2023-and-datasets.unit.html"><span data-kind="numbering">17</span> ISO 8583:2023 and Datasets<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-18" data-readable="true"><a href="iso-fundamentals.unit-18-emv-and-de-55-in-depth.unit.html"><span data-kind="numbering">18</span> EMV and DE 55 in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-19" data-readable="true"><a href="iso-fundamentals.unit-19-clearing-and-reconciliation.unit.html"><span data-kind="numbering">19</span> Clearing and Reconciliation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-20" data-readable="true"><a href="iso-fundamentals.unit-20-store-and-forward-and-reversals.unit.html"><span data-kind="numbering">20</span> Store-and-Forward and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li data-readable="true"><details><summary><a href="client-implementation.section.html"><span data-kind="level">group</span> Client Implementation</a></summary><ol><li data-unit="jpos-client/unit-01" data-readable="true"><a href="jpos-client.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-02" data-readable="true"><a href="jpos-client.unit-02-iso-8583-message-creation.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Creation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-03" data-readable="true"><a href="jpos-client.unit-03-channel-management.unit.html"><span data-kind="numbering">3</span> Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-04" data-readable="true"><a href="jpos-client.unit-04-transaction-sending.unit.html"><span data-kind="numbering">4</span> Transaction Sending<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-05" data-readable="true"><a href="jpos-client.unit-05-visa-and-mastercard-specific-requests.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Requests<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-06" data-readable="true"><a href="jpos-client.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-07" data-readable="true"><a href="jpos-client.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-08" data-readable="true"><a href="jpos-client.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-09" data-readable="true"><a href="jpos-client.unit-09-error-handling.unit.html"><span data-kind="numbering">9</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-10" data-readable="true"><a href="jpos-client.unit-10-testing.unit.html"><span data-kind="numbering">10</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-11" data-readable="true"><a href="jpos-client.unit-11-connection-management.unit.html"><span data-kind="numbering">11</span> Connection Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-12" data-readable="true"><a href="jpos-client.unit-12-correlation-timeouts-and-reversals.unit.html"><span data-kind="numbering">12</span> Correlation, Timeouts and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-13" data-readable="true"><a href="jpos-client.unit-13-packagers-in-depth.unit.html"><span data-kind="numbering">13</span> Packagers in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-14" data-readable="true"><a href="jpos-client.unit-14-muxpool-and-high-availability.unit.html"><span data-kind="numbering">14</span> MUXPool and High Availability<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-15" data-readable="true"><a href="jpos-client.unit-15-the-logon-lifecycle.unit.html"><span data-kind="numbering">15</span> The Logon Lifecycle<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-16" data-readable="true"><a href="jpos-client.unit-16-simulators-and-test-harnesses.unit.html"><span data-kind="numbering">16</span> Simulators and Test Harnesses<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-17" data-readable="true"><a href="jpos-client.unit-17-the-debugging-toolbox.unit.html"><span data-kind="numbering">17</span> The Debugging Toolbox<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li aria-current="true" data-readable="true"><details open><summary><span data-kind="level">group</span> jPOS Server Implementation</summary><ol><li data-unit="jpos-server/unit-01" data-readable="true"><a href="jpos-server.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-02" data-readable="true"><a href="jpos-server.unit-02-iso-8583-message-handling.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-03" data-readable="true"><a href="jpos-server.unit-03-server-channel-management.unit.html"><span data-kind="numbering">3</span> Server Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-04" data-readable="true"><a href="jpos-server.unit-04-transaction-processing.unit.html"><span data-kind="numbering">4</span> Transaction Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-05" data-readable="true"><a href="jpos-server.unit-05-visa-and-mastercard-specific-processing.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-06" data-readable="true"><a href="jpos-server.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-07" data-readable="true"><a href="jpos-server.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-08" data-readable="true"><a href="jpos-server.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-09" data-readable="true"><a href="jpos-server.unit-09-database-integration.unit.html"><span data-kind="numbering">9</span> Database Integration<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-10" data-readable="true"><a href="jpos-server.unit-10-error-handling.unit.html"><span data-kind="numbering">10</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-11" data-readable="true"><a href="jpos-server.unit-11-testing.unit.html"><span data-kind="numbering">11</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-12" data-readable="true"><a href="jpos-server.unit-12-the-space.unit.html"><span data-kind="numbering">12</span> The Space<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-13" data-readable="true"><a href="jpos-server.unit-13-what-changes-in-jpos-3.unit.html"><span data-kind="numbering">13</span> What changes in jPOS 3<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-14" data-readable="true"><a href="jpos-server.unit-14-q2-and-qbeans-in-depth.unit.html"><span data-kind="numbering">14</span> Q2 and QBeans in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-15" data-readable="true"><a href="jpos-server.unit-15-the-transactionmanager-in-depth.unit.html"><span data-kind="numbering">15</span> The TransactionManager in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li aria-current="page" data-unit="jpos-server/unit-16" data-readable="true"><span data-kind="numbering">16</span> Building a Switch<span data-kind="read-state" hidden>, marked read</span></li><li data-unit="jpos-server/unit-17" data-readable="true"><a href="jpos-server.unit-17-dirpoll-and-operations.unit.html"><span data-kind="numbering">17</span> DirPoll and Operations<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li></ol></details></nav>
+<script>try{var n=document.querySelector('nav[aria-label=Containers]');if(n){var v=sessionStorage.getItem("studyforge.boot.rail.v1");if(v!==null&&!isNaN(+v)){n.scrollTop=+v;}var c=n.querySelector('[aria-current=page]'),a=c&&c.getBoundingClientRect(),b=n.getBoundingClientRect();if(a&&a.height>0){if(a.bottom>b.bottom){n.scrollTop+=a.bottom-b.bottom+8;}else if(b.top>a.top){n.scrollTop-=b.top-a.top+8;}}}}catch(e){}</script>
+<nav aria-label="Outline"><p>On this page</p><ol><li data-level="2"><a href="#prose-b4">The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request</a></li><li data-level="3"><a href="#prose-b14">Forward a terminal's request as the switch, and answer it as the terminal's</a></li><li data-level="2"><a href="#prose-b15">A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record</a></li><li data-level="3"><a href="#prose-b29">Reverse upstream what the switch sent, when a terminal reverses</a></li><li data-level="2"><a href="#prose-b30">A Destination's Code Becomes a Cause, and Each Source's Table Answers It</a></li><li data-level="2"><a href="#prose-b42">A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent</a></li><li data-level="3"><a href="#prose-b51">Check yourself: Building a Switch</a></li><li data-level="2"><a href="#prose-b52">Summary</a></li><li data-level="2"><a href="#prose-b54">Reference</a></li><li data-level="2"><a href="#prose-b64">Challenges</a></li><li data-level="2"><a href="#prose-b66">Design Note: Why Causes, and Not Code-to-Code Tables?</a></li></ol></nav>
+<main id="content">
+<section id="s-prose" data-section="prose" data-kind="lesson" data-label="Building a Switch">
+<p>An acquirer's switch takes purchases from its terminals and forwards each one to the card's network. A purchase of 42.50 is approved, and the 0210 is lost on its way back to the terminal. The terminal reverses, as unit c12 taught it: an 0420 whose field 90 names the purchase. The switch forwards the reversal, the network answers <code>00</code>, and the terminal is done. A week later the cardholder calls the bank, because the 42.50 is still held. The network never found the purchase the reversal named: it had never seen the STAN the terminal gave it.</p>
+<p>A switch is a server toward its sources and a client toward its destinations. Unit s5 forwarded requests unchanged, and unit c12's gateway renumbered them for one link. The switch between them follows four rules, one per section heading.</p>
+<p>Every output comes from jPOS 2.1.7 in one JVM. Q2 deploys the switch, unit s4's <code>DirectTerminal</code> plays the terminals, and two QMUXes, <code>visa</code> and <code>onus</code> (the bank's own issuer system), have a scripted destination on their queues, like unit c12's test host. The destination holds every amount it approves until a reversal names the purchase; its code is in the Reference. Unit c12's SAF sender delivers the switch's queued reversals, and the switch's records (16.2) are registered as <code>switch-records</code> before Q2 starts. Each run starts with empty spaces, and the <code>90=</code> columns show the first 20 of field 90's 42 digits: the original's MTI, STAN and field 7.</p>
+<h2 id="prose-b4">The Destination Gets a Copy Numbered by the Switch, and Every Answer Starts From the Source's Request</h2>
+<p>The switch's TransactionManager:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;txnmgr name=&quot;txnmgr&quot; class=&quot;org.jpos.transaction.TransactionManager&quot; logger=&quot;Q2&quot;&gt;
+  &lt;property name=&quot;queue&quot; value=&quot;txnmgr&quot;/&gt;
+  &lt;property name=&quot;sessions&quot; value=&quot;2&quot;/&gt;
+  &lt;property name=&quot;debug-context&quot; value=&quot;false&quot;/&gt;
+
+  &lt;participant class=&quot;org.jpos.transaction.participant.SelectDestination&quot; logger=&quot;Q2&quot;&gt;
+    &lt;endpoint destination=&quot;visa&quot;&gt;4&lt;/endpoint&gt;
+    &lt;endpoint destination=&quot;onus&quot;&gt;555555&lt;/endpoint&gt;
+  &lt;/participant&gt;
+  &lt;participant class=&quot;com.example.jpos.server.participant.SelectByMti&quot; logger=&quot;Q2&quot;/&gt;
+  &lt;participant class=&quot;com.example.jpos.server.participant.AnswerFailures&quot; logger=&quot;Q2&quot; realm=&quot;answer-failures&quot;/&gt;
+  &lt;participant class=&quot;org.jpos.transaction.participant.SendResponse&quot; logger=&quot;Q2&quot;/&gt;
+
+  &lt;group name=&quot;purchase&quot;&gt;
+    &lt;participant class=&quot;com.example.jpos.server.participant.PrepareOutbound&quot; logger=&quot;Q2&quot;&gt;
+      &lt;property name=&quot;space&quot; value=&quot;tspace:switch&quot;/&gt;
+      &lt;property name=&quot;acquirer-id&quot; value=&quot;12345678901&quot;/&gt;
+      &lt;property name=&quot;drop&quot; value=&quot;48&quot;/&gt;
+    &lt;/participant&gt;
+    &lt;participant class=&quot;org.jpos.transaction.participant.QueryHost&quot; logger=&quot;Q2&quot;&gt;
+      &lt;property name=&quot;request&quot; value=&quot;OUTBOUND&quot;/&gt;
+      &lt;property name=&quot;response&quot; value=&quot;HOST_RESPONSE&quot;/&gt;
+      &lt;property name=&quot;timeout&quot; value=&quot;2000&quot;/&gt;
+    &lt;/participant&gt;
+    &lt;participant class=&quot;com.example.jpos.server.participant.MapResponse&quot; logger=&quot;Q2&quot;&gt;
+      &lt;property name=&quot;visa.00&quot; value=&quot;APPROVED&quot;/&gt;
+      &lt;property name=&quot;visa.05&quot; value=&quot;DO_NOT_HONOUR&quot;/&gt;
+      &lt;property name=&quot;visa.51&quot; value=&quot;NOT_SUFFICIENT_FUNDS&quot;/&gt;
+      &lt;property name=&quot;visa.54&quot; value=&quot;EXPIRED&quot;/&gt;
+      &lt;property name=&quot;onus.0000&quot; value=&quot;APPROVED&quot;/&gt;
+      &lt;property name=&quot;onus.1001&quot; value=&quot;EXPIRED&quot;/&gt;
+      &lt;property name=&quot;onus.1016&quot; value=&quot;NOT_SUFFICIENT_FUNDS&quot;/&gt;
+    &lt;/participant&gt;
+  &lt;/group&gt;
+  &lt;group name=&quot;reversal&quot;&gt;
+    &lt;participant class=&quot;com.example.jpos.server.participant.ReverseUpstream&quot; logger=&quot;Q2&quot;/&gt;
+  &lt;/group&gt;
+&lt;/txnmgr&gt;</code></pre></figure>
+<p><code>SelectDestination</code> (unit s5) picks <code>visa</code> or <code>onus</code> from the card number, and each QMUX is named after its destination, so <code>QueryHost</code> finds it as <code>mux.visa</code>. <code>SelectByMti</code> and <code>AnswerFailures</code> are unit s10's: reversals run the <code>reversal</code> group, and <code>AnswerFailures</code> has one more line in its table, <code>DO_NOT_HONOUR</code> answered <code>05</code>. In the <code>purchase</code> group, <code>PrepareOutbound</code> builds the message the destination receives, <code>QueryHost</code> sends it, and <code>MapResponse</code> (16.3) turns the answer into the terminal's reply.</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.participant;
+
+import com.example.jpos.client.reversal.StanSequencer;
+import com.example.jpos.server.switching.SentRecords;
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.rc.CMF;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceFactory;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+import java.util.Arrays;
+
+import static org.jpos.transaction.ContextConstants.DESTINATION;
+import static org.jpos.transaction.ContextConstants.REQUEST;
+
+/** Builds the message the destination receives. The source's request is never changed. */
+public class PrepareOutbound implements TransactionParticipant, Configurable {
+    public static final String OUTBOUND = &quot;OUTBOUND&quot;;
+
+    private Space&lt;String, Object&gt; space;
+    private SentRecords records;
+    private String acquirerId;
+    private int[] drop;
+
+    @Override
+    public void setConfiguration(Configuration cfg) throws ConfigurationException {
+        space = SpaceFactory.getSpace(cfg.get(&quot;space&quot;, &quot;tspace:switch&quot;));
+        try {
+            records = NameRegistrar.get(cfg.get(&quot;records&quot;, &quot;switch-records&quot;));
+        } catch (NameRegistrar.NotFoundException e) {
+            throw new ConfigurationException(&quot;no switch records registered&quot;, e);
+        }
+        acquirerId = cfg.get(&quot;acquirer-id&quot;);
+        if (!acquirerId.matches(&quot;\\d{1,11}&quot;))
+            throw new ConfigurationException(&quot;acquirer-id must be 1 to 11 digits&quot;);
+        drop = Arrays.stream(cfg.get(&quot;drop&quot;).split(&quot;[\\s,]+&quot;))
+                     .filter(s -&gt; !s.isEmpty()).mapToInt(Integer::parseInt).toArray();
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        String destination = ctx.getString(DESTINATION.toString());
+        try {
+            ISOMsg out = (ISOMsg) request.clone();                     // (1) a copy: REQUEST stays as it came
+            out.unset(drop);                                           //     fields only the source reads
+            out.set(11, new StanSequencer(space, destination).next()); // (2) the switch numbers this link
+            out.set(32, acquirerId);                                   //     and is the acquirer upstream
+            records.remember(request, destination, out);               // (3) for a reversal, 16.2
+            ctx.put(OUTBOUND, out);
+            return PREPARED | NO_JOIN;
+        } catch (Exception e) {
+            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+        }
+    }
+}</code></pre></figure>
+<p><code>QueryHost</code> sends whatever is under its <code>request</code> key. Why build a copy, when the switch could set fields 11 and 32 on <code>REQUEST</code> and send that? Two purchases from terminal <code>29110001</code>, one approved and one whose approval is lost on the way back, first with <code>REQUEST</code> renumbered in place, then with the copy:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">renumbered in place:
+  approved  sent 11=000731, got 0210 39=00 11=000001
+  silent    sent 11=000732, got 0210 39=91 11=000002
+copied under OUTBOUND:
+  approved  sent 11=000733, got 0210 39=00 11=000733
+  silent    sent 11=000734, got 0210 39=91 11=000734
+  visa saw  0200 11=000001 32=12345678901 48=null</code></pre></figure>
+<p>Renumbered in place, both answers carry the switch's STAN. Every participant that answers the terminal starts from <code>REQUEST</code>, as unit s2 requires: <code>MapResponse</code> for the approval, <code>AnswerFailures</code> for the <code>91</code>. The terminal's QMUX matches neither (unit c12), waits out its timeout, and reverses a purchase the network approved. Unit c12's gateway restored the terminal's STAN in its one answer; here several participants answer, on both paths, and each would need that step.</p>
+<p><strong>(1) A copy.</strong> <code>clone()</code> keeps what the destination needs, track data included, and <code>drop</code> removes what only the source reads, here field 48. A real switch also translates the PIN block (52) from the terminal's key to the network's, in its security module (unit s7).</p>
+<p><strong>(2) The switch numbers the link.</strong> Upstream the switch is the sender, so the STAN comes from its own sequence per destination (unit c12's <code>StanSequencer</code>, key <code>stan.visa</code>), whatever the terminals sent. Field 32 names the switch as the acquirer. In production the space is persistent (<code>je:switch</code>), so the sequence survives a restart.</p>
+<section id="prose-b14" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose" data-practice-card="s-practice-prose" data-practice-key="jpos-server/unit-16/practice-prose" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose" data-practices-part="open">Forward a terminal's request as the switch, and answer it as the terminal's</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>The destination receives a copy of the source's request; every answer to the source, approval, decline or 91 alike, is built from the unchanged request, so renumbering the request in place breaks every answer.</li>
+<li>On each upstream link the switch is the sender, so the copy carries a STAN from one sequence per destination link and the switch's own identifiers.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Forward a terminal&#39;s request as the switch, and answer it as the terminal&#39;s">
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>The switch now also forwards purchases and balance inquiries from fuel-station terminals to <code>fleet</code>, a fuel-card network, as well as to <code>visa</code>. The fleet network knows the switch as one terminal, <code>SW000001</code>, sent by acquirer <code>12345678901</code>, and refuses any message that carries the terminals' private field 48. The terminals match answers the way any QMUX does. A purchase's approval must show the network's approval code, and an inquiry's the balance the network returned (field 54). Nothing else in the network's answer is for the terminal.</p>
+<p><code>ForwardLeg</code> in <code>src/main/java/com/example/practice/ForwardLeg.java</code> already holds the two participants that stand around <code>QueryHost</code> in the forwarding group. Finish the three methods marked <code>TODO</code>: <code>outbound</code>, <code>reply</code> and <code>nextStan</code>. About fifteen lines in total.</p>
+<p>The tests deploy a real TransactionManager, a real <code>QueryHost</code> and two real QMUXes with Q2, in the test's own JVM, with a scripted network behind each QMUX. After the group, an abort participant answers reported failures from the terminal's request, as unit s10's does. Besides approvals, the tests send declines, purchases the network never answers, and two purchases in flight at once.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.rc.CMF;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceFactory;
+import org.jpos.space.SpaceUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+
+import java.io.Serializable;
+import java.util.Map;
+
+/**
+ * The forwarding leg of the switch. {@link Outbound} stands before QueryHost and {@link Reply} after
+ * it, in the group that forwards a terminal's request to the network named by DESTINATION.
+ */
+public class ForwardLeg {
+    public static final String OUTBOUND = &quot;OUTBOUND&quot;;
+    public static final String HOST_RESPONSE = &quot;HOST_RESPONSE&quot;;
+
+    /** What a reply to a terminal echoes from the terminal's request (unit s2). */
+    static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };
+
+    /** The network's declines, as causes; AnswerFailures turns a cause into the terminal's code. */
+    static final Map&lt;String, CMF&gt; DECLINES = Map.of(
+        &quot;05&quot;, CMF.DO_NOT_HONOUR, &quot;51&quot;, CMF.NOT_SUFFICIENT_FUNDS, &quot;54&quot;, CMF.EXPIRED);
+
+    /** Before QueryHost: puts under OUTBOUND the message the network receives. */
+    public static class Outbound implements TransactionParticipant, Configurable {
+        private Space&lt;String, Object&gt; space;
+        private String terminalId;
+        private String acquirerId;
+
+        @Override
+        public void setConfiguration(Configuration cfg) throws ConfigurationException {
+            space = SpaceFactory.getSpace(cfg.get(&quot;space&quot;, &quot;tspace:default&quot;));
+            terminalId = cfg.get(&quot;terminal-id&quot;);
+            acquirerId = cfg.get(&quot;acquirer-id&quot;);
+        }
+
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());
+            String link = ctx.getString(ContextConstants.DESTINATION.toString());
+            try {
+                ctx.put(OUTBOUND, outbound(request, link, space, terminalId, acquirerId));
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** After QueryHost: an approval becomes the terminal's reply; anything else is reported. */
+    public static class Reply implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg answer = ctx.get(HOST_RESPONSE);
+            if (answer == null)
+                return FAIL;                                  // QueryHost reported HOST_UNREACHABLE
+            String code = answer.getString(39);
+            if (!&quot;00&quot;.equals(code))
+                return ctx.getResult().fail(DECLINES.getOrDefault(code, CMF.SYSTEM_ERROR),
+                    Caller.info(), &quot;network answered %s&quot;, code).FAIL();
+            try {
+                ctx.put(ContextConstants.RESPONSE.toString(),
+                    reply(ctx.get(ContextConstants.REQUEST.toString()), answer));
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** The message the network receives for the terminal's {@code request}, sent on {@code link}. */
+    static ISOMsg outbound(ISOMsg request, String link, Space&lt;String, Object&gt; space,
+                           String terminalId, String acquirerId) throws ISOException {
+        ISOMsg out = (ISOMsg) request.clone();
+        out.unset(48);
+        out.set(11, nextStan(space, link));
+        out.set(32, acquirerId);
+        out.set(41, terminalId);
+        return out;
+    }
+
+    /** The approval the terminal receives, given the network's approving {@code answer}. */
+    static ISOMsg reply(ISOMsg request, ISOMsg answer) throws ISOException {
+        ISOMsg r = (ISOMsg) request.clone(ECHOED);
+        r.setResponseMTI();
+        r.set(39, &quot;00&quot;);
+        for (int f : new int[] { 38, 54 })
+            if (answer.hasField(f))
+                r.set(f, answer.getString(f));
+        return r;
+    }
+
+    /** The STAN of the next message the switch sends on {@code link}. */
+    static String nextStan(Space&lt;String, Object&gt; space, String link) {
+        long n = SpaceUtil.nextLong(space, &quot;stan.&quot; + link);
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-b6">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.rc.CMF;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceFactory;
+import org.jpos.space.SpaceUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+
+import java.io.Serializable;
+import java.util.Map;
+
+/**
+ * The forwarding leg of the switch. {@link Outbound} stands before QueryHost and {@link Reply} after
+ * it, in the group that forwards a terminal's request to the network named by DESTINATION.
+ */
+public class ForwardLeg {
+    public static final String OUTBOUND = &quot;OUTBOUND&quot;;
+    public static final String HOST_RESPONSE = &quot;HOST_RESPONSE&quot;;
+
+    /** What a reply to a terminal echoes from the terminal's request (unit s2). */
+    static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };
+
+    /** The network's declines, as causes; AnswerFailures turns a cause into the terminal's code. */
+    static final Map&lt;String, CMF&gt; DECLINES = Map.of(
+        &quot;05&quot;, CMF.DO_NOT_HONOUR, &quot;51&quot;, CMF.NOT_SUFFICIENT_FUNDS, &quot;54&quot;, CMF.EXPIRED);
+
+    /** Before QueryHost: puts under OUTBOUND the message the network receives. */
+    public static class Outbound implements TransactionParticipant, Configurable {
+        private Space&lt;String, Object&gt; space;
+        private String terminalId;
+        private String acquirerId;
+
+        @Override
+        public void setConfiguration(Configuration cfg) throws ConfigurationException {
+            space = SpaceFactory.getSpace(cfg.get(&quot;space&quot;, &quot;tspace:default&quot;));
+            terminalId = cfg.get(&quot;terminal-id&quot;);
+            acquirerId = cfg.get(&quot;acquirer-id&quot;);
+        }
+
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());
+            String link = ctx.getString(ContextConstants.DESTINATION.toString());
+            try {
+                ctx.put(OUTBOUND, outbound(request, link, space, terminalId, acquirerId));
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** After QueryHost: an approval becomes the terminal's reply; anything else is reported. */
+    public static class Reply implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg answer = ctx.get(HOST_RESPONSE);
+            if (answer == null)
+                return FAIL;                                  // QueryHost reported HOST_UNREACHABLE
+            String code = answer.getString(39);
+            if (!&quot;00&quot;.equals(code))
+                return ctx.getResult().fail(DECLINES.getOrDefault(code, CMF.SYSTEM_ERROR),
+                    Caller.info(), &quot;network answered %s&quot;, code).FAIL();
+            try {
+                ctx.put(ContextConstants.RESPONSE.toString(),
+                    reply(ctx.get(ContextConstants.REQUEST.toString()), answer));
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** The message the network receives for the terminal's {@code request}, sent on {@code link}. */
+    static ISOMsg outbound(ISOMsg request, String link, Space&lt;String, Object&gt; space,
+                           String terminalId, String acquirerId) throws ISOException {
+        // TODO: The network knows the switch as one terminal, terminalId, sent by the acquirer
+        //       acquirerId, and refuses the terminals' private field 48. Whatever goes wrong
+        //       upstream, the terminal must still get answers it recognises as its own.
+        throw new IllegalStateException(&quot;TODO: outbound&quot;);
+    }
+
+    /** The approval the terminal receives, given the network's approving {@code answer}. */
+    static ISOMsg reply(ISOMsg request, ISOMsg answer) throws ISOException {
+        // TODO: The terminal must recognise this as the answer to its request. It needs the
+        //       approval code (38) and, for a balance inquiry, the balance (54) from the network.
+        //       Nothing else the network put in its answer is for the terminal.
+        throw new IllegalStateException(&quot;TODO: reply&quot;);
+    }
+
+    /** The STAN of the next message the switch sends on {@code link}. */
+    static String nextStan(Space&lt;String, Object&gt; space, String link) {
+        // TODO: Six digits, never 000000. Several sessions send at once, and the switch has
+        //       several links.
+        throw new IllegalStateException(&quot;TODO: nextStan&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-server/unit-16/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-16/practice-1/src/main/java/com/example/practice/ForwardLeg.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-server/unit-16/practice-prose" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-server/unit-16/practice-prose">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-server/unit-16/practice-prose" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-server/unit-16/practice-prose">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.ForwardLegTest#anApprovedPurchaseReachesTheTerminal" data-practice-case-kind="main"><span data-practice-part="verdict"></span>an approved purchase reaches the network under the switch's terminal and acquirer IDs, without field 48, and the terminal gets the approval with its approval code</li>
+<li data-practice-case="com.example.practice.ForwardLegTest#aBalanceInquiryShowsTheBalance" data-practice-case-kind="main"><span data-practice-part="verdict"></span>an approved balance inquiry gives the terminal the balance the network returned</li>
+<li data-practice-case="com.example.practice.ForwardLegTest#declinesAndSilenceAnswerTheTerminalsOwnRequest" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a decline and a silent network are answered with the terminal's own STAN and terminal ID, because the request the answers start from was never renumbered</li>
+<li data-practice-case="com.example.practice.ForwardLegTest#theReplyCarriesNothingPrivateOfTheNetwork" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the approval is built from the terminal's request, so the network's private field and the switch's acquirer ID never reach the terminal</li>
+<li data-practice-case="com.example.practice.ForwardLegTest#eachLinkNumbersItsOwnMessages" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>each network link has its own STAN sequence, unaffected by traffic on the other link</li>
+<li data-practice-case="com.example.practice.ForwardLegTest#twoTerminalsWithTheSameStanAtTheSameMoment" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>two terminals that use the same STAN at once are both answered, because the switch numbers what it sends</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b15">A Source's Reversal Finds What the Destination Saw Only Through the Switch's Record</h2>
+<p>The terminal's purchase is approved, and the terminal reverses it anyway, as it would if the 0210 had been lost, then repeats the reversal. With the reversal forwarded like any request:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">forwarded like a purchase:
+  0200 11=000741  0210 39=00 11=000741  visa holds 1
+  0420 11=000742  0430 39=00 11=000742  visa holds 1
+  0421 11=000742  0430 39=00 11=000742  visa holds 1
+  visa saw 0200 11=000001
+  visa saw 0420 11=000002 90=02000007411106121530
+  visa saw 0421 11=000003 90=02000007411106121530</code></pre></figure>
+<p>What does field 90 of the forwarded 0420 name? The terminal's purchase: MTI 0200, STAN 000741, sent at 1106121530. Visa saw that purchase as STAN 000001, found nothing to undo, and answered <code>00</code>, which is how a reversal of an unknown purchase is answered (unit s10). The 42.50 stays held.</p>
+<p>Only the switch knows which upstream message carried the terminal's purchase, so it keeps a record of each one, written before the message leaves:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.switching;
+
+import com.example.jpos.client.reversal.ReversalBuilder;
+import com.example.jpos.client.reversal.StanSequencer;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.space.Space;
+
+import java.io.Serializable;
+import java.time.Clock;
+
+/** What the switch sent upstream for each source request, kept until it is reversed or expires. */
+public final class SentRecords {
+    record Sent(String destination, ISOMsg message) implements Serializable { }
+
+    private final Space&lt;String, Object&gt; space;          // persistent in production, e.g. &quot;je:switch&quot;
+    private final long lease;                           // longer than the sources' reversal window
+    private final Clock clock;
+
+    public SentRecords(Space&lt;String, Object&gt; space, long lease, Clock clock) {
+        this.space = space;
+        this.lease = lease;
+        this.clock = clock;
+    }
+
+    /** Before the request leaves: the source's identity, and what the destination will see. */
+    public void remember(ISOMsg request, String destination, ISOMsg outbound) throws ISOException {
+        ISOMsg kept = (ISOMsg) outbound.clone();
+        kept.unset(35, 45, 52, 55);                     // no tracks, PIN block or chip data at rest
+        space.put(key(request.getString(41), request.getString(11), request.getString(7)),
+                  new Sent(destination, kept), lease);
+    }
+
+    /** Queues one reversal of what was sent for this source request. False: nothing to reverse. */
+    public boolean reverse(String terminal, String stan, String transmitted) throws ISOException {
+        Sent sent = (Sent) space.inp(key(terminal, stan, transmitted));    // (1) taken, not read
+        if (sent == null)
+            return false;
+        ReversalBuilder builder =                       // (2) the link's own STAN sequence
+            new ReversalBuilder(new StanSequencer(space, sent.destination()), &quot;0420&quot;, clock);
+        space.out(&quot;reversal.&quot; + sent.destination(), builder.reversalOf(sent.message()));
+        return true;
+    }
+
+    static String key(String terminal, String stan, String transmitted) throws ISOException {
+        return &quot;sent.&quot; + terminal + &quot;.&quot; + ISOUtil.zeropad(stan, 6) + &quot;.&quot; + ISOUtil.zeropad(transmitted, 10);
+    }
+}</code></pre></figure>
+<p><code>PrepareOutbound</code>'s line (3) calls <code>remember</code> with the source's request and the copy. The <code>reversal</code> group holds one participant, which finds the record by the terminal ID and by the STAN and time in field 90:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.participant;
+
+import com.example.jpos.server.switching.SentRecords;
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+
+import static org.jpos.transaction.ContextConstants.REQUEST;
+import static org.jpos.transaction.ContextConstants.RESPONSE;
+
+/** A source's reversal: queues one reversal of what the switch sent upstream, and answers 00. */
+public class ReverseUpstream implements TransactionParticipant, Configurable {
+    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 32, 37, 41, 42, 49, 90 };
+    private SentRecords records;
+
+    @Override
+    public void setConfiguration(Configuration cfg) throws ConfigurationException {
+        try {
+            records = NameRegistrar.get(cfg.get(&quot;records&quot;, &quot;switch-records&quot;));
+        } catch (NameRegistrar.NotFoundException e) {
+            throw new ConfigurationException(&quot;no switch records registered&quot;, e);
+        }
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg reversal = ctx.get(REQUEST.toString());
+        String original = reversal.getString(90);                  // the source's MTI, STAN, field 7
+        try {
+            if (original != null &amp;&amp; original.length() &gt;= 20)
+                records.reverse(reversal.getString(41), original.substring(4, 10), original.substring(10, 20));
+            ISOMsg response = (ISOMsg) reversal.clone(ECHOED);
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);                                // found or not (unit s10)
+            ctx.put(RESPONSE.toString(), response);
+        } catch (ISOException e) {
+            ctx.log(e);
+        }
+        return PREPARED | NO_JOIN;
+    }
+}</code></pre></figure>
+<p>The same three messages:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">through the switch's record:
+  0200 11=000741  0210 39=00 11=000741  visa holds 1
+  0420 11=000742  0430 39=00 11=000742  visa holds 0
+  0421 11=000742  0430 39=00 11=000742  visa holds 0
+  visa saw 0200 11=000001
+  visa saw 0420 11=000002 90=02000000011106121530</code></pre></figure>
+<p>The switch queued an 0420 naming STAN 000001; unit c12's SAF sender delivered it, and visa released the amount.</p>
+<p><strong>(1) Taken, not read.</strong> <code>inp</code> removes the record, so the repeat finds nothing and queues nothing. <code>inp</code> is atomic (unit s12), so two sessions can't both take the same record.</p>
+<p><strong>(2) The link's own sequence.</strong> The upstream reversal is a new message on the visa link (unit c12). Its STAN comes from <code>stan.visa</code>, in the space <code>PrepareOutbound</code> numbers from.</p>
+<p>The record is written before the request leaves, because the purchase that most needs it is the one whose answer never came (16.4). It holds a PAN, so it is kept like the transaction database: no track data, PIN block or chip data, and a lease a little longer than the time a source may take to reverse.</p>
+<section id="prose-b29" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-2" data-practice-card="s-practice-prose-2" data-practice-key="jpos-server/unit-16/practice-prose-2" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-2" data-practices-part="open">Reverse upstream what the switch sent, when a terminal reverses</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>The record is taken, not read, so a repeated reversal goes upstream once, and it is kept without track data, PIN block or chip data.</li>
+<li>A source's reversal names the source's original, which the destination never saw; the switch finds the upstream message through its own record and reverses that, so field 90 names what the destination received.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Reverse upstream what the switch sent, when a terminal reverses">
+<h2 id="practice-prose-2-b0">Problem statement</h2>
+<p>Another acquirer joins the switch. Its terminals don't send field 90: a reversal names the purchase it undoes by the terminal's ID (41) and the retrieval reference number (37) the terminal gave the purchase. Each terminal makes its RRN from the date and its own counter. The fuel-card network behind the switch keeps an approved amount on the cardholder's account until a reversal it can match to the purchase arrives, and it ignores a reversal it can't match.</p>
+<p><code>src/main/java/com/example/practice/ReversalRecords.java</code> holds the participants of the forwarding group and of the reversal group, and the builder of the upstream reversal. Finish <code>remember</code> and <code>reverse</code>, marked <code>TODO</code>, so that a terminal's reversal frees the amount the network holds for the purchase. Something else sends what you put on the <code>reversal.&lt;link&gt;</code> queues. About ten lines in total.</p>
+<p>The tests deploy a real TransactionManager, a real <code>QueryHost</code> and two real QMUXes with Q2, in the test's own JVM, with a network behind each QMUX that approves everything. They look at what the switch queued for each network and at what it keeps between a purchase and its reversal.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.rc.CMF;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceFactory;
+import org.jpos.space.SpaceUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+
+import java.io.Serializable;
+
+/**
+ * The switch's memory of what it sent upstream. This acquirer's terminals name the purchase they
+ * reverse by their terminal ID (41) and the retrieval reference number (37) they gave it; their
+ * reversals carry no field 90.
+ */
+public class ReversalRecords {
+    /** What was sent upstream, and on which link. */
+    record Sent(String link, ISOMsg message) implements Serializable { }
+
+    static final Space&lt;String, Object&gt; SPACE = SpaceFactory.getSpace(&quot;tspace:switch-records&quot;);
+    static final long LEASE = 60_000L;
+    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };
+
+    /** Before QueryHost: the copy the network receives, numbered by the switch, remembered. */
+    public static class Outbound implements TransactionParticipant, Configurable {
+        private String acquirerId;
+
+        @Override
+        public void setConfiguration(Configuration cfg) {
+            acquirerId = cfg.get(&quot;acquirer-id&quot;, &quot;12345678901&quot;);
+        }
+
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());
+            String link = ctx.getString(ContextConstants.DESTINATION.toString());
+            try {
+                ISOMsg out = (ISOMsg) request.clone();
+                out.set(11, nextStan(link));
+                out.set(32, acquirerId);
+                remember(request, link, out);
+                ctx.put(&quot;OUTBOUND&quot;, out);
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** After QueryHost: the network's approval, as the terminal's reply. */
+    public static class Reply implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg answer = ctx.get(&quot;HOST_RESPONSE&quot;);
+            if (answer == null || !&quot;00&quot;.equals(answer.getString(39)))
+                return FAIL;
+            try {
+                ctx.put(ContextConstants.RESPONSE.toString(),
+                    replyTo(ctx.get(ContextConstants.REQUEST.toString()), answer.getString(38)));
+                return PREPARED | NO_JOIN;
+            } catch (ISOException e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** A terminal's reversal (0420, 0421): reverses upstream what was sent, and answers 00. */
+    public static class ReverseFromTerminal implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());
+            try {
+                reverse(reversal.getString(41), reversal.getString(37));
+                ctx.put(ContextConstants.RESPONSE.toString(), replyTo(reversal, null));
+            } catch (Exception e) {
+                ctx.log(e);
+            }
+            return PREPARED | NO_JOIN;
+        }
+    }
+
+    /** Before the request leaves: keeps what {@code link}'s network will see, for a later reversal. */
+    static void remember(ISOMsg request, String link, ISOMsg outbound) throws ISOException {
+        ISOMsg kept = (ISOMsg) outbound.clone();
+        kept.unset(35, 45, 52, 55);
+        SPACE.put(&quot;sent.&quot; + request.getString(41) + &quot;.&quot; + request.getString(37), new Sent(link, kept), LEASE);
+    }
+
+    /**
+     * Queues, on &quot;reversal.&quot; + link, one reversal of what was sent upstream for the terminal's
+     * purchase. Returns false when there is nothing to reverse.
+     */
+    static boolean reverse(String terminal, String rrn) throws ISOException {
+        Sent sent = (Sent) SPACE.inp(&quot;sent.&quot; + terminal + &quot;.&quot; + rrn);
+        if (sent == null)
+            return false;
+        SPACE.out(&quot;reversal.&quot; + sent.link(), reversalOf(sent.message(), nextStan(sent.link())));
+        return true;
+    }
+
+    /** A reversal of {@code original}: a new message on the link, pointing back through field 90. */
+    static ISOMsg reversalOf(ISOMsg original, String stan) throws ISOException {
+        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 49);
+        rev.setMTI(&quot;0420&quot;);
+        rev.set(11, stan);
+        rev.set(90, original.getMTI()
+            + ISOUtil.zeropad(original.getString(11), 6)
+            + ISOUtil.zeropad(original.getString(7), 10)
+            + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : &quot;&quot;, 11)
+            + ISOUtil.zeropad(&quot;&quot;, 11));
+        return rev;
+    }
+
+    /** One STAN sequence per upstream link. */
+    static String nextStan(String link) {
+        long n = SpaceUtil.nextLong(SPACE, &quot;stan.&quot; + link);
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+
+    /** An answer to the terminal's own request: approval code {@code authCode}, or none. */
+    static ISOMsg replyTo(ISOMsg request, String authCode) throws ISOException {
+        ISOMsg r = (ISOMsg) request.clone(ECHOED);
+        r.setResponseMTI();
+        r.set(39, &quot;00&quot;);
+        if (authCode != null)
+            r.set(38, authCode);
+        return r;
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-2-b6">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.rc.CMF;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceFactory;
+import org.jpos.space.SpaceUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+
+import java.io.Serializable;
+
+/**
+ * The switch's memory of what it sent upstream. This acquirer's terminals name the purchase they
+ * reverse by their terminal ID (41) and the retrieval reference number (37) they gave it; their
+ * reversals carry no field 90.
+ */
+public class ReversalRecords {
+    /** What was sent upstream, and on which link. */
+    record Sent(String link, ISOMsg message) implements Serializable { }
+
+    static final Space&lt;String, Object&gt; SPACE = SpaceFactory.getSpace(&quot;tspace:switch-records&quot;);
+    static final long LEASE = 60_000L;
+    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };
+
+    /** Before QueryHost: the copy the network receives, numbered by the switch, remembered. */
+    public static class Outbound implements TransactionParticipant, Configurable {
+        private String acquirerId;
+
+        @Override
+        public void setConfiguration(Configuration cfg) {
+            acquirerId = cfg.get(&quot;acquirer-id&quot;, &quot;12345678901&quot;);
+        }
+
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());
+            String link = ctx.getString(ContextConstants.DESTINATION.toString());
+            try {
+                ISOMsg out = (ISOMsg) request.clone();
+                out.set(11, nextStan(link));
+                out.set(32, acquirerId);
+                remember(request, link, out);
+                ctx.put(&quot;OUTBOUND&quot;, out);
+                return PREPARED | NO_JOIN;
+            } catch (Exception e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** After QueryHost: the network's approval, as the terminal's reply. */
+    public static class Reply implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg answer = ctx.get(&quot;HOST_RESPONSE&quot;);
+            if (answer == null || !&quot;00&quot;.equals(answer.getString(39)))
+                return FAIL;
+            try {
+                ctx.put(ContextConstants.RESPONSE.toString(),
+                    replyTo(ctx.get(ContextConstants.REQUEST.toString()), answer.getString(38)));
+                return PREPARED | NO_JOIN;
+            } catch (ISOException e) {
+                return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+            }
+        }
+    }
+
+    /** A terminal's reversal (0420, 0421): reverses upstream what was sent, and answers 00. */
+    public static class ReverseFromTerminal implements TransactionParticipant {
+        @Override
+        public int prepare(long id, Serializable context) {
+            Context ctx = (Context) context;
+            ISOMsg reversal = ctx.get(ContextConstants.REQUEST.toString());
+            try {
+                reverse(reversal.getString(41), reversal.getString(37));
+                ctx.put(ContextConstants.RESPONSE.toString(), replyTo(reversal, null));
+            } catch (Exception e) {
+                ctx.log(e);
+            }
+            return PREPARED | NO_JOIN;
+        }
+    }
+
+    /** Before the request leaves: keeps what {@code link}'s network will see, for a later reversal. */
+    static void remember(ISOMsg request, String link, ISOMsg outbound) throws ISOException {
+        // TODO: Keep, in SPACE and for LEASE milliseconds, what reverse() will need to find this
+        //       purchase when the terminal reverses it. What is kept stays on disk in production.
+        throw new IllegalStateException(&quot;TODO: remember&quot;);
+    }
+
+    /**
+     * Queues, on &quot;reversal.&quot; + link, one reversal of what was sent upstream for the terminal's
+     * purchase. Returns false when there is nothing to reverse.
+     */
+    static boolean reverse(String terminal, String rrn) throws ISOException {
+        // TODO: The network must be able to find the purchase, and undoes it once however often
+        //       the terminal repeats its reversal. reversalOf and nextStan build the message.
+        throw new IllegalStateException(&quot;TODO: reverse&quot;);
+    }
+
+    /** A reversal of {@code original}: a new message on the link, pointing back through field 90. */
+    static ISOMsg reversalOf(ISOMsg original, String stan) throws ISOException {
+        ISOMsg rev = (ISOMsg) original.clone(2, 3, 4, 7, 32, 37, 41, 49);
+        rev.setMTI(&quot;0420&quot;);
+        rev.set(11, stan);
+        rev.set(90, original.getMTI()
+            + ISOUtil.zeropad(original.getString(11), 6)
+            + ISOUtil.zeropad(original.getString(7), 10)
+            + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : &quot;&quot;, 11)
+            + ISOUtil.zeropad(&quot;&quot;, 11));
+        return rev;
+    }
+
+    /** One STAN sequence per upstream link. */
+    static String nextStan(String link) {
+        long n = SpaceUtil.nextLong(SPACE, &quot;stan.&quot; + link);
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+
+    /** An answer to the terminal's own request: approval code {@code authCode}, or none. */
+    static ISOMsg replyTo(ISOMsg request, String authCode) throws ISOException {
+        ISOMsg r = (ISOMsg) request.clone(ECHOED);
+        r.setResponseMTI();
+        r.set(39, &quot;00&quot;);
+        if (authCode != null)
+            r.set(38, authCode);
+        return r;
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-server/unit-16/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-16/practice-2/src/main/java/com/example/practice/ReversalRecords.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-server/unit-16/practice-prose-2" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-server/unit-16/practice-prose-2">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-server/unit-16/practice-prose-2" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-server/unit-16/practice-prose-2">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.ReversalRecordsTest#anApprovedPurchaseAndItsReversal" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a terminal's reversal of an approved purchase is answered 00 and leaves one reversal for the network</li>
+<li data-practice-case="com.example.practice.ReversalRecordsTest#aReversalOfNothingIsAnsweredAndSendsNothing" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a reversal of a purchase the switch never forwarded is answered 00 and sends nothing upstream</li>
+<li data-practice-case="com.example.practice.ReversalRecordsTest#theNetworkCanFindWhatItIsAskedToUndo" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the upstream reversal names, in field 90, the STAN and time of the message the network received, not the terminal's</li>
+<li data-practice-case="com.example.practice.ReversalRecordsTest#repeatsAreSentUpstreamOnce" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a reversal and its repeat leave one reversal for the network, because the record is taken, not read</li>
+<li data-practice-case="com.example.practice.ReversalRecordsTest#whatTheSwitchKeepsHoldsNoCardSecrets" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the record kept for a reversal holds no track data, PIN block or chip data, although the network was sent them</li>
+<li data-practice-case="com.example.practice.ReversalRecordsTest#twoTerminalsGiveTheSameRrn" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>two terminals that give their purchases the same RRN each get their own purchase reversed</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b30">A Destination's Code Becomes a Cause, and Each Source's Table Answers It</h2>
+<p>The terminals and visa speak ISO 8583:1987, with two-character response codes. <code>onus</code> was built on jPOS's Common Message Format (CMF) and answers with four-digit action codes: <code>0000</code> approved, <code>1016</code> not sufficient funds. Here the destination's field 39 goes into the reply as it is, and each answer is packed with the terminal link's packager, as the server's channel would pack it:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">passed through:
+  visa answers 00    terminal gets 0210 39=00 11=000751
+  visa answers 51    terminal gets 0210 39=51 11=000752
+  onus answers 0000  terminal gets nothing (Field length 4 too long. Max: 2)
+  onus answers 1016  terminal gets nothing (Field length 4 too long. Max: 2)</code></pre></figure>
+<p><code>iso87ascii.xml</code> gives field 39 two characters, so no answer from onus can be sent, approvals included. <code>SendResponse</code> catches the exception and notes it in the Context, which the log shows only when <code>debug-context</code> is true. The terminal waits out its timeout and reverses.</p>
+<p>Translating code to code needs a table for every pair: with three sources and four destinations, twelve. The switch instead turns each destination's code into a cause, one of the <code>CMF</code> names that unit s10's participants report, and one table per source turns the cause into that source's code. That is seven tables, and a new destination adds one:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.participant;
+
+import com.example.jpos.server.switching.SentRecords;
+import org.jpos.core.Configurable;
+import org.jpos.core.Configuration;
+import org.jpos.core.ConfigurationException;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.rc.CMF;
+import org.jpos.rc.IRC;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.TransactionParticipant;
+import org.jpos.util.Caller;
+import org.jpos.util.NameRegistrar;
+
+import java.io.Serializable;
+
+import static org.jpos.transaction.ContextConstants.DESTINATION;
+import static org.jpos.transaction.ContextConstants.REQUEST;
+import static org.jpos.transaction.ContextConstants.RESPONSE;
+
+/** After QueryHost: an approval becomes the source's reply, a decline a cause, the rest a reversal. */
+public class MapResponse implements TransactionParticipant, Configurable {
+    public static final String HOST_RESPONSE = &quot;HOST_RESPONSE&quot;;
+    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49 };
+
+    private Configuration cfg;
+    private SentRecords records;
+
+    @Override
+    public void setConfiguration(Configuration cfg) throws ConfigurationException {
+        this.cfg = cfg;
+        try {
+            records = NameRegistrar.get(cfg.get(&quot;records&quot;, &quot;switch-records&quot;));
+        } catch (NameRegistrar.NotFoundException e) {
+            throw new ConfigurationException(&quot;no switch records registered&quot;, e);
+        }
+    }
+
+    @Override
+    public int prepare(long id, Serializable context) {
+        Context ctx = (Context) context;
+        ISOMsg request = ctx.get(REQUEST.toString());
+        String destination = ctx.getString(DESTINATION.toString());
+        ISOMsg answer = ctx.get(HOST_RESPONSE);
+        try {
+            if (answer == null)                                    // QueryHost reported HOST_UNREACHABLE
+                return unknownOutcome(request);
+            String code = answer.getString(39);
+            IRC cause = causeOf(destination, code);                // (1) the destination's code, as a cause
+            if (cause == null) {
+                ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s answered %s&quot;, destination, code);
+                return unknownOutcome(request);                    // (3) 16.4
+            }
+            if (!cause.success())                                  // (2) AnswerFailures answers it
+                return ctx.getResult().fail(cause, Caller.info(), &quot;%s answered %s&quot;, destination, code).FAIL();
+            ISOMsg reply = (ISOMsg) request.clone(ECHOED);         // the source's own request
+            reply.setResponseMTI();
+            reply.set(39, &quot;00&quot;);
+            if (answer.hasField(38))
+                reply.set(38, answer.getString(38));               // the approval code, and nothing else
+            ctx.put(RESPONSE.toString(), reply);
+            return PREPARED | NO_JOIN;
+        } catch (ISOException e) {
+            return ctx.getResult().fail(CMF.SYSTEM_ERROR, Caller.info(), &quot;%s&quot;, e).FAIL();
+        }
+    }
+
+    /** The destination may have approved: reverse what it was sent, and fail the transaction. */
+    private int unknownOutcome(ISOMsg request) throws ISOException {
+        records.reverse(request.getString(41), request.getString(11), request.getString(7));
+        return FAIL;
+    }
+
+    /** {@code &lt;property name=&quot;visa.51&quot; value=&quot;NOT_SUFFICIENT_FUNDS&quot;/&gt;}; null when the table has no line. */
+    IRC causeOf(String destination, String code) {
+        String name = cfg.get(destination + &quot;.&quot; + code, null);
+        return name == null ? null : CMF.valueOf(name);
+    }
+}</code></pre></figure>
+<p><strong>(1) The destination's table</strong> is in the descriptor, one property per code: <code>visa.51</code> and <code>onus.1016</code> both name <code>NOT_SUFFICIENT_FUNDS</code>.</p>
+<p><strong>(2) A decline is reported as a cause</strong>, and <code>AnswerFailures</code>, the source's table, answers it from the source's request. An approval is built here, from the same request. It copies only field 38 from the answer, so the destination's STAN, its field 32 and its private fields stay out of the reply.</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">translated:
+  visa answers 00    terminal gets 0210 39=00 11=000751
+  visa answers 51    terminal gets 0210 39=51 11=000752
+  onus answers 0000  terminal gets 0210 39=00 11=000753
+  onus answers 1016  terminal gets 0210 39=51 11=000754</code></pre></figure>
+<p>The <code>CMF</code> names are jPOS's internal result codes. CMF is also a complete message format, based on ISO 8583:2003, and the 2.1.7 jar has its packager as <code>jar:packager/cmf.xml</code>. A purchase packed and unpacked with it:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">4:  ISOAmount, currency 978, amount 42.50 (getString: 9782000000004250)
+11: 000000000731
+39: 1016</code></pre></figure>
+<p>Field 4 unpacks as an <code>ISOAmount</code> that carries its currency and its number of decimals, field 11 has twelve digits and field 39 four. By CMF's convention the MTI starts with the version digit 2 (<code>2200</code>); the packager doesn't check it. This switch keeps 1987 messages inside and uses CMF only for its codes. A switch that adopts the whole format translates every message into it at the edge, and saves tables the same way.</p>
+<h2 id="prose-b42">A Code the Table Lacks Is Like Silence, and the Switch Reverses What It Sent</h2>
+<p>Visa answers a purchase with <code>08</code>, and visa's table has no line for it. With an unlisted code taken for a decline:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">  visa answers 08  terminal gets 0210 39=05 11=000761  nothing queued  visa holds 1</code></pre></figure>
+<p><code>08</code>, &quot;honour with identification&quot;, is an approval (unit s10). The terminal shows a decline, the cardholder pays another way, and visa holds 42.50 for a purchase nobody completed. A code the switch can't read tells it no more than silence does: the destination may have approved. <code>MapResponse</code> handles both alike: <code>unknownOutcome</code> reverses what was sent and fails, and <code>AnswerFailures</code> answers <code>96</code> (<code>SYSTEM_ERROR</code>) or <code>91</code> (<code>HOST_UNREACHABLE</code>).</p>
+<p>The same <code>08</code>, then a purchase visa approves but whose answer is lost, then the terminal's reversal of that purchase:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">unlisted taken for an unknown outcome:
+  visa answers 08  terminal gets 0210 39=96 11=000761  queued 0420 90=02000000011106121530  visa holds 0
+  visa is silent   terminal gets 0210 39=91 11=000762  queued 0420 90=02000000031106121530  visa holds 0
+  terminal's 0420  terminal gets 0430 39=00 11=000763  nothing queued  visa holds 0</code></pre></figure>
+<p>Both reversals name the switch's STANs: 000001, then 000003, because the first reversal took 000002 from the same sequence. The terminal's 0420 found no record, since <code>unknownOutcome</code> had taken it, so visa gets one reversal per purchase.</p>
+<p><code>MapResponse</code> is a plain participant, so it runs only while the transaction is prepared. With <code>QueryHost</code>'s <code>continuations</code> at their default, <code>true</code>, a timeout comes back prepared (unit s5). With <code>false</code>, <code>QueryHost</code> votes <code>FAIL</code> on a timeout and <code>MapResponse</code> never runs. The terminal still gets its <code>91</code>, so it has nothing to reverse, and the silent purchase above stays held with nobody reversing it. When the link is down, <code>QueryHost</code> fails before sending, and the record waits out its lease. A reversal from the terminal then queues one for a purchase visa never saw, which visa acknowledges.</p>
+<p>A late answer lands on <code>visa-unhandled</code> (unit c12). Its reversal is already queued, so it needs only a log line, without card data.</p>
+<section id="prose-b51" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-3" data-practice-card="s-practice-prose-3" data-practice-key="jpos-server/unit-16/practice-prose-3" data-practice-kind="quiz" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-3" data-practices-part="open">Check yourself: Building a Switch</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A destination's response code is translated into a cause and each source's table turns the cause into its own code; passed through, a code from another format can make the reply unsendable.</li>
+<li>A plain participant after QueryHost runs only while the transaction is prepared; with continuations off, a timeout aborts first and nothing reverses the silent purchase.</li>
+<li>The record is written before the request leaves, because the purchase that most needs a reversal is the one whose answer never came.</li>
+<li>A code the destination's table lacks leaves the outcome unknown, like silence, so the switch reverses what it sent, once, and answers 96 or 91 rather than a decline.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-3" data-section="practice-prose-3" data-kind="practice" data-label="Check yourself: Building a Switch">
+<h2 id="practice-prose-3-b0">Check yourself</h2>
+<p>Questions on what this page has just taught. Choose one answer for each.</p>
+</section>
+<section data-practice-quiz="jpos-server/unit-16/practice-prose-3" data-practice-mock="100" data-mock-form="exam" data-form-kind="quiz" data-corpus="iso-8583-jpos-tutorial" aria-label="Questions" tabindex="-1">
+<div data-practice-part="head"><h2>Answer these</h2></div>
+<p data-practice-part="grader">Written for this site from this page.</p>
+<div data-form-part="start" hidden></div>
+<div data-form-part="bar" hidden><p data-form-part="timer-line" hidden>Time remaining <span data-form-part="timer" role="timer" aria-label="Time remaining"></span></p>
+<p data-form-part="progress"><progress data-form-part="meter" max="4" value="0"></progress> <span data-form-part="count"></span></p></div>
+<div data-form-part="navigator" role="navigation" aria-label="Question navigator" hidden></div>
+<div data-form-part="result" role="region" aria-label="Result" hidden>
+<p data-form-part="overall"></p>
+<p data-form-part="scaled" hidden></p>
+<table data-form-part="domains"><thead><tr><th scope="col">Domain</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<table data-form-part="difficulties" hidden><thead><tr><th scope="col">Difficulty</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<div data-form-part="review-filter" role="group" aria-label="Review"></div>
+</div>
+<p data-form-part="announce" role="status" aria-live="polite" data-form-quiet></p>
+<ol data-practice-part="questions">
+<li data-practice-question="q-cmf-code-to-terminal" data-mock-domain=""><fieldset><legend tabindex="-1">The switch adds a destination built on jPOS's Common Message Format. Your terminals speak ISO 8583:1987 over a link packed with iso87ascii.xml. The new destination declines a purchase with action code 1001, and the switch copies that field 39 into the terminal's reply unchanged. What does the terminal receive?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-cmf-code-to-terminal" value="a"> A reply with 39=1001, since the switch sends field 39 exactly as the destination wrote it</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-cmf-code-to-terminal" value="b"> No reply, since the four-digit code does not fit the link's two-character field 39</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-cmf-code-to-terminal" value="c"> A reply with 39=54, since the link's packager converts the CMF code into its 1987 equivalent</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-cmf-code-to-terminal" value="d"> No reply, since the link's packager refuses any code that ISO 8583:1987 does not define</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-partial-approval" data-mock-domain=""><fieldset><legend tabindex="-1">Your switch's table for one network lists the codes 00, 05, 51 and 54. That network answers a purchase with 10, which its specification calls a partial approval. What should the switch do?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-partial-approval" value="a"> Answer the terminal 05 and send nothing upstream, since a code missing from the table counts as a refusal</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-partial-approval" value="b"> Answer the terminal 10 and send nothing upstream, since the code already fits the terminal's two-character field</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-partial-approval" value="c"> Answer the terminal 96 and reverse the purchase upstream, since the network may have taken the money</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-partial-approval" value="d"> Answer the terminal 96 and send the purchase again, since the network may not have understood it</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-continuations-off" data-mock-domain=""><fieldset><legend tabindex="-1">In the switch's forwarding group, QueryHost has continuations set to false. The participant after it, which reverses what was sent when no answer came, is a plain participant. A network approves a purchase, and its answer is lost on the way back. What happens?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-continuations-off" value="a"> The terminal gets 91 and no reversal is queued, since the reversing participant is not asked once QueryHost has failed the transaction</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-continuations-off" value="b"> The terminal gets 91 and a reversal is queued, since the reversing participant still runs after QueryHost on the abort path</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-continuations-off" value="c"> The terminal gets nothing and a reversal is queued, since without continuations QueryHost holds the session until the terminal gives up</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-continuations-off" value="d"> The terminal gets nothing and no reversal is queued, since without continuations QueryHost waits for the answer forever</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-record-after-answer" data-mock-domain=""><fieldset><legend tabindex="-1">To keep fewer records, a developer moves the line that records what was sent upstream from before QueryHost to after it, guarded so that it runs only when HOST_RESPONSE is in the Context. Which purchases can the switch then no longer reverse upstream?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-record-after-answer" value="a"> Purchases the destination declined, since the guard skips a response that carries a decline code</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-record-after-answer" value="b"> Purchases that timed out upstream, since the guard skips a response that arrives after the timeout</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-record-after-answer" value="c"> Purchases the destination approved, since the guard skips a response once the reply has gone out</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-server/unit-16/practice-prose-3:q-record-after-answer" value="d"> Purchases sent on a second link, since the guard skips a response that came through another QMUX</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+</ol>
+<p data-form-part="pager" hidden><button type="button" data-form-part="previous">Previous</button> <button type="button" data-form-part="next">Next</button></p>
+<script type="application/json" data-form-part="key">{"q-cmf-code-to-terminal":{"keys":["b"],"says":{"a":"the reply is packed for the terminal's link, where field 39 holds two characters, so it never leaves","b":"packing fails with 'Field length 4 too long. Max: 2'; SendResponse only notes it in the Context, and the terminal times out","c":"a packager packs values and knows nothing of response codes; translating them is the switch's job","d":"the packager checks the length of field 39, not its value; a two-character code it doesn't know would pack"}},"q-partial-approval":{"keys":["c"],"says":{"a":"an unlisted code may be an approval; taken for a refusal, the network keeps the cardholder's money for a purchase the terminal declined","b":"the switch never passes a destination's code through; the source's own table decides what the terminal hears","c":"a code the table lacks leaves the outcome unknown, like silence, so the switch reverses what it sent and answers 96","d":"the page reverses what was sent when the outcome is unknown; it never sends the request again"}},"q-continuations-off":{"keys":["a"],"says":{"a":"without continuations QueryHost votes FAIL on a timeout; after an abort only abort participants are asked, so the plain participant never runs","b":"the page says MapResponse never runs once QueryHost has voted FAIL: after an abort a plain participant is not asked","c":"QueryHost waits its own timeout, then fails the transaction with HOST_UNREACHABLE, which the answering participant turns into 91","d":"the timeout still applies without continuations; the transaction aborts and the terminal gets 91"}},"q-record-after-answer":{"keys":["b"],"says":{"a":"a decline is a response, so the guarded line still records it","b":"after a timeout HOST_RESPONSE is absent, so the moved line records nothing, and neither the switch nor the terminal's reversal finds the purchase","c":"the guard runs before any reply is sent, and only a reversal takes the record","d":"every QMUX's answer lands under HOST_RESPONSE the same way; the records are the switch's, keyed by the source's request"}}}</script>
+<script type="application/json" data-form-part="plan">{"pass_mark":100,"domains":[],"layout":"exam"}</script>
+<script type="application/json" data-form-part="words">{"choose":"Choose a sitting","begin":"Begin","beginOnly":"Begin the exam","questions":"{n} questions","scenarios":"{n} scenarios","allQuestions":"All {n} questions","minutes":"{n} minutes","noTime":"No time limit","count":"{answered} of {asked} answered","position":"Question {n} of {total}","flag":"Flag for review","flagged":"Flagged for review","previous":"Previous","next":"Next","answered":"answered","open":"not answered","flaggedState":"flagged","navQuestion":"Question {n}, {state}","allDomains":"All domains","domainFilter":"Domain","flaggedOnly":"Flagged only","choose_n":"Choose {n}.","confirm":"Not answered yet: {list}. Choose Finish quiz again to finish anyway.","timeUp":"Time is up. The exam was submitted.","minutesLeft":"{n} minutes remaining.","oneMinuteLeft":"One minute remaining.","reached":"You answered all {asked} questions correctly.","short":"You answered {right} of {asked} questions correctly.","scaled":"Scaled score: {score} on a scale of {min} to {max}, where the scale's pass is {line}. This is a linear illustration of your score and not the exam's own scaling.","scoreWords":"{right} of {asked} ({percent}%)","right":"Right.","wrong":"Not this one.","unanswered":"Not answered.","key":"Correct answer","yours":"Your choice","reviewAll":"All questions","reviewMissed":"Missed only","reviewFlagged":"Flagged only","reviewNone":"No question matches this filter.","unitSingular":"question","domain":"Domain","difficulty":"Difficulty","summary":"Your answers","summaryItem":"Question {n}: {verdict}","summaryJump":"Go to question {n}","positionCount":"Question {n} of {total}. {answered} answered."}</script>
+<link rel="stylesheet" href="../../.studyforge/assets/mock-form.css">
+<script src="../../.studyforge/assets/mock-form-core.js" defer></script>
+<script src="../../.studyforge/assets/mock-form-panels.js" defer></script>
+<script src="../../.studyforge/assets/mock-form.js" defer></script>
+<p data-practice-part="offline">Checking answers needs this page's script, and it is not running here. Read the questions and choose your answers; nothing here can check them.</p>
+<p data-form-part="controls" hidden><button type="button" data-form-part="submit">Finish quiz</button> <button type="button" data-form-part="again" hidden>Try again</button></p>
+<p data-form-part="missing" role="alert" hidden></p>
+</section>
+<h2 id="prose-b52">Summary</h2>
+<ul class="items"><li><strong>The destination gets a copy numbered by the switch, and every answer starts from the source's request.</strong> Renumber <code>REQUEST</code> itself, and the approval and the <code>91</code> alike carry the switch's STAN, match nothing at the terminal, and turn into reversals.</li><li><strong>A source's reversal finds what the destination saw only through the switch's record.</strong> Forwarded as it came, it names a STAN the destination never saw, is answered <code>00</code>, and undoes nothing. The record is written before sending, taken once, and kept without card secrets.</li><li><strong>A destination's code becomes a cause, and each source's table answers it.</strong> Passed through, a code from another format can make the reply unsendable. One table per endpoint is n + m tables instead of n × m.</li><li><strong>A code the table lacks is like silence</strong>: the outcome is unknown, so the switch reverses what the destination was sent, once, and answers <code>96</code> or <code>91</code>. Taken for a decline, an unknown approval holds the cardholder's money.</li></ul>
+<h2 id="prose-b54">Reference</h2>
+<p><strong>The switch's Context entries:</strong></p>
+<div class="scroll"><table><thead><tr><th>Key</th><th>Put by</th><th>Holds</th></tr></thead><tbody><tr><td><code>REQUEST</code>, <code>SOURCE</code></td><td><code>IncomingListener</code></td><td>the source's request, never changed, and where to answer</td></tr><tr><td><code>DESTINATION</code></td><td><code>SelectDestination</code></td><td>the destination's name, which <code>QueryHost</code> turns into <code>mux.&lt;name&gt;</code></td></tr><tr><td><code>OUTBOUND</code></td><td><code>PrepareOutbound</code></td><td>the copy the destination receives (<code>QueryHost</code>'s <code>request</code>)</td></tr><tr><td><code>HOST_RESPONSE</code></td><td><code>QueryHost</code></td><td>the destination's answer (<code>QueryHost</code>'s <code>response</code>); absent after a timeout</td></tr><tr><td><code>RESPONSE</code></td><td><code>MapResponse</code>, <code>ReverseUpstream</code>, <code>AnswerFailures</code></td><td>the source's reply, built from <code>REQUEST</code></td></tr></tbody></table></div>
+<p><strong><code>cmf.xml</code> and <code>iso87ascii.xml</code> in 2.1.7:</strong></p>
+<div class="scroll"><table><thead><tr><th>Field</th><th><code>iso87ascii.xml</code></th><th><code>cmf.xml</code></th></tr></thead><tbody><tr><td>MTI</td><td><code>0200</code>, <code>0210</code></td><td>version 2: <code>2200</code>, <code>2210</code></td></tr><tr><td>4</td><td>12 digits, minor units</td><td><code>ISOAmount</code>: currency, decimals, amount</td></tr><tr><td>11</td><td>6 digits</td><td>12 digits</td></tr><tr><td>39</td><td>2 characters, response code</td><td>4 digits, action code (<code>org.jpos.rc.CMF</code>)</td></tr><tr><td>original data elements</td><td>field 90, 42 digits</td><td>field 56, up to 41 digits</td></tr></tbody></table></div>
+<p><strong>The other classes of the examples.</strong> The scripted destination, on the far side of a QMUX's queues:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.server.testing;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceListener;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/** A destination on the far side of a QMUX's queues. It holds what it approved until it is reversed. */
+public final class DestinationHost implements SpaceListener&lt;String, Object&gt; {
+    public static final String LOST = &quot;lost:&quot;;       // prefix: answer with this code, but the answer is lost
+    private static final Set&lt;String&gt; APPROVALS = Set.of(&quot;00&quot;, &quot;08&quot;, &quot;0000&quot;);
+
+    private final LocalSpace&lt;String, Object&gt; sp;
+    private final String in;
+    private final Deque&lt;String&gt; script = new ArrayDeque&lt;&gt;();
+    private final List&lt;ISOMsg&gt; received = new ArrayList&lt;&gt;();
+    private final Map&lt;String, String&gt; holds = new LinkedHashMap&lt;&gt;();   // original's MTI+STAN+7 -&gt; amount
+
+    public DestinationHost(LocalSpace&lt;String, Object&gt; sp, String name) {
+        this.sp = sp;
+        this.in = name + &quot;-receive&quot;;
+        sp.addListener(name + &quot;-send&quot;, this);
+    }
+
+    /** The response codes for the next requests, in order; afterwards, &quot;00&quot;. */
+    public synchronized DestinationHost then(String... codes) {
+        script.addAll(List.of(codes));
+        return this;
+    }
+
+    public synchronized List&lt;ISOMsg&gt; received() { return new ArrayList&lt;&gt;(received); }
+
+    public synchronized int holds() { return holds.size(); }
+
+    @Override
+    public void notify(String queue, Object value) {
+        ISOMsg request = (ISOMsg) sp.inp(queue);
+        if (request == null) return;
+        try {
+            String code;
+            synchronized (this) {
+                received.add(request);
+                if (request.getMTI().startsWith(&quot;04&quot;)) {
+                    String o = request.getString(90);
+                    holds.remove(o == null ? &quot;&quot; : o.substring(0, 20));     // undo the original, if known
+                    code = &quot;00&quot;;                                           // acknowledged either way
+                } else {
+                    code = script.isEmpty() ? &quot;00&quot; : script.poll();
+                    String plain = code.startsWith(LOST) ? code.substring(LOST.length()) : code;
+                    if (APPROVALS.contains(plain))
+                        holds.put(request.getMTI() + ISOUtil.zeropad(request.getString(11), 6)
+                            + ISOUtil.zeropad(request.getString(7), 10), request.getString(4));
+                }
+            }
+            if (code.startsWith(LOST)) return;
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, code);
+            if (APPROVALS.contains(code)) response.set(38, &quot;A1B2C3&quot;);
+            response.set(63, &quot;DESTINATION-PRIVATE&quot;);
+            sp.out(in, response);
+        } catch (ISOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}</code></pre></figure>
+<p>Unit c12's <code>StanSequencer</code> and <code>ReversalBuilder</code>, unchanged:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.reversal;
+
+import org.jpos.iso.ISOUtil;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceUtil;
+
+/** One STAN sequence per outbound link: 000001 .. 999999, then 000001 again. */
+public final class StanSequencer {
+    private final Space&lt;String, Object&gt; space;
+    private final String key;
+
+    public StanSequencer(Space&lt;String, Object&gt; space, String link) {
+        this.space = space;
+        this.key = &quot;stan.&quot; + link;
+    }
+
+    public String next() {
+        long n = SpaceUtil.nextLong(space, key);
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+}</code></pre></figure>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.reversal;
+
+import org.jpos.iso.ISODate;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+
+import java.time.Clock;
+import java.util.Date;
+import java.util.TimeZone;
+
+public final class ReversalBuilder {
+    /** What the host needs to find the original and undo it. Never 35, 52 or 55. */
+    private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };
+
+    private final StanSequencer stans;
+    private final String reversalMti;                   // &quot;0420&quot;, or &quot;0400&quot; if the network says so
+    private final Clock clock;
+
+    public ReversalBuilder(StanSequencer stans, String reversalMti, Clock clock) {
+        this.stans = stans;
+        this.reversalMti = reversalMti;
+        this.clock = clock;
+    }
+
+    public ISOMsg reversalOf(ISOMsg original) throws ISOException {
+        ISOMsg rev = (ISOMsg) original.clone(COPIED);
+        rev.setMTI(reversalMti);
+        rev.set(7, ISODate.getDateTime(Date.from(clock.instant()), TimeZone.getTimeZone(&quot;UTC&quot;)));
+        rev.set(11, stans.next());                      // a new message on the link
+        rev.set(90, field90(original));                 // ...that points at the original
+        return rev;
+    }
+
+    static String field90(ISOMsg o) throws ISOException {
+        return o.getMTI()
+                + ISOUtil.zeropad(o.getString(11), 6)
+                + ISOUtil.zeropad(o.getString(7), 10)
+                + ISOUtil.zeropad(o.hasField(32) ? o.getString(32) : &quot;&quot;, 11)
+                + ISOUtil.zeropad(o.hasField(33) ? o.getString(33) : &quot;&quot;, 11);
+    }
+}</code></pre></figure>
+<h2 id="prose-b64">Challenges</h2>
+<ol class="items"><li>A destination answers <code>10</code>, a partial approval, with a smaller amount in field 4. Which cause does <code>MapResponse</code> report, what does the terminal get, and which fields must the reply take from the answer?</li><li>Two instances of the switch share the visa link. Where do the STAN sequence and the records live, and what happens to a terminal's reversal that reaches the instance that didn't send the purchase?</li><li>Visa sends the switch an 0420 of its own, for a purchase it gave up on. How does the switch find the terminal's purchase, and does the terminal need to hear about it?</li><li>A source may reverse for up to 24 hours, and the switch forwards 200 purchases a second. How large does the record space grow, and what does a shorter lease cost?</li></ol>
+<h2 id="prose-b66">Design Note: Why Causes, and Not Code-to-Code Tables?</h2>
+<p>A table from each destination's codes straight to each source's codes says exactly what the two parties mean, and nothing is lost on the way. It also has to be written, tested and kept up to date for every pair, and the business rules in between have to be written against every dialect.</p>
+<p>Translating through causes puts one vocabulary in the middle. jPOS's stock participants already report in it (unit s10), the switch's own rules read it, and each endpoint needs one table. The price is that a cause is coarser than either code. Two destination codes that mean slightly different things may map to one cause, and the source then hears one code for both. A network's code with no cause to map to has to wait for one, and until then it is an unknown outcome (16.4). The loss matters less than it sounds, because a terminal acts on few codes. The real work is in the codes that fit no cause, and a switch should log them where someone will read them.</p>
+</section>
+<div data-workspace role="dialog" aria-modal="true" aria-labelledby="practice-workspace-title" hidden>
+<div data-workspace-part="bar"><button type="button" data-workspace-act="statement" aria-expanded="true" hidden><span data-workspace-word="hide">Hide description</span><span data-workspace-word="show" hidden>Show description</span></button><h2 id="practice-workspace-title" data-workspace-part="title"></h2>
+<p data-workspace-part="acts"><button type="button" data-workspace-act="previous">Previous</button><button type="button" data-workspace-act="next">Next</button><button type="button" data-workspace-act="close">Close</button></p></div>
+<div data-workspace-part="divider" role="separator" aria-orientation="vertical" aria-label="Resize the description" tabindex="0" hidden></div>
+<button type="button" data-workspace-act="reopen" aria-expanded="false" hidden><span data-workspace-part="edge-mark" aria-hidden="true">&#8250;</span><span data-workspace-part="edge-word">Show description</span></button>
+</div>
+</main>
+<section data-section="read-mark" data-unit="jpos-server/unit-16" hidden>
+<p><button type="button" aria-pressed="false"><span data-state="unread">Mark as read</span><span data-state="read" hidden>Read. Press again to unmark</span></button></p>
+<p>Your marks are kept in this browser on this machine, not in the repository. Clearing its site data clears them.</p>
+</section>
+<nav aria-label="Between units"><a rel="prev" href="jpos-server.unit-15-the-transactionmanager-in-depth.unit.html"><span>Previous</span> The TransactionManager in Depth</a><a rel="up" href="../../index.html"><span>Contents</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a><a rel="next" href="jpos-server.unit-17-dirpoll-and-operations.unit.html"><span>Up next</span> DirPoll and Operations</a></nav>
+<script src="../../.studyforge/assets/page.js" defer></script>
+</body>
+</html>

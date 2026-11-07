@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "ordinal": 3,
+  "title": "Check yourself: channels and links",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-slow-answer-in-a-pool",
+        "stem": "A service keeps four connected ASCIIChannels in a pool, each with a read timeout of 2 seconds. A borrower sends a purchase and calls receive(); the host's answer leaves the host 2.6 seconds later. What becomes of that answer?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It is read by the next borrower of that channel, since a read timeout leaves the answer waiting in the connection",
+            "correct": false,
+            "says": "in 2.1.7 the channel closes its socket when the read timeout fires, so there is no open connection to wait in"
+          },
+          {
+            "id": "b",
+            "text": "It is lost before that borrower sees it, since the channel closed its connection when the read timeout fired",
+            "correct": true,
+            "says": "receive() threw SocketTimeoutException after 2 s and the channel closed the socket first; the answer goes into a connection that no longer exists"
+          },
+          {
+            "id": "c",
+            "text": "It is read by that same borrower after all, since receive() keeps waiting past the read timeout until a frame arrives",
+            "correct": false,
+            "says": "receive() never returns null and never waits past the read timeout: after 2 s of silence it throws"
+          },
+          {
+            "id": "d",
+            "text": "It is lost before that borrower sees it, since the host learns of the read timeout and never sends it",
+            "correct": false,
+            "says": "a read timeout is local to the client; the host knows nothing of it and sends the answer, which is lost on the client's side"
+          }
+        ],
+        "origin": {
+          "path": "src/c3.md",
+          "section": "3.3.1 Spot the Problem: A Pool of Channels"
+        }
+      },
+      {
+        "id": "q-timeout-attribute",
+        "stem": "A ChannelAdaptor declares its channel as <channel class=\"org.jpos.iso.channel.ASCIIChannel\" timeout=\"120000\" packager=\"org.jpos.iso.packager.GenericPackager\">, followed by host, port and packager-config. After how much silence does this channel give up on a read?",
+        "options": [
+          {
+            "id": "a",
+            "text": "After 120000 ms, since the channel reads its settings from the attributes of <channel>",
+            "correct": false,
+            "says": "the channel reads only the <property> children of <channel>; the attribute is ignored"
+          },
+          {
+            "id": "b",
+            "text": "After 120000 ms, since Q2 copies each attribute of <channel> into the channel's configuration",
+            "correct": false,
+            "says": "Q2 builds the channel's configuration from the <property> children only"
+          },
+          {
+            "id": "c",
+            "text": "After 300000 ms, since the channel never reads that value and keeps its own default",
+            "correct": true,
+            "says": "the timeout attribute is ignored and BaseChannel's default read timeout of 300000 ms applies"
+          },
+          {
+            "id": "d",
+            "text": "After 300000 ms, since the channel reads that value but never goes below its own default",
+            "correct": false,
+            "says": "the channel does not read the attribute at all; a timeout property of 120000 would be used as given"
+          }
+        ],
+        "origin": {
+          "path": "src/c3.md",
+          "section": "3.5.1 Two Settings That Do Nothing"
+        }
+      },
+      {
+        "id": "q-tls-machine-on-the-path",
+        "stem": "A client link uses org.jpos.iso.GenericSSLSocketFactory. Its <channel> has the properties host, port, packager-config, socketFactory, keystore, storepassword and keypassword, with both passwords taken from the environment. A machine on the network path answers the connection with a self-signed certificate for CN=gateway.example.net. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The connection is set up and messages flow, since the factory accepts the certificate without examining it",
+            "correct": true,
+            "says": "serverauth defaults to false, and then the 2.1.7 factory accepts any certificate: the link is encrypted but not authenticated"
+          },
+          {
+            "id": "b",
+            "text": "The handshake fails, since the factory accepts only a certificate it has been told to trust",
+            "correct": false,
+            "says": "the factory checks trust only when serverauth is true; then the keystore holds the trusted certificates"
+          },
+          {
+            "id": "c",
+            "text": "The connection is set up and then closed, since the factory compares the CN with the host name after the handshake",
+            "correct": false,
+            "says": "the CN is compared only when serverauth is true; without it nothing is checked"
+          },
+          {
+            "id": "d",
+            "text": "The handshake fails, since Java accepts no self-signed certificate that has not been installed",
+            "correct": false,
+            "says": "the factory installs its own trust manager, which with serverauth false accepts any certificate; the JDK's trust store is not consulted"
+          }
+        ],
+        "origin": {
+          "path": "src/c3.md",
+          "section": "3.6 A TLS Channel Checks the Host Only When You Tell It To"
+        }
+      },
+      {
+        "id": "q-binary-keep-alive",
+        "stem": "Your client reaches a host through a ChannelAdaptor whose channel is a NACChannel with the host, port and packager-config properties. The host's team starts sending zero-length frames on links that have been idle for 30 seconds. What do you see after the first idle half-minute?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing changes, since the channel skips an empty frame and reads on to the next message",
+            "correct": false,
+            "says": "only ASCIIChannel answers and skips a zero-length frame by itself; a binary channel needs expect-keep-alive"
+          },
+          {
+            "id": "b",
+            "text": "Nothing changes, since the adaptor answers the empty frames before the channel reads them",
+            "correct": false,
+            "says": "the adaptor's Receiver only calls the channel's receive(); it never sees a frame before the channel does"
+          },
+          {
+            "id": "c",
+            "text": "The link drops and waits for an operator, since the adaptor does not reconnect after a frame it cannot read",
+            "correct": false,
+            "says": "the adaptor reconnects after any receive failure, waiting reconnect-delay first"
+          },
+          {
+            "id": "d",
+            "text": "The link drops and reconnects, since the channel rejects an empty frame as a bad one",
+            "correct": true,
+            "says": "without expect-keep-alive, receive() throws ISOException 'receive length 0 seems strange' and the adaptor disconnects, then reconnects"
+          }
+        ],
+        "origin": {
+          "path": "src/c3.md",
+          "section": "3.2 One Read Is Not One Message"
+        }
+      }
+    ]
+  }
+}

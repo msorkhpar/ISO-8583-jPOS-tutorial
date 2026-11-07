@@ -1,0 +1,155 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 18,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Catch chip data that disagrees with the message",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "A terminal vendor shipped a firmware update, and since then the network has rejected a few of your acquirer's chip authorizations as \"chip data inconsistent with the message\". Before you forward a request, you want to know the same thing the network will check: does the chip data in DE 55 agree with the ISO fields it mirrors?"
+    },
+    {
+      "type": "para",
+      "text": "`ChipConsistency.mismatches` in `src/main/java/com/example/practice/ChipConsistency.java` already walks the four mirrored tags and collects the ones that disagree. Finish the two methods marked `TODO`:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`chipDigits`: the digits a chip value holds, or `null` when DE 55 doesn't have the tag;",
+        "`agrees`: whether those digits match the field the tag mirrors, or `null` when the message doesn't carry that field."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The terminals sell in several currencies, refund and dispense cash as well as sell, and DE 55 holds whatever the card and the terminal put there. About ten lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        TLVList tlv = new TLVList();\n        tlv.unpack(de55);\n        byte[] value = tlv.getValue(tag);\n        return value == null ? null : ISOUtil.hexString(value);\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        switch (tag) {\n            case 0x9F02: return m.hasField(4) ? chip.equals(m.getString(4)) : null;\n            case 0x5F2A: return m.hasField(49) ? chip.equals(\"0\" + m.getString(49)) : null;\n            case 0x9C:   return m.hasField(3) ? chip.equals(m.getString(3).substring(0, 2)) : null;\n            case 0x9A:   return m.hasField(13) ? chip.substring(2).equals(m.getString(13)) : null;\n            default:     throw new IllegalArgumentException(\"not a mirrored tag\");\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        // TODO: find the tag in DE 55 and return the digits its value holds.\n        throw new IllegalStateException(\"TODO: chipDigits\");\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        // TODO: say whether the chip digits match the field this tag mirrors, or null when the\n        //       message doesn't carry that field.\n        throw new IllegalStateException(\"TODO: agrees\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "ad1629e7de589362043f4d48ebbbc9999efd5b61ef1bb6f64e1f1fa695985f0d",
+  "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        // TODO: find the tag in DE 55 and return the digits its value holds.\n        throw new IllegalStateException(\"TODO: chipDigits\");\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        // TODO: say whether the chip digits match the field this tag mirrors, or null when the\n        //       message doesn't carry that field.\n        throw new IllegalStateException(\"TODO: agrees\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-18/practice-1/src/main/java/com/example/practice/ChipConsistency.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-18/practice-1/src/test/java/com/example/practice/ChipConsistencyTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-18/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-18/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ChipConsistencyTest#agreeingChipDataAndMissingChipDataReportNothing",
+        "kind": "main",
+        "says": "a message whose chip data agrees with its fields, and a message without chip data, report nothing"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#everyDisagreementIsReportedInOrder",
+        "kind": "main",
+        "says": "every mirrored tag that disagrees with its field is reported, in the order 9F02, 5F2A, 9C, 9A"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#numericChipValuesAreReadAsTheirDigits",
+        "kind": "edge",
+        "says": "numeric chip values are BCD and are compared as the digits their bytes hold, never as binary numbers"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#theChipCurrencyHasOneMoreDigitThanField49",
+        "kind": "edge",
+        "says": "5F2A holds four digits, a zero and then the three digits of DE 49"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#theChipDateIsComparedByMonthAndDay",
+        "kind": "edge",
+        "says": "9A is YYMMDD, so its month and day, not its year and month, are compared with DE 13"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#bytesInsideAnotherValueAreNotATag",
+        "kind": "edge",
+        "says": "tags are found by parsing the TLV list, so bytes inside another value that look like a tag are ignored"
+      },
+      {
+        "id": "com.example.practice.ChipConsistencyTest#aValueWithoutItsFieldIsNotADisagreement",
+        "kind": "edge",
+        "says": "a chip value whose ISO field is absent is not compared, so it is not reported"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-18/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/18.md",
+      "section": "18.2. Chip Values Are BCD Digits, and Each Must Agree With the ISO Field It Mirrors"
+    },
+    "concepts": [
+      "9F02, 5F2A, 9C and 9A mirror DE 4, DE 49, DE 3 and DE 13; their values are BCD digits, found by parsing, compared only when both sides are present."
+    ]
+  }
+}

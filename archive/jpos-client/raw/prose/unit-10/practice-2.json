@@ -1,0 +1,136 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 10,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Wait for the reversal, not for a guessed time",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An integration test checks that a reversal leaves the store-and-forward queue and reaches the host. The SAF sends on its own thread, so the test asks the host's log for it: `awaitReceived(\"0420\", 5000)`. The test host puts every message it receives, in order, on a Space queue, and `HostLog` in `src/main/java/com/example/practice/HostLog.java` reads that queue."
+    },
+    {
+      "type": "para",
+      "text": "The test fails about once in twenty runs on the build server and never on a laptop. Nobody has found the cause, so the team re-runs the build until it passes. `awaitReceived` sleeps half a second and then looks once."
+    },
+    {
+      "type": "para",
+      "text": "Rewrite `awaitReceived`, the one method marked `TODO`. It returns the next message of the asked type, as soon as the host has it, and gives up when the time the test allowed is over. Network messages such as echoes can reach the host at any moment and are not what the test is waiting for. When the message doesn't come, the failure must say so in the test that waited, not as a `NullPointerException` three lines later. About ten lines."
+    },
+    {
+      "type": "para",
+      "text": "Some of the tests deliver a message only after your code has started looking for it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        long deadline = System.currentTimeMillis() + timeoutMillis;\n        for (long left = timeoutMillis; left > 0; left = deadline - System.currentTimeMillis()) {\n            ISOMsg m = (ISOMsg) sp.in(queue, left);\n            if (m == null)\n                break;\n            if (mti.equals(m.getMTI()))\n                return m;\n        }\n        throw new TimeoutException(\"the host received no \" + mti + \" within \" + timeoutMillis + \" ms\");\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        // TODO: today this is Thread.sleep(500) and one look at the log, and it fails on the build\n        //       server now and then. Wait for exactly what the test needs, for as long as it allows\n        //       and no longer, and fail loudly when it doesn't come.\n        throw new IllegalStateException(\"TODO: awaitReceived\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "d1ac231336b27bf1f1fec56ccc8ec409df2f2b201b275f88a532cd07314be28f",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        // TODO: today this is Thread.sleep(500) and one look at the log, and it fails on the build\n        //       server now and then. Wait for exactly what the test needs, for as long as it allows\n        //       and no longer, and fail loudly when it doesn't come.\n        throw new IllegalStateException(\"TODO: awaitReceived\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-10/practice-2/src/main/java/com/example/practice/HostLog.java",
+    "test_path": "practice/jpos-client/prose/unit-10/practice-2/src/test/java/com/example/practice/HostLogTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-10/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.HostLogTest#aMessageAlreadyReceivedIsReturned",
+        "kind": "main",
+        "says": "a message of the asked type that the host has already received is returned"
+      },
+      {
+        "id": "com.example.practice.HostLogTest#aMessageThatArrivesAfterTheWaitBeganIsReturned",
+        "kind": "edge",
+        "says": "a message that arrives only after the wait has begun is still returned, because the wait lasts until it comes or the time is up"
+      },
+      {
+        "id": "com.example.practice.HostLogTest#anEchoThatArrivesFirstIsNotTheReversal",
+        "kind": "edge",
+        "says": "a message of another type that arrives first, such as an echo, is not taken for the one the test waits for"
+      },
+      {
+        "id": "com.example.practice.HostLogTest#nothingArrivingFailsWithATimeout",
+        "kind": "edge",
+        "says": "when the message never comes the wait fails with a TimeoutException instead of returning null"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-10/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c10.md",
+      "section": "10.4 A Test Waits for a Condition, Never for a Time"
+    },
+    "concepts": [
+      "q2.ready means deployed, not connected; a test waits for the condition it needs with a blocking read bounded by a deadline, never for a guessed time, and fails loudly when the deadline passes."
+    ]
+  }
+}

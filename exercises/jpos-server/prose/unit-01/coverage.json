@@ -1,42 +1,185 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/s1.md",
   "kind": "code",
+  "quiz": "server-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/s1.md": "sha256:7f5d1859ff48730a6ddf385fd5ce105f3d835e9f49c5cf645a45ae1b88ac51e9"
+    "src/s1.md": "sha256:e5117fdb3dd35b30f63954cdbf1bd855e8f511f72352344a1537b79c1cfa1255"
   },
   "plan": {
     "plan_api": 2,
-    "tier": "introductory",
-    "count": 0,
+    "tier": "core",
+    "count": 3,
     "aspects": [
       {
-        "id": "jpos-parts-as-beans",
-        "says": "The server's jPOS parts, such as the transaction manager and the multiplexer, are declared as Spring beans so the rest of the application can be given them.",
+        "id": "abort-still-answers",
+        "says": "A participant decides in prepare and puts a response built from the request into the Context before it votes, so SendResponse answers on the abort path too.",
         "basis": [
-          "example:src/s1.md:1",
-          "section:1. Spring Configuration"
+          "section:1.4 A Participant Decides in `prepare`, and an Abort Still Answers",
+          "example:src/s1.md:13",
+          "example:src/s1.md:14",
+          "example:src/s1.md:16"
         ],
-        "exercise": null,
-        "reason": "bean wiring with no behaviour of its own; what the transaction manager does is practised on the transaction-processing page"
+        "exercise": "refuse-with-an-answer",
+        "reason": null
       },
       {
-        "id": "q2-hosts-spring",
-        "says": "Q2 is the jPOS runtime, and a descriptor in its deploy directory makes it start a SpringContainer that loads the application's Spring context.",
+        "id": "commit-does-durable-work",
+        "says": "Work that must happen only if the whole transaction succeeds belongs in commit, which never comes when a later participant aborts.",
         "basis": [
+          "section:1.4 A Participant Decides in `prepare`, and an Abort Still Answers"
+        ],
+        "exercise": "approval-journal",
+        "reason": null
+      },
+      {
+        "id": "context-dump-unmasked",
+        "says": "The TransactionManager's Context dump is turned into text before the masking listener sees it, so debug-context must be false.",
+        "basis": [
+          "section:1.6 The Transaction Trace Dumps What the Log Filter Can't Mask",
+          "example:src/s1.md:19",
+          "example:src/s1.md:20"
+        ],
+        "exercise": "server-quiz",
+        "reason": null
+      },
+      {
+        "id": "failures-are-logged",
+        "says": "A component that fails in init or start leaves Q2 running with one warning and its file unrenamed; only a file Q2 can't read, build or configure becomes .BAD.",
+        "basis": [
+          "section:1.3 A Component That Fails to Deploy Leaves Q2 Running, and Says So Once",
+          "section:1.3.1 Spot the Problem: The Package Rename",
+          "example:src/s1.md:11",
+          "example:src/s1.md:12"
+        ],
+        "exercise": "server-quiz",
+        "reason": null
+      },
+      {
+        "id": "four-components",
+        "says": "A request crosses QServer's channel, IncomingListener, a TransactionManager session and SendResponse; the channel's receive and send and the TransactionManager's event show which step dropped it.",
+        "basis": [
+          "section:1.1 A Request Crosses Four Components, and the Log Shows Each Step",
           "example:src/s1.md:2",
           "example:src/s1.md:3",
-          "section:2. Q2 Configuration"
+          "example:src/s1.md:7"
+        ],
+        "exercise": "server-quiz",
+        "reason": null
+      },
+      {
+        "id": "one-instance-every-session",
+        "says": "The TransactionManager creates each participant once and every session calls it, so per-transaction state lives in the Context, never in fields.",
+        "basis": [
+          "section:1.5 One Participant Serves Every Session",
+          "section:1.5.1 Spot the Problem: The Terminal Check",
+          "example:src/s1.md:17",
+          "example:src/s1.md:18"
+        ],
+        "exercise": "approval-journal",
+        "reason": null
+      },
+      {
+        "id": "packaging-and-environments",
+        "says": "The server runs from a jar whose main class is Q2, with lib/, deploy/, cfg/ and log/ beside it, and -E selects the environment file.",
+        "basis": [
+          "section:1.8 Reference",
+          "example:src/s1.md:21",
+          "example:src/s1.md:22",
+          "example:src/s1.md:23"
         ],
         "exercise": null,
-        "reason": "configuration wiring that only shows itself in a running Q2 with a deploy directory; a graded run has no server to deploy into"
+        "reason": "packaging and the Q2 command line show themselves only in a deployed process, which a graded run doesn't start"
+      },
+      {
+        "id": "queue-is-the-link",
+        "says": "The listener and the TransactionManager share only a queue name and a Space; a mismatch deploys cleanly and every request expires unread after the listener's timeout.",
+        "basis": [
+          "section:1.2 The Listener and the TransactionManager Meet Only in a Queue",
+          "example:src/s1.md:8"
+        ],
+        "exercise": "server-quiz",
+        "reason": null
       }
     ],
-    "exercises": [],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "refuse-with-an-answer",
+        "aspects": [
+          "abort-still-answers"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "approval-journal",
+        "aspects": [
+          "commit-does-durable-work",
+          "one-instance-every-session"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "server-quiz",
+        "aspects": [
+          "context-dump-unmasked",
+          "failures-are-logged",
+          "four-components",
+          "queue-is-the-link"
+        ]
+      }
+    ],
     "nothing_checkable": null
   },
-  "shipped": [],
-  "accounts": [],
+  "shipped": [
+    "exercises/jpos-server/prose/unit-01/practice-1",
+    "exercises/jpos-server/prose/unit-01/practice-2",
+    "exercises/jpos-server/prose/unit-01/practice-3"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-1",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.4 A Participant Decides in `prepare`, and an Abort Still Answers"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-2",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.5.1 Spot the Problem: The Terminal Check"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-3:q-space-mismatch",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.2 The Listener and the TransactionManager Meet Only in a Queue"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-3:q-missing-jar",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.3.1 Spot the Problem: The Package Rename"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-3:q-context-dump",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.6 The Transaction Trace Dumps What the Log Filter Can't Mask"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-server/prose/unit-01/practice-3:q-busy-sessions",
+      "origin": {
+        "path": "src/s1.md",
+        "section": "1.2 The Listener and the TransactionManager Meet Only in a Queue"
+      }
+    }
+  ],
   "shortfalls": []
 }

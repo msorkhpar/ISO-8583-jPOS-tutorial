@@ -1,19 +1,14 @@
-Every data element has a format, written the way the data element tables write it: `n6`,
-`an12`, `n..19`, `ans..999`. The format is all a receiver has to find where one field ends and
-the next begins, so a value written in any other shape breaks the rest of the message.
+The certification team tests a new receiver by feeding it raw ISO 8583 messages that a small tool
+writes by hand, without a packager. The receiver is strict: anything it can't read exactly as its
+specification says, it rejects, and a message the tool gets wrong costs a test slot. The tool's
+`FieldWriter` in `src/main/java/com/example/practice/FieldWriter.java` writes one field at a time,
+from the format as the specification gives it (`n4`, `ans15`, `n..28`, `ans...300`) and the value.
 
-Write `FieldEncoder.encode(String format, String value)`, which returns the field as it goes on
-the wire.
+It already parses the format. Finish the three methods marked `TODO`:
 
-- The format is a type followed by either a length (`n6`: fixed, exactly 6 characters) or `..`
-  and a maximum (`n..19`: variable, up to 19).
-- The types are `n` (digits), `a` (letters), `an` (letters and digits), `ans` (any printable
-  ASCII character, space included) and `z` (track 2: digits and `=`). A value with a character
-  outside its type is refused.
-- A fixed field is padded to its full length. Numeric fields are padded with zeros on the left;
-  every other type with spaces on the right.
-- A variable field is not padded. It is preceded by its length, written with as many digits as
-  the maximum has: two for `n..19` or `ans..40`, three for `ans..999`.
-- A value longer than the field allows is refused.
+- `allowed`: whether the receiver would accept the value's characters for that type;
+- `fixed`: a fixed field, as the receiver will take it;
+- `variable`: a variable field, as the receiver will take it.
 
-Refuse with an `IllegalArgumentException`. You may assume the format itself is well formed.
+When the receiver would reject a value, `write` must refuse it with an `IllegalArgumentException`
+rather than send something else. About 15 lines in total.

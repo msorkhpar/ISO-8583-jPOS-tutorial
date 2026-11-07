@@ -1,0 +1,188 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 1,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: what the client is really doing",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-kept-mux-after-edit",
+        "stem": "A settlement service calls QMUX.getMUX(\"acq-mux\") once at startup and reuses that reference for every echo. At 14:10, with Q2 running, an operator edits 20_acq_mux.xml to rename its unhandled queue. What do the service's echoes do after 14:10?",
+        "options": [
+          {
+            "id": "a",
+            "text": "They come back null after the timeout, since the old object has stopped reading the replies",
+            "correct": true,
+            "says": "Q2 stops the old multiplexer and deploys a new one; the old object's request goes out, but the new one reads the answer and finds nobody waiting"
+          },
+          {
+            "id": "b",
+            "text": "They come back null after the timeout, since Q2 changed the running object to match the edited file",
+            "correct": false,
+            "says": "Q2 does not change a running object; it undeploys it and deploys a new one, and the new one gets the reply"
+          },
+          {
+            "id": "c",
+            "text": "They keep getting answers, since Q2 changed the running object to match the edited file",
+            "correct": false,
+            "says": "a changed file makes Q2 undeploy the running component and deploy a new object"
+          },
+          {
+            "id": "d",
+            "text": "They keep getting answers, since the old object has not stopped reading the replies",
+            "correct": false,
+            "says": "Q2 stops the old object and deploys a new one under the same name; a stopped multiplexer no longer reads the receive queue"
+          }
+        ],
+        "origin": {
+          "path": "src/c1.md",
+          "section": "1.5.1 Spot the Problem: The Cached Multiplexer"
+        }
+      },
+      {
+        "id": "q-console-before-masking",
+        "stem": "A team's 00_logger.xml has a console SimpleLogListener first, then a ProtectedLogListener with protect set to 2 35, then a RotateLogListener writing log/q2.log. The client sends a purchase for card 5555555555554444. Where does that full card number show up?",
+        "options": [
+          {
+            "id": "a",
+            "text": "On the console only, since masking applies to the listeners placed after the masking one",
+            "correct": true,
+            "says": "the logger hands the event to its listeners in order, and ProtectedLogListener changes it only for those after it"
+          },
+          {
+            "id": "b",
+            "text": "On the console only, since masking leaves console listeners alone and covers file listeners",
+            "correct": false,
+            "says": "masking does not depend on the kind of listener, only on its place: listeners after ProtectedLogListener get the masked event"
+          },
+          {
+            "id": "c",
+            "text": "In the file only, since masking applies to the listeners placed before the masking one",
+            "correct": false,
+            "says": "it is the other way round: listeners after ProtectedLogListener receive the masked event, the ones before it the clear one"
+          },
+          {
+            "id": "d",
+            "text": "In the file only, since masking covers console listeners and leaves file listeners alone",
+            "correct": false,
+            "says": "masking does not depend on the kind of listener; the console listener before it gets the clear event"
+          }
+        ],
+        "origin": {
+          "path": "src/c1.md",
+          "section": "1.6 The Log Is Masked Before Anything Writes It"
+        }
+      },
+      {
+        "id": "q-dead-link-without-ready",
+        "stem": "A client's QMUX descriptor was written without a <ready> element. The host is down for an hour of maintenance, so every connection attempt is refused. Before each echo the client checks isConnected(), and it sends the echo with a 20-second timeout. What does each echo attempt look like during that hour?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It fails at once, since isConnected() reports true but request() checks the link before queueing",
+            "correct": false,
+            "says": "request never checks the link; the message waits in the send queue for up to its timeout"
+          },
+          {
+            "id": "b",
+            "text": "It fails at once, since isConnected() reports true but the refused link clears the echo from its queue",
+            "correct": false,
+            "says": "nothing removes the echo before its timeout; it waits in the send queue for up to that long"
+          },
+          {
+            "id": "c",
+            "text": "It fails after 20 seconds, since isConnected() reports true and the echo sits unsent in its queue",
+            "correct": true,
+            "says": "without <ready> a dead link reports connected, so every echo is queued, never sent, and request returns null after the full timeout"
+          },
+          {
+            "id": "d",
+            "text": "It fails after 20 seconds, since isConnected() reports true and the adaptor takes the echo from its queue to retry",
+            "correct": false,
+            "says": "the echo stays in the send queue until a connection attempt succeeds, and none does; the request's own timeout ends the wait"
+          }
+        ],
+        "origin": {
+          "path": "src/c1.md",
+          "section": "1.3 `isConnected()` Knows About the Link Only Through `<ready>`"
+        }
+      },
+      {
+        "id": "q-spring-constructor-lookup",
+        "stem": "A Spring Boot application starts an embedded Q2 from a SmartLifecycle bean. A new @Service looks the multiplexer up with QMUX.getMUX(\"acq-mux\") in its constructor. What happens when the application starts?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Startup fails with NotFoundException, since Spring runs the constructor before it starts the bean that runs Q2",
+            "correct": true,
+            "says": "Spring creates every ordinary bean before it starts lifecycle beans, so the constructor runs before Q2 has deployed anything"
+          },
+          {
+            "id": "b",
+            "text": "Startup fails with NotFoundException, since Q2 deploys the multiplexer only when the first web request arrives",
+            "correct": false,
+            "says": "Q2 deploys every descriptor when it starts, not on demand; the problem is that Q2 has not started yet"
+          },
+          {
+            "id": "c",
+            "text": "Startup succeeds and the service works, since Spring runs the constructor after it starts the bean that runs Q2",
+            "correct": false,
+            "says": "Spring starts lifecycle beans last, after the services exist"
+          },
+          {
+            "id": "d",
+            "text": "Startup succeeds and the service works, since getMUX waits in Q2's registry until that name appears",
+            "correct": false,
+            "says": "getMUX is a registry lookup; it throws NotFoundException at once when the name is missing"
+          }
+        ],
+        "origin": {
+          "path": "src/c1.md",
+          "section": "1.5.2 Spring Starts and Stops Q2, and Nothing Else"
+        }
+      }
+    ],
+    "concepts": [
+      "ProtectedLogListener masks the log event only for the listeners listed after it, and never changes the message that is sent.",
+      "A Spring application only starts and stops Q2 as a lifecycle bean; services look the multiplexer up when called, because a constructor lookup runs before Q2 has started."
+    ]
+  }
+}

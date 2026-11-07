@@ -1,0 +1,170 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 13,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Build the regional switch's layout from its field table",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "Your client is getting a second link, to a regional debit switch. Its layout differs from the acquirer's in four rows, and `SwitchPackager` in `src/main/java/com/example/practice/SwitchPackager.java` already has every other row. Finish the four methods marked `TODO`. Each returns the field packager for one row, and the comment above each method quotes the row from the switch's specification:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Field",
+        "Specification"
+      ],
+      "rows": [
+        [
+          "2 PAN",
+          "n..19, LLVAR. Length and digits in BCD."
+        ],
+        [
+          "41 terminal ID",
+          "ans 8. Text on this switch is EBCDIC."
+        ],
+        [
+          "52 PIN block",
+          "b 64"
+        ],
+        [
+          "70 network management code",
+          "n 3, BCD, left-justified (the filler nibble last)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The specification comes with sample messages. Here is its sign-on, for code `001`:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "08 00 80 20 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 09 14 00 10"
+    },
+    {
+      "type": "para",
+      "text": "When you're done, the switch's samples read as the specification documents them and pack back to the same bytes. About four lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BINARY;\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_LLNUM;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.IFE_CHAR;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        return new IFB_LLNUM(19, \"PRIMARY ACCOUNT NUMBER\", false);\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        return new IFE_CHAR(8, \"CARD ACCEPTOR TERMINAL ID\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        return new IFB_BINARY(8, \"PIN DATA\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        return new IFB_NUMERIC(3, \"NETWORK MANAGEMENT INFORMATION CODE\", false);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pan\");\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: terminalId\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pinBlock\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: networkCode\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 2,
+    "tables": 1,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "677899cdf33d26fb9efe5a9012beba9a30f9e79e4fae8584b90060df86a6ee0f",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pan\");\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: terminalId\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pinBlock\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: networkCode\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-13/practice-1/src/main/java/com/example/practice/SwitchPackager.java",
+    "test_path": "practice/jpos-client/prose/unit-13/practice-1/src/test/java/com/example/practice/SwitchPackagerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-13/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-13/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.SwitchPackagerTest#aMessageReadsBackWhatWasPacked",
+        "kind": "main",
+        "says": "a message with every field of the layout unpacks to the values it was packed with"
+      },
+      {
+        "id": "com.example.practice.SwitchPackagerTest#theSampleSignOnCarriesCode001",
+        "kind": "edge",
+        "says": "the switch's sample sign-on reads as code 001 and packs back to the same bytes, because the filler nibble of field 70 is on the side the switch puts it"
+      },
+      {
+        "id": "com.example.practice.SwitchPackagerTest#theSamplePurchaseCarriesItsCardNumber",
+        "kind": "edge",
+        "says": "the switch's sample purchase reads its PAN and amount, because the PAN's BCD length counts digits"
+      },
+      {
+        "id": "com.example.practice.SwitchPackagerTest#theSampleEchoCarriesItsTerminal",
+        "kind": "edge",
+        "says": "the switch's sample echo reads its terminal ID, because the switch's text is EBCDIC"
+      },
+      {
+        "id": "com.example.practice.SwitchPackagerTest#theSamplePinBlockIsEightBytes",
+        "kind": "edge",
+        "says": "the switch's sample PIN block reads as eight bytes, because a b 64 field travels as raw bytes and not as hex text"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-13/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c13.md",
+      "section": "13.5 A Round Trip Can't Check the Layout; the Specification's Sample Can"
+    },
+    "concepts": [
+      "An odd number of BCD digits carries a filler nibble whose side is the pad setting, and both ends must agree; only odd-length values are affected.",
+      "A field packager's class name gives the encoding, the length rule and the type of a specification row; B means BCD, and IFA_BINARY sends bytes as hex text.",
+      "A BCD length prefix counts digits for numeric fields and bytes for text and binary fields, and the wrong choice can misread a message without an error.",
+      "A round trip can't find a wrong layout because the packager reads back what it wrote; a test from the specification's sample bytes, checking values, bytes used and bytes repacked, can."
+    ]
+  }
+}

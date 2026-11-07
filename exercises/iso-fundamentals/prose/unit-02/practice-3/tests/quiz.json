@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 2,
+  "ordinal": 3,
+  "title": "Check yourself: reading the MTI and the bitmaps",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-answer-to-a-repeat",
+        "stem": "Your issuer host answered a reversal advice, 0420, an hour ago. The same advice now arrives again as 0421, because the acquirer never saw your answer. Which MTI does your new answer carry?",
+        "options": [
+          {
+            "id": "a",
+            "text": "0430, since the answer is the same whether the advice came once or twice",
+            "correct": true,
+            "says": "2.1: a repeat is answered like the original, so 0420 and its repeat 0421 both get 0430"
+          },
+          {
+            "id": "b",
+            "text": "0431, since the answer has to show which copy of the advice it is for",
+            "correct": false,
+            "says": "2.1: both the 0420 and its repeat get 0430; the answer carries no repeat mark"
+          },
+          {
+            "id": "c",
+            "text": "0421 sent back, since a repeated advice is acknowledged by returning it",
+            "correct": false,
+            "says": "2.1: an advice gets an advice response, third digit 3; nothing is acknowledged by echoing the request MTI"
+          },
+          {
+            "id": "d",
+            "text": "0410 sent back, since a reversal is answered as a request response",
+            "correct": false,
+            "says": "2.1: the third digit of 0421 is 2, an advice, so its response is 3 (0430), not 1"
+          }
+        ],
+        "origin": {
+          "path": "src/2.md",
+          "section": "2.1. The MTI's Four Digits Say Edition, Class, Function and Origin"
+        }
+      },
+      {
+        "id": "q-shifted-but-unpacked",
+        "stem": "A new sender's messages unpack without errors on your host, yet the amounts in your log don't match the merchants' receipts. For the same fields, each bit in its bitmaps sits one place to the right of where your own messages put it. What does that say about the fields your host read from those messages?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Every field holds another field's data, since each was cut out with a length meant for a different field",
+            "correct": true,
+            "says": "2.2.1: the receiver trusts the bitmap and reads each field with the definition of the next one; the shifted purchase with field 37 unpacked with field 4 = 111111111111"
+          },
+          {
+            "id": "b",
+            "text": "Every field holds its own data, since a message that unpacks cleanly had a bitmap the host accepted",
+            "correct": false,
+            "says": "2.2.1: the shifted purchase with field 37 unpacked without an error and with wrong values, so a clean unpack can hide a shifted bitmap"
+          },
+          {
+            "id": "c",
+            "text": "Only the amount is misread, since the fixed-length fields after the moved bits realign the rest",
+            "correct": false,
+            "says": "2.2.1: nothing realigns; field 3 took the length prefix and the card number's first digits, and every later field started in the wrong place"
+          },
+          {
+            "id": "d",
+            "text": "Only the amount is misread, since the receiver checks the other fields against their definitions",
+            "correct": false,
+            "says": "2.2.1: the digits of a card number were accepted as a processing code and as an amount"
+          }
+        ],
+        "origin": {
+          "path": "src/2.md",
+          "section": "2.2.1. Spot the Problem: The Vendor's First Purchase"
+        }
+      },
+      {
+        "id": "q-mac-and-field-90",
+        "stem": "Two messages go out on an iso87ascii link. The first carries fields 3, 4, 11, 41 and a MAC in field 64, and its bitmap part is 16 characters; the second carries fields 3, 4, 11, 41 and field 90, and its bitmap part is 32. Why the difference?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Field 64 is announced by the primary bitmap's last bit, and field 90 needs a second bitmap",
+            "correct": true,
+            "says": "2.2 and 2.3: bit 64 is the primary bitmap's last bit, so field 64 fits one bitmap; field 90 needs the secondary one, announced by bit 1"
+          },
+          {
+            "id": "b",
+            "text": "Field 64 is left out of the bitmap as a MAC, and field 90 needs a second bitmap",
+            "correct": false,
+            "says": "2.2 and 2.3: field 64 is a field like any other, announced by bit 64 of the primary bitmap"
+          },
+          {
+            "id": "c",
+            "text": "Field 90 belongs to reversals, and reversal fields always bring a second bitmap",
+            "correct": false,
+            "says": "2.3: the second bitmap follows from the field number, any field from 65 to 128; the echo test in 2.3 needs one for field 70"
+          },
+          {
+            "id": "d",
+            "text": "Field 90 is longer than field 64, and long fields always bring a second bitmap",
+            "correct": false,
+            "says": "2.3: the bitmap says which fields are present, not how long they are; field 90 needs the secondary bitmap because its number is above 64"
+          }
+        ],
+        "origin": {
+          "path": "src/2.md",
+          "section": "2.3. Bit 1 Announces a Second Bitmap, So It Is Never a Field"
+        }
+      },
+      {
+        "id": "q-b64-on-a-new-link",
+        "stem": "On a new link, your iso87ascii packager fails on the host's first message with an index or length error. The host's specification describes the bitmap as b 64. What do you check first?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The captured bitmap's size, since links differ: some send b 64 as raw bytes, others as hex digits",
+            "correct": true,
+            "says": "2.4: the same 64 bits travel in either form, the bytes don't say which, and each link's specification decides"
+          },
+          {
+            "id": "b",
+            "text": "The captured bitmap's size, since links differ: some send b 64 as 64 characters, others as 64 bytes",
+            "correct": false,
+            "says": "2.4: 64 is the number of bits, which travel as 8 bytes or as 16 hexadecimal characters"
+          },
+          {
+            "id": "c",
+            "text": "The field lengths, since packagers agree: every 1987 packager writes b 64 the same way",
+            "correct": false,
+            "says": "2.4: iso87ascii and iso87binary are both 1987 packagers and write the bitmap as 16 characters and as 8 bytes"
+          },
+          {
+            "id": "d",
+            "text": "The field lengths, since errors agree: an index error comes from a field, not from a bitmap",
+            "correct": false,
+            "says": "2.4: iso87ascii failed on the binary message's bitmap with an index error, before reading any data field"
+          }
+        ],
+        "origin": {
+          "path": "src/2.md",
+          "section": "2.4. The Same Bits Travel as 8 Bytes or as 16 Characters"
+        }
+      }
+    ]
+  }
+}

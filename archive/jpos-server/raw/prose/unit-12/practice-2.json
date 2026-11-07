@@ -1,0 +1,141 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 2,
+  "ingested": "2026-11-05",
+  "title": "Forward queued reversals without holding up the transaction",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "When the Visa host doesn't answer, a participant writes a reversal to the `reversal.visa` queue of the Space and lets the transaction finish. `ReversalForwarder` gets each reversal from there to the link's sender, which talks to the host and can take several seconds per message. In production two forwarders listen to the same queue, one for each of the link's two channels."
+    },
+    {
+      "type": "para",
+      "text": "Finish `notify` in `src/main/java/com/example/practice/ReversalForwarder.java`. When you're done:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "every reversal written to the queue reaches a sender, and goes to the host once, not once per forwarder;",
+        "a reversal that has been handed to a sender is no longer in the queue;",
+        "the participant that queued a reversal gets on with its transaction while the host is still answering."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "About three lines. The tests hold the host's answer with a latch in one of them."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceListener;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.function.Consumer;\n\n/**\n * Hands every reversal queued for a link to that link's sender. Participants queue the reversals\n * (an ISOMsg each) on the queue this forwarder listens to.\n */\npublic class ReversalForwarder implements SpaceListener<String, Object> {\n    private final LocalSpace<String, Object> sp;\n    private final Consumer<ISOMsg> sender;            // talks to the host: may take seconds\n    private final ExecutorService worker = Executors.newSingleThreadExecutor();\n\n    public ReversalForwarder(LocalSpace<String, Object> sp, String queue, Consumer<ISOMsg> sender) {\n        this.sp = sp;\n        this.sender = sender;\n        sp.addListener(queue, this);\n    }\n\n    @Override\n    public void notify(String queue, Object value) {\n        Object taken = sp.inp(queue);\n        if (taken instanceof ISOMsg)\n            worker.execute(() -> sender.accept((ISOMsg) taken));\n    }\n\n    /** Stops the forwarder once everything it took has been handed to the sender. */\n    public void close() throws InterruptedException {\n        worker.shutdown();\n        worker.awaitTermination(30, TimeUnit.SECONDS);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceListener;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.function.Consumer;\n\n/**\n * Hands every reversal queued for a link to that link's sender. Participants queue the reversals\n * (an ISOMsg each) on the queue this forwarder listens to.\n */\npublic class ReversalForwarder implements SpaceListener<String, Object> {\n    private final LocalSpace<String, Object> sp;\n    private final Consumer<ISOMsg> sender;            // talks to the host: may take seconds\n    private final ExecutorService worker = Executors.newSingleThreadExecutor();\n\n    public ReversalForwarder(LocalSpace<String, Object> sp, String queue, Consumer<ISOMsg> sender) {\n        this.sp = sp;\n        this.sender = sender;\n        sp.addListener(queue, this);\n    }\n\n    @Override\n    public void notify(String queue, Object value) {\n        // TODO: a reversal was written to the queue. Get it to the sender. Whoever wrote it is\n        //       waiting for this method to return, and other forwarders may listen to the same queue.\n        throw new IllegalStateException(\"TODO: notify\");\n    }\n\n    /** Stops the forwarder once everything it took has been handed to the sender. */\n    public void close() throws InterruptedException {\n        worker.shutdown();\n        worker.awaitTermination(30, TimeUnit.SECONDS);\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "9b98579eb3c53836f0204fba485fb9ffc8f330ac27b545fa1406744e70d78f8e",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceListener;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.function.Consumer;\n\n/**\n * Hands every reversal queued for a link to that link's sender. Participants queue the reversals\n * (an ISOMsg each) on the queue this forwarder listens to.\n */\npublic class ReversalForwarder implements SpaceListener<String, Object> {\n    private final LocalSpace<String, Object> sp;\n    private final Consumer<ISOMsg> sender;            // talks to the host: may take seconds\n    private final ExecutorService worker = Executors.newSingleThreadExecutor();\n\n    public ReversalForwarder(LocalSpace<String, Object> sp, String queue, Consumer<ISOMsg> sender) {\n        this.sp = sp;\n        this.sender = sender;\n        sp.addListener(queue, this);\n    }\n\n    @Override\n    public void notify(String queue, Object value) {\n        // TODO: a reversal was written to the queue. Get it to the sender. Whoever wrote it is\n        //       waiting for this method to return, and other forwarders may listen to the same queue.\n        throw new IllegalStateException(\"TODO: notify\");\n    }\n\n    /** Stops the forwarder once everything it took has been handed to the sender. */\n    public void close() throws InterruptedException {\n        worker.shutdown();\n        worker.awaitTermination(30, TimeUnit.SECONDS);\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-server/prose/unit-12/practice-2/src/main/java/com/example/practice/ReversalForwarder.java",
+    "test_path": "practice/jpos-server/prose/unit-12/practice-2/src/test/java/com/example/practice/ReversalForwarderTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-2/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-server/prose/unit-12/practice-2/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.ReversalForwarderTest#everyQueuedReversalReachesTheSender",
+        "kind": "main",
+        "says": "every reversal written to the queue reaches the sender"
+      },
+      {
+        "id": "com.example.practice.ReversalForwarderTest#theParticipantThatQueuesAReversalDoesNotWaitForTheHost",
+        "kind": "edge",
+        "says": "the listener runs on the writer's thread, so the slow send goes to a thread of its own"
+      },
+      {
+        "id": "com.example.practice.ReversalForwarderTest#aForwardedReversalLeavesTheQueue",
+        "kind": "edge",
+        "says": "a notification does not remove the entry; the forwarder takes it"
+      },
+      {
+        "id": "com.example.practice.ReversalForwarderTest#twoForwardersOnOneQueueSendEachReversalOnce",
+        "kind": "edge",
+        "says": "with two forwarders on one queue only the one whose take succeeded sends, so each reversal goes out once"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-server/prose/unit-12/practice-2/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/s12.md",
+      "section": "12.4 A Listener Runs on the Writer's Thread and Takes Nothing"
+    },
+    "concepts": [
+      "A listener runs on the writer's thread and does not take the entry: slow work goes to another thread, and a consumer takes with inp and accepts null."
+    ]
+  }
+}

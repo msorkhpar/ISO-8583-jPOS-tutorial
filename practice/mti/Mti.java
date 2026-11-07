@@ -36,13 +36,18 @@ public final class Mti {
         };
     }
 
-    /** The first digit: which edition of the standard the message is written against. */
+    /**
+     * The first digit: which edition of the standard the message is written against.
+     * "ISO 8583-2" and "ISO 8583-3" are parts of the standard, not editions.
+     */
     public static String version(char digit) {
         switch (digit) {
-            case '0': return "ISO 8583-1:1987";
-            case '1': return "ISO 8583-2:1993";
-            case '2': return "ISO 8583-3:2003";
-            default: return "Reserved";
+            case '0': return "ISO 8583:1987";
+            case '1': return "ISO 8583:1993";
+            case '2': return "ISO 8583-1:2003";
+            case '8': return "Reserved for national use";
+            case '9': return "Reserved for private use";
+            default: return "Reserved for ISO use";
         }
     }
 
@@ -57,7 +62,7 @@ public final class Mti {
             case '6': return "Administrative";
             case '7': return "Fee collection";
             case '8': return "Network management";
-            default: return "Reserved";
+            default: return "Reserved for ISO use";
         }
     }
 
@@ -65,10 +70,14 @@ public final class Mti {
     public static String messageFunction(char digit) {
         switch (digit) {
             case '0': return "Request";
-            case '1': return "Response";
+            case '1': return "Request response";
             case '2': return "Advice";
             case '3': return "Advice response";
-            default: return "Reserved";
+            case '4': return "Notification";
+            case '5': return "Notification acknowledgement";
+            case '6': return "Instruction";
+            case '7': return "Instruction acknowledgement";
+            default: return "Reserved for ISO use";
         }
     }
 
@@ -81,7 +90,7 @@ public final class Mti {
             case '3': return "Issuer repeat";
             case '4': return "Other";
             case '5': return "Other repeat";
-            default: return "Reserved";
+            default: return "Reserved for ISO use";
         }
     }
 

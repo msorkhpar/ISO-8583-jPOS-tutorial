@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 17,
+  "ordinal": 4,
+  "title": "Check yourself: evidence, views and the log",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-logged-pan",
+        "stem": "A colleague reproduces a rejected 0200 from your log, which runs through ProtectedLogListener. They read its <isomsg> block with XMLPackager, set the iso87ascii packager, and put a test PIN block into field 52 because packing failed there. Field 2 in the block reads 555555______4444. What does pack() give now?",
+        "options": [
+          {
+            "id": "a",
+            "text": "An ISOException at field 2, since a numeric field packager refuses the underscores",
+            "correct": false,
+            "says": "17.2 (3): the numeric field packager doesn't check that a value is digits when it packs; the masked value packs without a word"
+          },
+          {
+            "id": "b",
+            "text": "An ISOException at field 2, since the masked value is shorter than the card number",
+            "correct": false,
+            "says": "17.2: the mask keeps the length; 411111______1111 has the right length and packs"
+          },
+          {
+            "id": "c",
+            "text": "Bytes of the sent length that carry the underscores, since its field packager doesn't check what the value holds",
+            "correct": true,
+            "says": "17.2 (3): the message packs to the original length with the masked PAN on the wire, a message nobody sent"
+          },
+          {
+            "id": "d",
+            "text": "Bytes of the sent length that carry the real card, since the mask only changes how the log displays it",
+            "correct": false,
+            "says": "17.2: the block holds only the masked value; the real card is not in the log to come back"
+          }
+        ],
+        "origin": {
+          "path": "src/c17.md",
+          "section": "17.2 A Logged Message Gives Back the Bytes Only After You Put Back What the Log Masked"
+        }
+      },
+      {
+        "id": "q-debugfilter",
+        "stem": "A client's logger has ProtectedLogListener first (protect 2 35 45), then a writer. For one day DebugFilter is added to the channel to chase a byte problem. What does that day's log show of the card number of each reply received?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Masked in the message and masked in the image, since the filter masks every entry of the event",
+            "correct": false,
+            "says": "17.6: ProtectedLogListener masks only ISOMsg entries; DebugFilter's image is a Dumpable"
+          },
+          {
+            "id": "b",
+            "text": "Masked in the message and readable in the image, since the filter masks only the message entries",
+            "correct": true,
+            "says": "17.4 and 17.6: the unpacked message is masked, and the image shows the card in its text column"
+          },
+          {
+            "id": "c",
+            "text": "Readable in the message and readable in the image, since the channel's filters run before the logger's",
+            "correct": false,
+            "says": "17.4: the message in the same event is masked; the logger's filter sees the event after the channel built it"
+          },
+          {
+            "id": "d",
+            "text": "Readable in the message and absent from the image, since DebugFilter dumps only the header",
+            "correct": false,
+            "says": "17.4: DebugFilter adds the header and the image, and the image holds the whole message"
+          }
+        ],
+        "origin": {
+          "path": "src/c17.md",
+          "section": "17.4 Each View of the Bytes Answers a Different Question"
+        }
+      },
+      {
+        "id": "q-stan-counter",
+        "stem": "A service numbers the messages of its upstream link with an AtomicLong that is never reset or wrapped, and formats field 11 with ISOUtil.zeropad(n, 6), the long form. What goes out as message number 1,000,000?",
+        "options": [
+          {
+            "id": "a",
+            "text": "A message with STAN 000000, since the long form keeps only the last six digits",
+            "correct": true,
+            "says": "17.5: zeropad(long, len) keeps the last len digits and never complains"
+          },
+          {
+            "id": "b",
+            "text": "A message with STAN 100000, since the long form keeps only the first six digits",
+            "correct": false,
+            "says": "17.5: the leading digit is the one that is lost"
+          },
+          {
+            "id": "c",
+            "text": "No message at all, since zeropad throws an ISOException for a seven-digit value",
+            "correct": false,
+            "says": "17.5: only zeropad(String, len) throws; the long form cuts silently"
+          },
+          {
+            "id": "d",
+            "text": "No message at all, since the packager refuses a seven-digit field 11",
+            "correct": false,
+            "says": "17.5: the value handed to the packager already has six digits, 000000"
+          }
+        ],
+        "origin": {
+          "path": "src/c17.md",
+          "section": "17.5 ISOUtil's Helpers Fail Quietly Where You Expect an Error"
+        }
+      },
+      {
+        "id": "q-flat-realm",
+        "stem": "A logger has, in this order: ProtectedLogListener, FlatLogListener, a RealmLogFilter enabling host-channel and client.sender, and a writer. What does the writer write for a purchase logged under the realm client.sender?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Nothing, since the realm filter drops any event a filter before it has changed",
+            "correct": false,
+            "says": "17.6.1: the realm filter looks only at the realm; with the order protect, realm filter, flat, the event is written"
+          },
+          {
+            "id": "b",
+            "text": "The event on one line with the card masked, since the mask is applied before the event is flattened",
+            "correct": false,
+            "says": "17.6.1: the mask does come first, but the run with this order wrote nothing: the realm filter after the flattening keeps nothing"
+          },
+          {
+            "id": "c",
+            "text": "The event on one line with the card in clear, since the flat text is rendered from the original message",
+            "correct": false,
+            "says": "17.6.1: flattening after the mask renders the masked copy; with this order the problem is the realm, not the mask"
+          },
+          {
+            "id": "d",
+            "text": "Nothing, since the event after flattening no longer carries a realm the filter can keep",
+            "correct": true,
+            "says": "17.6.1: FlatLogListener passes a frozen event with no source, so the realm filter keeps nothing"
+          }
+        ],
+        "origin": {
+          "path": "src/c17.md",
+          "section": "17.6.1 Spot the Problem: One Line per Event"
+        }
+      }
+    ]
+  }
+}

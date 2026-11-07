@@ -1,0 +1,190 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 3,
+  "kind": "practice",
+  "ordinal": 4,
+  "ingested": "2026-11-05",
+  "title": "Check yourself: Server Channel Management",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check yourself"
+    },
+    {
+      "type": "para",
+      "text": "Questions on what this page has just taught. Choose one answer for each."
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 1,
+    "paras": 1,
+    "code": 0,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 0
+  },
+  "content_sha256": "01381f530bdd3fd2ea9a42929589b34280a234f0332b7b83c66b27688cf7ac41",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-firewall-week",
+        "stem": "A QServer has maxSessions 200, and its channel's timeout property is set to 0. A firewall in front of it drops idle flows after 20 minutes without telling either end. Every night about 30 terminals lose their flow this way and reconnect in the morning. What do terminals see after about a week?",
+        "options": [
+          {
+            "id": "a",
+            "text": "New connections are refused while connected terminals keep working, since each lost session still holds a thread from the pool",
+            "correct": true,
+            "says": "with the read timeout disabled a silently dropped session never ends; once 200 are held, ISOServer closes its listening socket and refuses new connections, while existing sessions go on"
+          },
+          {
+            "id": "b",
+            "text": "New connections are refused and connected terminals stop too, since the server stops serving once its pool runs out",
+            "correct": false,
+            "says": "only the listening socket is closed; the sessions that hold the threads keep working"
+          },
+          {
+            "id": "c",
+            "text": "Every terminal keeps working, since the server closes the old session when the same terminal connects again",
+            "correct": false,
+            "says": "QServer knows connections, not terminals; a reconnect opens a new session and leaves the old one"
+          },
+          {
+            "id": "d",
+            "text": "Every terminal keeps working, since the server ends each dead session after its five-minute default",
+            "correct": false,
+            "says": "300000 ms is the default only when the property is absent; 0 disables the read timeout"
+          }
+        ],
+        "origin": {
+          "path": "src/s3.md",
+          "section": "3.1 Every Connection Holds a Thread Until It Closes"
+        }
+      },
+      {
+        "id": "q-fraud-call",
+        "stem": "A listener placed before IncomingListener calls a fraud service and answers each purchase itself; the call takes 3 seconds. Terminal 29110055 sends three purchases back to back on its connection, and at the same moment terminal 29110056 sends one on another connection. When does the last answer reach each terminal?",
+        "options": [
+          {
+            "id": "a",
+            "text": "29110055 after about 9 s and 29110056 after about 3 s, since a session reads its next message only after the listener returns",
+            "correct": true,
+            "says": "the session thread is the connection's only reader, so 29110055's purchases are handled one after another; the other connection has its own session"
+          },
+          {
+            "id": "b",
+            "text": "29110055 after about 9 s and 29110056 after about 9 s, since one listener object handles the calls of every connection one at a time",
+            "correct": false,
+            "says": "the one listener instance is called by every session concurrently; it does not serialise connections"
+          },
+          {
+            "id": "c",
+            "text": "29110055 after about 3 s and 29110056 after about 3 s, since QServer starts a new thread for each message it reads",
+            "correct": false,
+            "says": "QServer has one thread per connection, not per message"
+          },
+          {
+            "id": "d",
+            "text": "29110055 after about 3 s and 29110056 after about 3 s, since each purchase waits only for its own call to the fraud service",
+            "correct": false,
+            "says": "a purchase also waits for every purchase before it on the same connection"
+          }
+        ],
+        "origin": {
+          "path": "src/s3.md",
+          "section": "3.3 A Listener Holds Up Its Own Connection"
+        }
+      },
+      {
+        "id": "q-bad-frame-then-reversal",
+        "stem": "After a firmware update, the purchases a terminal sends can no longer be unpacked by the server's packager. The QServer uses ASCIIChannel and the default server properties. The terminal sends such a purchase and, right behind it on the same connection, an 0420 for an earlier purchase. What becomes of the two messages?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Neither is answered, since the session ends at the bad frame and never reads the 0420",
+            "correct": true,
+            "says": "without ignore-iso-exceptions an unpack error ends the session and closes the connection, losing what follows"
+          },
+          {
+            "id": "b",
+            "text": "Neither is answered, since the server holds the 0420 until the purchase is sent again in a valid form",
+            "correct": false,
+            "says": "the server holds nothing back; the connection is closed"
+          },
+          {
+            "id": "c",
+            "text": "The 0420 is answered, since the session drops only the bad frame and goes on reading",
+            "correct": false,
+            "says": "that is what ignore-iso-exceptions does; by default the session ends"
+          },
+          {
+            "id": "d",
+            "text": "The 0420 is answered, since the server first returns an error response for the purchase",
+            "correct": false,
+            "says": "a frame that can't be unpacked gets no answer at all"
+          }
+        ],
+        "origin": {
+          "path": "src/s3.md",
+          "section": "3.4 A Frame the Server Can't Unpack Ends the Connection"
+        }
+      },
+      {
+        "id": "q-laptop-certificate",
+        "stem": "A TLS QServer's server-socket-factory sets clientauth to true and leaves every other trust setting at its default. Its keystore holds the server's key and the certificate of the acquirer's terminal CA. A laptop on the store network connects with a self-signed certificate it made itself. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The laptop gets in and can send requests, since nothing on the server compares the certificate with a trusted CA",
+            "correct": true,
+            "says": "the 2.1.7 factory checks certificates against the keystore only with serverauth=true; otherwise it trusts any certificate"
+          },
+          {
+            "id": "b",
+            "text": "The laptop gets in and can send requests, since a self-signed certificate vouches for itself and so counts as trusted",
+            "correct": false,
+            "says": "self-signing does not make a certificate trusted; it got in only because nothing checked it"
+          },
+          {
+            "id": "c",
+            "text": "The laptop is refused during the handshake, since the server compares the certificate with the CA it trusts",
+            "correct": false,
+            "says": "clientauth only asks for a certificate; checking it needs serverauth"
+          },
+          {
+            "id": "d",
+            "text": "The laptop is refused during the handshake, since a certificate that no CA signed fails the TLS handshake",
+            "correct": false,
+            "says": "whether a certificate is accepted is up to the trust manager, and the default one here accepts any"
+          }
+        ],
+        "origin": {
+          "path": "src/s3.md",
+          "section": "3.6 A TLS Server Checks Client Certificates Only With `serverauth`"
+        }
+      }
+    ],
+    "concepts": [
+      "By default a frame the server can't unpack ends the session and loses the messages behind it; ignore-iso-exceptions keeps a length-prefixed connection reading.",
+      "Each accepted connection holds a session thread until it closes; without a read timeout silently dropped connections fill maxSessions, and then the server refuses new connections while existing ones keep working.",
+      "QServer creates each request listener once and every session calls it concurrently, so it keeps no per-message state in fields.",
+      "clientauth only asks a client for a certificate; the 2.1.7 factory checks it against the keystore only with serverauth, and otherwise accepts any certificate."
+    ]
+  }
+}

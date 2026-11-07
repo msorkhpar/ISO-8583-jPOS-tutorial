@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 9,
   "ordinal": 2,
-  "title": "Raise the right exception for a missing or declining reply",
+  "title": "Tell the caller what the host's answer asks for",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/TransactionService.java",
-  "test_file": "src/test/java/com/example/practice/TransactionServiceTest.java",
+  "main_file": "src/main/java/com/example/practice/PaymentClient.java",
+  "test_file": "src/test/java/com/example/practice/PaymentClientTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,39 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.TransactionServiceTest#anApprovedReplyIsReturned",
+      "id": "com.example.practice.PaymentClientTest#anApprovalAndADeclineAreReportedAsSuch",
       "kind": "main",
-      "says": "a reply with response code 00 is returned to the caller"
+      "says": "an answer the network lists as an approval or a decline is reported as such, with nothing left to reverse"
     },
     {
-      "id": "com.example.practice.TransactionServiceTest#aDeclineRaisesAnExceptionCarryingItsCode",
-      "kind": "main",
-      "says": "a reply with any other response code raises a decline that carries that code"
-    },
-    {
-      "id": "com.example.practice.TransactionServiceTest#noReplyIsATimeoutNotADecline",
+      "id": "com.example.practice.PaymentClientTest#anApprovalIsNotOnlyZeroZero",
       "kind": "edge",
-      "says": "no reply within the timeout raises a TimeoutException, not a decline or a NullPointerException"
+      "says": "every code the network lists as an approval moved the money, not only 00"
     },
     {
-      "id": "com.example.practice.TransactionServiceTest#aReplyWithoutAResponseCodeIsNotAnApproval",
+      "id": "com.example.practice.PaymentClientTest#anUnavailableIssuerIsNotADecline",
       "kind": "edge",
-      "says": "a reply that carries no response code is declined, never returned as approved"
+      "says": "an unavailable issuer or switch means the cardholder may try later, not that the card was declined"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#tryLaterDoesNotSendTheSameMessageAgain",
+      "kind": "edge",
+      "says": "trying later is a new transaction, so the same message is not sent again"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aFormatErrorReachesTheDevelopers",
+      "kind": "edge",
+      "says": "a format error says the request is wrong, so it raises an alert instead of passing as a decline"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#anAnswerWithoutACodeIsLeftForReversal",
+      "kind": "edge",
+      "says": "an answer without field 39 decides nothing, so it is treated like no answer and reversed"
+    },
+    {
+      "id": "com.example.practice.PaymentClientTest#aCodeNotOnTheListIsLeftForReversal",
+      "kind": "edge",
+      "says": "a code the network's list doesn't contain decides nothing either, and is reversed rather than called a decline"
     }
   ],
   "report": {
@@ -59,6 +74,6 @@
   },
   "origin": {
     "path": "src/c9.md",
-    "section": "9.6 Integration with jPOS Client"
+    "section": "9.3 Field 39 Says Who Acts Next"
   }
 }

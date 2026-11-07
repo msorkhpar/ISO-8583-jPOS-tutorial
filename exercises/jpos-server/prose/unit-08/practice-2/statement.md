@@ -1,14 +1,12 @@
-During an incident an operator turns a server's debug mode on, reads what it says, and turns
-it off again. The page adds and removes a listener to do that. Here the switch is a flag, and
-what it controls is one extra event per transaction.
+Last month a server lost both of its sessions to an issuer call that never returned, and terminals
+reversed purchases for forty minutes before anyone looked at the log. Operations want a page the
+moment a transaction stops finishing, and not one page more.
 
-Write `DebuggableServer`, built from a jPOS `Logger`, with `setDebugMode(boolean on)` and
-`processTransaction(ISOMsg msg)`. Every transaction is logged as one event tagged
-`transaction.process`, saying `Processing transaction: <MTI>`. While debug mode is on, a
-`transaction.debug` event comes first, saying `MTI: <MTI>` and then `Amount: <field 4>`.
+Finish `poll` in `src/main/java/com/example/practice/StuckWatch.java`. A monitor calls it every
+few seconds for the life of the server, with the TransactionManager's `getHead()` and `getTail()`
+and the time of the poll. It returns the id of a transaction that has been running for longer than
+the limit given to the constructor, or `-1`. The server is busy at lunchtime and almost silent at
+night, and the page has to be right at both. About ten lines in total.
 
-- Debug mode starts off, and switching it off again stops the debug events.
-- A message with no amount (field 4) is logged as `Amount: none`. An operator reading
-  `Amount: null` cannot tell a missing field from a bug.
-
-The card number is deliberately not logged, even in debug mode: see the client's unit 8.
+The first test runs a real TransactionManager with two sessions, in which one purchase hangs in a
+participant until the test releases it. The others pass head and tail values directly.

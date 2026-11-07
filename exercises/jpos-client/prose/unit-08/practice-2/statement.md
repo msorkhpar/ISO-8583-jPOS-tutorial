@@ -1,15 +1,17 @@
-The page's `TransactionLogger` writes the MTI, the card number and the amount of every
-transaction into the log. A full card number (PAN) in a log file is exactly what the card
-schemes' security rules forbid: logs are copied, shipped and kept far longer than a
-transaction.
+The acquirer's host has started rejecting some purchases with response code 30, and its support
+desk wants to see what your client sent. `DeclineReport` in
+`src/main/java/com/example/practice/DeclineReport.java` is what the client hands over for each
+rejection: an entry in the node's log, which your own team compares with the host's trace, and a
+hex dump that goes by e-mail to the support desk, which works for another company.
 
-Write `TransactionLogger`, built from a jPOS `Logger`, with `logTransaction(ISOMsg msg)`. It
-delivers one event tagged `Transaction` to that logger, carrying, in this order:
+The node's log is shipped to a platform that many people can search. Neither the log entry nor the
+dump may carry card data. The support desk is hunting a format error, so the dump must still be the
+message as their host received it. And the client keeps the request after reporting it, because it
+may need it for a reversal.
 
-- `MTI: <the message type>`;
-- `PAN: <the card number, masked>`, keeping its first six and last four digits and replacing
-  every digit between with `*`. So `4111111111111111` is logged as `411111******1111`;
-- `Amount: <field 4>`.
+Finish the two methods marked `TODO`: `logRejection` and `shareableImage`. About a dozen lines in
+total.
 
-A message that carries no card number (field 2) logs no `PAN:` line at all, rather than a
-line saying nothing.
+The tests give the report the node's logger, with `ProtectedLogListener` in front of a writer, and
+the `iso87ascii` packager. The messages carry a track 1, a track 2 and a PIN block as well as the
+card number.

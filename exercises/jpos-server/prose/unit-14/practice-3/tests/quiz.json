@@ -1,0 +1,153 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "jpos-server"
+  ],
+  "variant": "prose",
+  "unit": 14,
+  "ordinal": 3,
+  "title": "Check yourself: what Q2 does with your QBeans",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-key-rotation",
+        "stem": "A KeyRotation QBean extends QBeanSupport and has a setIntervalHours(int) method, but no interface of its own. Its descriptor contains <attr name=\"intervalHours\" type=\"int\">12</attr>. What does Q2 do with the file?",
+        "options": [
+          {
+            "id": "a",
+            "text": "It deploys the bean with the descriptor's value, since without an interface of its own QFactory calls setIntervalHours by reflection",
+            "correct": false,
+            "says": "Q2 never calls the method directly; it sets the attribute through the MBean server"
+          },
+          {
+            "id": "b",
+            "text": "It deploys the bean with its own default, since without an interface of its own QFactory skips an attribute it can't map",
+            "correct": false,
+            "says": "an unknown attribute is not skipped: AttributeNotFoundException fails the deploy"
+          },
+          {
+            "id": "c",
+            "text": "It renames the file .BAD, since without an interface of its own the MBean server sees only QBeanSupportMBean's attributes",
+            "correct": true,
+            "says": "without an interface of its own the bean exposes QBeanSupportMBean, which has no IntervalHours, so the deploy fails"
+          },
+          {
+            "id": "d",
+            "text": "It renames the file .ENV, since without an interface of its own the MBean server rejects the bean with an Error",
+            "correct": false,
+            "says": "the bean registers through QBeanSupportMBean; the unknown attribute is an exception, and an exception while deploying renames the file .BAD"
+          }
+        ],
+        "origin": {
+          "path": "src/s14.md",
+          "section": "14.4 `<attr>` Is Set Through JMX, So Its Setter Belongs in the MBean Interface"
+        }
+      },
+      {
+        "id": "q-fee-table",
+        "stem": "A FeeTable QBean loads its fee file in initService. On Monday the file is missing, initService throws, and Q2 logs a warning. An hour later an operator copies the file into place and calls start on the bean from JConsole. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The bean starts and loads the fees, since start runs again whatever step failed before",
+            "correct": false,
+            "says": "start does not run initService; it checks the state, and a bean whose init never completed is not startable"
+          },
+          {
+            "id": "b",
+            "text": "The bean starts without any fees, since start goes on without the step it missed",
+            "correct": false,
+            "says": "start returns without doing anything for a bean whose init never completed, so the bean does not start at all"
+          },
+          {
+            "id": "c",
+            "text": "The bean stays Unknown, since start returns at once for a bean whose init never completed",
+            "correct": true,
+            "says": "QBeanSupport.start only runs from Stopped, Failed or Destroyed; the bean stays Unknown and only a redeploy brings it back"
+          },
+          {
+            "id": "d",
+            "text": "The bean becomes Failed, since start refuses a bean whose init never completed",
+            "correct": false,
+            "says": "Failed means startService threw; for a bean whose init never completed start returns at once and the state stays Unknown"
+          }
+        ],
+        "origin": {
+          "path": "src/s14.md",
+          "section": "14.3 A Configuration Refused in `setConfiguration` Renames the File; Refused Later, It Only Logs"
+        }
+      },
+      {
+        "id": "q-scoring",
+        "stem": "After a restart, 20_scoring.xml deploys a QBean whose startService waits up to 10 seconds for risk-model, a name that 60_model.xml registers in its own startService. Both files are in deploy/ before Q2 starts. What does the first pass do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The scoring bean starts once the model registers, since the model's start runs on its own thread during the wait",
+            "correct": false,
+            "says": "Q2 calls the starts one after another on one thread, so the model's start can't run during the wait"
+          },
+          {
+            "id": "b",
+            "text": "The scoring bean starts after the model does, since Q2 sees the wait and starts 60_model.xml ahead of it",
+            "correct": false,
+            "says": "Q2 starts in file order and does not reorder; the scoring bean's start blocks the pass"
+          },
+          {
+            "id": "c",
+            "text": "The scoring bean is Failed after its wait, since the model's start can only begin once that wait has ended",
+            "correct": true,
+            "says": "the wait runs on Q2's thread, so 60_model.xml starts only after it; the scoring bean fails and every later start is 10 seconds late"
+          },
+          {
+            "id": "d",
+            "text": "The scoring bean is Started after its wait, since Q2 starts 60_model.xml while that wait runs",
+            "correct": false,
+            "says": "Q2 calls the starts one after another on one thread, so 60_model.xml starts only after the wait, too late; the scoring bean is Failed"
+          }
+        ],
+        "origin": {
+          "path": "src/s14.md",
+          "section": "14.5 Nothing Is Started Until Everything Is Initialised, So a QBean Looks for What It Needs in `startService`"
+        }
+      },
+      {
+        "id": "q-script",
+        "stem": "A deployment script writes 40_acquirer_channel.xml straight into the deploy directory of a running server, and now and then the file ends up renamed .BAD although the descriptor inside it is valid. Which change to the script stops this?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Write the file in another directory on the same file system and move it in, since Q2 parses a new file at once",
+            "correct": true,
+            "says": "Q2 reads a new file as soon as it appears; a move within one file system is a rename, so Q2 sees no file or the whole one"
+          },
+          {
+            "id": "b",
+            "text": "Write the file in another directory on another file system and move it in, since Q2 trusts only files it did not see created",
+            "correct": false,
+            "says": "across file systems a move is a copy, which Q2 can again see half-written; ATOMIC_MOVE refuses it, and Q2 has no notion of trusted files"
+          },
+          {
+            "id": "c",
+            "text": "Write the file straight into deploy/ through deployElement, since Q2 waits for a file that it writes itself",
+            "correct": false,
+            "says": "deployElement writes the file in place with a FileWriter, so it has the same exposure once Q2 is watching"
+          },
+          {
+            "id": "d",
+            "text": "Write the file straight into deploy/ as a transient one, since Q2 holds back a file carrying its instance id",
+            "correct": false,
+            "says": "a transient descriptor only carries the instance id so it is deleted at exit or by the next Q2; it is read as soon as it appears like any other"
+          }
+        ],
+        "origin": {
+          "path": "src/s14.md",
+          "section": "14.6 Q2 Deploys Whatever It Finds in `deploy/`, Even Half a File"
+        }
+      }
+    ]
+  }
+}

@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 9,
   "ordinal": 1,
-  "title": "Decide what a transaction's outcome calls for",
+  "title": "Tell the terminal what the processor decided",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/ResponseHandling.java",
-  "test_file": "src/test/java/com/example/practice/ResponseHandlingTest.java",
+  "main_file": "src/main/java/com/example/practice/CodeTranslator.java",
+  "test_file": "src/test/java/com/example/practice/CodeTranslatorTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.ResponseHandlingTest#sortsCodesAndErrorsIntoTheirHandling",
+      "id": "com.example.practice.CodeTranslatorTest#theTableAnswersForTheCodesItLists",
       "kind": "main",
-      "says": "sorts 00, 05, 51 and 01 into approval, decline and referral, and network, format and security errors into retry, fix and alert"
+      "says": "a code the table lists is answered with the table's 1987 code, and nothing is reversed"
     },
     {
-      "id": "com.example.practice.ResponseHandlingTest#partialApprovalAndNoReasonToDeclineAreApprovals",
-      "kind": "edge",
-      "says": "10 and 85 are approvals too, not only 00"
+      "id": "com.example.practice.CodeTranslatorTest#acknowledgementsListedInTheTableAreAnswered00",
+      "kind": "main",
+      "says": "the accepted reversal and the accepted advice, which sit outside the approval category, are answered 00 as the table says"
     },
     {
-      "id": "com.example.practice.ResponseHandlingTest#aResponseWithoutACodeIsDeclined",
+      "id": "com.example.practice.CodeTranslatorTest#anApprovalOffTheTableIsReversedNotPassedOn",
       "kind": "edge",
-      "says": "a response with no field 39 is declined, and asking does not fail"
+      "says": "an approval code the table lacks may be partial, so the terminal gets 96 and the purchase is reversed upstream instead of being approved"
     },
     {
-      "id": "com.example.practice.ResponseHandlingTest#aTimeoutIsANetworkError",
+      "id": "com.example.practice.CodeTranslatorTest#anErrorOffTheTableIsNotADecline",
       "kind": "edge",
-      "says": "a socket timeout, a kind of IOException, is retried like any network error"
+      "says": "an error code the table lacks reaches the terminal as 96, a failure, not as a decline of the card"
+    },
+    {
+      "id": "com.example.practice.CodeTranslatorTest#aDenialOffTheTableIsStillADenial",
+      "kind": "edge",
+      "says": "a denial code the table lacks is still a denial, 05, and needs no reversal"
+    },
+    {
+      "id": "com.example.practice.CodeTranslatorTest#anAnswerWithoutAUsableCodeDecidesNothing",
+      "kind": "edge",
+      "says": "an answer with no action code, or one that is not four digits, decides nothing: 96 and a reversal, never a decline"
     }
   ],
   "report": {
@@ -59,6 +69,6 @@
   },
   "origin": {
     "path": "src/9.md",
-    "section": "9.2. Error scenarios and handling"
+    "section": "9.5. A Gateway Between Editions Translates Each Code From Both Lists"
   }
 }

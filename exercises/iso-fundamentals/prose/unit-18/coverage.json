@@ -1,0 +1,176 @@
+{
+  "coverage_api": 2,
+  "page": "src/18.md",
+  "kind": "code",
+  "quiz": "check-yourself",
+  "case": "code-no-tests",
+  "digests": {
+    "src/18.md": "sha256:ce84cdb9c1955e287b49e7161e3df7fd0cf9915874723d14a9012bb968949924"
+  },
+  "plan": {
+    "plan_api": 2,
+    "tier": "advanced",
+    "count": 4,
+    "aspects": [
+      {
+        "id": "card-declines-after-approval",
+        "says": "When the card declines after an issuer approval, for example because a hop changed tag 91, the acquirer reverses the approval; contactless usually has no second GENERATE AC.",
+        "basis": [
+          "section:18.6. A Card That Declines After an Approval Leaves an Approval to Reverse"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "chip-and-iso-fields-agree",
+        "says": "9F02, 5F2A, 9C and 9A mirror DE 4, DE 49, DE 3 and DE 13; their values are BCD digits, found by parsing, compared only when both sides are present.",
+        "basis": [
+          "section:18.2. Chip Values Are BCD Digits, and Each Must Agree With the ISO Field It Mirrors",
+          "example:src/18.md:3",
+          "example:src/18.md:4"
+        ],
+        "exercise": "chip-consistency",
+        "reason": null
+      },
+      {
+        "id": "cryptogram-type",
+        "says": "Only an ARQC asks the issuer; the top two bits of 9F27 say which cryptogram the card made, and the card decides again at the second GENERATE AC.",
+        "basis": [
+          "section:18.1. Only an ARQC Asks the Issuer, and the Card Keeps the Last Word"
+        ],
+        "exercise": null,
+        "reason": "masking two bits of one byte is a one-line rule the page shows with its output; a practice would retype it, and the card's last word is checked by the quiz through 18.6"
+      },
+      {
+        "id": "replay-and-key-derivation",
+        "says": "A verified cryptogram proves the card but not freshness: only the last verified ATC per card catches a replay, recorded only after verification; the card key needs the PAN sequence number, and a failed cryptogram is a decline.",
+        "basis": [
+          "section:18.4. A Valid Cryptogram Proves the Card, Not That the Request Is New"
+        ],
+        "exercise": "atc-guard",
+        "reason": null
+      },
+      {
+        "id": "replay-scenario",
+        "says": "A byte-for-byte copy of an approved chip request verifies again in the HSM and is declined only by the issuer's ATC record.",
+        "basis": [
+          "section:18.4. A Valid Cryptogram Proves the Card, Not That the Request Is New",
+          "example:src/18.md:10"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      },
+      {
+        "id": "response-chip-data",
+        "says": "The response's DE 55 carries tag 91 and script templates 71 and 72, each a constructed TLV of an optional 9F18 and 86 commands, whose length counts the encoded elements.",
+        "basis": [
+          "section:18.5. The Response Carries the ARPC in Tag 91 and the Scripts as TLV Inside TLV",
+          "example:src/18.md:11",
+          "example:src/18.md:12"
+        ],
+        "exercise": "issuer-response",
+        "reason": null
+      },
+      {
+        "id": "tvr-and-iad",
+        "says": "The TVR is five bytes of terminal flags with bits numbered 8 to 1 from the left; 9F10 is the card's scheme-specific message holding the CVN and CVR.",
+        "basis": [
+          "section:18.3. The TVR Says What the Terminal Saw, and Tag 9F10 What the Card Saw"
+        ],
+        "exercise": "check-yourself",
+        "reason": null
+      }
+    ],
+    "exercises": [
+      {
+        "slot": 1,
+        "name": "chip-consistency",
+        "aspects": [
+          "chip-and-iso-fields-agree"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "atc-guard",
+        "aspects": [
+          "replay-and-key-derivation"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "issuer-response",
+        "aspects": [
+          "response-chip-data"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "check-yourself",
+        "aspects": [
+          "card-declines-after-approval",
+          "replay-scenario",
+          "tvr-and-iad"
+        ]
+      }
+    ],
+    "nothing_checkable": null
+  },
+  "shipped": [
+    "exercises/iso-fundamentals/prose/unit-18/practice-1",
+    "exercises/iso-fundamentals/prose/unit-18/practice-2",
+    "exercises/iso-fundamentals/prose/unit-18/practice-3",
+    "exercises/iso-fundamentals/prose/unit-18/practice-4"
+  ],
+  "accounts": [
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-1",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.2. Chip Values Are BCD Digits, and Each Must Agree With the ISO Field It Mirrors"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-2",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.4. A Valid Cryptogram Proves the Card, Not That the Request Is New"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-3",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.5. The Response Carries the ARPC in Tag 91 and the Scripts as TLV Inside TLV"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-4:q-tvr-bit",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.3. The TVR Says What the Terminal Saw, and Tag 9F10 What the Card Saw"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-4:q-copied-request",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.4. A Valid Cryptogram Proves the Card, Not That the Request Is New"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-4:q-aac-after-approval",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.6. A Card That Declines After an Approval Leaves an Approval to Reverse"
+      }
+    },
+    {
+      "exercise": "exercises/iso-fundamentals/prose/unit-18/practice-4:q-contactless-script",
+      "origin": {
+        "path": "src/18.md",
+        "section": "18.6. A Card That Declines After an Approval Leaves an Approval to Reverse"
+      }
+    }
+  ],
+  "shortfalls": []
+}

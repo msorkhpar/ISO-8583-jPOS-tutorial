@@ -8,7 +8,7 @@
   "unit": 4,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Transaction Sending",
   "blocks": [
     {
@@ -18,144 +18,543 @@
     },
     {
       "type": "para",
-      "text": "Transaction sending in jPOS is primarily handled by two key components: QMUX and MUX. These components provide a high-level abstraction for sending and receiving ISO-8583 messages."
+      "text": "A checkout service runs two hundred threads over one TCP connection to the acquirer's host, the ChannelAdaptor of unit c3. Thread 17 sends a 0200 for 10.00, and the next 0210 off the socket answers thread 42's purchase of 40.00, which thread 17 must not read. When the host says nothing, or the link is down, thread 17 still has to tell a cashier something."
+    },
+    {
+      "type": "para",
+      "text": "QMUX solves this for every thread at once. What it promises and what it leaves to you comes down to seven rules, one per section heading. Every output is from jPOS 2.1.7: Q2 in the same JVM, started from the descriptors shown here (a ChannelAdaptor and a QMUX), and an `ISOServer` on 127.0.0.1 playing the host, with a 500 ms reconnect delay so the examples finish quickly."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.1 QMUX (org.jpos.q2.iso.QMUX)"
+      "text": "4.1 QMUX Sits on the Adaptor's Queues, Crossed"
     },
     {
       "type": "para",
-      "text": "QMUX is a Q2 adaptor that implements the MUX interface. It's designed to multiplex messages over a single connection or multiple connections."
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "4.1.1 Configuration"
+      "text": "The ChannelAdaptor of unit c3 never talks to your code. It writes what it takes from the Space queue `host-send` to the socket, and puts everything it reads on `host-receive`. QMUX is the other end: it writes requests to the queue the adaptor sends from and reads the queue the adaptor fills."
     },
     {
       "type": "para",
-      "text": "To set up QMUX in your jPOS client, you need to add a Q2 deploy descriptor, such as `deploy/20_mux.xml`:"
+      "text": "`deploy/20_host_mux.xml`, the same file as in unit c1:"
     },
     {
       "type": "code",
       "lang": "xml",
-      "text": "<mux class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\" name=\"client-mux\">\n    <in>receive</in>\n    <out>send</out>\n    <unhandled>unhandled</unhandled>\n    <ready>client-channel.ready</ready>\n</mux>"
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "4.1.2 Usage"
+      "text": "<mux name=\"host-mux\" class=\"org.jpos.q2.iso.QMUX\" logger=\"Q2\">\n  <in>host-receive</in>\n  <out>host-send</out>\n  <ready>host-channel.ready</ready>\n  <unhandled>host-unhandled</unhandled>\n</mux>"
     },
     {
       "type": "para",
-      "text": "Here's an example of how to use QMUX to send a transaction:"
+      "text": "Each element is named from the QMUX's point of view: its `<in>` is what comes in from the host, the adaptor's `<out>`, and its `<out>` is the adaptor's `<in>`. What happens if you copy `<in>host-send</in>` and `<out>host-receive</out>` from the adaptor's file, because the names look like they should match? Each version on its own, with the link up, sending one purchase with a 2-second timeout:"
     },
     {
       "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionSender {\n\n    private final MUX mux;\n\n    public TransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public ISOMsg sendTransaction(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        return mux.request(message, timeout);\n    }\n}"
+      "lang": "text",
+      "text": "crossed: isConnected true\ncrossed: 0210 39=00 after 0 ms, host received 1\ncopied:  isConnected true\ncopied:  null after 2000 ms, host received 0"
+    },
+    {
+      "type": "para",
+      "text": "The copied QMUX writes the purchase into `host-receive`, a queue only the adaptor should write to, and listens on `host-send`, where no answer arrives. The purchase never leaves the JVM. Q2 logs nothing, `isConnected()` is true because the adaptor's ready entry exists, and every request returns `null` after its full timeout. A client that handles `null` correctly (section 4.3) reports every purchase as \"outcome unknown\" and, with unit c12's policy, queues a reversal for each. When every request times out and the host has no record of any, check the queues first."
+    },
+    {
+      "type": "para",
+      "text": "`<ready>` names the entry the adaptor keeps in the Space while it is connected, `host-channel.ready` (unit c3); section 4.4 shows why you need it. `<unhandled>` is where QMUX puts messages nobody is waiting for."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.2 MUX (org.jpos.iso.MUX)"
+      "text": "4.2 Every Thread Gets Its Own Answer"
     },
     {
       "type": "para",
-      "text": "MUX is an interface that defines methods for sending ISO messages and receiving responses. QMUX is an implementation of this interface."
+      "text": "Five threads send a purchase at once over the one link, each with its own STAN and amount. The host holds all five and answers them in its own order. Which thread gets the first 0210?"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "Future<?> f = pool.submit(() -> {\n    ISOMsg r = mux.request(Stack.purchase(\"29110001\", stans[n], amounts[n]), 5000);\n    ...\n});"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "host answers in this order: 000102 000105 000103 000101 000104\nthread 1 sent 11=000101 4=000000001000  got 0210 11=000101 4=000000001000\nthread 2 sent 11=000102 4=000000002000  got 0210 11=000102 4=000000002000\nthread 3 sent 11=000103 4=000000003000  got 0210 11=000103 4=000000003000\nthread 4 sent 11=000104 4=000000004000  got 0210 11=000104 4=000000004000\nthread 5 sent 11=000105 4=000000005000  got 0210 11=000105 4=000000005000"
+    },
+    {
+      "type": "para",
+      "text": "Thread 2 got the first answer, because it was for STAN 000102. When QMUX sends a request, it computes a string from it, the **key**: by default the out queue, the MTI (a response's 0210 mapped back to 0200), and fields 41 and 11. It parks the waiting thread under that key, computes the key of every message on `host-receive`, and hands each to the thread parked under the same key. Unit c12 takes the key apart and shows what goes wrong when two requests share one."
+    },
+    {
+      "type": "para",
+      "text": "A message that matches no waiting thread (an answer that came too late, or a request the host sent on its own) goes to `<unhandled>`, where it stays for two minutes (fixed in 2.1.7) unless you read it first."
+    },
+    {
+      "type": "para",
+      "text": "The usual alternative, a lock around \"write, then read the next message\", serialises the service: with a host that takes 300 ms to answer, it completes about three purchases a second, however many threads it has. The same reasoning ruled out pools of raw channels in unit c3."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.3 A Missing Answer Comes Back as null"
+    },
+    {
+      "type": "para",
+      "text": "The host receives a purchase for 42.00 and never answers. What `request` gives back, and what the obvious next line does with it:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "ISOMsg response = mux.request(Stack.purchase(\"29110001\", \"000318\", \"000000004200\"), 2000);\nboolean approved = \"00\".equals(response.getString(39));"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "response: null after 2000 ms\njava.lang.NullPointerException\nhost received 1, 4=000000004200"
+    },
+    {
+      "type": "para",
+      "text": "`request` waited the whole timeout and returned `null`; it did not throw. Unit c3's socket read timeout is an exception, so it is easy to expect one here. The `ISOException`s that `request` does throw mean the message was refused before it was sent: none of the key fields is present, or the key is a duplicate (unit c12)."
+    },
+    {
+      "type": "para",
+      "text": "The `NullPointerException` is the cheap part of the bug. It lands in a generic error handler and the cashier sees \"system error\", while the host's log shows the purchase arrived. The host may have approved it and lost the answer, and nothing in the code starts the reversal that unit c12 builds for this case. A `null` from `request` is an unknown outcome: not a decline, and never a reason to send the same purchase again."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.4 A Request on a Down Link Waits in the Queue"
+    },
+    {
+      "type": "para",
+      "text": "The host restarted, and the adaptor is reconnecting. A thread calls `request` with a 5-second timeout anyway. Does the purchase fail at once?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "-- the link comes back within the timeout\n0.0 s  isConnected: false\n1.1 s  host is up\n1.5 s  request returned 0210 39=00\nhost received 1\n-- the link stays down past the timeout\n0.0 s  isConnected: false\n2.0 s  request returned null\n3.0 s  host is up\n4.5 s  host received 0"
+    },
+    {
+      "type": "para",
+      "text": "In 2.1.7 `request` never checks the link. It puts the message on `host-send` with the timeout as its lifetime and waits. If the adaptor reconnects in time, the message goes out, here after a second and a half. If not, it expires in the queue unsent, and `request` returns `null` like any missing answer. (`send`, the method without an answer, does check, and throws `ISOException` \"MUX is not connected\".)"
+    },
+    {
+      "type": "para",
+      "text": "In the first ending, a purchase can reach the host many seconds after it was made, when a terminal that waits less than your timeout has already shown a failure. In the second, the cashier waits the full timeout to hear \"outcome unknown\" about a purchase that never left the building. The reversal queued for it is usually harmless but is noise, and the true answer was available at once: the host is unavailable, try again or take another payment method."
+    },
+    {
+      "type": "para",
+      "text": "So ask first. With `<ready>` configured, `isConnected()` is true only while the adaptor's ready entry exists; without it, whenever the QMUX is running. A client that keeps the endings apart:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\npublic class AuthorizationClient {\n    public enum Outcome { APPROVED, DECLINED, NO_ANSWER, HOST_UNAVAILABLE }\n\n    private final MUX mux;\n    private final long timeout;\n\n    public AuthorizationClient(MUX mux, long timeout) {\n        this.mux = mux;\n        this.timeout = timeout;\n    }\n\n    public Outcome authorize(ISOMsg request) throws ISOException {\n        if (!mux.isConnected())\n            return Outcome.HOST_UNAVAILABLE;           // nothing left our side\n        ISOMsg response = mux.request(request, timeout);\n        if (response == null)\n            return Outcome.NO_ANSWER;                  // unknown: unit c12 reverses it\n        return \"00\".equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "Against a host that approves, declines, drops, and then goes away:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000801: APPROVED after 0 ms\n000802: DECLINED after 0 ms\n000803: NO_ANSWER after 2000 ms\n000804: HOST_UNAVAILABLE after 0 ms\nhost received 3"
+    },
+    {
+      "type": "para",
+      "text": "The check is not a guarantee: the link can drop between `isConnected()` and the write, which puts you back in the first ending. It turns the common case, a link that has been down for a while, into an immediate and certain answer."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.5 The Asynchronous Form Calls Back Once, With an Answer or With null"
+    },
+    {
+      "type": "para",
+      "text": "A blocking `request` holds its thread as long as the host takes. A service waiting on thousands of answers can pass a listener instead and get its thread back at once:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "mux.request(purchase, 2000, (resp, handBack) -> { ... }, \"000401\");"
+    },
+    {
+      "type": "para",
+      "text": "The listener is an `ISOResponseListener`. Its one abstract method is `responseReceived(response, handBack)`, where the hand-back is any object you passed in, returned untouched. When the timeout passes with no answer, QMUX calls `expired(handBack)`, whose 2.1.7 default calls `responseReceived(null, handBack)`, so a lambda sees `null` on expiry as the blocking form does. An answered request and a dropped one, with the thread each callback ran on:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "caller thread: main\nboth requests sent, caller continues\n000401: 0210 39=00 on channel-receiver-host-receive\n000402: null on pool-2-thread-1"
+    },
+    {
+      "type": "para",
+      "text": "A response's callback runs on the adaptor's receiver thread, the one thread that reads the socket, and an expiry's on a QMUX scheduler thread. Neither is yours."
+    },
+    {
+      "type": "para",
+      "text": "A listener that ignores `null`, say one that completes a future only when a response arrives, leaves that future waiting forever:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000403: future done after 5 s? false"
+    },
+    {
+      "type": "para",
+      "text": "The caller, perhaps an HTTP request in your own API, hangs until its own timeout, and every dropped purchase adds another hung caller."
+    },
+    {
+      "type": "para",
+      "text": "A listener that does real work holds up the whole link. One asynchronous request whose listener spends three seconds writing to a database, then a blocking request with a 2-second timeout that the host answered at once:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000702: null after 2000 ms\n000701: listener done\nhost answered 2 requests at once\nhost-mux-unhandled: 0210 11=000702"
+    },
+    {
+      "type": "para",
+      "text": "The receiver thread was inside the first listener, so nobody read the second approval off the socket until the blocking request had given up: the host approved 000702, the caller got `null`, and the approval went to `<unhandled>`. Keep the listener to completing a future or handing the message to a queue of your own, and do the work elsewhere:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\n\nimport java.util.concurrent.CompletableFuture;\n\npublic class AsyncSender {\n    private final MUX mux;\n    private final long timeout;\n\n    public AsyncSender(MUX mux, long timeout) {\n        this.mux = mux;\n        this.timeout = timeout;\n    }\n\n    /** Completes with the response, with null when none came in time, or with the refusal. */\n    public CompletableFuture<ISOMsg> send(ISOMsg request) {\n        CompletableFuture<ISOMsg> result = new CompletableFuture<>();\n        try {\n            mux.request(request, timeout,\n                    (response, handBack) -> result.complete(response),   // null on expiry\n                    null);\n        } catch (ISOException e) {\n            result.completeExceptionally(e);           // refused: nothing was sent\n        }\n        return result;\n    }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "000901: 0210 39=00\n000902: null\n000903 again: failed, Duplicate key 'host-send.0200000000029110001000903.req' detected.\n000903: null"
+    },
+    {
+      "type": "para",
+      "text": "The asynchronous `request` throws the same `ISOException`s as the blocking one, before anything is sent. That third ending is not a `null`: the host never saw the message, so there is nothing to undo."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.6 Each Link Numbers Its Own Messages"
+    },
+    {
+      "type": "para",
+      "text": "Field 11, the STAN, has six digits and is one of the two default key fields. The host uses it with field 41 to spot duplicates, and a reversal names its original by it. Where should it come from?"
+    },
+    {
+      "type": "para",
+      "text": "A random number looks unique enough. One terminal ID, simulated with 20 purchases in flight and 100,000 a day, each with a random STAN:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "random STANs, 20 in flight, 100,000 purchases a day: 1.8 collisions a day (30 days)"
+    },
+    {
+      "type": "para",
+      "text": "Each collision is a purchase QMUX refuses as a duplicate key while the other waits. Over a day, 100,000 draws from a million values also repeat many times, which a host that looks for duplicates notices. Use a counter: one sequence per outbound link, 000001 to 999999, then 000001 again."
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.space.Space;\nimport org.jpos.space.SpaceUtil;\n\n/** One STAN sequence per outbound link: 000001 .. 999999, then 000001 again. */\npublic final class StanSequencer {\n    private final Space<String, Object> space;\n    private final String key;\n\n    public StanSequencer(Space<String, Object> space, String link) {\n        this.space = space;\n        this.key = \"stan.\" + link;\n    }\n\n    public String next() {\n        long n = SpaceUtil.nextLong(space, key);    // atomic within this JVM\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n}"
+    },
+    {
+      "type": "para",
+      "text": "`SpaceUtil.nextLong` takes the number from the Space, adds one and puts it back while holding the Space's lock, so two threads never get the same number. Started at 999997, it continues:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "999998 999999 000001"
+    },
+    {
+      "type": "para",
+      "text": "Where the counter lives decides what a restart does. A program that takes three STANs, run twice with a transient space (`tspace:stan`) and twice with `je:stan`, the Berkeley DB space that ships with jPOS 2.1.7 (the part before the colon picks the kind of space, the part after names it):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "tspace:stan: 000001 000002 000003\ntspace:stan: 000001 000002 000003\nje:stan: 000001 000002 000003\nje:stan: 000004 000005 000006"
+    },
+    {
+      "type": "para",
+      "text": "After a restart the transient counter starts at 000001 again, so the afternoon's first purchases repeat the morning's terminal and STAN, and a host that checks duplicates by those fields may decline them. Production uses a persistent space. The lock is local to the JVM, though: two processes that share a terminal ID on one link need one shared sequence, such as a database sequence, rather than a space each."
+    },
+    {
+      "type": "para",
+      "text": "Keep every request with its transaction record. A reversal (unit c12) copies fields from it and names it by its MTI, STAN, field 7 and acquirer ID. The rest of the request comes from unit c2's request factory."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 3 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.7 Code Names a MUX and Never Keeps One"
+    },
+    {
+      "type": "para",
+      "text": "Q2 registers each QMUX in the `NameRegistrar` as `mux.<name>`, and `QMUX.getMUX(\"host-mux\")` looks it up. The registry is per JVM, so this works only in the process that runs Q2, as the application or embedded in it (unit c1)."
+    },
+    {
+      "type": "para",
+      "text": "A lookup in the constructor fails if the service is built before Q2 has deployed the descriptor. Here a service looked up `host-pool`, the pool of section 4.7.1, too early:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "before deploy: org.jpos.util.NameRegistrar$NotFoundException: mux.host-pool"
+    },
+    {
+      "type": "para",
+      "text": "A reference kept from startup goes stale when an operator edits the descriptor and Q2 redeploys it. After touching the file, one purchase through a kept reference and one through a fresh lookup:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "descriptor redeployed; same object? false\nkept reference: isConnected false, request -> null\nlooked up now:  isConnected true, request -> 0210\nhost received:\n- 0200 11=000601\n- 0200 11=000602\nhost-mux-unhandled: 0210 11=000601 39=00"
+    },
+    {
+      "type": "para",
+      "text": "The old QMUX is stopped but still wrote the purchase to `host-send`, as any `request` does. The adaptor sent it, the host approved it, and the approval reached the new QMUX, which had nobody waiting for it, so the caller got `null` for a purchase that went through. Look the MUX up when you use it:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.jpos.client.send;\n\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\nimport java.util.function.Supplier;\n\n/** Finds the MUX by name each time it is needed. */\npublic final class MuxLocator implements Supplier<MUX> {\n    private final String name;\n\n    public MuxLocator(String name) {\n        this.name = name;\n    }\n\n    @Override\n    public MUX get() {\n        try {\n            return QMUX.getMUX(name);                  // \"mux.\" + name in the NameRegistrar\n        } catch (NameRegistrar.NotFoundException e) {\n            throw new IllegalStateException(\"MUX '\" + name + \"' is not deployed\", e);\n        }\n    }\n}"
     },
     {
       "type": "heading",
       "level": 3,
-      "text": "4.2.1 Key Methods"
+      "text": "4.7.1 A Pool Takes the Name's Place"
+    },
+    {
+      "type": "para",
+      "text": "The lookup returns the `MUX` interface, and the code needs nothing more. When one link is not enough, each link gets its own ChannelAdaptor and QMUX, and a `MUXPool` in front of them is itself a `MUX`, registered the same way. `deploy/25_host_pool.xml`:"
+    },
+    {
+      "type": "code",
+      "lang": "xml",
+      "text": "<mux name=\"host-pool\" class=\"org.jpos.q2.iso.MUXPool\" logger=\"Q2\">\n  <muxes>host-mux host-mux-b</muxes>\n  <strategy>primary-secondary</strategy>\n</mux>"
+    },
+    {
+      "type": "para",
+      "text": "The second pair is the first one with other names: adaptor `host-channel-b` with queues `host-b-send` and `host-b-receive`, and QMUX `host-mux-b`. Each QMUX reads only its own in queue, so the two links never confuse each other's answers."
+    },
+    {
+      "type": "para",
+      "text": "The pool looks its members up once, when it is deployed, so it comes after them (`25_`), and a missing name fails the deployment. It keeps those references: redeploy a member and the pool still holds the stopped one, so redeploy the pool with it. With two hosts, A and B:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "host-pool is a MUXPool\n000501: 0210 from host A after 0 ms\n000502: 0210 from host A after 0 ms\nlink A down\n000503: 0210 from host B after 0 ms\nlink B down, pool isConnected: false\n000504: null after 3000 ms"
+    },
+    {
+      "type": "para",
+      "text": "`primary-secondary` uses the first member that is connected, so B takes over when A drops. With no member connected, the pool checks again every second until the timeout is spent and then returns `null` without handing the purchase to any member, the same answer as a lost response. Ask `isConnected()` first here too: the pool's is true while any member is. The application changed one word, `host-pool` for `host-mux`. Unit c14 covers the other strategies and how to design for failover."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**The pool's asynchronous form differs.** In 2.1.7, `MUXPool.request` with a listener also waits in the caller's thread for a usable member, up to the timeout, and then throws `ISOException` \"No MUX available\" instead of calling the listener. In our run that took the full 3000 ms."
+        }
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Depending on `MUX` also lets a test hand the client a fake that answers, declines or stays silent on demand (unit c10)."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 4 -->"
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 5 -->"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.8 Summary"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`request(ISOMsg m, long timeout)`: Sends a message and waits for a response.",
-        "`request(ISOMsg m, long timeout, ISOResponseListener rl, Object handBack)`: Sends a message and registers a listener for the response; `handBack` is passed back to the listener.",
-        "`send(ISOMsg m)`: Sends a message without expecting a response."
+        "**QMUX sits on the adaptor's queues, crossed.** Its `<in>` is the adaptor's `<out>`. Copied unchanged, every request times out without leaving the JVM or logging an error.",
+        "**Each thread gets its own answer**, matched by a key, in whatever order the host answers. A lock around write-then-read serialises the whole service.",
+        "**A missing answer is `null`, not an exception.** It means \"unknown\", never \"declined\" and never \"send it again\".",
+        "**`request` doesn't check the link.** On a down link the message waits in the queue for the timeout and may go out late. Ask `isConnected()` first, with `<ready>` configured.",
+        "**The asynchronous listener runs once, on a jPOS thread**, with `null` on expiry. Complete the caller's future in both cases, and keep the listener short, or every answer on the link waits.",
+        "**One STAN sequence per link**, wrapping 999999 to 000001, kept in a persistent space. Random or in-memory numbers repeat.",
+        "**Look a MUX up by name when you use it, and depend on `MUX`.** A kept reference goes stale on redeploy, and a `MUXPool` can take the name's place."
       ]
     },
     {
       "type": "heading",
-      "level": 3,
-      "text": "4.2.2 Example: Asynchronous Transaction Sending"
+      "level": 2,
+      "text": "4.9 Reference"
     },
     {
       "type": "para",
-      "text": "Here's an example of how to send a transaction asynchronously using MUX:"
+      "text": "**The `MUX` interface in 2.1.7** (`MUX` extends `ISOSource`):"
     },
     {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOResponseListener;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.NameRegistrar;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class AsyncTransactionSender {\n\n    private final MUX mux;\n\n    public AsyncTransactionSender() throws NameRegistrar.NotFoundException {\n        this.mux = NameRegistrar.get(\"mux.client-mux\");\n    }\n\n    public void sendTransactionAsync(ISOMsg message) throws Exception {\n        long timeout = 30000; // 30 seconds timeout\n        mux.request(message, timeout, new ISOResponseListener() {\n            @Override\n            public void expired(Object id) {\n                System.out.println(\"Request \" + id + \" expired\");\n            }\n\n            @Override\n            public void responseReceived(ISOMsg response, Object id) {\n                System.out.println(\"Received response for \" + id + \": \" + response);\n            }\n        }, message.getString(11));\n    }\n}"
+      "type": "table",
+      "headers": [
+        "Method",
+        "Does"
+      ],
+      "rows": [
+        [
+          "`ISOMsg request(ISOMsg m, long timeout)`",
+          "sends and blocks; the matching response, or `null` after `timeout` ms"
+        ],
+        [
+          "`void request(ISOMsg m, long timeout, ISOResponseListener l, Object handBack)`",
+          "sends and returns; `l` is called once, with the response or (via `expired`) with `null`"
+        ],
+        [
+          "`void send(ISOMsg m)`",
+          "sends without waiting; QMUX throws `ISOException` when not connected"
+        ],
+        [
+          "`boolean isConnected()`",
+          "QMUX: a `<ready>` entry exists (or, with no `<ready>`, the QMUX is running); MUXPool: some member is usable"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "Both `request` forms throw `ISOException` before sending for \"Key fields not found\" and \"Duplicate key\"."
+    },
+    {
+      "type": "para",
+      "text": "**QMUX elements used in this course:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Element",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`<in>`",
+          "queue QMUX reads: the adaptor's `<out>`"
+        ],
+        [
+          "`<out>`",
+          "queue QMUX writes requests to: the adaptor's `<in>`"
+        ],
+        [
+          "`<ready>`",
+          "Space entry (or entries) that `isConnected()` checks; `host-channel.ready`"
+        ],
+        [
+          "`<unhandled>`",
+          "queue for messages nobody waits for; each expires after 120000 ms"
+        ],
+        [
+          "`<key>`",
+          "key fields, default `41, 11` (unit c12)"
+        ],
+        [
+          "`<request-listener>`",
+          "gets unmatched messages before `<unhandled>` (unit c11)"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**MUXPool strategies in 2.1.7:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "`<strategy>`",
+        "Picks"
+      ],
+      "rows": [
+        [
+          "`primary-secondary` (default)",
+          "the first usable member in `<muxes>` order"
+        ],
+        [
+          "`round-robin`",
+          "the next usable member in turn"
+        ],
+        [
+          "`round-robin-with-override`",
+          "round-robin, except that MTIs in `<follower-override>` go to the link named in the field set by `<original-channel-field>`"
+        ],
+        [
+          "`split-by-divisor`",
+          "member number `<split-field>` modulo the member count, else round-robin"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "\"Usable\" means connected. With `<property name=\"check-enabled\" value=\"true\"/>` a QMUX member also needs an entry named after the QMUX plus `.enabled`, which must be the same object as its ready entry when the QMUX has one `<ready>` name, and merely present when it has several (unit c11). When no member is usable, the pool checks once a second until the timeout runs out."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.3 Creating ISO-8583 Messages"
+      "text": "4.10 Challenges"
     },
     {
-      "type": "para",
-      "text": "Before sending transactions, you need to create ISO-8583 messages. Here's an example of creating a simple authorization request:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOException;\nimport org.springframework.stereotype.Component;\n\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\n\n@Component\npublic class MessageCreator {\n\n    public ISOMsg createAuthorizationRequest(String pan, String amount) throws ISOException {\n        ISOMsg message = new ISOMsg();\n        message.setMTI(\"0100\");\n        message.set(2, pan);\n        message.set(3, \"000000\");\n        message.set(4, amount);\n        message.set(7, DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC).format(Instant.now()));\n        message.set(11, String.format(\"%06d\", (int) (Math.random() * 1000000)));\n        message.set(41, \"12345678\");\n        message.set(42, \"MERCHANT_ID_123\");\n        return message;\n    }\n}"
-    },
-    {
-      "type": "heading",
-      "level": 2,
-      "text": "4.4 Putting It All Together"
-    },
-    {
-      "type": "para",
-      "text": "Now, let's create a service that combines message creation and sending:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TransactionService {\n\n    private final TransactionSender sender;\n    private final MessageCreator creator;\n\n    @Autowired\n    public TransactionService(TransactionSender sender, MessageCreator creator) {\n        this.sender = sender;\n        this.creator = creator;\n    }\n\n    public ISOMsg performAuthorization(String pan, String amount) throws Exception {\n        ISOMsg request = creator.createAuthorizationRequest(pan, amount);\n        return sender.sendTransaction(request);\n    }\n}"
+      "type": "list",
+      "ordered": true,
+      "items": [
+        "Your host answers in 300 ms on average, and 2% of answers take 8 seconds. How many threads does a service using the blocking form need for 200 purchases a second? How many does the asynchronous form need, and what does it need instead?",
+        "The link drops for 40 seconds at lunchtime. Your request timeout is 25 seconds and the adaptor's reconnect delay is 10 seconds. Draw what happens to purchases submitted at seconds 0, 20 and 35, with and without the `isConnected()` check.",
+        "Two instances of the checkout service share one terminal ID on one link. Design their STAN numbering without a shared database. What happens at a restart?",
+        "Write a request listener for `<unhandled>` traffic that logs late approvals. Which fields would you log, and which must you never log?"
+      ]
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "4.5 Testing"
+      "text": "4.11 Design Note: Why Queues Between the MUX and the Socket?"
     },
     {
       "type": "para",
-      "text": "Here's a JUnit test for the `TransactionService`:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "import org.jpos.iso.ISOMsg;\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.Mockito.when;\n\n@ExtendWith(MockitoExtension.class)\nclass TransactionServiceTest {\n\n    @Mock\n    private TransactionSender sender;\n\n    @Mock\n    private MessageCreator creator;\n\n    private TransactionService service;\n\n    @BeforeEach\n    void setUp() {\n        service = new TransactionService(sender, creator);\n    }\n\n    @Test\n    void testPerformAuthorization() throws Exception {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        \n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");\n\n        when(creator.createAuthorizationRequest(\"1234567890123456\", \"100000\")).thenReturn(request);\n        when(sender.sendTransaction(any(ISOMsg.class))).thenReturn(response);\n\n        // Act\n        ISOMsg result = service.performAuthorization(\"1234567890123456\", \"100000\");\n\n        // Assert\n        assertEquals(\"0110\", result.getMTI());\n        assertEquals(\"00\", result.getString(39));\n    }\n}"
+      "text": "QMUX never touches the socket. A MUX that owned the channel would be shorter by one thread, but jPOS puts Space queues in between."
     },
     {
       "type": "para",
-      "text": "This covers the essential aspects of transaction sending in a jPOS client implementation. The combination of QMUX, MUX, and proper message creation allows for efficient and reliable ISO-8583 message transmission."
+      "text": "The queues keep the two sides independent. The adaptor reconnects and backs off without the MUX knowing, and the MUX keeps its waiting threads throughout. A message written while the link is down waits, which suits an advice (a 0220 reporting something already done) and, as section 4.4 showed, can send a purchase late. Anything can sit on the other end of the queues: a second adaptor, a test host in the same JVM, a recorder. Unit c12 replaces the adaptor with a scripted host, and QMUX can't tell."
+    },
+    {
+      "type": "para",
+      "text": "The price is that the queues hide the link. A write to a queue always succeeds, so a mistake like copied queue names shows up only as timeouts, and a stopped QMUX can still put a purchase on the wire. The MUX's whole view of the link is a single Space entry, the ready flag."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 10,
-    "paras": 10,
-    "code": 6,
-    "tables": 0,
-    "lists": 1,
+    "headings": 13,
+    "paras": 52,
+    "code": 24,
+    "tables": 3,
+    "lists": 2,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 5,
     "disclosures": 0
   },
-  "content_sha256": "6be4e302461b5d6eb4f6ceacc602108f11fd2ea6a754660bb3323bee85b0fcb4"
+  "content_sha256": "0571db87302f53f309f5942aff6c68562477b041ae490937c7e80425b6c22918"
 }

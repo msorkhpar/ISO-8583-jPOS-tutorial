@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 10,
   "ordinal": 1,
-  "title": "Answer requests the way a host simulator does",
+  "title": "Let only issued test cards reach the test host",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/HostSimulator.java",
-  "test_file": "src/test/java/com/example/practice/HostSimulatorTest.java",
+  "main_file": "src/main/java/com/example/practice/TestCardGuard.java",
+  "test_file": "src/test/java/com/example/practice/TestCardGuardTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,34 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.HostSimulatorTest#approvesARequestWithACopyThatCarriesTheResponseMti",
+      "id": "com.example.practice.TestCardGuardTest#issuedTestCardsAndCardlessMessagesGoThrough",
       "kind": "main",
-      "says": "an approved request is answered with a copy of it carrying the response MTI, response code 00 and the approval code"
+      "says": "a request with a card from an issued test range, keyed or not, and a message with no card at all are sent unchanged"
     },
     {
-      "id": "com.example.practice.HostSimulatorTest#declinesATestCardWithItsCodeAndNoApprovalCode",
+      "id": "com.example.practice.TestCardGuardTest#aMalformedNumberFromNoIssuedRangeIsRefused",
       "kind": "main",
-      "says": "a card set up to be declined gets its response code and no approval code"
+      "says": "a number from no issued range, with a wrong check digit, is refused"
     },
     {
-      "id": "com.example.practice.HostSimulatorTest#leavesTheRequestUntouched",
+      "id": "com.example.practice.TestCardGuardTest#aWellFormedCardFromNoIssuedRangeIsRefused",
       "kind": "edge",
-      "says": "answering a request does not change the request itself"
+      "says": "a number with a correct check digit is still refused when no issued range holds it, because the check digit says nothing about who owns the card"
     },
     {
-      "id": "com.example.practice.HostSimulatorTest#refusesToAnswerAResponse",
+      "id": "com.example.practice.TestCardGuardTest#aMistypedTestCardIsRefused",
       "kind": "edge",
-      "says": "a message that is already a response is refused with an ISOException"
+      "says": "a number from an issued range with a wrong check digit is refused, so a mistyped test card never reaches the host"
+    },
+    {
+      "id": "com.example.practice.TestCardGuardTest#aSwipedPurchaseIsCheckedThroughItsTrack",
+      "kind": "edge",
+      "says": "a swiped purchase with no field 2 is judged by the card number in its track 2, with either separator"
+    },
+    {
+      "id": "com.example.practice.TestCardGuardTest#theRefusalNamesNoCardInFull",
+      "kind": "edge",
+      "says": "the refusal lets the tester recognise the card without putting its full number into the build log"
     }
   ],
   "report": {
@@ -59,6 +69,6 @@
   },
   "origin": {
     "path": "src/10.md",
-    "section": "10.3. Simulation and test environments"
+    "section": "10.4. A Test Card Is Issued for Testing, and the Luhn Check Only Says It Is Well Formed"
   }
 }

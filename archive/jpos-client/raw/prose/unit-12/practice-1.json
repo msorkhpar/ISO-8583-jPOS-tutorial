@@ -1,0 +1,156 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "jpos-client"
+  ],
+  "variant": "prose",
+  "unit": 12,
+  "kind": "practice",
+  "ordinal": 1,
+  "ingested": "2026-11-05",
+  "title": "Give the gateway its own STANs on the upstream link",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "This is the gateway from 12.3.1, and it is lunchtime. Three hundred terminals send their purchases through `Upstream.forward`, and the host knows the gateway as a single terminal, `GW000001`. Some purchases fail with `Duplicate key`."
+    },
+    {
+      "type": "para",
+      "text": "`forward` already works for one terminal. Finish the three methods marked `TODO` in `src/main/java/com/example/practice/Upstream.java` so that it also works for many:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "`nextStan()`: the gateway's numbering for its own link;",
+        "`upstreamCopy(...)`: what the host receives;",
+        "`forTerminal(...)`: what the terminal gets back."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "The comment on each method says what it is for. When you're done, two terminals can send the same STAN at the same moment and both get their answers, and each terminal recognises the answer as its own. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests run a real QMUX against a test host like the one in 12.1. Some of them keep two purchases in flight at once."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\n\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * The gateway's side of the upstream link. Terminals send their requests to {@link #forward};\n * the gateway relays each one to the acquirer's host through one QMUX, as one terminal.\n */\npublic class Upstream {\n    private final MUX mux;\n    private final String gatewayId;\n    private final AtomicLong sent = new AtomicLong();\n\n    public Upstream(MUX mux, String gatewayId) {\n        this.mux = mux;\n        this.gatewayId = gatewayId;\n    }\n\n    /** Relays a terminal's request and returns the response the terminal should get, or null. */\n    public ISOMsg forward(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = upstreamCopy(fromTerminal);\n        ISOMsg response = mux.request(up, 30000);\n        return response == null ? null : forTerminal(response, fromTerminal);\n    }\n\n    /** The message the host receives: the terminal's request, sent by the gateway. */\n    ISOMsg upstreamCopy(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        up.set(41, gatewayId);\n        up.set(11, nextStan());\n        return up;\n    }\n\n    /** The response as the terminal expects it: an answer to the request it sent. */\n    ISOMsg forTerminal(ISOMsg response, ISOMsg fromTerminal) throws ISOException {\n        ISOMsg down = (ISOMsg) response.clone();\n        down.set(11, fromTerminal.getString(11));\n        down.set(41, fromTerminal.getString(41));\n        return down;\n    }\n\n    /** The STAN of the next message the gateway sends on this link. */\n    String nextStan() {\n        long n = sent.incrementAndGet();\n        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\n\n/**\n * The gateway's side of the upstream link. Terminals send their requests to {@link #forward};\n * the gateway relays each one to the acquirer's host through one QMUX, as one terminal.\n */\npublic class Upstream {\n    private final MUX mux;\n    private final String gatewayId;\n\n    public Upstream(MUX mux, String gatewayId) {\n        this.mux = mux;\n        this.gatewayId = gatewayId;\n    }\n\n    /** Relays a terminal's request and returns the response the terminal should get, or null. */\n    public ISOMsg forward(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = upstreamCopy(fromTerminal);\n        ISOMsg response = mux.request(up, 30000);\n        return response == null ? null : forTerminal(response, fromTerminal);\n    }\n\n    /** The message the host receives: the terminal's request, sent by the gateway. */\n    ISOMsg upstreamCopy(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        up.set(41, gatewayId);\n        // TODO: On this link the gateway is the sender, and the STAN is the sender's number for\n        //       the message. Today the terminal's STAN goes up unchanged, which is what collides\n        //       at lunchtime. One line here, using nextStan().\n        return up;\n    }\n\n    /** The response as the terminal expects it: an answer to the request it sent. */\n    ISOMsg forTerminal(ISOMsg response, ISOMsg fromTerminal) throws ISOException {\n        // TODO: The host answered the gateway's message. The terminal matches responses to its\n        //       requests the same way QMUX does, by its own terminal ID and STAN. Return a copy\n        //       of the response that the terminal will recognise. Leave `response` unchanged.\n        throw new IllegalStateException(\"TODO: forTerminal\");\n    }\n\n    /** The STAN of the next message the gateway sends on this link. */\n    String nextStan() {\n        // TODO: Six digits, never 000000, and never the same twice while a message could still\n        //       be waiting. Several terminals call forward() at the same time. Add the field you\n        //       need; ISOUtil.zeropad may help.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 4,
+    "code": 1,
+    "tables": 0,
+    "lists": 1,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "b4c4f239b160fdd1117bba2908a0bbbce2a7a37f3ed3d652f547e389696a26a4",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.MUX;\n\n/**\n * The gateway's side of the upstream link. Terminals send their requests to {@link #forward};\n * the gateway relays each one to the acquirer's host through one QMUX, as one terminal.\n */\npublic class Upstream {\n    private final MUX mux;\n    private final String gatewayId;\n\n    public Upstream(MUX mux, String gatewayId) {\n        this.mux = mux;\n        this.gatewayId = gatewayId;\n    }\n\n    /** Relays a terminal's request and returns the response the terminal should get, or null. */\n    public ISOMsg forward(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = upstreamCopy(fromTerminal);\n        ISOMsg response = mux.request(up, 30000);\n        return response == null ? null : forTerminal(response, fromTerminal);\n    }\n\n    /** The message the host receives: the terminal's request, sent by the gateway. */\n    ISOMsg upstreamCopy(ISOMsg fromTerminal) throws ISOException {\n        ISOMsg up = (ISOMsg) fromTerminal.clone();\n        up.set(41, gatewayId);\n        // TODO: On this link the gateway is the sender, and the STAN is the sender's number for\n        //       the message. Today the terminal's STAN goes up unchanged, which is what collides\n        //       at lunchtime. One line here, using nextStan().\n        return up;\n    }\n\n    /** The response as the terminal expects it: an answer to the request it sent. */\n    ISOMsg forTerminal(ISOMsg response, ISOMsg fromTerminal) throws ISOException {\n        // TODO: The host answered the gateway's message. The terminal matches responses to its\n        //       requests the same way QMUX does, by its own terminal ID and STAN. Return a copy\n        //       of the response that the terminal will recognise. Leave `response` unchanged.\n        throw new IllegalStateException(\"TODO: forTerminal\");\n    }\n\n    /** The STAN of the next message the gateway sends on this link. */\n    String nextStan() {\n        // TODO: Six digits, never 000000, and never the same twice while a message could still\n        //       be waiting. Several terminals call forward() at the same time. Add the field you\n        //       need; ISOUtil.zeropad may help.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/jpos-client/prose/unit-12/practice-1/src/main/java/com/example/practice/Upstream.java",
+    "test_path": "practice/jpos-client/prose/unit-12/practice-1/src/test/java/com/example/practice/UpstreamTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-1/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/jpos-client/prose/unit-12/practice-1/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.UpstreamTest#aTerminalGetsTheHostsAnswer",
+        "kind": "main",
+        "says": "a terminal's purchase is relayed under the gateway's ID and the terminal gets the host's answer"
+      },
+      {
+        "id": "com.example.practice.UpstreamTest#theTerminalGetsItsOwnStanBack",
+        "kind": "edge",
+        "says": "the response a terminal receives carries the STAN the terminal sent, not the gateway's"
+      },
+      {
+        "id": "com.example.practice.UpstreamTest#theTerminalGetsItsOwnIdBack",
+        "kind": "edge",
+        "says": "the response a terminal receives carries the terminal's own ID, not the gateway's"
+      },
+      {
+        "id": "com.example.practice.UpstreamTest#twoTerminalsWithTheSameStanAtTheSameMoment",
+        "kind": "edge",
+        "says": "two terminals that use the same STAN at the same moment both get their answers, because the gateway numbers its own link"
+      },
+      {
+        "id": "com.example.practice.UpstreamTest#twoTerminalsStartingTheirDayAtTheSameMoment",
+        "kind": "edge",
+        "says": "two messages in flight on the link never share a STAN, so one sequence serves the whole link rather than one per terminal"
+      },
+      {
+        "id": "com.example.practice.UpstreamTest#aLongRunningLinkNeverSendsStanZero",
+        "kind": "edge",
+        "says": "the six-digit STAN wraps from 999999 to 000001 and is never 000000"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/jpos-client/prose/unit-12/practice-1/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/c12.md",
+      "section": "12.3.1 Spot the Problem: The Gateway at Lunchtime"
+    },
+    "concepts": [
+      "A response finds its request because both produce the same key; what differs between them (the response digit, the repeat digit) is left out.",
+      "Only one request per key can wait, so the sender of a link must number its own messages; per-terminal or relayed STANs collide."
+    ]
+  }
+}

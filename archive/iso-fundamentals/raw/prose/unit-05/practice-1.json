@@ -8,8 +8,8 @@
   "unit": 5,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Approve Visa purchases in a transaction participant",
+  "ingested": "2026-11-05",
+  "title": "Split a capture from a Visa link into frames",
   "blocks": [
     {
       "type": "heading",
@@ -18,30 +18,24 @@
     },
     {
       "type": "para",
-      "text": "In a jPOS switch, each step of handling a transaction is a `TransactionParticipant`. Its `prepare` reads what it needs from the transaction's `Context`, and either leaves its result there and says `PREPARED`, or records why it cannot go on and says `ABORTED`. Here you write the step that approves Visa purchases."
+      "text": "The support desk wants to see what Visa's side of a link really sends, frame by frame, instead of what the application logged after unpacking. A small pass-through will sit on the connection: it reads everything the network sends and hands each frame to the desk as two byte arrays, the header bytes and the message bytes. Because it sits on a live link, it has to treat everything that arrives the way jPOS's `VAPChannel` does, or the link suffers."
     },
     {
       "type": "para",
-      "text": "Field 3, the processing code, is six digits, and its **first two** name the transaction: `00` purchase, `01` cash advance, `02` void, `20` refund. The other four digits say which accounts are involved and do not change what the transaction is."
-    },
-    {
-      "type": "para",
-      "text": "Write `VisaPurchaseParticipant`:"
+      "text": "`Base1Frames` in `src/main/java/com/example/practice/Base1Frames.java` already reads the prefixes and returns the frames. Finish the three methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "`static String transactionType(String processingCode)` returns `\"Purchase\"`, `\"Cash Advance\"`, `\"Void\"` or `\"Refund\"`, or `null` for a code that is none of them (or is `null`).",
-        "The constructor takes the merchant's card acceptor ID and its name and location.",
-        "`prepare(long id, Serializable context)` takes the `ISOMsg` under `\"REQUEST\"` in the `Context`. When it is an 0100 whose processing code names a purchase, it puts under `\"RESPONSE\"` an 0110 carrying everything the request carried, plus field 39 `00`, field 42 set to the acceptor ID and field 43 to the name and location, right-padded with spaces to 15 and 40 characters, and returns `PREPARED`.",
-        "Anything else (another MTI, another transaction, no processing code) puts `\"Invalid transaction type\"` under `\"RESULT\"` and returns `ABORTED`.",
-        "The request stays in the context as it arrived: the response is a message of its own."
+        "`poll`: what to do with a prefix that has no message behind it;",
+        "`readHeaders`: every header byte in front of the message, on any frame the network may send;",
+        "`messageLength`: how many message bytes follow."
       ]
     },
     {
       "type": "para",
-      "text": "`commit` and `abort` have nothing to do here."
+      "text": "About 20 lines in total."
     },
     {
       "type": "heading",
@@ -56,7 +50,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    private final String acceptorId;\n    private final String nameAndLocation;\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n        this.acceptorId = acceptorId;\n        this.nameAndLocation = nameAndLocation;\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        if (processingCode == null || processingCode.length() < 2) {\n            return null;\n        }\n        switch (processingCode.substring(0, 2)) {\n            case \"00\": return \"Purchase\";\n            case \"01\": return \"Cash Advance\";\n            case \"02\": return \"Void\";\n            case \"20\": return \"Refund\";\n            default: return null;\n        }\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = (ISOMsg) ctx.get(\"REQUEST\");\n        try {\n            if (!\"0100\".equals(request.getMTI())\n                    || !\"Purchase\".equals(transactionType(request.getString(3)))) {\n                ctx.put(\"RESULT\", \"Invalid transaction type\");\n                return ABORTED;\n            }\n            ISOMsg response = (ISOMsg) request.clone();\n            response.setMTI(\"0110\");\n            response.set(39, \"00\");\n            response.set(42, ISOUtil.padright(acceptorId, 15, ' '));\n            response.set(43, ISOUtil.padright(nameAndLocation, 40, ' '));\n            ctx.put(\"RESPONSE\", response);\n            return PREPARED;\n        } catch (ISOException e) {\n            ctx.put(\"RESULT\", \"Invalid transaction type\");\n            return ABORTED;\n        }\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport java.io.DataInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.util.Arrays;\n\n/**\n * Sits on a BASE I connection as a pass-through for the support desk: splits what the network\n * sends into frames, each one the header bytes and the message bytes, and copes with whatever\n * else arrives on the link the way jPOS's VAPChannel does.\n */\npublic final class Base1Frames {\n\n    /** One frame: every header byte in front of the message, and the message from its MTI on. */\n    public record Frame(byte[] header, byte[] message) {\n        @Override\n        public boolean equals(Object o) {\n            return o instanceof Frame f && Arrays.equals(header, f.header) && Arrays.equals(message, f.message);\n        }\n\n        @Override\n        public int hashCode() {\n            return 31 * Arrays.hashCode(header) + Arrays.hashCode(message);\n        }\n\n        @Override\n        public String toString() {\n            return \"Frame[header=\" + hex(header) + \", message=\" + hex(message) + \"]\";\n        }\n    }\n\n    private final DataInputStream in;\n    private final OutputStream out;\n\n    /** {@code in} is what the network sends; {@code out} is the way back to the network. */\n    public Base1Frames(InputStream in, OutputStream out) {\n        this.in = new DataInputStream(in);\n        this.out = out;\n    }\n\n    /** The next frame that carries a message, or null when the capture ends between frames. */\n    public Frame next() throws IOException {\n        while (true) {\n            byte[] prefix = new byte[4];\n            if (!readPrefix(prefix))\n                return null;\n            if (poll(prefix))\n                continue;\n            byte[] header = readHeaders();\n            byte[] message = new byte[messageLength(prefix, header)];\n            in.readFully(message);\n            return new Frame(header, message);\n        }\n    }\n\n    /** True when this prefix is not followed by a message; handles whatever such a prefix needs. */\n    boolean poll(byte[] prefix) throws IOException {\n        if (length(prefix) != 0)\n            return false;\n        out.write(prefix);\n        out.flush();\n        return true;\n    }\n\n    /** Every header byte between the prefix and the message. */\n    byte[] readHeaders() throws IOException {\n        byte[] header = readOneHeader();\n        if ((header[1] & 0x80) != 0) {\n            byte[] next = readOneHeader();\n            byte[] both = Arrays.copyOf(header, header.length + next.length);\n            System.arraycopy(next, 0, both, header.length, next.length);\n            header = both;\n        }\n        return header;\n    }\n\n    /** How many message bytes follow the headers. */\n    int messageLength(byte[] prefix, byte[] header) {\n        return length(prefix) - header.length;\n    }\n\n    private byte[] readOneHeader() throws IOException {\n        int size = in.readUnsignedByte();\n        byte[] header = new byte[size];\n        header[0] = (byte) size;\n        in.readFully(header, 1, size - 1);\n        return header;\n    }\n\n    /** The length the prefix announces. */\n    static int length(byte[] prefix) {\n        return (prefix[0] & 0xFF) << 8 | (prefix[1] & 0xFF);\n    }\n\n    /** Reads a 4-byte prefix; false when the capture has ended before it. */\n    private boolean readPrefix(byte[] prefix) throws IOException {\n        int first = in.read();\n        if (first < 0)\n            return false;\n        prefix[0] = (byte) first;\n        in.readFully(prefix, 1, 3);\n        return true;\n    }\n\n    static String hex(byte[] b) {\n        StringBuilder s = new StringBuilder();\n        for (byte x : b)\n            s.append(String.format(\"%02X\", x));\n        return s.toString();\n    }\n}\n"
         }
       ]
     },
@@ -68,7 +62,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        throw new UnsupportedOperationException(\"write transactionType\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport java.io.DataInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.util.Arrays;\n\n/**\n * Sits on a BASE I connection as a pass-through for the support desk: splits what the network\n * sends into frames, each one the header bytes and the message bytes, and copes with whatever\n * else arrives on the link the way jPOS's VAPChannel does.\n */\npublic final class Base1Frames {\n\n    /** One frame: every header byte in front of the message, and the message from its MTI on. */\n    public record Frame(byte[] header, byte[] message) {\n        @Override\n        public boolean equals(Object o) {\n            return o instanceof Frame f && Arrays.equals(header, f.header) && Arrays.equals(message, f.message);\n        }\n\n        @Override\n        public int hashCode() {\n            return 31 * Arrays.hashCode(header) + Arrays.hashCode(message);\n        }\n\n        @Override\n        public String toString() {\n            return \"Frame[header=\" + hex(header) + \", message=\" + hex(message) + \"]\";\n        }\n    }\n\n    private final DataInputStream in;\n    private final OutputStream out;\n\n    /** {@code in} is what the network sends; {@code out} is the way back to the network. */\n    public Base1Frames(InputStream in, OutputStream out) {\n        this.in = new DataInputStream(in);\n        this.out = out;\n    }\n\n    /** The next frame that carries a message, or null when the capture ends between frames. */\n    public Frame next() throws IOException {\n        while (true) {\n            byte[] prefix = new byte[4];\n            if (!readPrefix(prefix))\n                return null;\n            if (poll(prefix))\n                continue;\n            byte[] header = readHeaders();\n            byte[] message = new byte[messageLength(prefix, header)];\n            in.readFully(message);\n            return new Frame(header, message);\n        }\n    }\n\n    /** True when this prefix is not followed by a message; handles whatever such a prefix needs. */\n    boolean poll(byte[] prefix) throws IOException {\n        // TODO: decide whether this prefix starts a frame with no message behind it, and do for\n        //       such a frame what the network expects of you. Return true when nothing follows.\n        throw new IllegalStateException(\"TODO: poll\");\n    }\n\n    /** Every header byte between the prefix and the message. */\n    byte[] readHeaders() throws IOException {\n        // TODO: read every header byte that comes before the message, whatever kind of frame this is.\n        throw new IllegalStateException(\"TODO: readHeaders\");\n    }\n\n    /** How many message bytes follow the headers. */\n    int messageLength(byte[] prefix, byte[] header) {\n        // TODO: how many message bytes follow the headers you read.\n        throw new IllegalStateException(\"TODO: messageLength\");\n    }\n\n    /** The length the prefix announces. */\n    static int length(byte[] prefix) {\n        return (prefix[0] & 0xFF) << 8 | (prefix[1] & 0xFF);\n    }\n\n    /** Reads a 4-byte prefix; false when the capture has ended before it. */\n    private boolean readPrefix(byte[] prefix) throws IOException {\n        int first = in.read();\n        if (first < 0)\n            return false;\n        prefix[0] = (byte) first;\n        in.readFully(prefix, 1, 3);\n        return true;\n    }\n\n    static String hex(byte[] b) {\n        StringBuilder s = new StringBuilder();\n        for (byte x : b)\n            s.append(String.format(\"%02X\", x));\n        return s.toString();\n    }\n}\n"
     }
   ],
   "video": null,
@@ -76,7 +70,7 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
+    "paras": 3,
     "code": 1,
     "tables": 0,
     "lists": 1,
@@ -87,11 +81,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "76aad03979166d76b6f896839992d1d18cdec447c614e6cf625908c188f900e0",
-  "starting_code": "package com.example.practice;\n\nimport java.io.Serializable;\nimport org.jpos.transaction.TransactionParticipant;\n\n/** The transaction step that approves Visa purchases. */\npublic class VisaPurchaseParticipant implements TransactionParticipant {\n\n    public VisaPurchaseParticipant(String acceptorId, String nameAndLocation) {\n    }\n\n    /** Purchase, Cash Advance, Void or Refund, from a processing code; null for anything else. */\n    public static String transactionType(String processingCode) {\n        throw new UnsupportedOperationException(\"write transactionType\");\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        throw new UnsupportedOperationException(\"write prepare\");\n    }\n\n    @Override\n    public void commit(long id, Serializable context) {\n    }\n\n    @Override\n    public void abort(long id, Serializable context) {\n    }\n}\n",
+  "content_sha256": "040a962cb834eca7921e42dfdbeef0e645d31f6e0154b40dd963b18507c0f782",
+  "starting_code": "package com.example.practice;\n\nimport java.io.DataInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.util.Arrays;\n\n/**\n * Sits on a BASE I connection as a pass-through for the support desk: splits what the network\n * sends into frames, each one the header bytes and the message bytes, and copes with whatever\n * else arrives on the link the way jPOS's VAPChannel does.\n */\npublic final class Base1Frames {\n\n    /** One frame: every header byte in front of the message, and the message from its MTI on. */\n    public record Frame(byte[] header, byte[] message) {\n        @Override\n        public boolean equals(Object o) {\n            return o instanceof Frame f && Arrays.equals(header, f.header) && Arrays.equals(message, f.message);\n        }\n\n        @Override\n        public int hashCode() {\n            return 31 * Arrays.hashCode(header) + Arrays.hashCode(message);\n        }\n\n        @Override\n        public String toString() {\n            return \"Frame[header=\" + hex(header) + \", message=\" + hex(message) + \"]\";\n        }\n    }\n\n    private final DataInputStream in;\n    private final OutputStream out;\n\n    /** {@code in} is what the network sends; {@code out} is the way back to the network. */\n    public Base1Frames(InputStream in, OutputStream out) {\n        this.in = new DataInputStream(in);\n        this.out = out;\n    }\n\n    /** The next frame that carries a message, or null when the capture ends between frames. */\n    public Frame next() throws IOException {\n        while (true) {\n            byte[] prefix = new byte[4];\n            if (!readPrefix(prefix))\n                return null;\n            if (poll(prefix))\n                continue;\n            byte[] header = readHeaders();\n            byte[] message = new byte[messageLength(prefix, header)];\n            in.readFully(message);\n            return new Frame(header, message);\n        }\n    }\n\n    /** True when this prefix is not followed by a message; handles whatever such a prefix needs. */\n    boolean poll(byte[] prefix) throws IOException {\n        // TODO: decide whether this prefix starts a frame with no message behind it, and do for\n        //       such a frame what the network expects of you. Return true when nothing follows.\n        throw new IllegalStateException(\"TODO: poll\");\n    }\n\n    /** Every header byte between the prefix and the message. */\n    byte[] readHeaders() throws IOException {\n        // TODO: read every header byte that comes before the message, whatever kind of frame this is.\n        throw new IllegalStateException(\"TODO: readHeaders\");\n    }\n\n    /** How many message bytes follow the headers. */\n    int messageLength(byte[] prefix, byte[] header) {\n        // TODO: how many message bytes follow the headers you read.\n        throw new IllegalStateException(\"TODO: messageLength\");\n    }\n\n    /** The length the prefix announces. */\n    static int length(byte[] prefix) {\n        return (prefix[0] & 0xFF) << 8 | (prefix[1] & 0xFF);\n    }\n\n    /** Reads a 4-byte prefix; false when the capture has ended before it. */\n    private boolean readPrefix(byte[] prefix) throws IOException {\n        int first = in.read();\n        if (first < 0)\n            return false;\n        prefix[0] = (byte) first;\n        in.readFully(prefix, 1, 3);\n        return true;\n    }\n\n    static String hex(byte[] b) {\n        StringBuilder s = new StringBuilder();\n        for (byte x : b)\n            s.append(String.format(\"%02X\", x));\n        return s.toString();\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/com/example/practice/VisaPurchaseParticipant.java",
-    "test_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/test/java/com/example/practice/VisaPurchaseParticipantTest.java",
+    "main_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/com/example/practice/Base1Frames.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-05/practice-1/src/test/java/com/example/practice/Base1FramesTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -112,24 +106,29 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.VisaPurchaseParticipantTest#namesTheTransactionTypeFromTheProcessingCode",
+        "id": "com.example.practice.Base1FramesTest#splitsOneFrame",
         "kind": "main",
-        "says": "names purchase, cash advance, void and refund from the processing code, and nothing else"
+        "says": "a frame comes out as its header bytes and its message bytes, and the capture then ends"
       },
       {
-        "id": "com.example.practice.VisaPurchaseParticipantTest#preparesAnApprovedResponseForAPurchase",
+        "id": "com.example.practice.Base1FramesTest#splitsFramesBackToBack",
         "kind": "main",
-        "says": "prepares an approved 0110 with the merchant fields padded to width for a purchase, and aborts with a reason for anything else"
+        "says": "frames that follow each other come out one by one, in order"
       },
       {
-        "id": "com.example.practice.VisaPurchaseParticipantTest#aPurchaseFromAnyAccountIsStillAPurchase",
+        "id": "com.example.practice.Base1FramesTest#answersAPoll",
         "kind": "edge",
-        "says": "only the processing code's first two digits name the transaction, so 003000 is a purchase too"
+        "says": "a frame with length zero is no message and is written back to the network as it came"
       },
       {
-        "id": "com.example.practice.VisaPurchaseParticipantTest#leavesTheRequestAsItArrived",
+        "id": "com.example.practice.Base1FramesTest#readsARejectHeaderWhole",
         "kind": "edge",
-        "says": "the request in the context is left as it arrived; the response is a separate message"
+        "says": "a reject header and the original header behind it are both read as header, whatever their lengths"
+      },
+      {
+        "id": "com.example.practice.Base1FramesTest#theNextFrameStartsWhereARejectEnds",
+        "kind": "edge",
+        "says": "the prefix's length counts every header byte, so a message ends where its frame ends even behind a longer header"
       }
     ],
     "report": {
@@ -138,12 +137,12 @@
     },
     "origin": {
       "path": "src/5.md",
-      "section": "5.3. Visa processing codes"
+      "section": "5.2. A Rejected Message Comes Back Behind a Longer Header, With No Field 39"
     },
     "concepts": [
-      "Fields 42 and 43 identify the merchant and are fixed width, so their values are right-padded with spaces to 15 and 40 characters.",
-      "A TransactionParticipant's prepare reads the request from the Context and either leaves a response there and returns PREPARED, or records why and returns ABORTED.",
-      "The first two digits of field 3 name the Visa transaction: 00 purchase, 01 cash advance, 02 void, 20 refund."
+      "On a BASE I link a four-byte prefix and a header come before the MTI; the header's first byte gives its length, and the prefix's length counts the header as well as the message.",
+      "A frame with length zero is a poll, not a message, and VAPChannel writes it back to the network.",
+      "A network reject returns the sender's own message behind a longer reject header, with no field 39; the refusal and its code are in the header."
     ]
   }
 }

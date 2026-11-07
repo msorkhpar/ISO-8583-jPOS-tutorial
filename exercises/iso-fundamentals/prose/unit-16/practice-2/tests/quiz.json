@@ -1,0 +1,187 @@
+{
+  "quiz_api": 1,
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 16,
+  "ordinal": 2,
+  "title": "Check yourself: Future of ISO-8583",
+  "exercise": {
+    "provenance": "generated",
+    "trust": "advisory",
+    "kind": "quiz",
+    "questions": [
+      {
+        "id": "q-length-header",
+        "stem": "A partner wants your messages in jPOS's <isomsg> XML form, each preceded by a four-digit ASCII length. Your link today runs ASCIIChannel with the 1987 ASCII packager. What has to change?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Only the packager, to XMLPackager, since ASCIIChannel writes its four-digit length in front of the XML form",
+            "correct": true,
+            "says": "16.1: the packager produces the bytes and ASCIIChannel only puts four digits of length in front of them; the run shows 0197 followed by the XML."
+          },
+          {
+            "id": "b",
+            "text": "Only the channel, to XMLChannel, since XMLChannel writes the XML form and a four-digit length in front of it",
+            "correct": false,
+            "says": "16.1: XMLChannel has no length header; it frames by reading up to the closing </isomsg>, and the XML itself comes from the packager."
+          },
+          {
+            "id": "c",
+            "text": "A new channel subclass whose send method writes the XML, since framing and encoding belong in one class",
+            "correct": false,
+            "says": "16.1: the packager encodes and the channel frames, so a different pair in the configuration is enough; no new code."
+          },
+          {
+            "id": "d",
+            "text": "A new channel subclass whose header methods write the length, since ASCIIChannel's length counts ISO fields only",
+            "correct": false,
+            "says": "16.1: ASCIIChannel counts whatever the packager produced, XML included (0197 in the run)."
+          }
+        ],
+        "origin": {
+          "path": "src/16.md",
+          "section": "16.1. Another Syntax Changes the Packager, Not the Messages"
+        }
+      },
+      {
+        "id": "q-json-timeout",
+        "stem": "Your switch sends purchases to a partner as JSON over HTTPS, and the partner's API answers each one in the same HTTP exchange; it takes no idempotency key. A purchase of 40.00 gets no answer within your timeout. What should the switch do?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Send the purchase again, since an API that answers in the same exchange has applied only what it answered",
+            "correct": false,
+            "says": "16.1: a JSON 0200 means what it meant in unit 4: with no answer its outcome is unknown, and a resend can make the cardholder pay twice."
+          },
+          {
+            "id": "b",
+            "text": "Send the purchase again, since a JSON request carries no STAN the partner could take for a duplicate",
+            "correct": false,
+            "says": "16.1: the fields and their meaning don't change with the syntax, and resending an unanswered purchase can make the cardholder pay twice."
+          },
+          {
+            "id": "c",
+            "text": "Reverse the purchase, since the partner could have approved it before the answer was lost",
+            "correct": true,
+            "says": "16.1: the outcome is unknown exactly as in unit 4, and reversals come with the messages whatever the syntax."
+          },
+          {
+            "id": "d",
+            "text": "Decline it locally and send nothing, since the partner could have declined it before the answer was lost",
+            "correct": false,
+            "says": "16.1: with no answer the outcome is unknown, so the partner could equally have approved it; forgetting the purchase leaves the cardholder paying for a sale the merchant reported as failed."
+          }
+        ],
+        "origin": {
+          "path": "src/16.md",
+          "section": "16.1. Another Syntax Changes the Packager, Not the Messages"
+        }
+      },
+      {
+        "id": "q-xml-entity",
+        "stem": "Your server unpacks a partner's XML messages with XML2003Packager and answers each 0800 by cloning it. One 0800 starts with a DOCTYPE that declares an entity naming a file on your server, and field 48 refers to that entity. What happens?",
+        "options": [
+          {
+            "id": "a",
+            "text": "The message is refused, since jPOS packagers parse a partner's XML with DOCTYPE declarations turned off",
+            "correct": false,
+            "says": "16.3: only XMLPackager refuses a DOCTYPE; XML2003Packager turns that check off in its constructor."
+          },
+          {
+            "id": "b",
+            "text": "The message is refused, since an authenticated link only delivers XML that the partner's own parser has checked",
+            "correct": false,
+            "says": "16.3: message text is input from another system even on an authenticated link; the receiving parser has to refuse DOCTYPE declarations."
+          },
+          {
+            "id": "c",
+            "text": "The file's content goes back in field 48, since this packager lets the parser resolve the entity before the clone",
+            "correct": true,
+            "says": "16.3: XML2003Packager reads the file into field 48, and a server that answers echoes by cloning the request sends it back."
+          },
+          {
+            "id": "d",
+            "text": "The file's name goes back in field 48, since this packager keeps entity references as text without reading them",
+            "correct": false,
+            "says": "16.3: the run shows field 48 holding the file's content, not the reference."
+          }
+        ],
+        "origin": {
+          "path": "src/16.md",
+          "section": "16.3. An XML Parser That Accepts a DOCTYPE Reads Files for the Sender"
+        }
+      },
+      {
+        "id": "q-card-link",
+        "stem": "A bank that has moved its instant and high-value payments to ISO 20022 asks a card processor when its own link to the card network will move as well. Which answer matches where the standards stand?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Soon, since the card networks follow the plan that moved banks off the SWIFT MT messages",
+            "correct": false,
+            "says": "16.4: the move off SWIFT MT concerns cross-border payments between banks; card authorization is still overwhelmingly ISO 8583."
+          },
+          {
+            "id": "b",
+            "text": "Soon, since ISO 20022 already defines card messages from acquirers to issuers",
+            "correct": false,
+            "says": "16.4: ISO 20022 defines card messages, but authorization between acquirers, networks and issuers still runs on ISO 8583."
+          },
+          {
+            "id": "c",
+            "text": "Not for now, since card authorization between acquirers and networks still runs on ISO 8583",
+            "correct": true,
+            "says": "16.4: card authorization between acquirers, networks and issuers is still overwhelmingly ISO 8583; the bank's payments and the card link run on different standards."
+          },
+          {
+            "id": "d",
+            "text": "Not for now, since ISO 20022 defines no card messages that acquirers and networks could use yet",
+            "correct": false,
+            "says": "16.4: ISO 20022 does define card messages, from acceptor to acquirer and from acquirer to issuer."
+          }
+        ],
+        "origin": {
+          "path": "src/16.md",
+          "section": "16.4. ISO 20022 Models the Business First, and It Carries Account-to-Account Payments"
+        }
+      },
+      {
+        "id": "q-merchant-name",
+        "stem": "A gateway receives ISO 20022 card payments and forwards them on a 1987 link with jPOS's ASCII packager. One merchant's structured name and town together take 47 characters. What should happen to field 43?",
+        "options": [
+          {
+            "id": "a",
+            "text": "Let the packager cut it to 40, since a fixed-length field keeps the first 40 characters",
+            "correct": false,
+            "says": "16.5: the packager refuses the 51-character value with 'error packing field 43'; it cuts nothing."
+          },
+          {
+            "id": "b",
+            "text": "Let the packager pad or cut it, since it fits every value to the field's defined length",
+            "correct": false,
+            "says": "16.5: the packager refuses a value that is too long, at run time, so the message isn't sent."
+          },
+          {
+            "id": "c",
+            "text": "Shorten it in the mapping as the network specifies, since the packager refuses longer values",
+            "correct": true,
+            "says": "16.5: someone has to decide what to cut and how the network wants name, town and country laid out in 40 characters; the mapping is agreed field by field."
+          },
+          {
+            "id": "d",
+            "text": "Move it to a private field in the mapping, since field 43 can't hold a name and a town",
+            "correct": false,
+            "says": "16.5: field 43 holds the name and location in 40 characters; the mapping decides how they fit, with the network."
+          }
+        ],
+        "origin": {
+          "path": "src/16.md",
+          "section": "16.5. A Bridge Between the Standards Decides, Field by Field, What the Other Side Lacks"
+        }
+      }
+    ]
+  }
+}

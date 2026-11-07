@@ -1,22 +1,20 @@
-A PIN never travels in the clear, and it never travels alone: before it is encrypted it is
-laid out in a fixed sixteen-digit block and mixed with the card number, so a block captured
-from one card is useless with another. Format 0 is the block that does both: the padded PIN
-field XOR the PAN field, and that is the block you build here.
+The certification lab runs a test issuer. Its software security module decrypts each field 52 and
+passes the clear block, with the card number of the message, to `PinBlockReader.pin`, which
+returns the PIN the cardholder typed. The issuer then compares that PIN with the test card's own.
 
-Write `PinBlock`, working in upper-case hexadecimal strings:
+The lab's devices are a mix: the older PIN pads send ISO format 0, the new ones format 3, and one
+ATM vendor's test machine sends format 1, often without knowing the card number. Nothing else is in
+use, and a block in any other format is refused.
 
-- `pinField(String pin)`: `0`, then the PIN length as **one** hexadecimal digit, then the PIN,
-  then `F` up to sixteen digits. PIN `1234` gives `041234FFFFFFFFFF`.
-- `panField(String pan)`: `0000` followed by the twelve rightmost digits of the PAN
-  **excluding** its last digit, the check digit.
-- `format0(String pin, String pan)`: the PIN field XOR the PAN field, digit by digit, as
-  sixteen hexadecimal digits.
+A reader that gets a block wrong does one of two things, and both cost certification time. It
+returns a PIN where it should have refused the block, so a wrong PIN can be approved; or it refuses
+a PIN the cardholder typed right, and the vendor goes hunting for a bug in a pad that works.
 
-Edge cases to handle:
+Finish the two methods marked `TODO` in `src/main/java/com/example/practice/PinBlockReader.java`:
 
-- A PIN of ten, eleven or twelve digits still has a one-digit length: `A`, `B` or `C`.
-- A PIN is four to twelve decimal digits. Anything else is refused with an
-  `IllegalArgumentException`, from `pinField` and from `format0`. You may assume a PAN is
-  at least thirteen digits.
+- `pinField(block, pan)`: the PIN field the device built, before it mixed anything in;
+- `pinFrom(field)`: the PIN in it, or an `IllegalArgumentException` when the field isn't one a
+  device would build.
 
-`org.jpos.iso.ISOUtil` has `hex2byte`, `xor` and `hexString`, if you want them.
+`pin` already checks that the block is 16 hex digits and calls the two. About twenty lines in
+total. `org.jpos.iso.ISOUtil` has `hex2byte`, `xor`, `hexString` and `isNumeric` if you want them.

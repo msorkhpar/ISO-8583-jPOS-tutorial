@@ -8,7 +8,7 @@
   "unit": 7,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-09-21",
+  "ingested": "2026-11-05",
   "title": "Transaction Flow",
   "blocks": [
     {
@@ -17,128 +17,404 @@
       "text": "7. Transaction Flow"
     },
     {
-      "type": "heading",
-      "level": 3,
-      "text": "7.1. Authorization Flow"
+      "type": "para",
+      "text": "A cardholder's banking app, one week:"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "When",
+        "Merchant",
+        "Amount",
+        "Status"
+      ],
+      "rows": [
+        [
+          "Monday 21:40",
+          "Harbour Hotel",
+          "300.00",
+          "pending"
+        ],
+        [
+          "Tuesday 08:15",
+          "ATM withdrawal",
+          "50.00",
+          "posted"
+        ],
+        [
+          "Tuesday 11:50",
+          "Corner Grocer",
+          "150.00",
+          "pending"
+        ],
+        [
+          "Thursday",
+          "Harbour Hotel",
+          "260.00",
+          "posted, and the 300.00 line is gone"
+        ]
+      ]
     },
     {
       "type": "para",
-      "text": "The authorization flow is the process of approving or declining a transaction. Here's a step-by-step breakdown:"
+      "text": "The ATM took the money at once; the hotel took less than it asked for, three days later. The grocer's purchase was approved while the bank's own host was down. Who decided each line, and which message moved the money? Five rules, one per section heading."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.1. A Payment Crosses Four Parties, and Each Hop Is a Link of Its Own"
+    },
+    {
+      "type": "para",
+      "text": "The card is read at a **merchant**'s terminal. The terminal's request goes to the **acquirer**, the merchant's bank or a processor working for it. The acquirer passes it to a **card network** (Visa, Mastercard, a domestic scheme), which picks the **issuer**, the cardholder's bank, from the card number's leading digits. The issuer approves or declines, and the answer goes back the same way."
+    },
+    {
+      "type": "para",
+      "text": "The issuer approves or declines the purchase; the acquirer and the network can decline it on their own checks, and approve it only in the cases of 7.4. Each hop is a separate ISO 8583 link with its own specification: its own packager, header and private fields (units 1 and 5). Every hop rebuilds the message and passes on only the fields its specification defines. An acquirer that puts a loyalty tag for the issuer into field 48 sees it arrive nowhere unless the network's specification carries that tag. The issuer decides without it, often with no error on either side."
+    },
+    {
+      "type": "para",
+      "text": "Each hop also waits for the next. The network gives the issuer a few seconds; when the issuer is down or slow, the network may decide in its place (7.4). The acquirer's own timeout has to cover the whole path."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.2. An Approval Holds the Money in the Dual-Message Flow and Moves It in the Single-Message Flow"
+    },
+    {
+      "type": "para",
+      "text": "Unit 4 showed that an approved `0100` places a hold and an approved `0200` posts the debit. An issuer keeps two numbers for an account: the **ledger**, the money posted, and what is **available**, the ledger minus open holds. A model of the opening's account, starting at 500.00:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "case \"0100\":                                       // approve: hold\n    if (amount > available()) return answer(in, \"51\", null);\n    String code = String.format(\"A%05d\", ++codes);\n    holds.put(code, amount);\n    return answer(in, \"00\", code);\ncase \"0200\":                                       // approve: post\n    if (amount > available()) return answer(in, \"51\", null);\n    ledger -= amount;\n    return answer(in, \"00\", String.format(\"A%05d\", ++codes));"
+    },
+    {
+      "type": "para",
+      "text": "The hotel's `0100`, the ATM's `0200`, and Thursday's clearing record for the hotel:"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "start                                        ledger  500.00  available  500.00\n0100 300.00 hotel  -> 0110 39=00 38=A00001   ledger  500.00  available  200.00\n0200  50.00 ATM    -> 0210 39=00             ledger  450.00  available  150.00\nclearing A00001 260.00                       ledger  190.00  available  190.00"
+    },
+    {
+      "type": "para",
+      "text": "In the **dual-message flow** the `0100` only asks for permission. The issuer holds 300.00 and returns an approval code in field 38. No money has moved. Days later the acquirer sends the **clearing** record, usually in a batch file to the network rather than as an online message. It carries the final amount and the approval code that ties it to the `0110`. The issuer posts 260.00 and releases the whole hold (unit 19 takes clearing apart). Credit card purchases mostly work this way, and it suits merchants whose amount isn't final at the counter: hotels, car rentals, fuel and tips. On some links an advice carries the final amount online first, as the fuel pump's completion did in unit 4; the money still moves with clearing."
+    },
+    {
+      "type": "para",
+      "text": "In the **single-message flow** the `0200` carries everything needed to authorize and to post, and the issuer posts at once. There is no clearing record per transaction. ATM withdrawals and PIN debit purchases usually work this way."
+    },
+    {
+      "type": "para",
+      "text": "When an approval is taken for a payment:"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**The merchant never sends the clearing.** A terminal whose batch is never closed has approvals and nothing else. After some days, set by the issuer and the network's rules, the issuer drops the uncleared hold. The cardholder has the goods, and a merchant that presents the sales late risks having them charged back as unauthorized.",
+        "**The acquirer clears the authorized amount.** The hotel's guest is charged 300.00 for a 260.00 stay, and gets the 40.00 back only by a refund or a dispute (7.5)."
+      ]
+    },
+    {
+      "type": "para",
+      "text": "In the single-message flow the online message is the financial record. An approved `0200` whose answer is lost is a debit already posted, which is why unit 4 reverses it at once."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.3. Settlement Moves One Net Amount per Institution, Days After the Purchases"
+    },
+    {
+      "type": "para",
+      "text": "Clearing says who owes whom; **settlement** pays it. The network adds up each member's cleared transactions for the settlement day and instructs the settlement banks to move one net amount per member. Three banks, each both an acquirer and an issuer, with eight cleared purchases between them (fees left out):"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "8 purchases, gross 970.50\n  Bank A pays       93.00\n  Bank B pays      101.50\n  Bank C receives  194.50"
+    },
+    {
+      "type": "para",
+      "text": "Each purchase is owed to its acquirer and owed by its issuer. Eight purchases worth 970.50 become three transfers, and 194.50 moves. The acquirer then pays each merchant its day's sales, less a service charge that includes the interchange fee the issuer keeps out of each purchase."
+    },
+    {
+      "type": "para",
+      "text": "A merchant who checks each sale against the bank's deposits matches nothing. What can be checked is totals: the online `05xx` reconciliation messages of the 1987 edition let the two ends of a link agree on counts and amounts, and move no money themselves (unit 19)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.4. A Decision Taken Elsewhere Arrives as an Advice, and the Issuer Must Apply It"
+    },
+    {
+      "type": "para",
+      "text": "Two parties may approve a purchase without asking the issuer. When the issuer doesn't answer in time, the network may **stand in**: it decides within limits the issuer agreed beforehand, then reports each decision with an authorization advice, `0120`. And a terminal may approve a small purchase offline, below its floor limit; that one reaches the issuer as a clearing record, or as a `0220` advice on links that use them. Unit 4 showed that an advice is acknowledged, never declined."
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "7.4.1. Spot the Problem: The Advice Nobody Recorded"
+    },
+    {
+      "type": "para",
+      "text": "The grocer's 150.00 from the opening was a stand-in approval, reported at 12:05 when the issuer's host was back. After the ATM withdrawal, 150.00 is available. The issuer's handler for stand-in advices:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "ISOMsg onStandIn(ISOMsg in, long amount) throws ISOException {\n    return answer(in, \"00\", null);           // (1) acknowledge; we never approved it, so nothing to hold\n}"
+    },
+    {
+      "type": "para",
+      "text": "Half an hour later the cardholder spends 120.00 in a shop. What does the issuer answer?"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "first handler:\n  0120 150.00 stand-in -> 0130 39=00 available  150.00\n  0100 120.00          -> 0110 39=00 available   30.00\n  after clearing                     ledger     -80.00"
+    },
+    {
+      "type": "para",
+      "text": "The issuer approved 120.00 against money already spent. Line (1) acknowledges the advice but records nothing. When everything clears, the account is 80.00 overdrawn, on a card that has no overdraft. The issuer is exposed: the network's stand-in decision binds it, and the 120.00 was its own approval."
+    },
+    {
+      "type": "para",
+      "text": "Hold the amount under the network's approval code, which the clearing record will carry:"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "ISOMsg onStandIn(ISOMsg in, long amount) throws ISOException {\n    holds.put(in.getString(38), amount);         // as if we had approved it\n    return answer(in, \"00\", null);\n}"
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "fixed handler:\n  0120 150.00 stand-in -> 0130 39=00 available    0.00\n  0100 120.00          -> 0110 39=51 available    0.00\n  after clearing                     ledger      40.00"
+    },
+    {
+      "type": "para",
+      "text": "An advice above what is available is applied too, and the account goes below zero. Stand-in limits keep that small."
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 1 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.5. What Undoes a Transaction Depends on How Far It Has Gone"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "The purchase is",
+        "Undo it with",
+        "Sent by",
+        "Where"
+      ],
+      "rows": [
+        [
+          "approved, but the answer was lost or the terminal could not finish",
+          "a reversal, `0420` (unit 4)",
+          "acquirer",
+          "the online link, at once"
+        ],
+        [
+          "approved and cancelled by the cashier the same day, a **void**",
+          "a reversal, usually",
+          "acquirer",
+          "the online link, before clearing"
+        ],
+        [
+          "cleared, and the goods are returned",
+          "a **refund**, a new credit with its own STAN (unit 5)",
+          "merchant, through the acquirer",
+          "a new transaction"
+        ],
+        [
+          "cleared, and the cardholder disputes it",
+          "a **chargeback**",
+          "issuer",
+          "the network's dispute process, in clearing"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "A reversal of an `0100` releases the hold; a reversal of an `0200` gives the money back. Either works only within a window the network's rules set: for an `0100`, typically before it is cleared, for an `0200`, typically the same business day. Some terminal protocols carry a void as a processing code of its own, and the acquirer's host turns it into a reversal on the network link."
+    },
+    {
+      "type": "para",
+      "text": "Suppose a merchant's system answers every return with an `0420`, as it does for voids. A customer brings goods back a week after the purchase cleared. The reversal is past the window: the network declines it or matches it to nothing, depending on its rules. The cleared purchase stands. The merchant's records say \"reversed\", while the cardholder still sees the charge. The cardholder disputes it, and the issuer charges it back. The merchant gives back the sale as it meant to, and pays a chargeback fee on top."
+    },
+    {
+      "type": "para",
+      "text": "A dispute runs in stages: the issuer's **chargeback** with a reason code, the acquirer's **representment** with the merchant's evidence, and, when they still disagree, a decision by the network. All of it happens in clearing files and the networks' dispute systems, not on the online link. Each network sets its own stages and reason codes."
+    },
+    {
+      "type": "quote",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Editions differ.** The 1993 edition defines chargeback messages in its `14xx` class, and Mastercard's clearing files use `1442` for a chargeback. The 1987 edition's `04xx` class defines reversals only."
+        }
+      ]
+    },
+    {
+      "type": "html",
+      "text": "<!-- practice 2 -->"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.6. Summary"
+    },
+    {
+      "type": "list",
+      "ordered": false,
+      "items": [
+        "**A payment crosses four parties, and each hop is a link of its own.** The issuer decides, except in stand-in, and only what the next link's specification defines gets across.",
+        "**An approval holds the money in the dual-message flow and moves it in the single-message flow.** The clearing record carries the final amount and releases the hold. Without it the hold lapses and nothing is paid; with the authorized amount instead of the final one, the cardholder is overcharged.",
+        "**Settlement moves one net amount per institution**, days later. No purchase appears in a transfer of its own; totals are what can be reconciled.",
+        "**A decision taken elsewhere arrives as an advice, and the issuer must apply it.** An advice that is acknowledged and not recorded leaves available too high, and the next approval overdraws the account.",
+        "**What undoes a transaction depends on how far it has gone**: a reversal while it is open, a refund or a chargeback once it has cleared."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.7. Reference"
+    },
+    {
+      "type": "para",
+      "text": "**The two flows, step by step (1987 MTIs):**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Step",
+        "Dual-message",
+        "Single-message"
+      ],
+      "rows": [
+        [
+          "decide",
+          "`0100` / `0110`: a hold, approval code in field 38",
+          "`0200` / `0210`: posted at once"
+        ],
+        [
+          "decided elsewhere (stand-in, offline)",
+          "`0120` / `0130`, or only the clearing record",
+          "`0220` / `0230`"
+        ],
+        [
+          "final amount",
+          "the clearing record, in a batch file",
+          "the `0200` itself"
+        ],
+        [
+          "cancel while open",
+          "`0420` / `0430`, or `0400` / `0410`",
+          "the same"
+        ],
+        [
+          "agree totals",
+          "`05xx`",
+          "`05xx`"
+        ],
+        [
+          "move the money",
+          "settlement, one net amount per institution",
+          "the same"
+        ],
+        [
+          "dispute",
+          "chargeback, representment, network decision, in clearing",
+          "per network"
+        ]
+      ]
+    },
+    {
+      "type": "para",
+      "text": "**What the account model of 7.2 and 7.4 does with each message:**"
+    },
+    {
+      "type": "table",
+      "headers": [
+        "Message",
+        "Ledger",
+        "Available"
+      ],
+      "rows": [
+        [
+          "approved `0100`",
+          "unchanged",
+          "lower by the amount (a hold)"
+        ],
+        [
+          "approved `0200`",
+          "lower by the amount",
+          "lower by the amount"
+        ],
+        [
+          "`0120` stand-in advice",
+          "unchanged",
+          "lower by the amount, never declined"
+        ],
+        [
+          "clearing record",
+          "lower by the final amount",
+          "the hold for that approval code is released"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "7.8. Challenges"
     },
     {
       "type": "list",
       "ordered": true,
       "items": [
-        "Card presented at merchant",
-        "Terminal sends authorization request",
-        "Acquirer processes and forwards request",
-        "Card network routes to issuer",
-        "Issuer approves or declines",
-        "Response sent back through the chain"
+        "A restaurant takes an `0100` for the bill and the customer adds a 15% tip afterwards. What amount goes into clearing, and what should the issuer do when it is above the held amount?",
+        "Your issuer stands in for itself: while the core banking system is down, the authorization host approves up to 50.00 per purchase from a copy of each balance taken at midnight. What must happen when the core comes back, and how much can one card overspend?",
+        "In the netting of 7.3, Bank A fails to pay its 93.00. Who is short, by how much, and what could the network have required of its members beforehand?"
       ]
     },
     {
-      "type": "para",
-      "text": "Let's implement a simple authorization flow using jPOS and Spring:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class AuthorizationService {\n\n    private final QMUX qmux;\n\n    @Autowired\n    public AuthorizationService(QMUX qmux) {\n        this.qmux = qmux;\n    }\n\n    public ISOMsg processAuthorization(ISOMsg request) throws ISOException, IOException {\n        // Step 2: Terminal sends authorization request\n        ISOMsg response = qmux.request(request, 30000); // 30 seconds timeout\n\n        // Step 5 & 6: Issuer approves or declines, and response is sent back\n        if (response == null) {\n            throw new IOException(\"No response from issuer\");\n        }\n\n        String responseCode = response.getString(39);\n        if (\"00\".equals(responseCode)) {\n            // Approved\n            System.out.println(\"Transaction approved\");\n        } else {\n            // Declined\n            System.out.println(\"Transaction declined: \" + responseCode);\n        }\n\n        return response;\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This service simulates the acquirer's role in processing and forwarding the request. The `QMUX` component in jPOS handles the routing of the message to the issuer (or a simulator in a test environment)."
-    },
-    {
       "type": "heading",
       "level": 3,
-      "text": "7.2. Clearing and Settlement"
+      "text": "7.9. Design Note: Why Two Flows?"
     },
     {
       "type": "para",
-      "text": "After the authorization, the clearing and settlement process ensures that funds are transferred between the involved parties. This typically happens in batches at the end of each day."
+      "text": "The dual-message flow lets the amount be fixed after the decision. A hotel, a fuel pump or a restaurant knows the final amount only later, so the online message asks for permission and a cheaper batch carries the final amount. The cost is two records per purchase that have to be matched, holds that lapse when the second record never comes, and final amounts that differ from what was approved."
     },
     {
       "type": "para",
-      "text": "7.2.1. Batch processing 7.2.2. Clearing files 7.2.3. Settlement between acquirers and issuers"
-    },
-    {
-      "type": "para",
-      "text": "Here's a simple implementation of a batch processor:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class BatchProcessingService {\n\n    private final TransactionRepository transactionRepository;\n    private final ClearingFileGenerator clearingFileGenerator;\n    private final SettlementService settlementService;\n\n    @Autowired\n    public BatchProcessingService(TransactionRepository transactionRepository,\n                                  ClearingFileGenerator clearingFileGenerator,\n                                  SettlementService settlementService) {\n        this.transactionRepository = transactionRepository;\n        this.clearingFileGenerator = clearingFileGenerator;\n        this.settlementService = settlementService;\n    }\n\n    @Scheduled(cron = \"0 0 0 * * *\") // Run at midnight every day\n    public void processDailyBatch() {\n        LocalDate yesterday = LocalDate.now().minusDays(1);\n        List<Transaction> transactions = transactionRepository.findByDateBetween(\n            yesterday.atStartOfDay(),\n            yesterday.atTime(LocalTime.MAX)\n        );\n\n        // Generate clearing file\n        File clearingFile = clearingFileGenerator.generateClearingFile(transactions);\n\n        // Process settlement\n        settlementService.processSettlement(clearingFile);\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This service runs a daily batch job to process transactions, generate a clearing file, and initiate the settlement process."
-    },
-    {
-      "type": "heading",
-      "level": 3,
-      "text": "7.3. Chargebacks and Disputes"
-    },
-    {
-      "type": "para",
-      "text": "Chargebacks occur when a cardholder disputes a transaction. The process typically involves:"
-    },
-    {
-      "type": "para",
-      "text": "7.3.1. Chargeback initiation 7.3.2. Representment 7.3.3. Arbitration"
-    },
-    {
-      "type": "para",
-      "text": "Let's implement a basic chargeback initiation process:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@Service\npublic class ChargebackService {\n\n    private final TransactionRepository transactionRepository;\n    private final QMUX qmux;\n\n    @Autowired\n    public ChargebackService(TransactionRepository transactionRepository, QMUX qmux) {\n        this.transactionRepository = transactionRepository;\n        this.qmux = qmux;\n    }\n\n    public void initiateChargeback(String transactionId, String reason) throws ISOException, IOException {\n        Transaction transaction = transactionRepository.findById(transactionId)\n            .orElseThrow(() -> new IllegalArgumentException(\"Transaction not found\"));\n\n        ISOMsg chargebackRequest = new ISOMsg();\n        chargebackRequest.setMTI(\"1422\");  // Chargeback advice (ISO 8583:1993); networks define their own\n        chargebackRequest.set(2, transaction.getCardNumber());\n        chargebackRequest.set(4, transaction.getAmount().toString());\n        chargebackRequest.set(11, transaction.getSystemTraceAuditNumber());\n        chargebackRequest.set(37, transaction.getRetrievalReferenceNumber());\n        chargebackRequest.set(38, transaction.getAuthorizationIdResponse());\n        chargebackRequest.set(25, reason);  // Message reason code (n4), the chargeback reason\n        // Original data elements (LLVAR n..35): original MTI (4), STAN (6),\n        // date and time local transaction (12, YYMMDDhhmmss), acquiring institution ID (LL + up to 11)\n        String acquirerId = transaction.getAcquiringInstitutionId();\n        chargebackRequest.set(56, transaction.getMti()\n            + transaction.getSystemTraceAuditNumber()\n            + transaction.getLocalDateTime()\n            + String.format(\"%02d\", acquirerId.length()) + acquirerId);\n\n        ISOMsg response = qmux.request(chargebackRequest, 30000);\n\n        if (response != null && \"000\".equals(response.getString(39))) {  // action code 000: approved\n            transaction.setStatus(TransactionStatus.CHARGEBACK_INITIATED);\n            transactionRepository.save(transaction);\n        } else {\n            throw new RuntimeException(\"Chargeback initiation failed\");\n        }\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This service initiates a chargeback by sending a chargeback advice (MTI 1422 in ISO 8583:1993, where x4x0 is a reversal and x4x2 an issuer's chargeback; in ISO 8583:1987 the 04xx class holds reversals only, and each network specifies how it carries chargebacks) with the original transaction details and the chargeback reason."
-    },
-    {
-      "type": "para",
-      "text": "To test these implementations, we can use JUnit and Mockito:"
-    },
-    {
-      "type": "code",
-      "lang": "java",
-      "text": "@ExtendWith(MockitoExtension.class)\npublic class AuthorizationServiceTest {\n\n    @Mock\n    private QMUX qmux;\n\n    @InjectMocks\n    private AuthorizationService authorizationService;\n\n    @Test\n    public void testSuccessfulAuthorization() throws ISOException, IOException {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"4111111111111111\");\n        request.set(4, \"100000\");  // $1000.00\n\n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"00\");  // Approval code\n\n        when(qmux.request(any(ISOMsg.class), anyLong())).thenReturn(response);\n\n        // Act\n        ISOMsg result = authorizationService.processAuthorization(request);\n\n        // Assert\n        assertNotNull(result);\n        assertEquals(\"00\", result.getString(39));\n    }\n\n    @Test\n    public void testDeclinedAuthorization() throws ISOException, IOException {\n        // Arrange\n        ISOMsg request = new ISOMsg();\n        request.setMTI(\"0100\");\n        request.set(2, \"4111111111111111\");\n        request.set(4, \"100000\");  // $1000.00\n\n        ISOMsg response = new ISOMsg();\n        response.setMTI(\"0110\");\n        response.set(39, \"05\");  // Do not honor\n\n        when(qmux.request(any(ISOMsg.class), anyLong())).thenReturn(response);\n\n        // Act\n        ISOMsg result = authorizationService.processAuthorization(request);\n\n        // Assert\n        assertNotNull(result);\n        assertEquals(\"05\", result.getString(39));\n    }\n}"
-    },
-    {
-      "type": "para",
-      "text": "This test class demonstrates how to unit test the `AuthorizationService` using Mockito to mock the `QMUX` component and JUnit's assertions."
-    },
-    {
-      "type": "para",
-      "text": "In a real-world scenario, you would need to implement more comprehensive error handling, logging, and security measures. Additionally, you'd need to integrate with actual payment networks and comply with PCI-DSS requirements for handling sensitive card data."
-    },
-    {
-      "type": "para",
-      "text": "The transaction flow in ISO-8583 is complex and involves multiple parties. The examples provided here are simplified for illustration purposes. In a production environment, you would need to handle various edge cases, implement retry mechanisms, and ensure proper security measures are in place."
+      "text": "The single-message flow suits the counter where the amount is final: an ATM, a PIN debit purchase. One message decides and posts, and nothing waits for a batch. Here the price is paid on the online link: every message on it is money, so a lost answer is a posted debit, and the reversals and advices that repair it have to reach the issuer however long that takes (unit 20)."
     }
   ],
   "video": null,
   "assets": [],
   "attachments": [],
   "counts": {
-    "headings": 4,
-    "paras": 15,
-    "code": 4,
-    "tables": 0,
-    "lists": 1,
+    "headings": 11,
+    "paras": 27,
+    "code": 7,
+    "tables": 4,
+    "lists": 3,
     "images": 0,
     "videos": 0,
     "rules": 0,
-    "quotes": 0,
-    "html": 0,
+    "quotes": 1,
+    "html": 2,
     "disclosures": 0
   },
-  "content_sha256": "6b6f233e1e0309ef0b312cd5dad2f089db0dcdee9462bcf23b52bb43bab64f15"
+  "content_sha256": "86fd1f08ca70dd650a3f94a40aa5b304bde89688427482d4e2c1d490ac68f54e"
 }

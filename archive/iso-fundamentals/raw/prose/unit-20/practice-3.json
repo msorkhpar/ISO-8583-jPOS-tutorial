@@ -1,0 +1,147 @@
+{
+  "raw_api": 1,
+  "source": "iso-8583-jpos-tutorial",
+  "address": [
+    "iso-fundamentals"
+  ],
+  "variant": "prose",
+  "unit": 20,
+  "kind": "practice",
+  "ordinal": 3,
+  "ingested": "2026-11-05",
+  "title": "Apply each advice and reversal once, on a network that renumbers repeats",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Problem statement"
+    },
+    {
+      "type": "para",
+      "text": "An issuer joins a regional network whose acquirers give every transmission its own STAN and its own field 7, repeats included. What stays the same across every transmission of one transaction, and in its reversal, is the acquirer (field 32), the terminal (field 41) and the retrieval reference number (field 37), which the acquirer assigns once per transaction. Two acquirers may use the same terminal IDs and the same reference numbers."
+    },
+    {
+      "type": "para",
+      "text": "In its first week on the network the issuer's ledger posted some completions twice, refunded some reversals twice, and charged a cardholder for a purchase whose reversal had arrived a few seconds before the purchase itself."
+    },
+    {
+      "type": "para",
+      "text": "`IssuerLedger` in `src/main/java/com/example/practice/IssuerLedger.java` receives every `02xx` and `04xx` message from the network; `handle` and `balance` are written. Write `key`, `onFinancial` and `onReversal`. Each returns the `Result` that says what it did; the comment on each method says what it is for. About 20 lines in total."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Lesson"
+    },
+    {
+      "type": "disclosure",
+      "summary": "Show a worked solution",
+      "open": false,
+      "blocks": [
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.HashSet;\nimport java.util.Map;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * An issuer's ledger for the financial messages and reversals it receives from one network. On this\n * network every transmission has its own STAN and field 7; see the statement for what stays the same.\n */\npublic class IssuerLedger {\n\n    public enum Result { POSTED, DUPLICATE, REVERSED, ALREADY_REVERSED, NOTHING_TO_REVERSE, LATE_ORIGINAL }\n\n    private final Map<String, Long> posted = new HashMap<>();     // key -> amount posted\n    private final Set<String> reversed = new HashSet<>();          // keys a reversal has named\n    private long balance;\n\n    /** Applies one incoming 02xx or 04xx message. Every one of them is acknowledged by the caller. */\n    public Result handle(ISOMsg m) throws ISOException {\n        String key = key(m);\n        return m.getMTI().startsWith(\"04\") ? onReversal(key, m) : onFinancial(key, m);\n    }\n\n    /** What every transmission of one transaction, and its reversal, have in common on this network. */\n    static String key(ISOMsg m) {\n        return m.getString(32) + \"|\" + m.getString(41) + \"|\" + m.getString(37);\n    }\n\n    /** A financial request or advice {@code m}, for the transaction {@code key}. Its amount is field 4. */\n    Result onFinancial(String key, ISOMsg m) throws ISOException {\n        if (reversed.contains(key))\n            return Result.LATE_ORIGINAL;\n        if (posted.containsKey(key))\n            return Result.DUPLICATE;\n        long amount = Long.parseLong(m.getString(4));\n        posted.put(key, amount);\n        balance += amount;\n        return Result.POSTED;\n    }\n\n    /** A reversal {@code m} of the transaction {@code key}. */\n    Result onReversal(String key, ISOMsg m) throws ISOException {\n        if (!reversed.add(key))\n            return Result.ALREADY_REVERSED;\n        Long amount = posted.get(key);\n        if (amount == null)\n            return Result.NOTHING_TO_REVERSE;\n        balance -= amount;\n        return Result.REVERSED;\n    }\n\n    /** What the cardholders owe on the transactions this ledger has applied, in minor units. */\n    public long balance() {\n        return balance;\n    }\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Starting code"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.HashSet;\nimport java.util.Map;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * An issuer's ledger for the financial messages and reversals it receives from one network. On this\n * network every transmission has its own STAN and field 7; see the statement for what stays the same.\n */\npublic class IssuerLedger {\n\n    public enum Result { POSTED, DUPLICATE, REVERSED, ALREADY_REVERSED, NOTHING_TO_REVERSE, LATE_ORIGINAL }\n\n    private final Map<String, Long> posted = new HashMap<>();     // key -> amount posted\n    private final Set<String> reversed = new HashSet<>();          // keys a reversal has named\n    private long balance;\n\n    /** Applies one incoming 02xx or 04xx message. Every one of them is acknowledged by the caller. */\n    public Result handle(ISOMsg m) throws ISOException {\n        String key = key(m);\n        return m.getMTI().startsWith(\"04\") ? onReversal(key, m) : onFinancial(key, m);\n    }\n\n    /** What every transmission of one transaction, and its reversal, have in common on this network. */\n    static String key(ISOMsg m) {\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** A financial request or advice {@code m}, for the transaction {@code key}. Its amount is field 4. */\n    Result onFinancial(String key, ISOMsg m) throws ISOException {\n        throw new IllegalStateException(\"TODO: onFinancial\");\n    }\n\n    /** A reversal {@code m} of the transaction {@code key}. */\n    Result onReversal(String key, ISOMsg m) throws ISOException {\n        throw new IllegalStateException(\"TODO: onReversal\");\n    }\n\n    /** What the cardholders owe on the transactions this ledger has applied, in minor units. */\n    public long balance() {\n        return balance;\n    }\n}\n"
+    }
+  ],
+  "video": null,
+  "assets": [],
+  "attachments": [],
+  "counts": {
+    "headings": 3,
+    "paras": 3,
+    "code": 1,
+    "tables": 0,
+    "lists": 0,
+    "images": 0,
+    "videos": 0,
+    "rules": 0,
+    "quotes": 0,
+    "html": 0,
+    "disclosures": 1
+  },
+  "content_sha256": "8a9acdaa0cd9d8e5eca59d93399c6198e14dafc25d9b03eb921e22b47c064b33",
+  "starting_code": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.HashSet;\nimport java.util.Map;\nimport java.util.Set;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * An issuer's ledger for the financial messages and reversals it receives from one network. On this\n * network every transmission has its own STAN and field 7; see the statement for what stays the same.\n */\npublic class IssuerLedger {\n\n    public enum Result { POSTED, DUPLICATE, REVERSED, ALREADY_REVERSED, NOTHING_TO_REVERSE, LATE_ORIGINAL }\n\n    private final Map<String, Long> posted = new HashMap<>();     // key -> amount posted\n    private final Set<String> reversed = new HashSet<>();          // keys a reversal has named\n    private long balance;\n\n    /** Applies one incoming 02xx or 04xx message. Every one of them is acknowledged by the caller. */\n    public Result handle(ISOMsg m) throws ISOException {\n        String key = key(m);\n        return m.getMTI().startsWith(\"04\") ? onReversal(key, m) : onFinancial(key, m);\n    }\n\n    /** What every transmission of one transaction, and its reversal, have in common on this network. */\n    static String key(ISOMsg m) {\n        throw new IllegalStateException(\"TODO: key\");\n    }\n\n    /** A financial request or advice {@code m}, for the transaction {@code key}. Its amount is field 4. */\n    Result onFinancial(String key, ISOMsg m) throws ISOException {\n        throw new IllegalStateException(\"TODO: onFinancial\");\n    }\n\n    /** A reversal {@code m} of the transaction {@code key}. */\n    Result onReversal(String key, ISOMsg m) throws ISOException {\n        throw new IllegalStateException(\"TODO: onReversal\");\n    }\n\n    /** What the cardholders owe on the transactions this ledger has applied, in minor units. */\n    public long balance() {\n        return balance;\n    }\n}\n",
+  "exercise": {
+    "main_path": "practice/iso-fundamentals/prose/unit-20/practice-3/src/main/java/com/example/practice/IssuerLedger.java",
+    "test_path": "practice/iso-fundamentals/prose/unit-20/practice-3/src/test/java/com/example/practice/IssuerLedgerTest.java",
+    "run_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-3/pom.xml",
+      "compile"
+    ],
+    "test_command": [
+      "mvn",
+      "-o",
+      "-q",
+      "-f",
+      "practice/iso-fundamentals/prose/unit-20/practice-3/pom.xml",
+      "test"
+    ],
+    "provenance": "generated",
+    "trust": "advisory",
+    "cases": [
+      {
+        "id": "com.example.practice.IssuerLedgerTest#newTransactionsArePosted",
+        "kind": "main",
+        "says": "a new 0220 or 0200 is posted and its amount added to the balance"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#aReversalUndoesWhatWasPosted",
+        "kind": "main",
+        "says": "a reversal takes the amount of the transaction it names off the balance"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#aRepeatWithItsOwnStanIsADuplicate",
+        "kind": "edge",
+        "says": "a repeat of a posted advice is a duplicate even though it carries a new STAN and field 7"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#twoAcquirersMayShareATerminalIdAndAnRrn",
+        "kind": "edge",
+        "says": "the acquirer is part of the key, so two acquirers' transactions with the same terminal ID and RRN are both posted"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#aRepeatWhoseFirstCopyNeverArrivedIsPosted",
+        "kind": "edge",
+        "says": "a repeat whose first copy never arrived is posted, and the late first copy is then the duplicate"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#aReversalTakesEffectOnce",
+        "kind": "edge",
+        "says": "a reversal received again, as a repeat or as the same message, changes nothing the second time"
+      },
+      {
+        "id": "com.example.practice.IssuerLedgerTest#anOriginalThatArrivesAfterItsReversalIsNeverPosted",
+        "kind": "edge",
+        "says": "a reversal with nothing to reverse is remembered, so the original arriving later is never posted"
+      }
+    ],
+    "report": {
+      "format": "junit",
+      "path": "practice/iso-fundamentals/prose/unit-20/practice-3/target/surefire-reports"
+    },
+    "origin": {
+      "path": "src/20.md",
+      "section": "20.6. The Receiver Applies Each Advice Once, by an Identity Its Repeats Share"
+    },
+    "concepts": [
+      "The receiver identifies a message by what its repeats share, posts it once, applies a reversal once, and remembers a reversal that found nothing so its late original is never posted."
+    ]
+  }
+}

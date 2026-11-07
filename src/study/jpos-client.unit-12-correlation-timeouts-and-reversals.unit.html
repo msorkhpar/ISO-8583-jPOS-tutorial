@@ -1,0 +1,1355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f5f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a">
+<script>try{var t=sessionStorage.getItem("studyforge.boot.theme.v1");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}</script>
+<title>Correlation, Timeouts and Reversals</title>
+<link rel="stylesheet" href="../../.studyforge/assets/page.css">
+<script type="application/json" id="studyforge-identity">{"identity_api":1,"corpus":"iso-8583-jpos-tutorial","address":["jpos-client"],"unit":12,"kind":"unit","variant":"prose"}</script>
+</head>
+<body>
+<a href="#content">Skip to the content</a>
+<header>
+<div role="toolbar" aria-label="Site tools" data-section="topbar">
+<button type="button" data-section="search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K /" aria-label="Search the course" data-keys-mac="&#8984; K" data-keys-other="Ctrl K" hidden>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-label>Search</span><kbd></kbd></button>
+<button type="button" data-section="theme" data-theme-choice="toggle" data-to-dark="Switch to the dark theme" data-to-light="Switch to the light theme" aria-label="Switch theme" hidden>
+<svg data-icon="sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"></circle><path d="M 12 2 v 2 M 12 20 v 2 M 2 12 h 2 M 20 12 h 2 M 4.9 4.9 l 1.4 1.4 M 17.7 17.7 l 1.4 1.4 M 4.9 19.1 l 1.4 -1.4 M 17.7 6.3 l 1.4 -1.4"></path></svg>
+<svg data-icon="moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 21 13.2 A 9 9 0 1 1 10.8 3 a 7 7 0 0 0 10.2 10.2 z"></path></svg>
+</button>
+</div>
+<div role="dialog" aria-modal="true" aria-label="Search" data-section="search" data-search-placeholder="Search the course" data-search-loading="Preparing the search..." data-search-none="No results for" data-search-failed="The search index could not be loaded on this page." data-search-hint-open="Enter to open" data-search-hint-move="Up and down to move" data-search-hint-close="Esc to close" data-search-count-one="1 result" data-search-count-many="{n} results" hidden>
+<div data-search-box>
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M 20 20 l -4 -4"></path></svg>
+<span data-search-field></span>
+<button type="button" data-search-close aria-label="Close the search">Esc</button>
+</div>
+<div id="search-results" role="listbox" aria-label="Results" data-search-results></div>
+<p data-search-status role="status" aria-live="polite"></p>
+<p data-search-hints></p>
+</div>
+<nav aria-label="Breadcrumb"><ol><li><a href="../../index.html">ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></li><li><span aria-hidden="true">› </span><a href="client-implementation.section.html"><span data-kind="level">group</span> Client Implementation</a></li><li aria-current="page"><span aria-hidden="true">› </span>Correlation, Timeouts and Reversals</li></ol></nav>
+<h1 id="prose-b0">Correlation, Timeouts and Reversals</h1>
+</header>
+<nav aria-label="Containers"><details open><summary>Course contents</summary><ol><li data-readable="true"><details><summary><a href="iso-8583-for-visa-and-mastercard-transactions-a-comprehensive-developers-guide.section.html"><span data-kind="level">group</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a></summary><ol><li data-unit="iso-fundamentals/unit-01" data-readable="true"><a href="iso-fundamentals.unit-01-introduction-to-iso-8583.unit.html"><span data-kind="numbering">1</span> Introduction to ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-02" data-readable="true"><a href="iso-fundamentals.unit-02-iso-8583-message-structure.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Structure<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-03" data-readable="true"><a href="iso-fundamentals.unit-03-data-elements.unit.html"><span data-kind="numbering">3</span> Data Elements<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-04" data-readable="true"><a href="iso-fundamentals.unit-04-message-type-indicators-mtis.unit.html"><span data-kind="numbering">4</span> Message Type Indicators (MTIs)<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-05" data-readable="true"><a href="iso-fundamentals.unit-05-visa-specific-implementation.unit.html"><span data-kind="numbering">5</span> Visa-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-06" data-readable="true"><a href="iso-fundamentals.unit-06-mastercard-specific-implementation.unit.html"><span data-kind="numbering">6</span> Mastercard-specific Implementation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-07" data-readable="true"><a href="iso-fundamentals.unit-07-transaction-flow.unit.html"><span data-kind="numbering">7</span> Transaction Flow<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-08" data-readable="true"><a href="iso-fundamentals.unit-08-security-and-encryption.unit.html"><span data-kind="numbering">8</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-09" data-readable="true"><a href="iso-fundamentals.unit-09-error-handling-and-response-codes.unit.html"><span data-kind="numbering">9</span> Error Handling and Response Codes<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-10" data-readable="true"><a href="iso-fundamentals.unit-10-testing-and-certification.unit.html"><span data-kind="numbering">10</span> Testing and Certification<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-11" data-readable="true"><a href="iso-fundamentals.unit-11-best-practices-for-iso-8583-development.unit.html"><span data-kind="numbering">11</span> Best Practices for ISO-8583 Development<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-12" data-readable="true"><a href="iso-fundamentals.unit-12-integration-with-payment-gateways.unit.html"><span data-kind="numbering">12</span> Integration with Payment Gateways<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-13" data-readable="true"><a href="iso-fundamentals.unit-13-compliance-and-regulations.unit.html"><span data-kind="numbering">13</span> Compliance and Regulations<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-14" data-readable="true"><a href="iso-fundamentals.unit-14-advanced-topics.unit.html"><span data-kind="numbering">14</span> Advanced Topics<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-15" data-readable="true"><a href="iso-fundamentals.unit-15-troubleshooting-and-common-issues.unit.html"><span data-kind="numbering">15</span> Troubleshooting and Common Issues<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-16" data-readable="true"><a href="iso-fundamentals.unit-16-future-of-iso-8583.unit.html"><span data-kind="numbering">16</span> Future of ISO-8583<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-17" data-readable="true"><a href="iso-fundamentals.unit-17-iso-8583-2023-and-datasets.unit.html"><span data-kind="numbering">17</span> ISO 8583:2023 and Datasets<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-18" data-readable="true"><a href="iso-fundamentals.unit-18-emv-and-de-55-in-depth.unit.html"><span data-kind="numbering">18</span> EMV and DE 55 in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-19" data-readable="true"><a href="iso-fundamentals.unit-19-clearing-and-reconciliation.unit.html"><span data-kind="numbering">19</span> Clearing and Reconciliation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="iso-fundamentals/unit-20" data-readable="true"><a href="iso-fundamentals.unit-20-store-and-forward-and-reversals.unit.html"><span data-kind="numbering">20</span> Store-and-Forward and Reversals<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li aria-current="true" data-readable="true"><details open><summary><span data-kind="level">group</span> Client Implementation</summary><ol><li data-unit="jpos-client/unit-01" data-readable="true"><a href="jpos-client.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-02" data-readable="true"><a href="jpos-client.unit-02-iso-8583-message-creation.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Creation<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-03" data-readable="true"><a href="jpos-client.unit-03-channel-management.unit.html"><span data-kind="numbering">3</span> Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-04" data-readable="true"><a href="jpos-client.unit-04-transaction-sending.unit.html"><span data-kind="numbering">4</span> Transaction Sending<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-05" data-readable="true"><a href="jpos-client.unit-05-visa-and-mastercard-specific-requests.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Requests<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-06" data-readable="true"><a href="jpos-client.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-07" data-readable="true"><a href="jpos-client.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-08" data-readable="true"><a href="jpos-client.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-09" data-readable="true"><a href="jpos-client.unit-09-error-handling.unit.html"><span data-kind="numbering">9</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-10" data-readable="true"><a href="jpos-client.unit-10-testing.unit.html"><span data-kind="numbering">10</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-11" data-readable="true"><a href="jpos-client.unit-11-connection-management.unit.html"><span data-kind="numbering">11</span> Connection Management<span data-kind="read-state" hidden>, marked read</span></a></li><li aria-current="page" data-unit="jpos-client/unit-12" data-readable="true"><span data-kind="numbering">12</span> Correlation, Timeouts and Reversals<span data-kind="read-state" hidden>, marked read</span></li><li data-unit="jpos-client/unit-13" data-readable="true"><a href="jpos-client.unit-13-packagers-in-depth.unit.html"><span data-kind="numbering">13</span> Packagers in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-14" data-readable="true"><a href="jpos-client.unit-14-muxpool-and-high-availability.unit.html"><span data-kind="numbering">14</span> MUXPool and High Availability<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-15" data-readable="true"><a href="jpos-client.unit-15-the-logon-lifecycle.unit.html"><span data-kind="numbering">15</span> The Logon Lifecycle<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-16" data-readable="true"><a href="jpos-client.unit-16-simulators-and-test-harnesses.unit.html"><span data-kind="numbering">16</span> Simulators and Test Harnesses<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-client/unit-17" data-readable="true"><a href="jpos-client.unit-17-the-debugging-toolbox.unit.html"><span data-kind="numbering">17</span> The Debugging Toolbox<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li><li data-readable="true"><details><summary><a href="jpos-server-implementation.section.html"><span data-kind="level">group</span> jPOS Server Implementation</a></summary><ol><li data-unit="jpos-server/unit-01" data-readable="true"><a href="jpos-server.unit-01-basic-setup.unit.html"><span data-kind="numbering">1</span> Basic Setup<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-02" data-readable="true"><a href="jpos-server.unit-02-iso-8583-message-handling.unit.html"><span data-kind="numbering">2</span> ISO-8583 Message Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-03" data-readable="true"><a href="jpos-server.unit-03-server-channel-management.unit.html"><span data-kind="numbering">3</span> Server Channel Management<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-04" data-readable="true"><a href="jpos-server.unit-04-transaction-processing.unit.html"><span data-kind="numbering">4</span> Transaction Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-05" data-readable="true"><a href="jpos-server.unit-05-visa-and-mastercard-specific-processing.unit.html"><span data-kind="numbering">5</span> Visa and Mastercard Specific Processing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-06" data-readable="true"><a href="jpos-server.unit-06-data-elements-handling.unit.html"><span data-kind="numbering">6</span> Data Elements Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-07" data-readable="true"><a href="jpos-server.unit-07-security-and-encryption.unit.html"><span data-kind="numbering">7</span> Security and Encryption<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-08" data-readable="true"><a href="jpos-server.unit-08-logging-and-debugging.unit.html"><span data-kind="numbering">8</span> Logging and Debugging<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-09" data-readable="true"><a href="jpos-server.unit-09-database-integration.unit.html"><span data-kind="numbering">9</span> Database Integration<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-10" data-readable="true"><a href="jpos-server.unit-10-error-handling.unit.html"><span data-kind="numbering">10</span> Error Handling<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-11" data-readable="true"><a href="jpos-server.unit-11-testing.unit.html"><span data-kind="numbering">11</span> Testing<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-12" data-readable="true"><a href="jpos-server.unit-12-the-space.unit.html"><span data-kind="numbering">12</span> The Space<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-13" data-readable="true"><a href="jpos-server.unit-13-what-changes-in-jpos-3.unit.html"><span data-kind="numbering">13</span> What changes in jPOS 3<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-14" data-readable="true"><a href="jpos-server.unit-14-q2-and-qbeans-in-depth.unit.html"><span data-kind="numbering">14</span> Q2 and QBeans in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-15" data-readable="true"><a href="jpos-server.unit-15-the-transactionmanager-in-depth.unit.html"><span data-kind="numbering">15</span> The TransactionManager in Depth<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-16" data-readable="true"><a href="jpos-server.unit-16-building-a-switch.unit.html"><span data-kind="numbering">16</span> Building a Switch<span data-kind="read-state" hidden>, marked read</span></a></li><li data-unit="jpos-server/unit-17" data-readable="true"><a href="jpos-server.unit-17-dirpoll-and-operations.unit.html"><span data-kind="numbering">17</span> DirPoll and Operations<span data-kind="read-state" hidden>, marked read</span></a></li></ol></details></li></ol></details></nav>
+<script>try{var n=document.querySelector('nav[aria-label=Containers]');if(n){var v=sessionStorage.getItem("studyforge.boot.rail.v1");if(v!==null&&!isNaN(+v)){n.scrollTop=+v;}var c=n.querySelector('[aria-current=page]'),a=c&&c.getBoundingClientRect(),b=n.getBoundingClientRect();if(a&&a.height>0){if(a.bottom>b.bottom){n.scrollTop+=a.bottom-b.bottom+8;}else if(b.top>a.top){n.scrollTop-=b.top-a.top+8;}}}}catch(e){}</script>
+<nav aria-label="Outline"><p>On this page</p><ol><li data-level="2"><a href="#prose-b3">A Host You Can Break</a></li><li data-level="2"><a href="#prose-b9">A Response Finds Its Request Through a Key</a></li><li data-level="3"><a href="#prose-b19">A Late Answer Has Nobody to Go To</a></li><li data-level="2"><a href="#prose-b25">Only One Request per Key Can Wait</a></li><li data-level="3"><a href="#prose-b31">Spot the Problem: The Gateway at Lunchtime</a></li><li data-level="3"><a href="#prose-b39">Choosing the Key Fields</a></li><li data-level="3"><a href="#prose-b49">Give the gateway its own STANs on the upstream link</a></li><li data-level="2"><a href="#prose-b50">Every Timeout Guards a Different Wait</a></li><li data-level="3"><a href="#prose-b57">Check yourself: who is waiting, and for what</a></li><li data-level="2"><a href="#prose-b58">No Answer Means You Don't Know</a></li><li data-level="2"><a href="#prose-b69">A Reversal Points Back at the Original</a></li><li data-level="3"><a href="#prose-b82">Stop charging twice when the host is slow</a></li><li data-level="2"><a href="#prose-b83">A Reversal Must Outlive the Process and Wait Its Turn</a></li><li data-level="3"><a href="#prose-b96">Deliver completion advices without losing or reordering them</a></li><li data-level="3"><a href="#prose-b97">Park the advice the host never answers</a></li><li data-level="2"><a href="#prose-b98">Summary</a></li><li data-level="2"><a href="#prose-b100">Reference</a></li><li data-level="2"><a href="#prose-b107">Challenges</a></li><li data-level="2"><a href="#prose-b110">Design Note: Why Not a Transaction ID?</a></li></ol></nav>
+<main id="content">
+<section id="s-prose" data-section="prose" data-kind="lesson" data-label="Correlation, Timeouts and Reversals">
+<p>A terminal sends a 0200 for 50.00 and waits. Ten seconds pass and nothing comes back. The cardholder is still at the counter, and the merchant asks: did the bank take the money?</p>
+<p>Nobody knows. The request may not have arrived, or the host declined it, or the host approved it and the answer got lost. What jPOS does while you wait for an answer, and what you must do when the wait ends with nothing, comes down to six rules, one per section heading from 12.2 to 12.7.</p>
+<h2 id="prose-b3">A Host You Can Break</h2>
+<p>QMUX never touches a socket. It writes each request to a Space queue (<code>&lt;out&gt;</code>) and reads responses from another one (<code>&lt;in&gt;</code>). The ChannelAdaptor of unit c4 moves messages between those queues and the wire. Put something else on the far side of the two queues and QMUX can't tell the difference.</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.testhost;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceListener;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/** The far end of a QMUX's queues: answers, drops or delays each request it receives. */
+public final class TestHost implements SpaceListener&lt;String, Object&gt; {
+    private final LocalSpace&lt;String, Object&gt; sp;
+    private final String in;                         // where the host sends responses
+    private final Deque&lt;Long&gt; script = new ArrayDeque&lt;&gt;();
+    private final List&lt;ISOMsg&gt; received = new ArrayList&lt;&gt;();
+    private final ScheduledExecutorService later = Executors.newSingleThreadScheduledExecutor();
+
+    public static final long ANSWER = 0, DROP = -1;  // any other value: answer after that many ms
+
+    public TestHost(LocalSpace&lt;String, Object&gt; sp, String out, String in) {
+        this.sp = sp;
+        this.in = in;
+        sp.addListener(out, this);
+    }
+
+    /** What to do with the next requests, in order; after the script runs out, answer. */
+    public synchronized TestHost then(long... acts) {
+        for (long a : acts) script.add(a);
+        return this;
+    }
+
+    public synchronized List&lt;ISOMsg&gt; received() {
+        return new ArrayList&lt;&gt;(received);
+    }
+
+    @Override
+    public void notify(String queue, Object value) {
+        ISOMsg request = (ISOMsg) sp.inp(queue);
+        if (request == null) return;
+        long act;
+        synchronized (this) {
+            received.add(request);
+            act = script.isEmpty() ? ANSWER : script.poll();
+        }
+        if (act == ANSWER) answer(request);
+        else if (act &gt; 0) later.schedule(() -&gt; answer(request), act, TimeUnit.MILLISECONDS);
+    }
+
+    private void answer(ISOMsg request) {
+        try {
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);
+            sp.out(in, response);
+        } catch (ISOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}</code></pre></figure>
+<p>The host approves everything it answers (<code>39=00</code>). <code>then(...)</code> scripts the next few requests: <code>ANSWER</code>, <code>DROP</code>, or a delay in milliseconds. The QMUX in front of it:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;mux class=&quot;org.jpos.q2.iso.QMUX&quot; name=&quot;host-mux&quot; logger=&quot;Q2&quot;&gt;
+  &lt;in&gt;host-receive&lt;/in&gt;
+  &lt;out&gt;host-send&lt;/out&gt;
+  &lt;unhandled&gt;host-unhandled&lt;/unhandled&gt;
+&lt;/mux&gt;</code></pre></figure>
+<p>Every output in this unit comes from a jPOS 2.1.7 QMUX with this configuration, in the same JVM as the test host.</p>
+<h2 id="prose-b9">A Response Finds Its Request Through a Key</h2>
+<p>QMUX has sent the 0200 for terminal <code>29110001</code> with STAN <code>123</code>, and a thread is blocked in <code>request</code>. A message arrives on <code>&lt;in&gt;</code>. How does QMUX know that this is the answer?</p>
+<p>It turns the message into a string, the <strong>key</strong>, and compares it with the string it made from the request. Here is <code>mux.getKey(m)</code> for five messages, all for terminal <code>29110001</code>:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">0200 host-send.0200000000029110001000123     (field 11 = &quot;123&quot;)
+0210 host-send.0200000000029110001000123     (field 11 = &quot;000123&quot;)
+0220 host-send.0220000000029110001000123
+0420 host-send.0420000000029110001000124
+0421 host-send.0420000000029110001000124</code></pre></figure>
+<p>The 0200 and the 0210 give the same string. From left to right: the out queue and a dot, three digits of the MTI, field 41 padded to 16 characters, field 11 padded to 6 digits. Because of the padding, a host that echoes <code>000123</code> for a STAN sent as <code>123</code> still matches.</p>
+<p>A request and its response differ in the MTI, so QMUX keeps only what the two have in common:</p>
+<ul class="items"><li><strong>The fourth digit gives the message's origin and whether it is a repeat</strong>, so it is dropped. An 0421 has the same key as its 0420.</li><li><strong>The third digit is 0 for a request and 1 for its response.</strong> QMUX maps both to the even value before building the key, so 0200 and 0210 meet. A 0220 (an advice, see 12.5) keeps its 2, so it never answers a 0200. The mapping is <code>&lt;mtimapping&gt;</code>, and you almost never change it.</li><li><strong>The out queue is part of the key</strong>, so two links never confuse each other's traffic.</li></ul>
+<p>A message with none of the key fields can't be matched, so QMUX refuses to send it. Here is an 0800 echo with only field 70 set:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">0800 Key fields not found - not sending host-send.080</code></pre></figure>
+<p>Give every network message a STAN.</p>
+<h3 id="prose-b19">A Late Answer Has Nobody to Go To</h3>
+<p>The host answers the first request at once and the second after 1.5 seconds. The client waits one second:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">TestHost host = new TestHost(sp, &quot;host-send&quot;, &quot;host-receive&quot;).then(TestHost.ANSWER, 1500);
+ISOMsg r1 = mux.request(purchase(123), 1000);
+ISOMsg r2 = mux.request(purchase(124), 1000);
+Thread.sleep(1000);
+ISOMsg late = (ISOMsg) sp.inp(&quot;host-unhandled&quot;);</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">first:  0210 39=00
+second: null after 1000 ms
+unhandled: 0210 11=000124 39=00</code></pre></figure>
+<p>After one second <code>request</code> returned <code>null</code>, and half a second later the approval arrived. QMUX computed its key, found nobody waiting, and handled it like any message it never asked for, such as the host's own 0800. It offered the message to its <code>&lt;request-listener&gt;</code>s and, since none took it, put it on the <code>&lt;unhandled&gt;</code> queue, where it expires after two minutes. With neither configured, the message is silently dropped.</p>
+<p>The host approved that purchase, and the program was told <code>null</code>. Section &quot;<a href="#prose-b58" rel="noopener noreferrer">No Answer Means You Don't Know</a>&quot; deals with that.</p>
+<h2 id="prose-b25">Only One Request per Key Can Wait</h2>
+<p>Suppose two requests with the same key were waiting at once. A response arrives and matches both. QMUX can't tell which one it belongs to, and one cardholder's approval could be reported on another's purchase.</p>
+<p>So QMUX checks before it sends. While a request waits, QMUX keeps a marker for its key (the key plus <code>.req</code>), and a second request with the same key is refused and never sent:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">new TestHost(sp, &quot;host-send&quot;, &quot;host-receive&quot;).then(500);    // the first answer takes 500 ms
+Future&lt;ISOMsg&gt; first  = pool.submit(() -&gt; mux.request(msg(&quot;0200&quot;, 41, &quot;GW000001&quot;, 11, &quot;000042&quot;), 2000));
+Thread.sleep(100);
+Future&lt;ISOMsg&gt; second = pool.submit(() -&gt; mux.request(msg(&quot;0200&quot;, 41, &quot;GW000001&quot;, 11, &quot;000042&quot;), 2000));</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">first:  0210
+second: Duplicate key 'host-send.02000000000GW000001000042.req' detected</code></pre></figure>
+<p>The exception isn't the bug. The bug is whatever made two live requests share a key. Because the refused request was never sent, it is safe to give it a fresh STAN and send it again.</p>
+<h3 id="prose-b31">Spot the Problem: The Gateway at Lunchtime</h3>
+<p>A gateway accepts purchases from three hundred terminals and forwards them to the acquirer's host through one QMUX. The host knows the gateway as a single terminal, so the gateway puts its own ID in field 41:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">ISOMsg up = (ISOMsg) fromTerminal.clone();
+up.set(41, &quot;GW000001&quot;);                        // (1) the host knows us by this ID
+up.set(32, acquirerId);
+ISOMsg response = mux.request(up, 20000);      // (2)</code></pre></figure>
+<p>It passes every test. In production, around noon, the log fills with <code>Duplicate key</code> and a few terminals time out. Can you see why?</p>
+<p>With field 41 the same on every message, line (1) reduces the key to the MTI and the STAN, and the STAN is still the terminal's own. Every terminal counts its STAN from 1, so sooner or later one of them sends a STAN that another terminal's request, still waiting, already uses. A test lab with one terminal never sees it.</p>
+<p>On the upstream link the gateway is the sender, so the gateway numbers the messages: <strong>one STAN sequence per outbound link</strong>. It replaces the terminal's STAN on the way up and puts it back into the response on the way down. The other option is to add a field to the key that is unique per transaction and that the host echoes, such as the retrieval reference number: <code>&lt;key&gt;41, 11, 37&lt;/key&gt;</code>.</p>
+<p>Other ways to get the same collision:</p>
+<ul class="items"><li>a STAN counter per thread or per terminal, when several of them share one link;</li><li>network messages without field 41 that share STANs with each other;</li><li>a repeat (0421) sent while the previous attempt is still waiting. That one is covered in 12.7.</li></ul>
+<h3 id="prose-b39">Choosing the Key Fields</h3>
+<p><code>&lt;key&gt;</code> sets the fields for every MTI. <code>&lt;key mti=&quot;08&quot;&gt;</code> sets them for every MTI that starts with those two digits. Whatever you choose, the host must echo each key field unchanged. A field it rewrites or drops gives a response that matches nothing, and every request times out.</p>
+<p>In 2.1.7 this configuration looks right but isn't:</p>
+<figure class="code"><figcaption><span class="what">xml</span></figcaption><pre><code class="language-xml">&lt;mux class=&quot;org.jpos.q2.iso.QMUX&quot; name=&quot;gw-mux&quot; logger=&quot;Q2&quot;&gt;
+  &lt;in&gt;host-receive&lt;/in&gt;
+  &lt;out&gt;host-send&lt;/out&gt;
+  &lt;key mti=&quot;08&quot;&gt;11&lt;/key&gt;
+  &lt;key&gt;41, 11, 37&lt;/key&gt;
+&lt;/mux&gt;</code></pre></figure>
+<p>The key of a 0200 that carries fields 11, 37 and 41 comes out as:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">host-send.020000123</code></pre></figure>
+<p>That is the STAN alone. QMUX 2.1.7 reads a <code>&lt;key&gt;</code> without <code>mti</code> by asking for the text of the <em>first</em> <code>&lt;key&gt;</code> element, which here is the <code>08</code> one. Put the plain <code>&lt;key&gt;</code> first and you get what you asked for:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">host-send.0200000000029110001000123531012345678</code></pre></figure>
+<p>When the host echoes a key field in a different form (trailing spaces trimmed, for instance), no configuration helps. Subclass QMUX, normalise a copy of the message and let <code>super.getKey</code> do the rest, so the out queue, the MTI mapping and the padding stay as they are:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.mux;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+
+/** QMUX whose key ignores leading and trailing spaces in field 37. */
+public class TrimmedRrnQMUX extends QMUX {
+    @Override
+    public String getKey(ISOMsg m) throws ISOException {
+        if (!m.hasField(37))
+            return super.getKey(m);
+        ISOMsg normalised = (ISOMsg) m.clone();     // never change the message being sent
+        normalised.set(37, m.getString(37).trim());
+        return super.getKey(normalised);
+    }
+}</code></pre></figure>
+<section id="prose-b49" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose" data-practice-card="s-practice-prose" data-practice-key="jpos-client/unit-12/practice-prose" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose" data-practices-part="open">Give the gateway its own STANs on the upstream link</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A response finds its request because both produce the same key; what differs between them (the response digit, the repeat digit) is left out.</li>
+<li>Only one request per key can wait, so the sender of a link must number its own messages; per-terminal or relayed STANs collide.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose" data-section="practice-prose" data-kind="practice" data-label="Give the gateway its own STANs on the upstream link">
+<h2 id="practice-prose-b0">Problem statement</h2>
+<p>This is the gateway from 12.3.1, and it is lunchtime. Three hundred terminals send their purchases through <code>Upstream.forward</code>, and the host knows the gateway as a single terminal, <code>GW000001</code>. Some purchases fail with <code>Duplicate key</code>.</p>
+<p><code>forward</code> already works for one terminal. Finish the three methods marked <code>TODO</code> in <code>src/main/java/com/example/practice/Upstream.java</code> so that it also works for many:</p>
+<ul class="items"><li><code>nextStan()</code>: the gateway's numbering for its own link;</li><li><code>upstreamCopy(...)</code>: what the host receives;</li><li><code>forTerminal(...)</code>: what the terminal gets back.</li></ul>
+<p>The comment on each method says what it is for. When you're done, two terminals can send the same STAN at the same moment and both get their answers, and each terminal recognises the answer as its own. About ten lines in total.</p>
+<p>The tests run a real QMUX against a test host like the one in 12.1. Some of them keep two purchases in flight at once.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.MUX;
+
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * The gateway's side of the upstream link. Terminals send their requests to {@link #forward};
+ * the gateway relays each one to the acquirer's host through one QMUX, as one terminal.
+ */
+public class Upstream {
+    private final MUX mux;
+    private final String gatewayId;
+    private final AtomicLong sent = new AtomicLong();
+
+    public Upstream(MUX mux, String gatewayId) {
+        this.mux = mux;
+        this.gatewayId = gatewayId;
+    }
+
+    /** Relays a terminal's request and returns the response the terminal should get, or null. */
+    public ISOMsg forward(ISOMsg fromTerminal) throws ISOException {
+        ISOMsg up = upstreamCopy(fromTerminal);
+        ISOMsg response = mux.request(up, 30000);
+        return response == null ? null : forTerminal(response, fromTerminal);
+    }
+
+    /** The message the host receives: the terminal's request, sent by the gateway. */
+    ISOMsg upstreamCopy(ISOMsg fromTerminal) throws ISOException {
+        ISOMsg up = (ISOMsg) fromTerminal.clone();
+        up.set(41, gatewayId);
+        up.set(11, nextStan());
+        return up;
+    }
+
+    /** The response as the terminal expects it: an answer to the request it sent. */
+    ISOMsg forTerminal(ISOMsg response, ISOMsg fromTerminal) throws ISOException {
+        ISOMsg down = (ISOMsg) response.clone();
+        down.set(11, fromTerminal.getString(11));
+        down.set(41, fromTerminal.getString(41));
+        return down;
+    }
+
+    /** The STAN of the next message the gateway sends on this link. */
+    String nextStan() {
+        long n = sent.incrementAndGet();
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-b8">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.MUX;
+
+/**
+ * The gateway's side of the upstream link. Terminals send their requests to {@link #forward};
+ * the gateway relays each one to the acquirer's host through one QMUX, as one terminal.
+ */
+public class Upstream {
+    private final MUX mux;
+    private final String gatewayId;
+
+    public Upstream(MUX mux, String gatewayId) {
+        this.mux = mux;
+        this.gatewayId = gatewayId;
+    }
+
+    /** Relays a terminal's request and returns the response the terminal should get, or null. */
+    public ISOMsg forward(ISOMsg fromTerminal) throws ISOException {
+        ISOMsg up = upstreamCopy(fromTerminal);
+        ISOMsg response = mux.request(up, 30000);
+        return response == null ? null : forTerminal(response, fromTerminal);
+    }
+
+    /** The message the host receives: the terminal's request, sent by the gateway. */
+    ISOMsg upstreamCopy(ISOMsg fromTerminal) throws ISOException {
+        ISOMsg up = (ISOMsg) fromTerminal.clone();
+        up.set(41, gatewayId);
+        // TODO: On this link the gateway is the sender, and the STAN is the sender's number for
+        //       the message. Today the terminal's STAN goes up unchanged, which is what collides
+        //       at lunchtime. One line here, using nextStan().
+        return up;
+    }
+
+    /** The response as the terminal expects it: an answer to the request it sent. */
+    ISOMsg forTerminal(ISOMsg response, ISOMsg fromTerminal) throws ISOException {
+        // TODO: The host answered the gateway's message. The terminal matches responses to its
+        //       requests the same way QMUX does, by its own terminal ID and STAN. Return a copy
+        //       of the response that the terminal will recognise. Leave `response` unchanged.
+        throw new IllegalStateException(&quot;TODO: forTerminal&quot;);
+    }
+
+    /** The STAN of the next message the gateway sends on this link. */
+    String nextStan() {
+        // TODO: Six digits, never 000000, and never the same twice while a message could still
+        //       be waiting. Several terminals call forward() at the same time. Add the field you
+        //       need; ISOUtil.zeropad may help.
+        throw new IllegalStateException(&quot;TODO: nextStan&quot;);
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-12/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-12/practice-1/src/main/java/com/example/practice/Upstream.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-12/practice-prose" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-12/practice-prose">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-12/practice-prose" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-12/practice-prose">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.UpstreamTest#aTerminalGetsTheHostsAnswer" data-practice-case-kind="main"><span data-practice-part="verdict"></span>a terminal's purchase is relayed under the gateway's ID and the terminal gets the host's answer</li>
+<li data-practice-case="com.example.practice.UpstreamTest#theTerminalGetsItsOwnStanBack" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the response a terminal receives carries the STAN the terminal sent, not the gateway's</li>
+<li data-practice-case="com.example.practice.UpstreamTest#theTerminalGetsItsOwnIdBack" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the response a terminal receives carries the terminal's own ID, not the gateway's</li>
+<li data-practice-case="com.example.practice.UpstreamTest#twoTerminalsWithTheSameStanAtTheSameMoment" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>two terminals that use the same STAN at the same moment both get their answers, because the gateway numbers its own link</li>
+<li data-practice-case="com.example.practice.UpstreamTest#twoTerminalsStartingTheirDayAtTheSameMoment" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>two messages in flight on the link never share a STAN, so one sequence serves the whole link rather than one per terminal</li>
+<li data-practice-case="com.example.practice.UpstreamTest#aLongRunningLinkNeverSendsStanZero" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the six-digit STAN wraps from 999999 to 000001 and is never 000000</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b50">Every Timeout Guards a Different Wait</h2>
+<p>A customer asks for links that never time out. Their network is reliable, they say, and disconnects only cause trouble.</p>
+<p>Between you and the host sits a firewall that silently drops sessions after 15 idle minutes: neither side receives anything.</p>
+<ul class="items"><li><strong>On the client</strong>, jPOS still believes it is connected. The next purchase is written into the dead connection and never arrives. The ChannelAdaptor has already taken it off its queue, so it is not sent again, even after a reconnect. <code>request</code> returns <code>null</code>, and you are in the situation of 12.5: a purchase whose outcome you don't know.</li><li><strong>On the server</strong>, the terminal reconnects on a new session. The old session stays open forever, because nothing will ever arrive on it and nothing is waiting to notice. Every quiet night adds a few more. Weeks later the QServer reaches its session limit and refuses new connections, and only a restart brings it back.</li></ul>
+<p>A read timeout (the channel's <code>timeout</code> property) closes dead sessions on the server and makes the client reconnect before the next purchase. An echo every few minutes (unit c11) keeps a healthy but quiet session from looking dead, and from being dropped by the firewall. So: <strong>echo interval &lt; read timeout &lt; firewall idle time</strong>, for example an echo every 5 minutes, a read timeout of 6 and a firewall at 15.</p>
+<p>The request timeout, the second argument of <code>mux.request</code>, guards a different wait: the cardholder's. Size it from the outside in: whoever calls you (the terminal, the upstream switch, a REST client) has a limit of its own, and your timeout must end first. If the terminal gives up at 30 seconds and you wait 45, a host approval at 40 seconds becomes a payment the terminal has already shown as failed.</p>
+<p>The Reference lists every setting with &quot;timeout&quot; or &quot;alive&quot; in its name, what it waits for and what happens when it fires.</p>
+<section id="prose-b57" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-5" data-practice-card="s-practice-prose-5" data-practice-key="jpos-client/unit-12/practice-prose-5" data-practice-kind="quiz" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-5" data-practices-part="open">Check yourself: who is waiting, and for what</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>An answer that arrives after its request gave up has nobody waiting and goes to the request listeners or the unhandled queue.</li>
+<li>Each timeout guards a different wait: servers need a read timeout, echoes must come more often than it fires, and the request timeout ends before the caller gives up.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-5" data-section="practice-prose-5" data-kind="practice" data-label="Check yourself: who is waiting, and for what">
+<h2 id="practice-prose-5-b0">Check yourself</h2>
+<p>Questions on what this page has just taught. Choose one answer for each.</p>
+</section>
+<section data-practice-quiz="jpos-client/unit-12/practice-prose-5" data-practice-mock="100" data-mock-form="exam" data-form-kind="quiz" data-corpus="iso-8583-jpos-tutorial" aria-label="Questions" tabindex="-1">
+<div data-practice-part="head"><h2>Answer these</h2></div>
+<p data-practice-part="grader">Written for this site from this page.</p>
+<div data-form-part="start" hidden></div>
+<div data-form-part="bar" hidden><p data-form-part="timer-line" hidden>Time remaining <span data-form-part="timer" role="timer" aria-label="Time remaining"></span></p>
+<p data-form-part="progress"><progress data-form-part="meter" max="4" value="0"></progress> <span data-form-part="count"></span></p></div>
+<div data-form-part="navigator" role="navigation" aria-label="Question navigator" hidden></div>
+<div data-form-part="result" role="region" aria-label="Result" hidden>
+<p data-form-part="overall"></p>
+<p data-form-part="scaled" hidden></p>
+<table data-form-part="domains"><thead><tr><th scope="col">Domain</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<table data-form-part="difficulties" hidden><thead><tr><th scope="col">Difficulty</th><th scope="col">Score</th></tr></thead><tbody></tbody></table>
+<div data-form-part="review-filter" role="group" aria-label="Review"></div>
+</div>
+<p data-form-part="announce" role="status" aria-live="polite" data-form-quiet></p>
+<ol data-practice-part="questions">
+<li data-practice-question="q-silent-firewall-server" data-mock-domain=""><fieldset><legend tabindex="-1">Your QServer has no read timeout. A firewall in front of it drops idle sessions after 15 minutes without telling either side, and terminals simply reconnect when they need to. What becomes of the server-side sessions that those reconnects leave behind?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-silent-firewall-server" value="a"> They are closed by the server when the same terminal connects again, so their number stays level</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-silent-firewall-server" value="b"> They stay open and accumulate, but the server reuses their slots, so new connections keep being accepted</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-silent-firewall-server" value="c"> They stay open and accumulate, until the server reaches its session limit and refuses new connections</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-silent-firewall-server" value="d"> They are closed at both ends when the firewall drops them, so the server never holds them at all</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-terminal-gives-up-first" data-mock-domain=""><fieldset><legend tabindex="-1">Terminals give up on a purchase after 30 seconds. Your client calls mux.request with a 45-second timeout, and the host approves a purchase at second 40. What happens to that purchase?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-terminal-gives-up-first" value="a"> QMUX drops the approval at second 30, so the terminal and the host both treat the purchase as failed</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-terminal-gives-up-first" value="b"> At second 40 the host charges the cardholder, though the terminal showed a failure at second 30</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-terminal-gives-up-first" value="c"> QMUX sends a reversal at second 30, so the terminal's failure and the host's records agree</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-terminal-gives-up-first" value="d"> At second 40 the terminal is still waiting, so the cardholder sees the approval on its screen</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-echo-slower-than-timeout" data-mock-domain=""><fieldset><legend tabindex="-1">A client link carries no traffic at night. Its channel read timeout is 6 minutes and the echo QBean sends an 0800 every 10 minutes. What do you see in the night's log?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-echo-slower-than-timeout" value="a"> The link stays up all night, since each echo restarts the 6-minute read timeout</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-echo-slower-than-timeout" value="b"> The link stays up all night, since the read timeout counts only while a request waits</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-echo-slower-than-timeout" value="c"> The link is closed once, at the first timeout, and then stays up, since reconnecting resets it for good</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-echo-slower-than-timeout" value="d"> The link is closed and reopened again and again, since 6 minutes keep passing with nothing read</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+<li data-practice-question="q-late-approval" data-mock-domain=""><fieldset><legend tabindex="-1">A purchase request returned null after 20 seconds. At second 21 the host's approval for it arrives. The QMUX is configured as in 12.1, with no request listener. What happens to that approval?</legend>
+<ul data-practice-part="options">
+<li data-practice-option="a"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-late-approval" value="a"> It lands on the unhandled queue, since no request is waiting for its key any more</label></li>
+<li data-practice-option="b"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-late-approval" value="b"> It goes back to the host as an error, since QMUX rejects responses nobody asked for</label></li>
+<li data-practice-option="c"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-late-approval" value="c"> It reaches the next request that is sent, since that request is now the one waiting</label></li>
+<li data-practice-option="d"><label><input type="radio" name="jpos-client/unit-12/practice-prose-5:q-late-approval" value="d"> It reaches the original caller after all, since QMUX keeps the request for a grace period</label></li>
+</ul>
+</fieldset>
+<p data-form-part="flag-line" hidden><button type="button" data-form-part="flag" aria-pressed="false">Flag for review</button></p>
+<div data-form-part="review" hidden></div></li>
+</ol>
+<p data-form-part="pager" hidden><button type="button" data-form-part="previous">Previous</button> <button type="button" data-form-part="next">Next</button></p>
+<script type="application/json" data-form-part="key">{"q-silent-firewall-server":{"keys":["c"],"says":{"a":"QServer opens a new session per connection and does not recognise a terminal reconnecting","b":"a session that never ends keeps its slot; nothing reuses it, so they pile up until the session limit is reached","c":"without a read timeout a silently dropped session waits forever; each reconnect adds one until QServer refuses connections","d":"the firewall drops the session silently: neither end receives anything, so neither end closes"}},"q-terminal-gives-up-first":{"keys":["b"],"says":{"a":"QMUX knows nothing about the terminal's limit; it delivers the approval to the request still waiting for it","b":"the request timeout must end before the caller gives up; an approval after that point is a payment nobody completed at the counter","c":"QMUX never sends reversals; reversing is the application's job","d":"the terminal gave up at second 30; it does not wait for the client's longer timeout"}},"q-echo-slower-than-timeout":{"keys":["d"],"says":{"a":"a received echo response does reset the timer, but it comes after the 6-minute timeout has already fired","b":"the channel read timeout fires when no byte at all is read for that long, waiting request or not","c":"the read timeout keeps firing whenever 6 minutes pass with nothing read; a reconnect does not change that","d":"the read timeout fires before the next echo, so a quiet link looks dead; echoes must come more often than the read timeout"}},"q-late-approval":{"keys":["a"],"says":{"a":"nobody is waiting for its key, so QMUX treats it like any message it never asked for","b":"QMUX never answers on its own; unmatched messages go to request listeners or the unhandled queue","c":"a response only reaches a request with the same key; the next request has a different STAN","d":"the request already returned null and its marker was removed, so the approval has nobody to go to"}}}</script>
+<script type="application/json" data-form-part="plan">{"pass_mark":100,"domains":[],"layout":"exam"}</script>
+<script type="application/json" data-form-part="words">{"choose":"Choose a sitting","begin":"Begin","beginOnly":"Begin the exam","questions":"{n} questions","scenarios":"{n} scenarios","allQuestions":"All {n} questions","minutes":"{n} minutes","noTime":"No time limit","count":"{answered} of {asked} answered","position":"Question {n} of {total}","flag":"Flag for review","flagged":"Flagged for review","previous":"Previous","next":"Next","answered":"answered","open":"not answered","flaggedState":"flagged","navQuestion":"Question {n}, {state}","allDomains":"All domains","domainFilter":"Domain","flaggedOnly":"Flagged only","choose_n":"Choose {n}.","confirm":"Not answered yet: {list}. Choose Finish quiz again to finish anyway.","timeUp":"Time is up. The exam was submitted.","minutesLeft":"{n} minutes remaining.","oneMinuteLeft":"One minute remaining.","reached":"You answered all {asked} questions correctly.","short":"You answered {right} of {asked} questions correctly.","scaled":"Scaled score: {score} on a scale of {min} to {max}, where the scale's pass is {line}. This is a linear illustration of your score and not the exam's own scaling.","scoreWords":"{right} of {asked} ({percent}%)","right":"Right.","wrong":"Not this one.","unanswered":"Not answered.","key":"Correct answer","yours":"Your choice","reviewAll":"All questions","reviewMissed":"Missed only","reviewFlagged":"Flagged only","reviewNone":"No question matches this filter.","unitSingular":"question","domain":"Domain","difficulty":"Difficulty","summary":"Your answers","summaryItem":"Question {n}: {verdict}","summaryJump":"Go to question {n}","positionCount":"Question {n} of {total}. {answered} answered."}</script>
+<link rel="stylesheet" href="../../.studyforge/assets/mock-form.css">
+<script src="../../.studyforge/assets/mock-form-core.js" defer></script>
+<script src="../../.studyforge/assets/mock-form-panels.js" defer></script>
+<script src="../../.studyforge/assets/mock-form.js" defer></script>
+<p data-practice-part="offline">Checking answers needs this page's script, and it is not running here. Read the questions and choose your answers; nothing here can check them.</p>
+<p data-form-part="controls" hidden><button type="button" data-form-part="submit">Finish quiz</button> <button type="button" data-form-part="again" hidden>Try again</button></p>
+<p data-form-part="missing" role="alert" hidden></p>
+</section>
+<h2 id="prose-b58">No Answer Means You Don't Know</h2>
+<p>When <code>request</code> returns <code>null</code>, one of three things happened, and the client can't tell which:</p>
+<ul class="items"><li>the request never reached the host;</li><li>the host received it and declined it;</li><li>the host approved it, moved the money, and the answer was lost or arrived too late.</li></ul>
+<p>The obvious fix is to send the 0200 again. Against a host that answers the first try 1.5 seconds late:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">TestHost host = new TestHost(sp, &quot;host-send&quot;, &quot;host-receive&quot;).then(1500);
+ISOMsg r = mux.request(purchase, 1000);          // null
+r = mux.request(purchase, 1000);                 // try again</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">try 1: null
+try 2: 0210 39=00
+host approved 2 purchases of 000000005000</code></pre></figure>
+<p>The cardholder paid twice. The test host, like many real ones, doesn't look for duplicates, so the second 0200 is just another purchase. A host that does check might decline it as a duplicate, and then you have told the cardholder &quot;declined&quot; for a purchase that went through.</p>
+<p>The safe move is a <strong>reversal</strong>: a message that says &quot;if you approved this, undo it&quot;. If the host never saw the original, or declined it, the host acknowledges the reversal and nothing changes. If the host approved it, the money comes back. A resend double-charges in exactly the case a reversal fixes: <strong>reverse, never resend</strong>.</p>
+<p>What gets reversed depends on what the message did:</p>
+<ul class="items"><li><strong>0100 and 0200</strong> ask for permission and move money or place a hold. When their outcome is unknown, they are reversed.</li><li><strong>Advices</strong> (0120, 0220, 0420) report something that has already happened. There is nothing to undo, so they are <em>repeated</em> (0121, 0221, 0421) until the host acknowledges them.</li><li><strong>0800 network messages</strong> change no balance. Just send a new one.</li></ul>
+<p>Once the purchase is reversed, the late approval from 12.2.1 needs nothing more.</p>
+<h2 id="prose-b69">A Reversal Points Back at the Original</h2>
+<p>A reversal must tell the host which transaction to undo. In ISO 8583:1987 that is field 90, Original Data Elements. A builder, with the per-link STAN sequencer it uses:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.reversal;
+
+import org.jpos.iso.ISOUtil;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceUtil;
+
+/** One STAN sequence per outbound link: 000001 .. 999999, then 000001 again. */
+public final class StanSequencer {
+    private final Space&lt;String, Object&gt; space;
+    private final String key;
+
+    public StanSequencer(Space&lt;String, Object&gt; space, String link) {
+        this.space = space;
+        this.key = &quot;stan.&quot; + link;
+    }
+
+    public String next() {
+        long n = SpaceUtil.nextLong(space, key);
+        return ISOUtil.zeropad(((n - 1) % 999999) + 1, 6);
+    }
+}</code></pre></figure>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.reversal;
+
+import org.jpos.iso.ISODate;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+
+import java.time.Clock;
+import java.util.Date;
+import java.util.TimeZone;
+
+public final class ReversalBuilder {
+    /** What the host needs to find the original and undo it. Never 35, 52 or 55. */
+    private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };
+
+    private final StanSequencer stans;
+    private final String reversalMti;                   // &quot;0420&quot;, or &quot;0400&quot; if the network says so
+    private final Clock clock;
+
+    public ReversalBuilder(StanSequencer stans, String reversalMti, Clock clock) {
+        this.stans = stans;
+        this.reversalMti = reversalMti;
+        this.clock = clock;
+    }
+
+    public ISOMsg reversalOf(ISOMsg original) throws ISOException {
+        ISOMsg rev = (ISOMsg) original.clone(COPIED);
+        rev.setMTI(reversalMti);
+        rev.set(7, ISODate.getDateTime(Date.from(clock.instant()), TimeZone.getTimeZone(&quot;UTC&quot;)));
+        rev.set(11, stans.next());                      // a new message on the link
+        rev.set(90, field90(original));                 // ...that points at the original
+        return rev;
+    }
+
+    static String field90(ISOMsg o) throws ISOException {
+        return o.getMTI()
+                + ISOUtil.zeropad(o.getString(11), 6)
+                + ISOUtil.zeropad(o.getString(7), 10)
+                + ISOUtil.zeropad(o.hasField(32) ? o.getString(32) : &quot;&quot;, 11)
+                + ISOUtil.zeropad(o.hasField(33) ? o.getString(33) : &quot;&quot;, 11);
+    }
+}</code></pre></figure>
+<p>We reverse the purchase from 12.5, which went out as STAN <code>000125</code> at <code>1105143000</code> from acquirer <code>123456</code>, with a track 2 in field 35:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">MTI 0420  11=000126  7=1105143012
+90  020000012511051430000000012345600000000000
+35? false</code></pre></figure>
+<p>Field 90 is easier to read split up:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">0200  000125  1105143000  00000123456  00000000000
+MTI   STAN    field 7     field 32     field 33</code></pre></figure>
+<p><strong>The reversal has its own STAN</strong> (<code>000126</code>), because it is a new message on the link. If it carried the original's STAN, a host that detects duplicates by terminal and STAN would take it for a second copy of the original. The original's STAN is in field 90, where the host looks for it.</p>
+<p><strong>It copies only what the host needs.</strong> Track 2, the PIN block and the chip data (fields 35, 52 and</p>
+<ol class="items" start="55"><li>don't belong in a message that may sit in a queue for hours.</li></ol>
+<p>The builder works from the original request, so store each request before you send it.</p>
+<blockquote><p><strong>Networks differ.</strong> Some want 0400 instead of 0420, some want the original STAN in field 11, and many want a reason code. These change the builder; the rules of this unit stay the same.</p></blockquote>
+<section id="prose-b82" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-2" data-practice-card="s-practice-prose-2" data-practice-key="jpos-client/unit-12/practice-prose-2" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-2" data-practices-part="open">Stop charging twice when the host is slow</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A reversal is a new message with its own STAN that points at the original through field 90.</li>
+<li>With no answer the outcome is unknown: purchases are reversed and never resent, advices are repeated, network messages need nothing, and what never went out needs nothing.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-2" data-section="practice-prose-2" data-kind="practice" data-label="Stop charging twice when the host is slow">
+<h2 id="practice-prose-2-b0">Problem statement</h2>
+<p>Merchants complain that on slow days some cardholders are charged twice. The culprit is <code>PaymentClient.send</code> in <code>src/main/java/com/example/practice/PaymentClient.java</code>: when the host doesn't answer in time, it sends the same message again.</p>
+<p><code>send</code> handles every kind of message the client sends: purchases and authorizations, advices, and echoes. Fix the three places marked <code>TODO</code> so that each ends safely and returns the <code>Outcome</code> that says what happened:</p>
+<ul class="items"><li><code>send</code>: when the link is down;</li><li><code>outcomeOf</code>: when the host answered;</li><li><code>onNoAnswer</code>: when it didn't. This is the part that matters.</li></ul>
+<p>Anything that must still reach the host later goes onto the <code>saf.host</code> queue of the space (<code>sp.out</code>). Something else delivers it, as in 12.7. The <code>ReversalBuilder</code> from 12.6 is already in the file. About 15 lines in total.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceUtil;
+
+/**
+ * Sends one message to the host and says how it ended. Anything that must still reach the host
+ * later goes onto the store-and-forward queue {@code saf.host} in the given space.
+ */
+public class PaymentClient {
+    public enum Outcome { APPROVED, DECLINED, REVERSED, QUEUED, NO_ANSWER, NOT_SENT }
+
+    static final String SAF = &quot;saf.host&quot;;
+
+    private final MUX mux;
+    private final Space&lt;String, Object&gt; sp;
+    private final ReversalBuilder reversals;
+    private final long timeout;
+
+    public PaymentClient(MUX mux, Space&lt;String, Object&gt; sp, long timeout) {
+        this.mux = mux;
+        this.sp = sp;
+        this.reversals = new ReversalBuilder(sp);
+        this.timeout = timeout;
+    }
+
+    public Outcome send(ISOMsg m) throws ISOException {
+        if (!mux.isConnected())
+            return Outcome.NOT_SENT;
+        ISOMsg response = mux.request(m, timeout);
+        return response != null ? outcomeOf(response) : onNoAnswer(m);
+    }
+
+    /** How a message that got an answer ended. */
+    Outcome outcomeOf(ISOMsg response) {
+        return &quot;00&quot;.equals(response.getString(39)) ? Outcome.APPROVED : Outcome.DECLINED;
+    }
+
+    /** What to do when the wait for an answer ended with nothing. */
+    Outcome onNoAnswer(ISOMsg m) throws ISOException {
+        char messageClass = m.getMTI().charAt(1);
+        boolean advice = m.getMTI().charAt(2) == '2';
+        if (messageClass == '8')
+            return Outcome.NO_ANSWER;
+        if (advice) {
+            sp.out(SAF, m);
+            return Outcome.QUEUED;
+        }
+        sp.out(SAF, reversals.reversalOf(m));
+        return Outcome.REVERSED;
+    }
+
+    /** The reversal builder from 12.6, given: a new message that points at the original. */
+    static final class ReversalBuilder {
+        private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };
+        private final Space&lt;String, Object&gt; sp;
+
+        ReversalBuilder(Space&lt;String, Object&gt; sp) {
+            this.sp = sp;
+        }
+
+        ISOMsg reversalOf(ISOMsg original) throws ISOException {
+            ISOMsg rev = (ISOMsg) original.clone(COPIED);
+            rev.setMTI(&quot;0420&quot;);
+            rev.set(7, original.getString(7));
+            rev.set(11, ISOUtil.zeropad(((SpaceUtil.nextLong(sp, &quot;stan.host&quot;) - 1) % 999999) + 1, 6));
+            rev.set(90, original.getMTI()
+                    + ISOUtil.zeropad(original.getString(11), 6)
+                    + ISOUtil.zeropad(original.getString(7), 10)
+                    + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : &quot;&quot;, 11)
+                    + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : &quot;&quot;, 11));
+            return rev;
+        }
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-2-b7">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+import org.jpos.space.SpaceUtil;
+
+/**
+ * Sends one message to the host and says how it ended. Anything that must still reach the host
+ * later goes onto the store-and-forward queue {@code saf.host} in the given space.
+ */
+public class PaymentClient {
+    public enum Outcome { APPROVED, DECLINED, REVERSED, QUEUED, NO_ANSWER, NOT_SENT }
+
+    static final String SAF = &quot;saf.host&quot;;
+
+    private final MUX mux;
+    private final Space&lt;String, Object&gt; sp;
+    private final ReversalBuilder reversals;
+    private final long timeout;
+
+    public PaymentClient(MUX mux, Space&lt;String, Object&gt; sp, long timeout) {
+        this.mux = mux;
+        this.sp = sp;
+        this.reversals = new ReversalBuilder(sp);
+        this.timeout = timeout;
+    }
+
+    public Outcome send(ISOMsg m) throws ISOException {
+        // TODO: QMUX would accept a message even with the link down; it would only expire unsent.
+        //       When nothing can go out, what is there to undo? (two lines)
+        ISOMsg response = mux.request(m, timeout);
+        return response != null ? outcomeOf(response) : onNoAnswer(m);
+    }
+
+    /** How a message that got an answer ended. */
+    Outcome outcomeOf(ISOMsg response) {
+        // TODO: The host answered. Field 39 says how. (one line)
+        throw new IllegalStateException(&quot;TODO: outcomeOf&quot;);
+    }
+
+    /** What to do when the wait for an answer ended with nothing. */
+    Outcome onNoAnswer(ISOMsg m) throws ISOException {
+        // TODO: This is what the client does today, and on slow days cardholders are charged twice.
+        //       Decide by what the message is: 0100/0200 ask for money, 0120/0220 report what has
+        //       already happened, 0800 moves no money at all. Return the Outcome that says what
+        //       you did. (10 to 15 lines)
+        ISOMsg again = mux.request(m, timeout);
+        return again != null ? outcomeOf(again) : Outcome.NO_ANSWER;
+    }
+
+    /** The reversal builder from 12.6, given: a new message that points at the original. */
+    static final class ReversalBuilder {
+        private static final int[] COPIED = { 2, 3, 4, 12, 13, 14, 22, 32, 33, 37, 41, 42, 49 };
+        private final Space&lt;String, Object&gt; sp;
+
+        ReversalBuilder(Space&lt;String, Object&gt; sp) {
+            this.sp = sp;
+        }
+
+        ISOMsg reversalOf(ISOMsg original) throws ISOException {
+            ISOMsg rev = (ISOMsg) original.clone(COPIED);
+            rev.setMTI(&quot;0420&quot;);
+            rev.set(7, original.getString(7));
+            rev.set(11, ISOUtil.zeropad(((SpaceUtil.nextLong(sp, &quot;stan.host&quot;) - 1) % 999999) + 1, 6));
+            rev.set(90, original.getMTI()
+                    + ISOUtil.zeropad(original.getString(11), 6)
+                    + ISOUtil.zeropad(original.getString(7), 10)
+                    + ISOUtil.zeropad(original.hasField(32) ? original.getString(32) : &quot;&quot;, 11)
+                    + ISOUtil.zeropad(original.hasField(33) ? original.getString(33) : &quot;&quot;, 11));
+            return rev;
+        }
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-12/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-12/practice-2/src/main/java/com/example/practice/PaymentClient.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-12/practice-prose-2" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-12/practice-prose-2">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-12/practice-prose-2" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-12/practice-prose-2">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.PaymentClientTest#aQuickApprovalIsApproved" data-practice-case-kind="main"><span data-practice-part="verdict"></span>an answered purchase with 39=00 is approved and leaves nothing to send</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#aDeclineIsADecline" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>an answer whose field 39 is not 00 is a decline, and a decline needs no reversal</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#aPurchaseWithNoAnswerIsReversedNotSentAgain" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a purchase with no answer goes to the host once and is reversed, never resent</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#theReversalPointsAtThePurchase" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the reversal is a new message with its own STAN that points at the original through field 90</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#anAdviceWithNoAnswerIsQueuedAsItIs" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>an advice with no answer reports something that already happened, so it is queued to be repeated rather than reversed</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#anEchoWithNoAnswerNeedsNothing" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a network message with no answer moved no money, so nothing is queued or resent</li>
+<li data-practice-case="com.example.practice.PaymentClientTest#aPurchaseOnADownLinkIsNeitherSentNorReversed" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>with the link down nothing is sent, so nothing needs reversing</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b83">A Reversal Must Outlive the Process and Wait Its Turn</h2>
+<p>A reversal that exists only in memory disappears with the process, and the cardholder's money stays with the merchant until someone notices. It also can't be sent just once: the link may be down, or the host may not answer. It needs a store-and-forward queue (SAF), here on a Space queue:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.jpos.client.reversal;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+import org.jpos.space.Space;
+
+/** Reversals waiting for the host: one sender, oldest first, kept until answered. */
+public final class ReversalSaf {
+    private final Space&lt;String, Object&gt; sp;             // persistent in production, e.g. &quot;je:saf&quot;
+    private final String queue;
+
+    public ReversalSaf(Space&lt;String, Object&gt; sp, String queue) {
+        this.sp = sp;
+        this.queue = queue;
+    }
+
+    public void add(ISOMsg reversal) {
+        sp.out(queue, reversal);                        // (1) stored before anyone is told
+    }
+
+    public boolean isEmpty() {
+        return sp.rdp(queue) == null;
+    }
+
+    /** One attempt for the oldest reversal. True when the host has answered it. */
+    public synchronized boolean sendHead(MUX mux, long timeout) throws ISOException {
+        ISOMsg head = (ISOMsg) sp.rdp(queue);           // (2) read, don't take
+        if (head == null || !mux.isConnected())
+            return false;
+        if (mux.request(head, timeout) != null) {       // (3) returns only when this try is over
+            sp.inp(queue);                              // answered: now it may go
+            return true;
+        }
+        if (!head.isRetransmission()) {                 // (4) every later try is a repeat
+            ISOMsg repeat = (ISOMsg) head.clone();
+            repeat.setRetransmissionMTI();
+            sp.inp(queue);
+            sp.push(queue, repeat);                     // (5) back at the FRONT of the line
+        }
+        return false;
+    }
+}</code></pre></figure>
+<p>We queue two reversals and let the host drop the first two attempts:</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">TestHost host = new TestHost(sp, &quot;host-send&quot;, &quot;host-receive&quot;).then(TestHost.DROP, TestHost.DROP);
+ReversalSaf saf = new ReversalSaf(sp, &quot;saf.host&quot;);
+saf.add(msg(&quot;0420&quot;, 41, &quot;29110001&quot;, 11, &quot;000126&quot;));
+saf.add(msg(&quot;0420&quot;, 41, &quot;29110001&quot;, 11, &quot;000127&quot;));
+for (int i = 1; !saf.isEmpty(); i++)
+    System.out.println(&quot;attempt &quot; + i + &quot;: &quot; + saf.sendHead(mux, 500));</code></pre></figure>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">attempt 1: false
+attempt 2: false
+attempt 3: true
+attempt 4: true
+host saw 0420 11=000126
+host saw 0421 11=000126
+host saw 0421 11=000126
+host saw 0420 11=000127</code></pre></figure>
+<p><strong>(1) Stored first.</strong> The reversal goes into the queue before the payment service reports &quot;reversed&quot; to anyone. In production the space is persistent (<code>je:saf</code> is the Berkeley DB space that ships with jPOS). Here one process queues a reversal and exits, and the next one reads it:</p>
+<figure class="code"><figcaption><span class="what">text</span></figcaption><pre><code class="language-text">queued, process exits
+after restart: 0420 11=000126</code></pre></figure>
+<p><strong>(2) Read, don't take.</strong> The reversal stays in the queue while it is being sent. If the process dies in the middle of <code>request</code>, the reversal is still there after the restart. Take it out first (<code>inp</code>), and a crash at the wrong moment loses it for good.</p>
+<p><strong>(3) One try at a time.</strong> <code>request</code> returns only when this attempt is over, and <code>synchronized</code> keeps a second sender out. So the next attempt, an 0421 with the same key as the 0420, never overlaps the previous one, which would be a duplicate key (12.3).</p>
+<p><strong>(4) A repeat only after a real attempt.</strong> The MTI becomes 0421 only after an 0420 has actually gone out. When the link was down, nothing was sent, and the reversal is still a first attempt.</p>
+<p><strong>(5) Push, not out.</strong> The repeat goes back to the front of the queue. With <code>out</code> it would go to the back, and the reversal for 000127 would overtake it. During a long outage the oldest reversal, the one a cardholder has been waiting for the longest, would keep being pushed back.</p>
+<p>In most networks any answer acknowledges the reversal, whatever field 39 says, because the host has seen it (check your network's spec for codes that ask for a retry). Don't quietly delete a reversal the host never answers: alert someone when it has been retrying longer than the network allows. The queue holds PANs, so protect it like the transaction database.</p>
+<section id="prose-b96" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-3" data-practice-card="s-practice-prose-3" data-practice-key="jpos-client/unit-12/practice-prose-3" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-3" data-practices-part="open">Deliver completion advices without losing or reordering them</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A store-and-forward queue keeps a message stored while it is sent, repeats it only after a real attempt, keeps its place, and counts any answer as delivery.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-3" data-section="practice-prose-3" data-kind="practice" data-label="Deliver completion advices without losing or reordering them">
+<h2 id="practice-prose-3-b0">Problem statement</h2>
+<p>Completions (0220 advices) report purchases that have already happened, so they must reach the host, however long that takes. This SAF keeps them in a database table, the <code>Store</code> at the bottom of <code>src/main/java/com/example/practice/AdviceSaf.java</code>, instead of a Space queue. The ideas of 12.7 still apply. Only the tools are different: the table has <code>oldest</code>, <code>update</code>, <code>delete</code> and <code>insert</code>, and no <code>push</code>.</p>
+<p>Finish the four places marked <code>TODO</code>. <code>sendOldest</code> is called again and again by a single sender. When you're done, an advice survives a process that dies while sending it, goes out as a repeat after an unanswered attempt, and never lets a later advice overtake it. About 10 lines in total.</p>
+<p>The tests simulate a crash by giving <code>sendOldest</code> a MUX that throws in the middle of <code>request</code>, then building a new <code>AdviceSaf</code> on the same table.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+
+/**
+ * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the
+ * {@link Store} until the host has answered them.
+ */
+public class AdviceSaf {
+    private final Store store;
+
+    public AdviceSaf(Store store) {
+        this.store = store;
+    }
+
+    public void add(ISOMsg advice) {
+        store.insert(advice);
+    }
+
+    public boolean isEmpty() {
+        return store.oldest() == null;
+    }
+
+    /** One attempt for the oldest advice. True when the host has answered it. */
+    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {
+        Store.Row row = next();
+        if (row == null || !mux.isConnected())
+            return false;
+        ISOMsg answer = mux.request(row.msg(), timeout);
+        if (answer != null) {
+            answered(row);
+            return true;
+        }
+        notAnswered(row);
+        return false;
+    }
+
+    /** The advice to send now. */
+    Store.Row next() {
+        return store.oldest();
+    }
+
+    /** The host has seen it. */
+    void answered(Store.Row row) {
+        store.delete(row.id());
+    }
+
+    /** The attempt went out and got no answer. */
+    void notAnswered(Store.Row row) throws ISOException {
+        ISOMsg advice = row.msg();
+        if (!advice.isRetransmission()) {
+            advice = (ISOMsg) advice.clone();
+            advice.setRetransmissionMTI();
+        }
+        store.update(row.id(), advice, row.attempts());
+    }
+
+    /**
+     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row
+     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database
+     * outlives a process.
+     */
+    public static final class Store {
+        public record Row(long id, ISOMsg msg, int attempts) {}
+
+        private final java.util.TreeMap&lt;Long, Row&gt; rows = new java.util.TreeMap&lt;&gt;();
+        private long lastId;
+
+        public synchronized long insert(ISOMsg msg) {
+            long id = ++lastId;
+            rows.put(id, new Row(id, msg, 0));
+            return id;
+        }
+
+        /** The oldest row, or null. The row stays in the table. */
+        public synchronized Row oldest() {
+            return rows.isEmpty() ? null : rows.firstEntry().getValue();
+        }
+
+        /** Changes a row in place: same id, so the same place in the line. */
+        public synchronized void update(long id, ISOMsg msg, int attempts) {
+            rows.put(id, new Row(id, msg, attempts));
+        }
+
+        public synchronized void delete(long id) {
+            rows.remove(id);
+        }
+
+        public synchronized java.util.List&lt;ISOMsg&gt; all() {
+            return rows.values().stream().map(Row::msg).toList();
+        }
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-3-b6">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+
+/**
+ * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the
+ * {@link Store} until the host has answered them.
+ */
+public class AdviceSaf {
+    private final Store store;
+
+    public AdviceSaf(Store store) {
+        this.store = store;
+    }
+
+    public void add(ISOMsg advice) {
+        store.insert(advice);
+    }
+
+    public boolean isEmpty() {
+        return store.oldest() == null;
+    }
+
+    /** One attempt for the oldest advice. True when the host has answered it. */
+    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {
+        Store.Row row = next();
+        // TODO: Some calls should not even try. Which, and what do they return? (one line)
+        ISOMsg answer = mux.request(row.msg(), timeout);
+        if (answer != null) {
+            answered(row);
+            return true;
+        }
+        notAnswered(row);
+        return false;
+    }
+
+    /** The advice to send now. */
+    Store.Row next() {
+        // TODO: The oldest advice. The process may die while it is being sent. (one line)
+        throw new IllegalStateException(&quot;TODO: next&quot;);
+    }
+
+    /** The host has seen it. */
+    void answered(Store.Row row) {
+        // TODO: Whatever field 39 says. (one line)
+        throw new IllegalStateException(&quot;TODO: answered&quot;);
+    }
+
+    /** The attempt went out and got no answer. */
+    void notAnswered(Store.Row row) throws ISOException {
+        // TODO: The next attempt is a repeat, and this is still the oldest advice. (about 5 lines)
+        throw new IllegalStateException(&quot;TODO: notAnswered&quot;);
+    }
+
+    /**
+     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row
+     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database
+     * outlives a process.
+     */
+    public static final class Store {
+        public record Row(long id, ISOMsg msg, int attempts) {}
+
+        private final java.util.TreeMap&lt;Long, Row&gt; rows = new java.util.TreeMap&lt;&gt;();
+        private long lastId;
+
+        public synchronized long insert(ISOMsg msg) {
+            long id = ++lastId;
+            rows.put(id, new Row(id, msg, 0));
+            return id;
+        }
+
+        /** The oldest row, or null. The row stays in the table. */
+        public synchronized Row oldest() {
+            return rows.isEmpty() ? null : rows.firstEntry().getValue();
+        }
+
+        /** Changes a row in place: same id, so the same place in the line. */
+        public synchronized void update(long id, ISOMsg msg, int attempts) {
+            rows.put(id, new Row(id, msg, attempts));
+        }
+
+        public synchronized void delete(long id) {
+            rows.remove(id);
+        }
+
+        public synchronized java.util.List&lt;ISOMsg&gt; all() {
+            return rows.values().stream().map(Row::msg).toList();
+        }
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-12/practice-prose-3" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-12/practice-3/src/main/java/com/example/practice/AdviceSaf.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-12/practice-prose-3" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-12/practice-prose-3">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-12/practice-prose-3" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-12/practice-prose-3">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.AdviceSafTest#advicesReachTheHostOldestFirst" data-practice-case-kind="main"><span data-practice-part="verdict"></span>answered advices leave the table and reach the host oldest first</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#anAdviceSurvivesAProcessThatDiesWhileSendingIt" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>an advice stays stored while it is being sent, so a process that dies mid-send loses nothing</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#aRepeatKeepsItsPlaceInLine" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>an unanswered advice stays at the front of the line, so a later advice never overtakes it</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#anUnansweredAdviceIsRepeatedAs0221" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>every attempt after an unanswered one goes out as a repeat, 0221</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#aDeclinedAdviceHasStillBeenDelivered" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>any answer means the host has seen the advice, whatever field 39 says</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#anAdviceHeldBackByADownLinkIsNotARepeat" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>nothing is sent while the link is down, and an advice that never went out is not a repeat</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<section id="prose-b97" data-practices data-practices-placed aria-label="Practice">
+<ol data-practices-part="cards">
+<li id="card-practice-prose-4" data-practice-card="s-practice-prose-4" data-practice-key="jpos-client/unit-12/practice-prose-4" data-practice-kind="code" data-corpus="iso-8583-jpos-tutorial">
+<h3><a href="#s-practice-prose-4" data-practices-part="open">Park the advice the host never answers</a></h3>
+<ul data-practices-part="concepts" aria-label="What it practises">
+<li>A message the host never answers is parked after the allowed attempts, with the count stored alongside it, so it neither blocks the line nor gets deleted.</li>
+</ul>
+<p data-practices-part="state" hidden><span data-practice-state="not-started">Not started</span><span data-practice-state="passed" hidden>Passed</span></p>
+</li>
+</ol>
+</section>
+<section id="s-practice-prose-4" data-section="practice-prose-4" data-kind="practice" data-label="Park the advice the host never answers">
+<h2 id="practice-prose-4-b0">Problem statement</h2>
+<p>This picks up where the previous practice ended. The file already contains its solution.</p>
+<p>An advice that the host never answers would sit at the front of the line forever, and every advice behind it would wait too. The network allows a fixed number of attempts per advice. After the last one, the advice goes to a second table, <code>parked</code>, where an operator deals with it, and the line moves on.</p>
+<p>Finish <code>notAnswered</code> in <code>src/main/java/com/example/practice/AdviceSaf.java</code>. The <code>Store</code> rows already have an <code>attempts</code> column. The tests restart the SAF between attempts, and they also keep the link down for a while. About 7 lines.</p>
+<details class="disclosure"><summary>Show a worked solution</summary><figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+
+/**
+ * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the
+ * {@link Store} until the host has answered them. An advice the host never answers is parked
+ * after {@code maxAttempts} attempts, so it doesn't block the ones behind it.
+ */
+public class AdviceSaf {
+    private final Store store;
+    private final Store parked;
+    private final int maxAttempts;
+
+    public AdviceSaf(Store store, Store parked, int maxAttempts) {
+        this.store = store;
+        this.parked = parked;
+        this.maxAttempts = maxAttempts;
+    }
+
+    public void add(ISOMsg advice) {
+        store.insert(advice);
+    }
+
+    public boolean isEmpty() {
+        return store.oldest() == null;
+    }
+
+    /** One attempt for the oldest advice. True when the host has answered it. */
+    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {
+        Store.Row row = next();
+        if (row == null || !mux.isConnected())
+            return false;
+        ISOMsg answer = mux.request(row.msg(), timeout);
+        if (answer != null) {
+            answered(row);
+            return true;
+        }
+        notAnswered(row);
+        return false;
+    }
+
+    /** The advice to send now. */
+    Store.Row next() {
+        return store.oldest();
+    }
+
+    /** The host has seen it. */
+    void answered(Store.Row row) {
+        store.delete(row.id());
+    }
+
+    /** The attempt went out and got no answer. */
+    void notAnswered(Store.Row row) throws ISOException {
+        ISOMsg advice = row.msg();
+        if (!advice.isRetransmission()) {
+            advice = (ISOMsg) advice.clone();
+            advice.setRetransmissionMTI();
+        }
+        int attempts = row.attempts() + 1;
+        if (attempts &gt;= maxAttempts) {
+            parked.insert(advice);
+            store.delete(row.id());
+        } else {
+            store.update(row.id(), advice, attempts);
+        }
+    }
+
+    /**
+     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row
+     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database
+     * outlives a process.
+     */
+    public static final class Store {
+        public record Row(long id, ISOMsg msg, int attempts) {}
+
+        private final java.util.TreeMap&lt;Long, Row&gt; rows = new java.util.TreeMap&lt;&gt;();
+        private long lastId;
+
+        public synchronized long insert(ISOMsg msg) {
+            long id = ++lastId;
+            rows.put(id, new Row(id, msg, 0));
+            return id;
+        }
+
+        /** The oldest row, or null. The row stays in the table. */
+        public synchronized Row oldest() {
+            return rows.isEmpty() ? null : rows.firstEntry().getValue();
+        }
+
+        /** Changes a row in place: same id, so the same place in the line. */
+        public synchronized void update(long id, ISOMsg msg, int attempts) {
+            rows.put(id, new Row(id, msg, attempts));
+        }
+
+        public synchronized void delete(long id) {
+            rows.remove(id);
+        }
+
+        public synchronized java.util.List&lt;ISOMsg&gt; all() {
+            return rows.values().stream().map(Row::msg).toList();
+        }
+    }
+}
+</code></pre></figure></details>
+<h2 id="practice-prose-4-b6">Starting code</h2>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
+
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.MUX;
+
+/**
+ * Advices (0220 completions) that must reach the host: one sender, oldest first, kept in the
+ * {@link Store} until the host has answered them. An advice the host never answers is parked
+ * after {@code maxAttempts} attempts, so it doesn't block the ones behind it.
+ */
+public class AdviceSaf {
+    private final Store store;
+    private final Store parked;
+    private final int maxAttempts;
+
+    public AdviceSaf(Store store, Store parked, int maxAttempts) {
+        this.store = store;
+        this.parked = parked;
+        this.maxAttempts = maxAttempts;
+    }
+
+    public void add(ISOMsg advice) {
+        store.insert(advice);
+    }
+
+    public boolean isEmpty() {
+        return store.oldest() == null;
+    }
+
+    /** One attempt for the oldest advice. True when the host has answered it. */
+    public synchronized boolean sendOldest(MUX mux, long timeout) throws ISOException {
+        Store.Row row = next();
+        if (row == null || !mux.isConnected())
+            return false;
+        ISOMsg answer = mux.request(row.msg(), timeout);
+        if (answer != null) {
+            answered(row);
+            return true;
+        }
+        notAnswered(row);
+        return false;
+    }
+
+    /** The advice to send now. */
+    Store.Row next() {
+        return store.oldest();
+    }
+
+    /** The host has seen it. */
+    void answered(Store.Row row) {
+        store.delete(row.id());
+    }
+
+    /** The attempt went out and got no answer. */
+    void notAnswered(Store.Row row) throws ISOException {
+        ISOMsg advice = row.msg();
+        if (!advice.isRetransmission()) {
+            advice = (ISOMsg) advice.clone();
+            advice.setRetransmissionMTI();
+        }
+        // TODO: This was attempt number row.attempts() + 1. After maxAttempts attempts, move the
+        //       advice to `parked` so the next one can go. An operator works through `parked`.
+        //       A restart must not give the advice a fresh set of attempts. (about 7 lines)
+        throw new IllegalStateException(&quot;TODO: count and park&quot;);
+    }
+
+    /**
+     * Given: a table of messages, as a database would keep them. Row ids grow, and the oldest row
+     * is the one with the lowest id. It outlives any AdviceSaf that uses it, the way a database
+     * outlives a process.
+     */
+    public static final class Store {
+        public record Row(long id, ISOMsg msg, int attempts) {}
+
+        private final java.util.TreeMap&lt;Long, Row&gt; rows = new java.util.TreeMap&lt;&gt;();
+        private long lastId;
+
+        public synchronized long insert(ISOMsg msg) {
+            long id = ++lastId;
+            rows.put(id, new Row(id, msg, 0));
+            return id;
+        }
+
+        /** The oldest row, or null. The row stays in the table. */
+        public synchronized Row oldest() {
+            return rows.isEmpty() ? null : rows.firstEntry().getValue();
+        }
+
+        /** Changes a row in place: same id, so the same place in the line. */
+        public synchronized void update(long id, ISOMsg msg, int attempts) {
+            rows.put(id, new Row(id, msg, attempts));
+        }
+
+        public synchronized void delete(long id) {
+            rows.remove(id);
+        }
+
+        public synchronized java.util.List&lt;ISOMsg&gt; all() {
+            return rows.values().stream().map(Row::msg).toList();
+        }
+    }
+}
+</code></pre></figure>
+</section>
+<section data-practice="jpos-client/unit-12/practice-prose-4" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
+<p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
+<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-12/practice-4/src/main/java/com/example/practice/AdviceSaf.java</code>.</p>
+<p data-practice-part="offline">Running and submitting need the local study server. This page was opened as a file, so work on the file above and run it yourself.</p>
+<div data-practice-part="editor" hidden>
+<p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
+<div data-practice-part="tabs" role="tablist" aria-label="Practice files" hidden>
+<button type="button" role="tab" data-practice-tab="main" aria-selected="true">Your code</button>
+<button type="button" role="tab" data-practice-tab="test" aria-selected="false">Tests</button></div>
+<div data-practice-frame="main" hidden></div>
+</div>
+<p data-practice-part="no-runner" hidden>This course's runner is not running here, so this page cannot run your code, and nothing runs it anywhere else. Start it, and the editor beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page.</p>
+<p data-practice-part="controls" hidden><button type="button" data-practice-act="run">Run</button><button type="button" data-practice-act="test">Submit</button><button type="button" data-practice-act="stop" hidden>Stop</button></p>
+<div data-practice-part="report-divider" role="separator" aria-orientation="horizontal" aria-label="Resize the report" aria-controls="practice-report-jpos-client/unit-12/practice-prose-4" tabindex="0" hidden></div>
+<div data-practice-part="report" id="practice-report-jpos-client/unit-12/practice-prose-4">
+<button type="button" data-practice-part="report-bar" data-practice-glance="{passed}/{total} passed" aria-expanded="true" aria-controls="practice-report-body-jpos-client/unit-12/practice-prose-4" hidden><span data-practice-report-word="hide">Hide report</span><span data-practice-report-word="show" hidden>Show report</span> <span data-practice-part="glance"></span></button>
+<div data-practice-part="report-body" id="practice-report-body-jpos-client/unit-12/practice-prose-4">
+<p data-practice-part="status" role="status" aria-live="polite"></p>
+<div data-practice-part="breakdown" role="status" aria-live="polite" data-practice-ask-done="Main ask: done." data-practice-ask-missed="Main ask: not yet." data-practice-edges="Edge cases {passed} of {total}." data-practice-passed="Done" data-practice-failed="Not yet" hidden>
+<p data-practice-part="summary"></p>
+<ul data-practice-part="cases">
+<li data-practice-case="com.example.practice.AdviceSafTest#aStuckAdviceDoesNotBlockTheNextOne" data-practice-case-kind="main"><span data-practice-part="verdict"></span>an advice the host never answers stops being retried, and the advice behind it is delivered</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#aParkedAdviceIsKept" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>a parked advice is kept for an operator, never deleted</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#attemptsAreNotForgottenByARestart" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>the attempt count is stored with the advice, so a restart does not grant fresh attempts</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#timeWithTheLinkDownIsNotAnAttempt" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>only attempts that went out count; time with the link down does not</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#theLastAllowedAttemptIsMade" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>with a limit of three, the third attempt is made before the advice is parked</li>
+<li data-practice-case="com.example.practice.AdviceSafTest#anAdviceIsParkedAfterItsLastAttempt" data-practice-case-kind="edge"><span data-practice-part="verdict"></span>with a limit of two, an advice is parked after its second unanswered attempt, with no third</li>
+</ul>
+</div>
+<pre data-practice-part="output" tabindex="0" hidden></pre>
+</div>
+</div>
+</section>
+<h2 id="prose-b98">Summary</h2>
+<ul class="items"><li><strong>A response finds its request through a key</strong> made of the out queue, the MTI without its last digit (with the response digit mapped down) and the key fields. A field the host doesn't echo unchanged breaks every match.</li><li><strong>Only one request per key can wait.</strong> &quot;Duplicate key&quot; means something upstream let two live requests share a key. The usual cause is a STAN that isn't numbered per outbound link.</li><li><strong>Each timeout guards its own wait.</strong> The request timeout must end before the caller gives up. Servers need a read timeout, and echoes must come more often than it fires.</li><li><strong><code>null</code> means unknown, and unknown means reverse.</strong> Resending turns a lost answer into a double charge.</li><li><strong>A reversal is a new message</strong> with its own STAN, pointing at the original through field 90.</li><li><strong>A reversal is stored before anyone is told</strong>, read rather than taken while it is sent, repeated only after a real attempt, and kept at the front of the line.</li></ul>
+<h2 id="prose-b100">Reference</h2>
+<p><strong>The QMUX key in 2.1.7:</strong> out queue, <code>.</code>, three mapped MTI digits, then the key fields in order. Field 41 is padded to 16 characters, field 11 to 6 digits (12 when the MTI starts with <code>2</code>). A missing key field is skipped. With none present, the message is not sent.</p>
+<p><strong><code>&lt;mtimapping&gt;</code></strong> has three strings, one per MTI digit. The default is <code>0123456789 0123456789 0022446689</code>.</p>
+<p><strong>Timeouts and keep-alives in a 2.1.7 client and server:</strong></p>
+<div class="scroll"><table><thead><tr><th>Setting</th><th>Where</th><th>Default</th><th>Fires when</th><th>Effect</th></tr></thead><tbody><tr><td><code>connect-timeout</code></td><td>channel <code>&lt;property&gt;</code></td><td>same as <code>timeout</code></td><td>a <code>connect()</code> takes too long</td><td>the attempt fails; the adaptor retries after <code>reconnect-delay</code></td></tr><tr><td><code>timeout</code></td><td>channel <code>&lt;property&gt;</code> (client or QServer)</td><td>300000 ms</td><td>no byte is read for that long</td><td>the socket is closed; a client reconnects, a server session ends. <code>0</code> disables it</td></tr><tr><td><code>&lt;reconnect-delay&gt;</code></td><td>ChannelAdaptor element</td><td>10000 ms</td><td>after a failed connect or a dropped link</td><td>wait before the next connect; also the idle period for <code>&lt;keep-alive&gt;</code></td></tr><tr><td><code>&lt;keep-alive&gt;yes</code></td><td>ChannelAdaptor element</td><td>no</td><td>nothing sent for <code>reconnect-delay</code> ms</td><td>a zero-length frame is written</td></tr><tr><td><code>keep-alive</code></td><td>channel <code>&lt;property&gt;</code></td><td>false</td><td>OS-defined idle time</td><td>TCP <code>SO_KEEPALIVE</code> probes</td></tr><tr><td><code>&lt;timeout&gt;</code></td><td>ChannelAdaptor element</td><td>0 (none)</td><td>a received message waits that long in the adaptor's <code>&lt;out&gt;</code> (the MUX's <code>&lt;in&gt;</code>)</td><td>it expires from the queue unread</td></tr><tr><td><code>request(m, timeout)</code></td><td>QMUX or MUXPool argument</td><td>none; you choose</td><td>no matching response in time</td><td>returns <code>null</code>; an unsent request also expires from <code>&lt;out&gt;</code></td></tr><tr><td>unhandled TTL</td><td>QMUX, fixed</td><td>120000 ms</td><td>a message sits in <code>&lt;unhandled&gt;</code></td><td>it expires</td></tr><tr><td><code>timeout</code></td><td><code>QueryHost</code> participant property</td><td>30000 ms</td><td>the upstream request times out</td><td>the transaction is marked &quot;host unreachable&quot;</td></tr><tr><td><code>pause-timeout</code></td><td>TransactionManager property</td><td>0 (none)</td><td>a paused transaction is not resumed in time</td><td>it is resumed and, by default, aborted</td></tr></tbody></table></div>
+<p><strong>Field 90 (ISO 8583:1987, n 42):</strong></p>
+<div class="scroll"><table><thead><tr><th>Positions</th><th>Content</th></tr></thead><tbody><tr><td>1-4</td><td>original MTI</td></tr><tr><td>5-10</td><td>original STAN (field 11)</td></tr><tr><td>11-20</td><td>original transmission date and time (field 7, MMddhhmmss)</td></tr><tr><td>21-31</td><td>original acquiring institution ID (field 32), zero-filled on the left</td></tr><tr><td>32-42</td><td>original forwarding institution ID (field 33), zero-filled on the left</td></tr></tbody></table></div>
+<h2 id="prose-b107">Challenges</h2>
+<p>These have no single answer. Work them out on paper or with the test host.</p>
+<ol class="items"><li>Your network requires an answer to a 0200 within 25 seconds, your terminals give up after 30, and the host occasionally answers at 28. Pick a request timeout. What happens to the purchases the host answers between your timeout and second 28, and who pays for them if nothing is done?</li><li>Run the duplicate-key example with 300 terminals behind the gateway, each picking a random STAN for each purchase, and 20 purchases in flight at any moment. How often does a collision happen? Compare your measurement with the birthday problem.</li><li>Two gateway instances share one upstream link and both send through it. How do you keep their STANs unique without a shared counter, and what does your scheme cost when one instance restarts?</li><li>The SAF stores whole reversals, PANs included. Design a SAF that stores only a reference to a row in the transaction database. What gets simpler, and what new way of failing did you add?</li></ol>
+<h2 id="prose-b110">Design Note: Why Not a Transaction ID?</h2>
+<p>Many systems give each transaction a unique ID and pass it everywhere. ISO 8583 doesn't. A message identifies itself by who sent it (fields 32 and 41), a short sequence number (11) and a timestamp (7). Everything in this unit follows from that choice: keys built from several fields, duplicate keys when the sequence repeats, and field 90 to point back at an original.</p>
+<p>A transaction crosses several institutions that share no database and no clock, over links each of them operates separately. A global ID would need an authority that all of them trust to hand IDs out. A six-digit counter per link needs nothing: each sender numbers its own messages, and the link plus the date make the number unique enough. Terminals with very little memory could do that, and nobody had to agree on anything beyond the format.</p>
+<p>The price is paid at every hop that relays messages. A switch has to renumber each message for its own outbound link and remember the mapping to restore the original numbers on the way back. That is the gateway problem from 12.3.1, and the fix there was the standard's own answer.</p>
+<p>Field 37, the retrieval reference number, is the closest the 1987 standard comes to a transaction ID, and the acquirer assigns it. Networks add their own trace identifiers in private fields. You will meet both. Neither replaces the per-link STAN for correlation.</p>
+</section>
+<div data-workspace role="dialog" aria-modal="true" aria-labelledby="practice-workspace-title" hidden>
+<div data-workspace-part="bar"><button type="button" data-workspace-act="statement" aria-expanded="true" hidden><span data-workspace-word="hide">Hide description</span><span data-workspace-word="show" hidden>Show description</span></button><h2 id="practice-workspace-title" data-workspace-part="title"></h2>
+<p data-workspace-part="acts"><button type="button" data-workspace-act="previous">Previous</button><button type="button" data-workspace-act="next">Next</button><button type="button" data-workspace-act="close">Close</button></p></div>
+<div data-workspace-part="divider" role="separator" aria-orientation="vertical" aria-label="Resize the description" tabindex="0" hidden></div>
+<button type="button" data-workspace-act="reopen" aria-expanded="false" hidden><span data-workspace-part="edge-mark" aria-hidden="true">&#8250;</span><span data-workspace-part="edge-word">Show description</span></button>
+</div>
+</main>
+<section data-section="read-mark" data-unit="jpos-client/unit-12" hidden>
+<p><button type="button" aria-pressed="false"><span data-state="unread">Mark as read</span><span data-state="read" hidden>Read. Press again to unmark</span></button></p>
+<p>Your marks are kept in this browser on this machine, not in the repository. Clearing its site data clears them.</p>
+</section>
+<nav aria-label="Between units"><a rel="prev" href="jpos-client.unit-11-connection-management.unit.html"><span>Previous</span> Connection Management</a><a rel="up" href="../../index.html"><span>Contents</span> ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide</a><a rel="next" href="jpos-client.unit-13-packagers-in-depth.unit.html"><span>Up next</span> Packagers in Depth</a></nav>
+<script src="../../.studyforge/assets/page.js" defer></script>
+</body>
+</html>

@@ -6,10 +6,10 @@
   "variant": "prose",
   "unit": 11,
   "ordinal": 1,
-  "title": "Screen only a valid amount, with the fraud service mocked",
+  "title": "Write the checks that catch a lost hold",
   "lang": "java",
-  "main_file": "src/main/java/com/example/practice/FraudScreeningParticipant.java",
-  "test_file": "src/test/java/com/example/practice/FraudScreeningParticipantTest.java",
+  "main_file": "src/main/java/com/example/practice/HoldFundsChecks.java",
+  "test_file": "src/test/java/com/example/practice/HoldFundsChecksTest.java",
   "build": [
     "pom.xml"
   ],
@@ -33,24 +33,24 @@
   "trust": "advisory",
   "cases": [
     {
-      "id": "com.example.practice.FraudScreeningParticipantTest#aValidAmountIsScreenedAndTheVerdictDecides",
+      "id": "com.example.practice.HoldFundsChecksTest#aCorrectHoldFundsPassesEveryCheck",
       "kind": "main",
-      "says": "a valid amount is sent to the fraud service with the card number; a clean verdict prepares and a fraud verdict aborts and marks the context"
+      "says": "the checks pass for a HoldFunds that answers every purchase and leaves each card with the right balance"
     },
     {
-      "id": "com.example.practice.FraudScreeningParticipantTest#aMissingMalformedOrNegativeAmountAbortsWithoutAskingTheService",
-      "kind": "main",
-      "says": "a missing, malformed or negative amount aborts with its own reason, and the fraud service is never called"
-    },
-    {
-      "id": "com.example.practice.FraudScreeningParticipantTest#aZeroAmountIsNotPositive",
+      "id": "com.example.practice.HoldFundsChecksTest#aHoldThatTheIssuersDeclineNeverReturnsIsCaught",
       "kind": "edge",
-      "says": "an amount of zero is rejected as not positive, before any screening"
+      "says": "the checks fail for a HoldFunds that votes NO_JOIN after holding the money, so the real TransactionManager never gives it back when the issuer declines"
     },
     {
-      "id": "com.example.practice.FraudScreeningParticipantTest#aFailingFraudServiceAbortsInsteadOfThrowing",
+      "id": "com.example.practice.HoldFundsChecksTest#aRefusalThatAddsMoneyToTheCardIsCaught",
       "kind": "edge",
-      "says": "a fraud service that fails aborts the transaction with a reason instead of throwing out of prepare"
+      "says": "the checks fail for a HoldFunds whose own refusal joins and whose abort credits an amount it never held"
+    },
+    {
+      "id": "com.example.practice.HoldFundsChecksTest#aRefusalThatLeavesTheTerminalWithoutAnAnswerIsCaught",
+      "kind": "edge",
+      "says": "the checks fail for a HoldFunds that refuses without leaving a response, because the terminal then gets nothing"
     }
   ],
   "report": {
@@ -59,6 +59,6 @@
   },
   "origin": {
     "path": "src/s11.md",
-    "section": "11.3 Mock Testing"
+    "section": "11.2 Only the Real TransactionManager Decides Who Hears the Outcome"
   }
 }

@@ -1,90 +1,228 @@
 {
-  "coverage_api": 1,
+  "coverage_api": 2,
   "page": "src/c4.md",
   "kind": "code",
+  "quiz": "sending-quiz",
   "case": "code-no-tests",
   "digests": {
-    "src/c4.md": "sha256:19106e8c0d0c8a254516e63a3a4c7a0503a52836336faabead25303d0249a346"
+    "src/c4.md": "sha256:f9495f6d9344989e1c6025aff1a2faf5246340a4f252a544a58e7498da83e4f8"
   },
   "plan": {
     "plan_api": 2,
     "tier": "core",
-    "count": 1,
+    "count": 5,
     "aspects": [
       {
-        "id": "answer-from-response-code",
-        "says": "Whether a transaction was approved is read from the response's field 39, where 00 means approved.",
+        "id": "async-completes-once",
+        "says": "The listener form calls back once, with the answer or with null on expiry, and throws ISOException when it refuses; the caller's future must complete in every case.",
         "basis": [
-          "example:src/c4.md:6",
-          "section:4.5 Testing"
+          "section:4.5 The Asynchronous Form Calls Back Once, With an Answer or With null",
+          "example:src/c4.md:10",
+          "example:src/c4.md:12",
+          "example:src/c4.md:14",
+          "example:src/c4.md:15"
         ],
-        "exercise": "send-over-mux",
+        "exercise": "payment-endpoint-async",
         "reason": null
       },
       {
-        "id": "async-listener",
-        "says": "An asynchronous request returns at once and hands the response, or the request's expiry, to a listener instead of blocking the caller.",
+        "id": "down-link-queues",
+        "says": "request() does not check the link: on a down link the message waits in the queue for the timeout and may go out later, so the client asks isConnected() first and reports the host as unavailable.",
         "basis": [
-          "example:src/c4.md:3",
-          "section:4.2.2 Example: Asynchronous Transaction Sending"
+          "section:4.4 A Request on a Down Link Waits in the Queue",
+          "example:src/c4.md:7",
+          "example:src/c4.md:8",
+          "example:src/c4.md:9"
         ],
-        "exercise": "send-over-mux",
+        "exercise": "payment-endpoint",
         "reason": null
       },
       {
-        "id": "mux-by-name",
-        "says": "A deployed QMUX is registered by name, and a sender finds it through the NameRegistrar rather than building it.",
+        "id": "listener-thread",
+        "says": "A response's listener runs on the adaptor's receiver thread, so a slow listener delays every answer on the link.",
         "basis": [
-          "example:src/c4.md:1",
-          "section:4.1.1 Configuration"
+          "section:4.5 The Asynchronous Form Calls Back Once, With an Answer or With null",
+          "example:src/c4.md:11",
+          "example:src/c4.md:13"
         ],
-        "exercise": null,
-        "reason": "configuration wiring that needs a running Q2 and a channel; the practice is handed its MUX directly, which is also what lets it be tested"
-      },
-      {
-        "id": "request-waits-bounded",
-        "says": "A request through the MUX waits at most its timeout for the matching response and yields null when none arrives, which is no answer rather than an error.",
-        "basis": [
-          "example:src/c4.md:2",
-          "section:4.1.2 Usage"
-        ],
-        "exercise": "send-over-mux",
+        "exercise": "sending-quiz",
         "reason": null
       },
       {
-        "id": "sender-behind-interface",
-        "says": "Creating a message and sending it are separate collaborators, so a service can be tested with the sender replaced by a stand-in.",
+        "id": "lookup-at-use",
+        "says": "Code looks a MUX up by name when it uses it and depends only on the MUX interface, so it survives late deployment and redeploys, and a pool can take the name.",
         "basis": [
+          "section:4.7 Code Names a MUX and Never Keeps One",
+          "section:4.7.1 A Pool Takes the Name's Place",
+          "example:src/c4.md:20",
+          "example:src/c4.md:21",
+          "example:src/c4.md:22"
+        ],
+        "exercise": "mux-by-name",
+        "reason": null
+      },
+      {
+        "id": "null-is-unknown",
+        "says": "request() returns null when no answer comes in time; that is an unknown outcome, not an exception, not a decline and not a reason to resend.",
+        "basis": [
+          "section:4.3 A Missing Answer Comes Back as null",
           "example:src/c4.md:5",
-          "example:src/c4.md:6",
-          "section:4.4 Putting It All Together"
+          "example:src/c4.md:6"
+        ],
+        "exercise": "payment-endpoint",
+        "reason": null
+      },
+      {
+        "id": "own-answer-by-key",
+        "says": "Many threads share one link and each gets its own answer, matched by a key, whatever order the host answers in.",
+        "basis": [
+          "section:4.2 Every Thread Gets Its Own Answer",
+          "example:src/c4.md:3",
+          "example:src/c4.md:4"
         ],
         "exercise": null,
-        "reason": "the practice's own tests replace the MUX with a stand-in for the reader; it is not practised separately"
+        "reason": "the matching is QMUX's own behaviour, which the reader cannot get wrong in code; the key is practised in unit c12's gateway practice"
+      },
+      {
+        "id": "pool-without-members",
+        "says": "A MUXPool uses its first connected member under primary-secondary, and with none it keeps checking until the timeout and returns null.",
+        "basis": [
+          "section:4.7.1 A Pool Takes the Name's Place",
+          "example:src/c4.md:23",
+          "example:src/c4.md:24"
+        ],
+        "exercise": "sending-quiz",
+        "reason": null
+      },
+      {
+        "id": "queues-cross",
+        "says": "QMUX's in queue is the adaptor's out queue and the other way round; copied unchanged, every request times out without leaving the JVM and without an error.",
+        "basis": [
+          "section:4.1 QMUX Sits on the Adaptor's Queues, Crossed",
+          "example:src/c4.md:1",
+          "example:src/c4.md:2"
+        ],
+        "exercise": "sending-quiz",
+        "reason": null
+      },
+      {
+        "id": "stan-per-link",
+        "says": "Each link numbers its messages from one counter that is atomic, outlives the process and wraps from 999999 to 000001.",
+        "basis": [
+          "section:4.6 Each Link Numbers Its Own Messages",
+          "example:src/c4.md:16",
+          "example:src/c4.md:17",
+          "example:src/c4.md:18",
+          "example:src/c4.md:19"
+        ],
+        "exercise": "stan-table",
+        "reason": null
       }
     ],
     "exercises": [
       {
         "slot": 1,
-        "name": "send-over-mux",
+        "name": "payment-endpoint",
         "aspects": [
-          "answer-from-response-code",
-          "async-listener",
-          "request-waits-bounded"
+          "down-link-queues",
+          "null-is-unknown"
+        ]
+      },
+      {
+        "slot": 2,
+        "name": "payment-endpoint-async",
+        "aspects": [
+          "async-completes-once"
+        ]
+      },
+      {
+        "slot": 3,
+        "name": "stan-table",
+        "aspects": [
+          "stan-per-link"
+        ]
+      },
+      {
+        "slot": 4,
+        "name": "mux-by-name",
+        "aspects": [
+          "lookup-at-use"
+        ]
+      },
+      {
+        "slot": 5,
+        "name": "sending-quiz",
+        "aspects": [
+          "listener-thread",
+          "pool-without-members",
+          "queues-cross"
         ]
       }
     ],
     "nothing_checkable": null
   },
   "shipped": [
-    "exercises/jpos-client/prose/unit-04/practice-1"
+    "exercises/jpos-client/prose/unit-04/practice-1",
+    "exercises/jpos-client/prose/unit-04/practice-2",
+    "exercises/jpos-client/prose/unit-04/practice-3",
+    "exercises/jpos-client/prose/unit-04/practice-4",
+    "exercises/jpos-client/prose/unit-04/practice-5"
   ],
   "accounts": [
     {
       "exercise": "exercises/jpos-client/prose/unit-04/practice-1",
       "origin": {
         "path": "src/c4.md",
-        "section": "4.2 MUX (org.jpos.iso.MUX)"
+        "section": "4.4 A Request on a Down Link Waits in the Queue"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-2",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.5 The Asynchronous Form Calls Back Once, With an Answer or With null"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-3",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.6 Each Link Numbers Its Own Messages"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-4",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.7 Code Names a MUX and Never Keeps One"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-5:q-copied-queues",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.1 QMUX Sits on the Adaptor's Queues, Crossed"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-5:q-request-on-down-link",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.4 A Request on a Down Link Waits in the Queue"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-5:q-slow-listener",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.5 The Asynchronous Form Calls Back Once, With an Answer or With null"
+      }
+    },
+    {
+      "exercise": "exercises/jpos-client/prose/unit-04/practice-5:q-pool-all-down",
+      "origin": {
+        "path": "src/c4.md",
+        "section": "4.7.1 A Pool Takes the Name's Place"
       }
     }
   ],

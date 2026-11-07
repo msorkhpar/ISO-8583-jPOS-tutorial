@@ -8,8 +8,8 @@
   "unit": 3,
   "kind": "practice",
   "ordinal": 1,
-  "ingested": "2026-09-21",
-  "title": "Answer requests from a server's request listener",
+  "ingested": "2026-11-05",
+  "title": "Decline what the server can't decide during maintenance",
   "blocks": [
     {
       "type": "heading",
@@ -18,23 +18,31 @@
     },
     {
       "type": "para",
-      "text": "An `ISOServer` hands every message that arrives on a connection to its request listeners, one after another, until one of them returns `true`. The listener gets the message and the `ISOSource` it came from, and it answers by sending through that source. The page's listener approves everything it receives; you write it so that it can be trusted inside a real server."
+      "text": "Tonight the card database is offline for two hours. While it is down, the TransactionManager can't approve or decline anything, and terminals would wait for their timeout and then reverse. Operations wants them to get a decline at once instead: response code `91`, issuer or switch inoperative."
     },
     {
       "type": "para",
-      "text": "Write `ApprovingListener`, an `org.jpos.iso.ISORequestListener`. Its `process(ISOSource source, ISOMsg request)` sends one reply through `source`: the request's fields, the response MTI (a `0200` is answered with a `0210`, a `0800` with a `0810`) and response code `00` in field 39. It returns `true` once the reply has gone."
+      "text": "`MaintenanceListener` in `src/main/java/com/example/practice/MaintenanceListener.java` goes first in the QServer's chain, before `IncomingListener`. Operations calls `begin()` when the database goes offline and `end()` when it is back. `refusal(m)` already builds the `91` answer."
     },
     {
       "type": "para",
-      "text": "Why it matters: the `true` or `false` you return decides whether the server offers the message to the next listener, and the request you were handed may still be read by others after you."
+      "text": "Finish the two methods marked `TODO`:"
     },
     {
       "type": "list",
       "ordered": false,
       "items": [
-        "The request you were handed is left exactly as it arrived: same MTI, no field 39.",
-        "If the reply cannot be sent (`send` throws), `process` returns `false` and throws nothing: the message was not dealt with, and saying otherwise would hide a lost reply."
+        "`answersItself(m)`: which messages the listener declines, and when;",
+        "`process(source, m)`: what it does with each message it is offered."
       ]
+    },
+    {
+      "type": "para",
+      "text": "When you're done, a terminal that asks for a decision during maintenance gets its `91` straight away, and for everything else the server behaves as if the listener weren't there. About ten lines in total."
+    },
+    {
+      "type": "para",
+      "text": "The tests offer each message to your listener and then to a stand-in for `IncomingListener`, the way a QServer session does."
     },
     {
       "type": "heading",
@@ -49,7 +57,7 @@
         {
           "type": "code",
           "lang": "java",
-          "text": "package com.example.practice;\n\nimport java.io.IOException;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        try {\n            ISOMsg reply = (ISOMsg) request.clone();\n            reply.setResponseMTI();\n            reply.set(39, \"00\");\n            source.send(reply);\n            return true;\n        } catch (ISOException | IOException e) {\n            return false;\n        }\n    }\n}\n"
+          "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\n\nimport java.io.IOException;\n\n/**\n * First in the QServer's listener chain, before IncomingListener. While the card database is\n * offline, terminals get an immediate 91 for what the server can't decide, instead of a timeout.\n */\npublic class MaintenanceListener extends Log implements ISORequestListener {\n    private volatile boolean inMaintenance;\n\n    /** Operations calls this when the card database goes offline. */\n    public void begin() {\n        inMaintenance = true;\n    }\n\n    /** ...and this when it is back. */\n    public void end() {\n        inMaintenance = false;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        try {\n            if (!answersItself(m))\n                return false;\n            source.send(refusal(m));\n        } catch (ISOException | IOException e) {\n            warn(\"maintenance refusal failed\", e);\n        }\n        return true;\n    }\n\n    /** Whether this listener answers m itself, right now. */\n    boolean answersItself(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        return inMaintenance && (\"0100\".equals(mti) || \"0200\".equals(mti));\n    }\n\n    /** The answer to a request this listener declines: 91, issuer or switch inoperative. */\n    ISOMsg refusal(ISOMsg m) throws ISOException {\n        ISOMsg r = (ISOMsg) m.clone();\n        r.setResponseMTI();\n        r.unset(35, 45, 52, 55);\n        r.set(39, \"91\");\n        return r;\n    }\n}\n"
         }
       ]
     },
@@ -61,7 +69,7 @@
     {
       "type": "code",
       "lang": "java",
-      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n"
+      "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\n\nimport java.io.IOException;\n\n/**\n * First in the QServer's listener chain, before IncomingListener. While the card database is\n * offline, terminals get an immediate 91 for what the server can't decide, instead of a timeout.\n */\npublic class MaintenanceListener extends Log implements ISORequestListener {\n    private volatile boolean inMaintenance;\n\n    /** Operations calls this when the card database goes offline. */\n    public void begin() {\n        inMaintenance = true;\n    }\n\n    /** ...and this when it is back. */\n    public void end() {\n        inMaintenance = false;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: The QServer session calls this for every message, then asks the next listener\n        //       (IncomingListener, which queues it for the TransactionManager) only if this\n        //       returns false. Answer what answersItself picks, with refusal(m), through the\n        //       connection it came in on, and leave everything else exactly as if this listener\n        //       weren't there. If the answer can't be sent, log it with warn(...). (about 8 lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n\n    /** Whether this listener answers m itself, right now. */\n    boolean answersItself(ISOMsg m) throws ISOException {\n        // TODO: Only during maintenance. And not every message: think about what each kind asks\n        //       the server for, and what any answer at all means to the terminal that sent it\n        //       (unit c12). (two or three lines)\n        throw new IllegalStateException(\"TODO: answersItself\");\n    }\n\n    /** The answer to a request this listener declines: 91, issuer or switch inoperative. */\n    ISOMsg refusal(ISOMsg m) throws ISOException {\n        ISOMsg r = (ISOMsg) m.clone();\n        r.setResponseMTI();\n        r.unset(35, 45, 52, 55);\n        r.set(39, \"91\");\n        return r;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -69,7 +77,7 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
+    "paras": 5,
     "code": 1,
     "tables": 0,
     "lists": 1,
@@ -80,11 +88,11 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "63cf14783654d637e0228ab27b23d08e75abd9ccf76ec23f5cfbb8caf325849b",
-  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\n/** Approves every request it is handed, answering through the request's own source. */\npublic final class ApprovingListener implements ISORequestListener {\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        throw new UnsupportedOperationException(\"write process\");\n    }\n}\n",
+  "content_sha256": "a815a014af4c8feb99dacfbc50a2026b8a7e460abd879a6111381a8392c659db",
+  "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\n\nimport java.io.IOException;\n\n/**\n * First in the QServer's listener chain, before IncomingListener. While the card database is\n * offline, terminals get an immediate 91 for what the server can't decide, instead of a timeout.\n */\npublic class MaintenanceListener extends Log implements ISORequestListener {\n    private volatile boolean inMaintenance;\n\n    /** Operations calls this when the card database goes offline. */\n    public void begin() {\n        inMaintenance = true;\n    }\n\n    /** ...and this when it is back. */\n    public void end() {\n        inMaintenance = false;\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        // TODO: The QServer session calls this for every message, then asks the next listener\n        //       (IncomingListener, which queues it for the TransactionManager) only if this\n        //       returns false. Answer what answersItself picks, with refusal(m), through the\n        //       connection it came in on, and leave everything else exactly as if this listener\n        //       weren't there. If the answer can't be sent, log it with warn(...). (about 8 lines)\n        throw new IllegalStateException(\"TODO: process\");\n    }\n\n    /** Whether this listener answers m itself, right now. */\n    boolean answersItself(ISOMsg m) throws ISOException {\n        // TODO: Only during maintenance. And not every message: think about what each kind asks\n        //       the server for, and what any answer at all means to the terminal that sent it\n        //       (unit c12). (two or three lines)\n        throw new IllegalStateException(\"TODO: answersItself\");\n    }\n\n    /** The answer to a request this listener declines: 91, issuer or switch inoperative. */\n    ISOMsg refusal(ISOMsg m) throws ISOException {\n        ISOMsg r = (ISOMsg) m.clone();\n        r.setResponseMTI();\n        r.unset(35, 45, 52, 55);\n        r.set(39, \"91\");\n        return r;\n    }\n}\n",
   "exercise": {
-    "main_path": "practice/jpos-server/prose/unit-03/practice-1/src/main/java/com/example/practice/ApprovingListener.java",
-    "test_path": "practice/jpos-server/prose/unit-03/practice-1/src/test/java/com/example/practice/ApprovingListenerTest.java",
+    "main_path": "practice/jpos-server/prose/unit-03/practice-1/src/main/java/com/example/practice/MaintenanceListener.java",
+    "test_path": "practice/jpos-server/prose/unit-03/practice-1/src/test/java/com/example/practice/MaintenanceListenerTest.java",
     "run_command": [
       "mvn",
       "-o",
@@ -105,19 +113,29 @@
     "trust": "advisory",
     "cases": [
       {
-        "id": "com.example.practice.ApprovingListenerTest#answersARequestWithItsResponseThroughItsSource",
+        "id": "com.example.practice.MaintenanceListenerTest#aPurchaseDuringMaintenanceIsDeclinedAtOnce",
         "kind": "main",
-        "says": "a request is answered once, through its own source, with the response MTI, response code 00 and the request's fields, and the listener says it dealt with it"
+        "says": "during maintenance a purchase is answered at once on its own connection with its response MTI, 39=91 and its STAN and terminal ID"
       },
       {
-        "id": "com.example.practice.ApprovingListenerTest#theRequestItselfIsLeftUnchanged",
+        "id": "com.example.practice.MaintenanceListenerTest#outsideMaintenanceEverythingReachesTheQueue",
         "kind": "edge",
-        "says": "answering never changes the request the server handed in"
+        "says": "outside maintenance the listener answers nothing and passes every request on"
       },
       {
-        "id": "com.example.practice.ApprovingListenerTest#aReplyThatCannotBeSentIsNotClaimed",
+        "id": "com.example.practice.MaintenanceListenerTest#reversalsAndAdvicesReachTheQueueDuringMaintenance",
         "kind": "edge",
-        "says": "when the reply cannot be sent the listener returns false instead of throwing or claiming it"
+        "says": "reversals and advices are passed on during maintenance, because any answer would tell the terminal they had arrived"
+      },
+      {
+        "id": "com.example.practice.MaintenanceListenerTest#aDeclinedRequestGoesNoFurther",
+        "kind": "edge",
+        "says": "a request the listener declined is claimed, so the next listener never processes and answers it again"
+      },
+      {
+        "id": "com.example.practice.MaintenanceListenerTest#anEchoDuringMaintenanceStillReachesTheQueue",
+        "kind": "edge",
+        "says": "a message the listener doesn't answer is passed on, not swallowed"
       }
     ],
     "report": {
@@ -126,11 +144,10 @@
     },
     "origin": {
       "path": "src/s3.md",
-      "section": "3.2 NAC Channel"
+      "section": "3.2.1 Spot the Problem: The Audit Listener"
     },
     "concepts": [
-      "A request listener answers a request by sending back a copy of it with the response MTI and a response code, through the source the request came from.",
-      "A listener returns true only when it has dealt with the message, because the server offers the message to its listeners in turn until one returns true."
+      "Listeners are asked in order and the first that returns true owns the message: returning true without answering swallows it, answering and returning false gets it answered twice."
     ]
   }
 }
