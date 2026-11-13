@@ -73,9 +73,18 @@ no name.
 
 ## 1.2 The Channel and the Multiplexer Share Only Two Queues, and the Queues Cross
 
-```text
- your code ──request()──▶ QMUX "host-mux" ──"host-send"──▶ ChannelAdaptor "host-channel" ──TCP──▶ host
-           ◀──response─── QMUX "host-mux" ◀─"host-receive"─ ChannelAdaptor "host-channel" ◀──TCP─── host
+```mermaid
+sequenceDiagram
+    participant code as your code
+    participant mux as QMUX "host-mux"
+    participant channel as ChannelAdaptor "host-channel"
+    participant host
+    code->>mux: request()
+    mux->>channel: "host-send"
+    channel->>host: TCP
+    host->>channel: TCP
+    channel->>mux: "host-receive"
+    mux->>code: response
 ```
 
 The ChannelAdaptor owns the TCP connection. It connects, reconnects when the link drops, sends
@@ -1324,6 +1333,15 @@ entry exists, so a host that keeps dropping you is retried every few seconds ins
 loop. Across runs the reconnect came after 3 to 4 seconds: the delay, plus the adaptor's own
 one-second pauses.
 
+```mermaid
+stateDiagram-v2
+    state "connected, host-channel.ready holds a new Date" as UP
+    state "disconnected, host-channel.reconnect lives for reconnect-delay" as WAIT
+    [*] --> UP: Sender connects
+    UP --> WAIT: Receiver hits EOF, read timeout or unpack error and removes the ready entry
+    WAIT --> UP: reconnect entry gone, Sender connects again
+```
+
 QMUX watches the ready entry through its `<ready>` element, so `mux.isConnected()` reports the
 real link state (unit c4). Each connection puts a **new**
 `Date` there, so code that has to act once per connection, such as a sign-on, compares the object it
@@ -1640,6 +1658,25 @@ takes the key apart and shows what goes wrong when two requests share one.
 A message that matches no waiting thread (an answer that came too late, or a request the host sent
 on its own) goes to `<unhandled>`, where it stays for two minutes (fixed in 2.1.7) unless you read
 it first.
+
+```mermaid
+sequenceDiagram
+    participant t1 as thread 1
+    participant t2 as thread 2
+    participant mux as QMUX "host-mux"
+    participant host
+    t1->>mux: request(0200 11=000101)
+    Note over mux: park thread 1 under its key (out queue, MTI, 41, 11)
+    t2->>mux: request(0200 11=000102)
+    Note over mux: park thread 2 under its key
+    mux->>host: both 0200s, through host-send
+    host->>mux: 0210 11=000102, through host-receive
+    mux->>t2: same key as thread 2
+    host->>mux: 0210 11=000101
+    mux->>t1: same key as thread 1
+    host->>mux: a message no thread is waiting for
+    Note over mux: put on unhandled, kept two minutes
+```
 
 The usual alternative, a lock around "write, then read the next message", serialises the service:
 with a host that takes 300 ms to answer, it completes about three purchases a second, however many
@@ -3319,6 +3356,19 @@ The client turns a block under the terminal's key into one under the host's key 
 the PIN itself. It asks the security module to **translate** the block: the module decrypts it,
 rebuilds it and encrypts it under the second key, all inside, and returns only the new block.
 
+```mermaid
+sequenceDiagram
+    participant T as terminal
+    participant C as client PinTranslator
+    participant M as security module
+    participant H as host
+    T->>C: purchase, 52 under the terminal PIN key
+    C->>M: translatePIN(block and card number, terminal key, host key)
+    Note over M: decrypt, rebuild, encrypt under the host key, all inside
+    M->>C: the new block only
+    C->>H: purchase, 52 under the host PIN key
+```
+
 ```java
 package com.example.jpos.client.security;
 
@@ -4398,6 +4448,15 @@ Each of the four endings says something different about the host:
 - **`null`** means the outcome is unknown: the host may have approved the purchase. Unit c12
   reverses it.
 - **A response** means the host decided, and field 39 says what, as long as you can read it (9.3).
+
+```mermaid
+flowchart TD
+    A{"mux.isConnected()"} -->|false| U["host unavailable, nothing sent"]
+    A -->|true| R["mux.request(m, 1000)"]
+    R -->|throws ISOException| X["refused before queueing, host saw nothing"]
+    R -->|null| N["outcome unknown, reverse it (c12)"]
+    R -->|a response| F["host decided, read field 39 (9.3)"]
+```
 
 `request` declares only `ISOException`, so a `catch (IOException e)` around it doesn't compile.
 The socket is read and written on the adaptor's threads, so a broken connection reaches you as
@@ -5726,6 +5785,19 @@ millisecond have equal `Date`s, and `equals` would call them one connection.
 again. Against the hung host of 11.2 that sign-on gets no answer either, so the link stays out
 until the host recovers. Unit c15 discusses when one failed echo is too few.
 
+```mermaid
+flowchart TD
+    R{"ready entry present?"} -->|no| W["WAIT: wipe enabled"]
+    R -->|yes| L{"logon mark is this very ready object?"}
+    L -->|no| LO["LOGON: wipe enabled, send 0800 70=001"]
+    LO -->|answered 00| M["put logon = ready, echo = TRUE, enabled = ready"]
+    L -->|yes| E{"echo mark present?"}
+    E -->|no, expired| EC["ECHO: send 0800 70=301"]
+    EC -->|answered 00| P["put echo = TRUE"]
+    EC -->|otherwise| F["wipe enabled and logon, sign on next pass"]
+    E -->|yes| I["IDLE"]
+```
+
 The STAN comes from the same sequence as the link's purchases (unit c4), so the host never sees
 two messages from this link with the same STAN. An 0800 carries no field 41, so QMUX's key for it
 is the out queue, the MTI and field 11, and only this client's own 0800s compete for it. Field 7
@@ -6429,6 +6501,17 @@ What gets reversed depends on what the message did:
   undo, so they are *repeated* (0121, 0221, 0421) until the host acknowledges them.
 - **0800 network messages** change no balance. Just send a new one.
 
+```mermaid
+flowchart TD
+    N["mux.request returns null"] --> U["outcome unknown: never arrived, declined, or approved and the answer lost"]
+    U --> X["never resend the same message"]
+    U --> Q{"what did the message do?"}
+    Q -->|"0100, 0200: permission, money or a hold"| R["reverse it: 0420 pointing at it in field 90 (12.6)"]
+    Q -->|"advice 0120, 0220, 0420"| A["repeat as 0121, 0221, 0421 until acknowledged"]
+    Q -->|"0800 network message"| E["just send a new one"]
+    R --> S["store-and-forward queue (12.7)"]
+```
+
 Once the purchase is reversed, the late approval from 12.2.1 needs nothing more.
 
 ## 12.6 A Reversal Points Back at the Original
@@ -6632,6 +6715,18 @@ gone out. When the link was down, nothing was sent, and the reversal is still a 
 **(5) Push, not out.** The repeat goes back to the front of the queue. With `out` it would go to the
 back, and the reversal for 000127 would overtake it. During a long outage the oldest reversal, the
 one a cardholder has been waiting for the longest, would keep being pushed back.
+
+```mermaid
+flowchart TD
+    H["rdp: read the oldest reversal, leave it queued"] --> C{"head present and mux connected?"}
+    C -->|no| N["false: nothing sent, still a first attempt"]
+    C -->|yes| Q["mux.request(head, timeout)"]
+    Q -->|any answer| T["inp: take it off the queue, true"]
+    Q -->|null| R{"already a repeat?"}
+    R -->|"no, an 0420"| P["clone as 0421, push it back at the front"]
+    R -->|"yes, an 0421"| F["false: stays at the front"]
+    P --> F
+```
 
 In most networks any answer acknowledges the reversal, whatever field 39 says, because the host has
 seen it (check your network's spec for codes that ask for a retry). Don't quietly delete a reversal
@@ -7824,6 +7919,20 @@ them across a restart. A reversal whose route is unknown (it expired, or the ori
 before a restart with a transient space) goes round-robin here. If your hosts can't take that,
 return `null` for it instead, and decide what alerts on reversals that never leave the queue.
 
+```mermaid
+flowchart TD
+    M{"04xx with field 90?"} -->|yes| K{"route known for the original?"}
+    K -->|yes| L{"original's link connected?"}
+    L -->|yes| O["send on the original's link"]
+    L -->|no| W["null, nothing sent, the reversal waits in its queue"]
+    K -->|"no, expired or lost"| RR
+    M -->|no| RR{"round-robin from the counter, floorMod: a connected member?"}
+    RR -->|none| N["null, nothing sent"]
+    RR -->|"yes, a new request"| REM["remember route: 41, STAN, field 7"]
+    RR -->|"yes, a reversal"| S["send on that member"]
+    REM --> S
+```
+
 Usability here is `isConnected()`. To keep unsigned links out as well, test the enabled mark the way
 `check-enabled` does (14.3), in the adaptors' space, before choosing a member.
 
@@ -8387,14 +8496,17 @@ import, with the encrypted key in it, to whatever logger the `hsm` has.
 Unit c11 kept the lifecycle as marks in the Space and decided each pass from them. Drawn as states
 of one link, with the section that owns each transition:
 
-```text
-  DOWN --connect--> CONNECTED --0810 / 00--> SIGNED_ON --stop--> disable, drain (15.4), 002, forget
-                     |  ^  ^                    |
-   refused, or no    |  |  |                    |  echo failures reach the limit (15.3),
-   answer: wait,     +--+  +--------------------+  host signs off (15.1), logon expires
-   retry (15.2)
-
-  link lost (c11): from any state back to DOWN
+```mermaid
+stateDiagram-v2
+    state "disable, drain (15.4), 002, forget" as stop
+    DOWN --> CONNECTED: connect
+    CONNECTED --> CONNECTED: refused, or no answer, so wait and retry (15.2)
+    CONNECTED --> SIGNED_ON: 0810 / 00
+    SIGNED_ON --> CONNECTED: echo failures reach the limit (15.3), host signs off (15.1), logon expires
+    SIGNED_ON --> stop: stop
+    note right of DOWN
+        link lost (c11): from any state back to DOWN
+    end note
 ```
 
 | State | Ready entry | `<mux>.logon` | `<mux>.enabled` | Pool uses the link |
@@ -9037,6 +9149,15 @@ public class RecordingProxy implements ISORequestListener, Configurable, LogSour
     @Override public String getRealm() { return realm; }
     @Override public Logger getLogger() { return logger; }
 }
+```
+
+```mermaid
+flowchart TD
+    Q["request from the client"] --> C{"upstream-mux found and connected?"}
+    C -->|no| A["answer 91, nothing has left"]
+    C -->|yes| F["mux.request upstream, with the proxy's timeout"]
+    F -->|a response| Rel["relay it to the client exactly as the host sent it"]
+    F -->|null| S["answer nothing, the client times out and reverses"]
 ```
 
 It is still not right with a one-second wait:

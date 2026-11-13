@@ -8,7 +8,7 @@
   "unit": 15,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "The TransactionManager in Depth",
   "blocks": [
     {
@@ -135,6 +135,11 @@
     {
       "type": "para",
       "text": "At start-up the TransactionManager walks every id from `tail` to `head`. A transaction left in `PREPARING` never had its outcome decided, so it is aborted, even though every vote so far was yes. One left in `COMMITTING` had been decided, so it is committed again, from the first participant. The journal records the state, not which commits already ran, so `ReserveFunds` captured H-0001 a second time."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "stateDiagram-v2\n    state \"recovery aborts it\" as RA\n    state \"recovery commits it again, from the first participant\" as RC\n    [*] --> PREPARING: session takes the Context, id from head\n    PREPARING --> PREPARING: snapshot after each vote without READONLY\n    PREPARING --> COMMITTING: before the first commit\n    COMMITTING --> DONE: at the end\n    PREPARING --> RA: crash, then restart\n    COMMITTING --> RC: crash, then restart\n    DONE --> [*]"
     },
     {
       "type": "para",
@@ -564,7 +569,7 @@
   "counts": {
     "headings": 13,
     "paras": 53,
-    "code": 23,
+    "code": 24,
     "tables": 3,
     "lists": 2,
     "images": 0,
@@ -574,5 +579,5 @@
     "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "e1b1ddc2d0315831a8bf326a4e80ced01b46b270000f3dae3c79aa1636f2335a"
+  "content_sha256": "0c4bf8b79c8951b2dc59d0aaa3c091d13aea4743835b16d71c3925271f2ebf85"
 }

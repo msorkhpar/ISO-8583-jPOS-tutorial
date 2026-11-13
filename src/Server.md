@@ -70,13 +70,14 @@ iso-server/
 
 A request takes this path:
 
-```text
-terminal ──TCP──▶ QServer: one ASCIIChannel per connection
-                    └─▶ IncomingListener: a Context {REQUEST, SOURCE, TIMESTAMP} ──▶ queue "txnmgr"
-                                                                                        │
-TransactionManager session ◀────────────────────────────────────────────────────────────┘
-  ├─ PrepareResponse   builds the response, puts it in the Context as RESPONSE
-  └─ SendResponse      sends RESPONSE through SOURCE, the connection the request came in on
+```mermaid
+flowchart TD
+    terminal -->|TCP| qserver["QServer: one ASCIIChannel per connection"]
+    qserver --> listener["IncomingListener: a Context {REQUEST, SOURCE, TIMESTAMP}"]
+    listener --> queue["queue #quot;txnmgr#quot;"]
+    queue --> session["TransactionManager session"]
+    session --> prepare["PrepareResponse: builds the response, puts it in the Context as RESPONSE"]
+    session --> send["SendResponse: sends RESPONSE through SOURCE, the connection the request came in on"]
 ```
 
 QServer accepts connections and creates a channel for each from the `<channel>` template. It
@@ -2091,6 +2092,18 @@ The plain monitor placed at the top of the chain, ahead of `ReserveDailyLimit`, 
 three: it was prepared before anyone aborted, and it joined. A participant sees every outcome if it
 comes before every participant that can abort, or if it implements `AbortParticipant`.
 
+```mermaid
+flowchart TD
+    P["prepare: the next participant, in order"] --> V{"its vote"}
+    V -->|PREPARED| M{"more participants?"}
+    M -->|yes| P
+    M -->|no| C["commit: each participant that joined"]
+    V -->|"ABORTED, or prepare threw"| R["the rest of the chain: prepareForAbort, AbortParticipants only"]
+    R --> A["abort: each participant that joined"]
+    J["joined: voted without NO_JOIN"] -.- C
+    J -.- A
+```
+
 With the plain monitor after `Authorize`, the alert never fires: a card under attack shows zero
 declines while the attacker works through amounts until one is approved.
 
@@ -2354,6 +2367,26 @@ the MUX's timeout.
   "the current Context" would hold whichever transaction paused last.
 - **(4): every callback resumes, the empty one too.** When the timeout passes, QMUX calls the
   listener's `expired`, which by default calls `responseReceived(null, ...)`.
+
+```mermaid
+sequenceDiagram
+    participant S as TM session
+    participant Q as QueryIssuer
+    participant M as QMUX issuer-mux
+    participant T as queue txnmgr
+    participant S2 as next free session
+    participant A as AnswerFromIssuer
+    S->>Q: prepare
+    Q->>M: request(clone, timeout, this, ctx)
+    M-->>Q: returns at once
+    Q-->>S: PREPARED PAUSE READONLY NO_JOIN
+    Note over S: the session takes other Contexts
+    M->>Q: responseReceived(answer, or null after the timeout)
+    Q->>T: ctx.resume(), Context back at the head
+    T->>S2: takes the Context
+    S2->>A: prepare, the participant after QueryIssuer
+    A-->>S2: vote, with the issuer's 39 or 91
+```
 
 With the issuer silent and a 3-second timeout:
 
@@ -6033,6 +6066,15 @@ nothing:
 purchase: 0210 39=96 11=000621
 ```
 
+```mermaid
+flowchart TD
+    A["abort path: AnswerFailures.prepareForAbort"] --> B{"what does RESPONSE hold?"}
+    B -->|"a refusal, 39 not 00"| K["keep it"]
+    B -->|"nothing, or an approval 39=00"| R["build from REQUEST, 39 from rcFor(Result), put as RESPONSE"]
+    K --> S["SendResponse sends RESPONSE"]
+    R --> S
+```
+
 The fix works only if `AnswerFailures` runs after `RecordApproval`. Put it before, and the approval
 leaves again:
 
@@ -6908,6 +6950,20 @@ In 164 pairs both threads read `null` before either wrote. Both copies were auth
 cardholder was charged twice. Each call held the space's lock, but the lock was free between
 `rdp` and `out`.
 
+```mermaid
+sequenceDiagram
+    participant A as session 1, the 0200
+    participant SP as Space
+    participant B as session 2, the same 0200 again
+    A->>SP: rdp(dup key)
+    SP-->>A: null
+    B->>SP: rdp(dup key)
+    SP-->>B: null
+    A->>SP: out(dup key, TRUE, LEASE)
+    B->>SP: out(dup key, TRUE, LEASE)
+    Note over A,B: both copies authorized, the cardholder charged twice
+```
+
 `SpaceUtil.outIfEmpty(sp, key, value, 0, lease)` holds the lock across both steps. It synchronizes
 on the space object, as TSpace's own methods do, checks that the key is empty and writes.
 `SpaceUtil.nextLong`, the STAN counter of unit c4, works the same way. Wrap a read-modify-write of
@@ -7749,6 +7805,18 @@ never completed. `start()` returns at once in that state, so `startService` neve
 70_start.xml               Started
 ```
 
+```mermaid
+stateDiagram-v2
+    state "file renamed .BAD" as BAD
+    [*] --> BAD: thrown up to and including setConfiguration
+    [*] --> Unknown: configured
+    Unknown --> Unknown: initService throws, start() returns at once
+    Unknown --> Stopped: initService returns
+    Stopped --> Started: startService returns
+    Stopped --> Failed: startService throws
+    Failed --> Started: start() again, through JMX
+```
+
 The colleague's version is also harder to notice and to fix. Its file keeps its name, so
 `ls deploy/` and a monitor that looks for `.BAD` files show a clean directory. The bean can't be
 started from JConsole either. Only the one warning in the log says that the day will never close,
@@ -8406,6 +8474,19 @@ At start-up the TransactionManager walks every id from `tail` to `head`. A trans
 yes. One left in `COMMITTING` had been decided, so it is committed again, from the first
 participant. The journal records the state, not which commits already ran, so `ReserveFunds`
 captured H-0001 a second time.
+
+```mermaid
+stateDiagram-v2
+    state "recovery aborts it" as RA
+    state "recovery commits it again, from the first participant" as RC
+    [*] --> PREPARING: session takes the Context, id from head
+    PREPARING --> PREPARING: snapshot after each vote without READONLY
+    PREPARING --> COMMITTING: before the first commit
+    COMMITTING --> DONE: at the end
+    PREPARING --> RA: crash, then restart
+    COMMITTING --> RC: crash, then restart
+    DONE --> [*]
+```
 
 A ledger that books each capture charges this cardholder 100.00 for a 50.00 purchase. `commit`
 can't prevent it: the journal takes no snapshot during commit, so nothing a commit writes into the
@@ -9159,6 +9240,28 @@ through the switch's record:
 The switch queued an 0420 naming STAN 000001; unit c12's SAF sender delivered it, and visa released
 the amount.
 
+```mermaid
+sequenceDiagram
+    participant T as Terminal 29110001
+    participant SW as Switch
+    participant R as SentRecords
+    participant SAF as SAF sender
+    participant V as visa
+    T->>SW: 0200 11=000741
+    SW->>R: remember, key 41, 11=000741, 7
+    SW->>V: 0200 11=000001, the switch's copy
+    V-->>SW: 0210 39=00
+    SW-->>T: 0210 39=00 11=000741
+    T->>SW: 0420 11=000742, 90 names 000741
+    SW->>R: reverse, inp the record by 41 and field 90
+    R->>SAF: 0420 90 names 000001, on reversal.visa
+    SW-->>T: 0430 39=00
+    SAF->>V: 0420 90 names 000001
+    T->>SW: 0421 repeat
+    SW->>R: inp finds nothing, nothing queued
+    SW-->>T: 0430 39=00
+```
+
 **(1) Taken, not read.** `inp` removes the record, so the repeat finds nothing and queues nothing.
 `inp` is atomic (unit s12), so two sessions can't both take the same record.
 
@@ -9707,6 +9810,18 @@ The polling thread lists `request/`, moves each file to `run/`, and hands it to 
   intervals, here 10 seconds, and moves the file back to `request/`.
 - **It throws anything else**, a `NullPointerException` included. The file goes to `bad/` and the
   exception is logged under the adaptor's realm.
+
+```mermaid
+flowchart TD
+    REQ["request/"] -->|"the polling thread moves it"| RUN["run/"]
+    RUN --> P{"the processor"}
+    P -->|"returns bytes, the answer"| TMP["tmp/"]
+    TMP -->|renamed| RSP["response/"]
+    P -->|"returns bytes, the request"| ARC["archive/ with archive=true, else deleted"]
+    P -->|"DirPollException with setRetry(true)"| W["wait ten poll intervals"]
+    W --> REQ
+    P -->|"anything else"| BAD["bad/, exception logged"]
+```
 
 `b2.req` never gets its trailer, so it goes round every ten seconds, with a log event each time,
 until a person moves it. DirPoll keeps no count of attempts. The ten-second wait also happens on

@@ -177,13 +177,21 @@
       var answer = S().answers[id];
       var chosen = Array.isArray(answer) ? answer : (answer === undefined ? [] : [answer]);
       box.textContent = '';
+      [].slice.call(item.querySelectorAll('[data-practice-part="mark"]')).forEach(function (old) { old.remove(); });
       if (!chosen.length || !entry || !Object.prototype.hasOwnProperty.call(entry.says, chosen[0])) {
         box.hidden = true;
         item.removeAttribute(VERDICT);
         return;
       }
       var right = c.isRight(id, answer);
-      var line = make('p', { 'data-form-part': 'verdict' }, (right ? words.right : words.wrong) + ' ');
+      var said = right ? words.right : words.wrong;
+      /* The 2026-11 redesign: each chosen option carries the verdict's icon and word too. */
+      [].slice.call(item.querySelectorAll('input:checked')).forEach(function (input) {
+        input.closest('label').appendChild(make('span', { 'data-practice-part': 'mark' }, said.replace(/\.$/, '')));
+      });
+      var line = make('p', { 'data-form-part': 'verdict' }, '');
+      line.appendChild(make('strong', {}, said));
+      line.appendChild(document.createTextNode(' '));
       line.insertAdjacentHTML('beforeend', entry.says[chosen[0]]);
       box.appendChild(line);
       chosen.slice(1).forEach(function (more) {
@@ -265,7 +273,8 @@
         if (isKey) { marks.push(words.key); }
         if (chosen.indexOf(optionId) >= 0) { marks.push(words.yours.toLowerCase()); }
         var label = option.querySelector('label');
-        li.appendChild(make('strong', {}, (marks.length ? sentenceCase(marks.join(', ')) + ': ' : '') + label.textContent.trim() + ' '));
+        var text = [].slice.call(label.childNodes).filter(function (n) { return !(n.matches && n.matches('[data-practice-part="mark"]')); });
+        li.appendChild(make('strong', {}, (marks.length ? sentenceCase(marks.join(', ')) + ': ' : '') + text.map(function (n) { return n.textContent; }).join('').trim() + ' '));
         var says = make('span', {});
         says.innerHTML = entry.says[optionId] || '';
         li.appendChild(says);

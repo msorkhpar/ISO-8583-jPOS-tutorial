@@ -1329,6 +1329,18 @@ data (55) stay out of a message that may wait in a queue for hours.
 The `0420` at 22:14:35 reversed purchase `000731`. Its `0430` was lost, the `0421` repeated it with
 the same STAN, and the `0430` at 22:15:06 closed it. Whatever the issuer did with the purchase, the cardholder hasn't paid for it.
 
+```mermaid
+sequenceDiagram
+    participant A as Acquirer
+    participant I as Issuer
+    A->>I: 22:14:05 0200 STAN 000731, 100.00
+    Note over A: no answer in 30 seconds
+    A->>I: 22:14:35 0420 STAN 000732, field 90 names 000731
+    I--xA: 0430, lost on the way back
+    A->>I: 22:15:05 0421 STAN 000732, the repeat
+    I-->>A: 22:15:06 0430
+```
+
 > **Networks differ.** Most networks want an `0420` after a timeout; some want an `0400`, the
 > original's STAN in field 11, a reason code, or more of the original's fields. Unit 7 places reversals in the transaction flow, and unit
 > c12 builds and queues them in jPOS.
@@ -2183,6 +2195,29 @@ In the **single-message flow** the `0200` carries everything needed to authorize
 the issuer posts at once. There is no clearing record per transaction. ATM withdrawals and PIN debit
 purchases usually work this way.
 
+```mermaid
+sequenceDiagram
+    participant A as Acquirer
+    participant N as Network
+    participant I as Issuer
+    Note over A,I: Dual-message flow
+    A->>N: 0100 hotel 300.00
+    N->>I: 0100
+    Note over I: hold 300.00, no money moves
+    I-->>N: 0110 39=00 38=A00001
+    N-->>A: 0110
+    Note over A,I: days later
+    A->>N: clearing record 260.00 38=A00001, in a batch file
+    N->>I: clearing record
+    Note over I: post 260.00, release the hold
+    Note over A,I: Single-message flow
+    A->>N: 0200 ATM 50.00
+    N->>I: 0200
+    Note over I: post 50.00 at once
+    I-->>N: 0210 39=00
+    N-->>A: 0210
+```
+
 When an approval is taken for a payment:
 
 - **The merchant never sends the clearing.** A terminal whose batch is never closed has approvals
@@ -2223,6 +2258,22 @@ time, the network may **stand in**: it decides within limits the issuer agreed b
 reports each decision with an authorization advice, `0120`. And a terminal may approve a small
 purchase offline, below its floor limit; that one reaches the issuer as a clearing record, or as a
 `0220` advice on links that use them. Unit 4 showed that an advice is acknowledged, never declined.
+
+```mermaid
+sequenceDiagram
+    participant A as Acquirer
+    participant N as Network
+    participant I as Issuer
+    A->>N: 0100 grocer 150.00
+    N->>I: 0100
+    Note over N,I: issuer down, no answer in time
+    Note over N: stands in, within limits the issuer agreed
+    N-->>A: 0110 approved
+    Note over N,I: when the issuer is back
+    N->>I: 0120 authorization advice
+    Note over I: must apply it
+    I-->>N: 0130 acknowledged, never declined
+```
 
 #### 7.4.1. Spot the Problem: The Advice Nobody Recorded
 
@@ -4459,6 +4510,21 @@ the cryptogram intact, because the cryptogram can't see field 4, but it asks the
 (unit 18). The tip belongs in the completion or the clearing record, as the
 network's rules say (unit 19), not in the authorization.
 
+```mermaid
+sequenceDiagram
+    participant C as Chip
+    participant T as Terminal
+    participant G as Gateway
+    participant I as Issuer
+    T->>C: amount, currency, date, random number
+    Note over C: ARQC, a MAC under a key only chip and issuer hold
+    C-->>T: ARQC in tag 9F26
+    T->>G: field 4 and 9F02 25.00, DE 55
+    G->>I: field 4 and 9F02 rewritten to 27.50
+    Note over I: recompute the MAC from the DE 55 tags
+    Note over I: no match, card treated as counterfeit
+```
+
 DE 55 also carries the terminal's own checks (tag `95`), which the issuer reads together with field
 22, the way the card number was read (chip, contactless, or magnetic stripe after the chip failed).
 Nobody on the path changes a tag the cryptogram covers. Pass DE 55 on as it came, unless the
@@ -5790,6 +5856,20 @@ second time. At this second GENERATE AC the card returns a TC to complete the pu
 decline it. After an issuer decline the card must decline too, but after an approval it can still
 decline. Section 18.6 shows what that costs.
 
+```mermaid
+sequenceDiagram
+    participant C as Card
+    participant T as Terminal
+    participant I as Issuer
+    T->>C: first GENERATE AC, names the cryptogram it wants
+    C-->>T: cryptogram in 9F26, its kind in 9F27
+    Note over C,T: a TC approves offline, an AAC declines, no request goes out
+    T->>I: ARQC, an authorization request with DE 55
+    I-->>T: response with chip data
+    T->>C: second GENERATE AC with the response's chip data
+    C-->>T: TC completes the purchase, or AAC declines it
+```
+
 Here is the chip data of the 80.00 purchase, printed with the tag names jPOS 2.1.7 knows, followed
 by four values of `9F27`:
 
@@ -6299,6 +6379,25 @@ decline is final, and a new request would be a second purchase while the first a
 the money. Without the reversal, the hold stays until it expires, and the
 cardholder calls the bank.
 
+```mermaid
+sequenceDiagram
+    participant C as Card
+    participant T as Terminal
+    participant G as Acquirer gateway
+    participant I as Issuer
+    G->>I: authorization 80.00, ARQC in DE 55
+    Note over I: approve, hold 80.00
+    I-->>G: 39=08, tag 91 with ARPC for ARC 08
+    Note over G: translate 08 to 00, rewrite the ARC in tag 91
+    G-->>T: 39=00, tag 91 with ARC 00
+    T->>C: second GENERATE AC with tag 91
+    Note over C: ARPC invalid, issuer authentication failed
+    C-->>T: AAC
+    Note over T: prints DECLINED
+    G->>I: reversal of the authorization
+    Note over I: approval undone, hold released
+```
+
 A hop that drops DE 55 from the response, like the gateway in unit 14 that copies a fixed list of
 fields, leaves the card no ARPC, and whether it then declines depends on its issuer's settings. Pass
 DE 55 through unchanged in both directions. Translate DE 39 if your terminals need it, and leave tag
@@ -6697,6 +6796,23 @@ answered, and a recount gives the same totals until a record changes. Only an `0
 answer is sent again, as the network specifies, often as an `0501` repeat. It asks about records and
 moves no money, so unit 4's rule that an unanswered request is reversed doesn't apply.
 
+```mermaid
+sequenceDiagram
+    participant A as Acquirer
+    participant R as Receiver
+    Note over A: count the day named in DE 15 from the journal
+    A->>R: 0500 DE 74-77, 81, 86-89 and 97
+    Note over R: count the same day, compare every total
+    alt every total equal
+        R-->>A: 0510 66=1 in balance
+    else any total differs
+        R-->>A: 0510 66=2 out of balance
+        Note over A,R: no money moves, match records one by one
+    else no answer
+        A->>R: 0501 repeat, as the network specifies
+    end
+```
+
 > **Editions differ.** The 1993 edition uses `1500` to `1530`. DE 24, the function code, tells a
 > final reconciliation from a checkpoint during the day, DE 28 is the reconciliation date and DE 29
 > an indicator, and the verdict is an action code in DE 39. DE 66 holds original fees there.
@@ -7032,6 +7148,16 @@ card number. The attempt count is stored with the entry, so a restart doesn't ha
 attempts. What follows depends on how far the transaction has gone (unit 7). An authorization that
 is never cleared lets its hold lapse. A posted `0200` usually needs an adjustment through the
 network's exception process (unit 19).
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: stored with its journal record, before the terminal is told
+    pending --> pending: no answer, next attempt as 0421 after a doubled wait
+    pending --> done: answered
+    pending --> parked: network's limit reached
+    note right of done : kept as evidence
+    note right of parked : alert raised, never deleted
+```
 
 <!-- practice 2 -->
 

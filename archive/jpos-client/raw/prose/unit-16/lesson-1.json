@@ -8,7 +8,7 @@
   "unit": 16,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "Simulators and Test Harnesses",
   "blocks": [
     {
@@ -299,6 +299,11 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.jpos.client.sim;\n\nimport org.jpos.core.Configurable;\nimport org.jpos.core.Configuration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.iso.MUX;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\nimport org.jpos.util.NameRegistrar;\n\n/** Sits between a client and a test host: forwards each request, relays the answer, logs both. */\npublic class RecordingProxy implements ISORequestListener, Configurable, LogSource {\n    private String muxName;\n    private long timeout;\n    private Logger logger;\n    private String realm;\n\n    @Override\n    public void setConfiguration(Configuration cfg) {\n        muxName = cfg.get(\"mux\", \"upstream-mux\");\n        timeout = cfg.getLong(\"timeout\", 30000L);\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg request) {\n        LogEvent ev = new LogEvent(this, \"proxy\");\n        ev.addMessage(request);                          // the ISOMsg itself: the logger masks it\n        try {\n            MUX mux = NameRegistrar.getIfExists(\"mux.\" + muxName);\n            if (mux == null || !mux.isConnected()) {     // (1) nothing has left\n                ISOMsg r = (ISOMsg) request.clone();\n                r.setResponseMTI();\n                r.set(39, \"91\");                         // issuer or switch inoperative\n                source.send(r);\n                ev.addMessage(\"upstream down, answered 91\");\n                return true;\n            }\n            ISOMsg response = mux.request(request, timeout);\n            if (response == null) {                      // (2) it left, and the host may have approved it\n                ev.addMessage(\"no answer upstream, nothing sent to the client\");\n                return true;\n            }\n            ev.addMessage(response);\n            source.send(response);                       // (3) exactly as the host sent it\n        } catch (Exception e) {\n            ev.addMessage(e);\n        } finally {\n            Logger.log(ev);\n        }\n        return true;\n    }\n\n    @Override public void setLogger(Logger logger, String realm) { this.logger = logger; this.realm = realm; }\n    @Override public String getRealm() { return realm; }\n    @Override public Logger getLogger() { return logger; }\n}"
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "flowchart TD\n    Q[\"request from the client\"] --> C{\"upstream-mux found and connected?\"}\n    C -->|no| A[\"answer 91, nothing has left\"]\n    C -->|yes| F[\"mux.request upstream, with the proxy's timeout\"]\n    F -->|a response| Rel[\"relay it to the client exactly as the host sent it\"]\n    F -->|null| S[\"answer nothing, the client times out and reverses\"]"
     },
     {
       "type": "para",
@@ -622,7 +627,7 @@
   "counts": {
     "headings": 12,
     "paras": 58,
-    "code": 25,
+    "code": 26,
     "tables": 4,
     "lists": 5,
     "images": 0,
@@ -632,5 +637,5 @@
     "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "b2240b2b9d3e6f220799f9cc18e5253a9e677278080e1ee0075d81b45b035467"
+  "content_sha256": "81278edaeafc30968c88deeafe4addfc63fe410b03c9c0c57fafb1fe9dea8d68"
 }

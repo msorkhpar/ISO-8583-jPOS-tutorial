@@ -108,10 +108,6 @@ deletes them too. Every setting is explained in [`course.env`](course.env).
 
 ## Narration (optional)
 
-> **Not yet available for this release.** Every lesson was rewritten, and the
-> recordings are being made again; the voiced site image returns with a later
-> release. Until then, leave `COURSE_NARRATION` at `without-narration`.
-
 Every lesson can be read aloud to you. The site is complete without narration,
 so it is off by default. The voiced site is a second image of the study site
 that already holds every recording: turning it on downloads that image once,

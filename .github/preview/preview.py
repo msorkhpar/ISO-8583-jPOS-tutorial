@@ -122,8 +122,28 @@ NARRATION_NOTE = (
     f"<a {RUN_LINK}>Run it locally with Docker</a>."
 )
 
+#: ⭐ The 2026-11 redesign: the banner is no longer a strip above every page. It is a
+#: "Run locally" disclosure in the top bar, open on request, holding the same words and the
+#: three commands. ⛔ A `<details>`, not a scripted dialog, so it opens with scripting off.
+RUN_LOCALLY = (
+    '<details data-preview-run-locally><summary>'
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" '
+    'focusable="false"><path d="M 4 17 l 6 -5 l -6 -5"></path><path d="M 12 19 h 8"></path></svg>'
+    "<span>Run locally</span></summary>"
+    '<div role="note"><p>{banner}</p>'
+    "<pre data-preview-commands><code>git clone <span data-preview-repo>&lt;this course's "
+    "repository&gt;</span>\ncd <span data-preview-dir>&lt;its folder&gt;</span>\n"
+    "docker compose up</code></pre></div></details>"
+)
+
+#: Where the disclosure goes: in the top bar, just before search (after the brand and sections).
+_SEARCH_OPEN = re.compile(r'<button type="button" data-section="search-open"')
+
 PREVIEW_CSS = """\
-/* The read-only preview: a banner on every page and a note where a server-only part was. */
+/* The read-only preview: "Run locally" in the top bar and a note where a server-only part was.
+   ⭐ The 2026-11 redesign moved the banner into the bar (`[data-preview-run-locally]`); the
+   strip below is what a page from before the redesign, with no top bar, still gets. */
 [data-preview-banner] {
   padding: 0.6rem var(--gutter, 1rem);
   background: var(--surface-2, #e8eef7);
@@ -142,6 +162,31 @@ PREVIEW_CSS = """\
   font: 0.95rem/1.5 var(--font-ui, system-ui, sans-serif);
 }
 [data-preview-banner] a, [data-preview-note] a { color: inherit; text-decoration: underline; }
+[data-preview-note] { border-left: 0; border: 1px solid var(--rule, #dbe3ec); border-radius: 12px;
+  background: var(--surface, #ffffff); }
+details[data-preview-run-locally] { position: relative; order: 0; margin-left: auto; font-family: var(--font-ui, sans-serif); }
+details[data-preview-run-locally] + button[data-section="search-open"] { margin-left: .5rem; }
+details[data-preview-run-locally] > summary {
+  display: inline-flex; align-items: center; gap: .4rem; list-style: none; cursor: pointer;
+  padding: .35rem .7rem; font-size: .85rem; font-weight: 600; white-space: nowrap;
+  color: var(--accent, #a64d07); border: 1px solid var(--rule, #dbe3ec); border-radius: 8px;
+  background: var(--surface, #ffffff);
+}
+details[data-preview-run-locally] > summary::-webkit-details-marker { display: none; }
+details[data-preview-run-locally] > div {
+  position: absolute; right: 0; top: calc(100% + .5rem); z-index: 5; width: min(28rem, 90vw);
+  box-sizing: border-box; padding: 1rem 1.1rem; font-size: .9rem; line-height: 1.5;
+  color: var(--fg, #22304a); background: var(--surface, #ffffff);
+  border: 1px solid var(--rule, #dbe3ec); border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, .14);
+}
+details[data-preview-run-locally] > div p { margin: 0 0 .75rem; }
+details[data-preview-run-locally] a { color: inherit; text-decoration: underline; }
+details[data-preview-run-locally] pre {
+  margin: 0; padding: .7rem .85rem; overflow-x: auto; border-radius: 8px;
+  font: .8rem/1.6 var(--font-mono, monospace); font-variant-ligatures: none;
+  color: var(--term-fg, #e2e8f0); background: var(--term-bg, #0f172a);
+}
+@media (max-width: 40rem) { details[data-preview-run-locally] > summary span { display: none; } }
 """
 
 PREVIEW_JS = """\
@@ -174,6 +219,14 @@ PREVIEW_JS = """\
 
   window.studyforgePreview = { repository: repository };
   var base = repository(window.location.hostname, window.location.pathname);
+  if (base) {
+    [].slice.call(document.querySelectorAll('[data-preview-repo]')).forEach(function (span) {
+      span.textContent = base + '.git';
+    });
+    [].slice.call(document.querySelectorAll('[data-preview-dir]')).forEach(function (span) {
+      span.textContent = base.split('/').pop();
+    });
+  }
   [].slice.call(document.querySelectorAll(RUN)).forEach(function (link) {
     if (!base) { plain(link); return; }
     link.href = base + '/blob/main/README.md' + HASH + ANCHOR;
@@ -273,7 +326,14 @@ def finish(html: str, *, assets: str) -> str:
     css = f'{icon}<link rel="stylesheet" href="{escape(assets)}/preview.css">\n'
     js = f'<script src="{escape(assets)}/preview.js" defer></script>\n'
     html = html.replace(_HEAD_END, css + _HEAD_END, 1)
-    html = _BODY.sub(lambda body: body.group(0) + "\n" + banner, html, count=1)
+    # ⚠️ Searched only now, after the head gained its links: an offset taken earlier is stale.
+    topbar = _SEARCH_OPEN.search(html)
+    if topbar:
+        # ⭐ The redesign's top bar is there: the banner becomes its "Run locally".
+        at = topbar.start()
+        html = html[:at] + RUN_LOCALLY.format(banner=BANNER) + html[at:]
+    else:
+        html = _BODY.sub(lambda body: body.group(0) + "\n" + banner, html, count=1)
     before, end, after = html.rpartition(_BODY_END)
     return before + js + end + after
 

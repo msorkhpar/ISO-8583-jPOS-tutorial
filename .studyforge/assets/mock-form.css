@@ -2,7 +2,8 @@
 
    Written beside `page.css` and only for a corpus whose mock exam opts in
    (`render.page.mockform.files`). The section is a quiz section, so the questions, options and
-   buttons wear `practice-quiz.css`; this adds what only the exam form has. No colour and no
+   buttons wear `practice-quiz.css` (the 2026-11 redesign's card and option cards); this adds what
+   only the exam form has. No colour and no
    measure of its own: every value is a palette token. Phone first: nothing scrolls sideways, every
    control is a real button or input, and state is never colour alone (a word or a mark too). */
 
@@ -15,8 +16,8 @@ section[data-mock-form] [data-form-part="bar"] {
   top: 0;
   z-index: 1;
   margin: 0 0 .75rem;
-  padding: .4rem 0;
-  background: var(--practice-soft);
+  padding: .5rem 0;
+  background: var(--surface);
   border-bottom: 1px solid var(--rule);
   font-size: .9rem;
   color: var(--fg-soft);
@@ -24,7 +25,7 @@ section[data-mock-form] [data-form-part="bar"] {
 
 section[data-mock-form] [data-form-part="bar"] p { margin: 0; display: flex; gap: .6rem; align-items: center; }
 section[data-mock-form] [data-form-part="timer"] { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg); }
-section[data-mock-form] progress { flex: 1 1 auto; min-width: 0; height: .6rem; accent-color: var(--done); }
+section[data-mock-form] progress { flex: 1 1 auto; min-width: 0; height: .6rem; accent-color: var(--accent); }
 
 section[data-mock-form] [data-form-part="announce"][data-form-quiet] {
   position: absolute;
@@ -110,14 +111,12 @@ section[data-mock-form] p[data-form-part="missing"] {
 }
 
 section[data-mock-form] div[data-form-part="result"] {
-  margin: .75rem 0 0;
-  padding: .6rem .75rem;
-  background: var(--surface);
-  border-left: 3px solid var(--rule-strong);
-  border-radius: var(--radius-tight);
+  margin: .75rem 0 1rem;
+  padding: .9rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
 }
-section[data-mock-form][data-mock-passed="true"] div[data-form-part="result"] { border-left-color: var(--done); }
-section[data-mock-form][data-mock-passed="false"] div[data-form-part="result"] { border-left-color: var(--accent); }
 section[data-mock-form] p[data-form-part="overall"] { margin: 0 0 .5rem; font-weight: 700; }
 
 section[data-mock-form] table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .9rem; margin: 0 0 .6rem; }
@@ -135,16 +134,37 @@ section[data-mock-form] [data-form-part="review-filter"] button[aria-pressed="tr
 section[data-mock-form] [data-form-part="review"] { margin: .35rem 0 0; font-size: .9rem; }
 section[data-mock-form] [data-form-part="verdict"] { margin: 0 0 .25rem; font-weight: 700; }
 section[data-mock-form] ul[data-form-part="explanations"] { margin: 0; padding: 0; list-style: none; }
+/* ⭐ The 2026-11 redesign: after the end, the key's sentence stands on `--ok` and a wrong
+   choice's on `--bad`, each led by its icon AND its words (*Correct answer*, *Your choice*),
+   which the script writes; the colour is the third signal, never the only one. */
 section[data-mock-form] ul[data-form-part="explanations"] li {
-  margin: 0 0 .25rem;
-  padding: .3rem .6rem;
+  position: relative;
+  margin: .4rem 0 0;
+  padding: .5rem .75rem;
   background: var(--surface);
-  border-left: 3px solid var(--rule);
-  border-radius: var(--radius-tight);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
   overflow-wrap: anywhere;
 }
-section[data-mock-form] ul[data-form-part="explanations"] li[data-form-key="true"] { border-left-color: var(--done); }
-section[data-mock-form] ul[data-form-part="explanations"] li[data-form-chosen="true"][data-form-key="false"] { border-left-color: var(--accent); }
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-key="true"],
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-chosen="true"] { padding-left: 2.1rem; }
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-key="true"] { background: var(--ok-soft); border-color: var(--ok); }
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-chosen="true"][data-form-key="false"] { background: var(--bad-soft); border-color: var(--bad); }
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-key="true"]::before,
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-chosen="true"][data-form-key="false"]::before {
+  content: "";
+  position: absolute;
+  top: .62rem;
+  left: .75rem;
+  width: 1rem;
+  height: 1rem;
+  background: var(--ok);
+  mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSdjdXJyZW50Q29sb3InIHN0cm9rZS13aWR0aD0nMi4yJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzkuNScvPjxwYXRoIGQ9J003LjUgMTIuNWwzIDMgNi02LjUnLz48L3N2Zz4=") center / contain no-repeat;
+}
+section[data-mock-form] ul[data-form-part="explanations"] li[data-form-chosen="true"][data-form-key="false"]::before {
+  background: var(--bad);
+  mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSdjdXJyZW50Q29sb3InIHN0cm9rZS13aWR0aD0nMi4yJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzkuNScvPjxwYXRoIGQ9J005IDlsNiA2TTE1IDlsLTYgNicvPjwvc3ZnPg==") center / contain no-repeat;
+}
 
 section[data-mock-form] input:disabled + * { cursor: default; }
 
@@ -159,22 +179,31 @@ section[data-mock-form] input:disabled + * { cursor: default; }
    way back to its question. No colour and no measure of its own. */
 section[data-mock-form][data-form-kind="quiz"] [data-form-part="flag-line"] { display: none; }
 
+/* ⭐ The verdict line under an answered question is `practice-quiz.css`'s: the icon, the word
+   and the sentence on the verdict's soft ground. Only its weight is this file's. */
 section[data-mock-form][data-form-kind="quiz"]:not([data-mock-passed]) [data-form-part="review"] p[data-form-part="verdict"] {
-  margin: .35rem 0 0;
-  padding: .35rem .6rem;
-  background: var(--surface);
-  border-left: 3px solid var(--rule-strong);
-  border-radius: var(--radius-tight);
   font-weight: 400;
 }
-section[data-mock-form][data-form-kind="quiz"] li[data-practice-verdict="correct"] > [data-form-part="review"] p[data-form-part="verdict"] { border-left-color: var(--done); }
-section[data-mock-form][data-form-kind="quiz"] li[data-practice-verdict="wrong"] > [data-form-part="review"] p[data-form-part="verdict"] { border-left-color: var(--accent); }
 
 section[data-mock-form] ol[data-form-part="summary"] { margin: 0 0 .6rem; padding: 0; list-style: none; }
 section[data-mock-form] ol[data-form-part="summary"] li { margin: 0 0 .25rem; }
 section[data-mock-form] ol[data-form-part="summary"] button { width: 100%; text-align: left; }
-section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="right"] button { border-left: 4px solid var(--done); }
-section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="wrong"] button { border-left: 4px solid var(--accent); }
+section[data-mock-form] ol[data-form-part="summary"] button { justify-content: flex-start; }
+section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="right"] button { background: var(--ok-soft); border-color: var(--ok); }
+section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="wrong"] button { background: var(--bad-soft); border-color: var(--bad); }
+section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="right"] button::before,
+section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="wrong"] button::before {
+  content: "";
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  background: var(--ok);
+  mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSdjdXJyZW50Q29sb3InIHN0cm9rZS13aWR0aD0nMi4yJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzkuNScvPjxwYXRoIGQ9J003LjUgMTIuNWwzIDMgNi02LjUnLz48L3N2Zz4=") center / contain no-repeat;
+}
+section[data-mock-form] ol[data-form-part="summary"] li[data-form-verdict="wrong"] button::before {
+  background: var(--bad);
+  mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSdjdXJyZW50Q29sb3InIHN0cm9rZS13aWR0aD0nMi4yJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzkuNScvPjxwYXRoIGQ9J005IDlsNiA2TTE1IDlsLTYgNicvPjwvc3ZnPg==") center / contain no-repeat;
+}
 
 /* The progress line sticks under the practice workspace's bar when a quiz is opened there. */
 html[data-workspace-quiz] section[data-mock-form] [data-form-part="bar"] { top: 3.25rem; }

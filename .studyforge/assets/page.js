@@ -571,6 +571,57 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   window.addEventListener('pagehide', save);
 }());
 
+/* The reading line under the top bar, and the outline's "you are here" (the 2026-11 redesign).
+
+   ⭐ Its width is the share of the page already scrolled past, so a reader
+   sees how far through a long unit they are. ⛔ It is decoration for a
+   sighted reader only: the element is aria-hidden, and with scripting off it
+   stays at no width rather than lying. ⚠️ Measured on scroll and resize, at
+   most once a frame.
+
+   ⭐ Scroll-spy: the outline link whose section heading was last scrolled past
+   (under the bar) carries `aria-current="location"`, so a reader always sees
+   which part of the unit they are in. The outline is a list of links to ids
+   on this page; a link whose target is missing is skipped. */
+(function () {
+  "use strict";
+  var line = document.querySelector('body > header > div[data-section="reading-progress"]');
+  var spied = [];
+  var outline = document.querySelectorAll('nav[aria-label="Outline"] a[href^="#"]');
+  for (var i = 0; i < outline.length; i++) {
+    var target = document.getElementById(decodeURIComponent(outline[i].getAttribute("href").slice(1)));
+    if (target) { spied.push({ link: outline[i], target: target }); }
+  }
+  if (!line && !spied.length) { return; }
+  var current = null;
+  function spy() {
+    var bar = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 80;
+    var found = null;
+    for (var j = 0; j < spied.length; j++) {
+      if (spied[j].target.getBoundingClientRect().top - bar <= 1) { found = spied[j].link; } else { break; }
+    }
+    if (found === current) { return; }
+    if (current) { current.removeAttribute("aria-current"); }
+    if (found) { found.setAttribute("aria-current", "location"); }
+    current = found;
+  }
+  var queued = false;
+  function measure() {
+    queued = false;
+    var root = document.documentElement;
+    var room = root.scrollHeight - root.clientHeight;
+    var share = room > 0 ? Math.min(1, Math.max(0, root.scrollTop / room)) : 0;
+    if (line) { line.style.width = (share * 100).toFixed(2) + "%"; }
+    if (spied.length) { spy(); }
+  }
+  function queue() {
+    if (!queued) { queued = true; window.requestAnimationFrame(measure); }
+  }
+  window.addEventListener("scroll", queue, { passive: true });
+  window.addEventListener("resize", queue);
+  measure();
+})();
+
 /* The search: Ctrl or Cmd + K, or `/`, opens a box over the page; results appear as the reader types.
 
    ⭐ **LOCAL AND OFFLINE.** The ranking library (`minisearch.js`, vendored) and the index
@@ -1841,8 +1892,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var VERDICT = 'data-practice-verdict';
   var MAIN = 'main';
   var EDGE = 'edge';
+  var KEPT = 'kept';
   var PASSED = 'passed';
   var FAILED = 'failed';
+  var SKIPPED = 'skipped';
 
   /* Every word the breakdown says, kept where the markup is: a label spelled
      in the script too would be a second place for it to drift. */
@@ -1850,8 +1903,10 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     done: 'data-practice-ask-done',
     missed: 'data-practice-ask-missed',
     edges: 'data-practice-edges',
+    kept: 'data-practice-kept',
     passed: 'data-practice-passed',
-    failed: 'data-practice-failed'
+    failed: 'data-practice-failed',
+    skipped: 'data-practice-skipped'
   };
 
   /* What one case's verdict looks like on the stream. ⛔ Anchored whole, and the
@@ -1859,7 +1914,14 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
      this shape out of a grader's own output reaches a case set that does not
      match and is shown as nothing. ⚠️ The record is unaffected either way: it is
      folded from the grader's report on the server, never from this text. */
-  var CASE_LINE = /^--- case (.+): (passed|failed) ---$/;
+  var CASE_LINE = /^--- case (.+): (passed|failed|skipped without ([a-z0-9_-]+)) ---$/;
+
+  /* ⭐ A case the server reported SKIPPED (it declared `skips_without` and the run lacked that
+     capability): neither passed nor failed, drawn as such with what it needed, and left out of
+     every count. It is said as an object so `true`/`false` keep meaning passed/failed. */
+  function skippedFor(value) {
+    return value && typeof value === 'object' && value.skipped ? value.skipped : '';
+  }
 
   function part(panel, name) {
     return panel.querySelector('[' + PART + '="' + name + '"]');
@@ -1932,19 +1994,30 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       var edges = 0;
       var passed = 0;
       var ask = true;
+      var kept = [0, 0];
       rows.forEach(function (row) {
         var right = said[row.getAttribute(CASE)];
         var edge = row.getAttribute(CASE_KIND) === EDGE;
         var mark = part(row, 'verdict');
+        var without = skippedFor(right);
+        if (without) {
+          row.setAttribute(VERDICT, SKIPPED);
+          if (mark) { mark.textContent = (words(region, 'skipped') || 'Skipped') + ' (needs ' + without + ')'; }
+          return;
+        }
         row.setAttribute(VERDICT, right ? PASSED : FAILED);
         if (mark) { mark.textContent = words(region, right ? 'passed' : 'failed'); }
         if (edge) { edges += 1; }
         if (edge && right) { passed += 1; }
         if (row.getAttribute(CASE_KIND) === MAIN && !right) { ask = false; }
+        if (row.getAttribute(CASE_KIND) === KEPT) { kept[1] += 1; kept[0] += right ? 1 : 0; }
       });
       if (summary) {
         summary.textContent = words(region, ask ? 'done' : 'missed') + ' ' +
-          words(region, 'edges').replace('{passed}', passed).replace('{total}', edges);
+          words(region, 'edges').replace('{passed}', passed).replace('{total}', edges) +
+          /* ⭐ A project step says how many earlier requirements still hold. */
+          (kept[1] ? ' ' + words(region, 'kept').replace('{passed}', kept[0])
+            .replace('{total}', kept[1]) : '');
       }
       show(region, true);
     }
@@ -2052,9 +2125,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
           var record = !found && detail ? detail.add(line) : null;
           if (record && !record.run && typeof record.case === 'string') {
             said = said || {};
-            said[record.case] = record.passed === true;
+            /* ⛔ A detail never undoes a skip the case line already said. */
+            if (!skippedFor(said[record.case])) { said[record.case] = record.passed === true; }
           }
-          if (found) { said[found[1]] = found[2] === PASSED; } else if (!record) { append(output, line); }
+          if (found) {
+            said[found[1]] = found[3] ? { skipped: found[3] } : found[2] === PASSED;
+          } else if (!record) { append(output, line); }
         }, { detail: true }).then(
           function (answer) { settle(verdict(answer, mode), said); },
           function (answer) { settle(refusal(answer), null); }
@@ -2102,6 +2178,8 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   var EXTRA = 'data-practice-extra';
   var POP = 'data-practice-popout';
   var FILE_TAB = 'file:';
+  /* ⭐ A project's read-only file (`render/page/project.py`): `ro:N` is `where.read_only[N]`. */
+  var RO_TAB = 'ro:';
   /* The two windows, and what the frame is called to a screen reader. ⚠️ These are the
      framework's own words for its own controls, not the material's (R1). */
   var TITLES = { main: 'Your code', test: 'Tests' };
@@ -2110,16 +2188,21 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     if (name.indexOf(FILE_TAB) === 0) {
       return (where.files || [])[Number(name.slice(FILE_TAB.length))] || null;
     }
-    return where[name];
+    if (name.indexOf(RO_TAB) === 0) {
+      return (where.read_only || [])[Number(name.slice(RO_TAB.length))] || null;
+    }
+    return where[name] || null;
   }
 
   function titleOf(where, name) {
-    var found = name.indexOf(FILE_TAB) === 0 ? windowOf(where, name) : null;
+    var found = name in TITLES ? null : windowOf(where, name);
     return found ? String(found.path || '').split('/').pop() : TITLES[name];
   }
 
-  /* One tab, named for its file, before the Tests tab (`after`). */
+  /* One tab, named for its file, before the Tests tab (`after`). ⭐ A project's explorer already
+     has a button for every file, so it gets none. */
   function tabs(where, bar, after) {
+    if (bar && bar.hasAttribute('data-practice-explorer')) { return; }
     (where.files || []).forEach(function (one, index) {
       if (!bar || !one || !one.url) { return; }
       var tab = document.createElement('button');
@@ -2449,13 +2532,13 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   function windows(panel, where) {
     var slot = panel.querySelector('[' + FRAME + '="main"]');
     if (!slot) { return; }
-    var tested = !!(where.test && where.test.url);
-    var more = (where.files || []).length > 0;
     var bar = part(panel, 'tabs');
     files.tabs(where, bar, bar ? bar.querySelector('[' + TAB + '="test"]') : null);
+    /* ⭐ A tab whose window the server did not answer (no test, a file the editor lacks) hides. */
     var buttons = [].slice.call(panel.querySelectorAll('[' + TAB + ']')).filter(
       function (button) {
-        var keep = tested || button.getAttribute(TAB) !== 'test';
+        var found = files.windowOf(where, button.getAttribute(TAB));
+        var keep = !!(found && found.url);
         if (!keep) { button.hidden = true; }
         return keep;
       }
@@ -2490,7 +2573,9 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
          as promising. Without them the roles say one thing and the keyboard
          does another. */
       button.addEventListener('keydown', function (event) {
-        var step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        var key = event.key;
+        var step = key === 'ArrowRight' || key === 'ArrowDown' ? 1 :
+          key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 0;
         var next = buttons.indexOf(button) + step;
         if (!step || next < 0 || next >= buttons.length) { return; }
         event.preventDefault();
@@ -2501,7 +2586,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     select('main');
     /* ⭐ One tab is no choice, so the tablist stays hidden where the material
        names no test — the same honesty as offering no Submit. */
-    show(part(panel, 'tabs'), tested || more);
+    show(part(panel, 'tabs'), buttons.length > 1);
     show(part(panel, 'no-editor'), false);
   }
 
@@ -2586,6 +2671,12 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    ⚠️ The answers themselves are not kept: a reload clears the choices, and the
    pass stays.
 
+   ⭐ **The 2026-11 redesign adds three things and removes none**: the "N of M
+   answered" line, kept up to date as options are chosen; the chosen option's
+   own mark after Check (an icon the stylesheet draws, and the verdict's word);
+   and Reset, offered once the quiz is checked, which clears the page and never
+   the reader's recorded pass.
+
    ⛔ **A quiz has no file, no command and no grader to submit to, so it renders
    no Run and no Submit — and not disabled ones.** With no script at all, the
    Check control stays hidden and the page says why.
@@ -2645,11 +2736,32 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     return answers;
   }
 
+  /* The chosen option's own mark: an icon (drawn by `practice-quiz.css`) and the verdict's
+     word, inside the option's label so it is read with it. ⭐ The 2026-11 redesign: a status
+     colour is never the only signal, so the card that turns green or red also says so in words.
+     ⛔ Only the CHOSEN option is marked, never the key (see the rule above). */
+  function unmark(question) {
+    [].slice.call(question.querySelectorAll('[' + PART + '="mark"]')).forEach(function (mark) {
+      mark.parentNode.removeChild(mark);
+    });
+  }
+
+  function markChosen(question, said) {
+    var picked = question.querySelector('input[type="radio"]:checked');
+    var label = picked && picked.closest('label');
+    if (!label) { return; }
+    var mark = document.createElement('span');
+    mark.setAttribute(PART, 'mark');
+    mark.textContent = said.replace(/\.$/, '');
+    label.appendChild(mark);
+  }
+
   /* One question graded and drawn; answers whether it is right. ⭐ The sentence
      is the one for whatever the reader CHOSE, right or wrong. */
   function draw(question, entry, answer) {
     var says = part(question, 'says');
     var hasSaid = entry && entry.says && Object.prototype.hasOwnProperty.call(entry.says, answer);
+    unmark(question);
     if (answer === undefined || !hasSaid) {
       question.removeAttribute(VERDICT);
       if (says) { says.textContent = ''; says.hidden = true; }
@@ -2657,10 +2769,15 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     }
     var right = answer === entry.key;
     question.setAttribute(VERDICT, right ? 'correct' : 'wrong');
+    markChosen(question, words(says, right ? RIGHT : WRONG));
     if (says) {
       /* ⚠️ The sentence is markup the BUILD rendered (`markup.inline`: escaped,
          its inline code as code); the verdict's own word stays text. */
-      says.textContent = words(says, right ? RIGHT : WRONG) + ' ';
+      var word = document.createElement('strong');
+      word.textContent = words(says, right ? RIGHT : WRONG);
+      says.textContent = '';
+      says.appendChild(word);
+      says.appendChild(document.createTextNode(' '));
       says.insertAdjacentHTML('beforeend', entry.says[answer]);
       says.hidden = false;
     }
@@ -2688,20 +2805,62 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     quiz.dispatchEvent(new CustomEvent(SETTLED, { bubbles: true }));
   }
 
+  /* "N of M answered", counted off the radios as the reader chooses. ⭐ The 2026-11 redesign:
+     the reader sees how far through the check they are before they ask for a verdict. */
+  function count(quiz) {
+    var line = part(quiz, 'count');
+    if (!line) { return; }
+    var asked = quiz.querySelectorAll('[' + QUESTION + ']').length;
+    line.textContent = words(line, 'data-practice-count')
+      .replace('{answered}', Object.keys(chosen(quiz)).length).replace('{asked}', asked);
+    line.hidden = false;
+  }
+
+  /* Back to the quiz as it was opened: no choice, no verdict, no sentence. ⛔ A pass already
+     recorded stays recorded: Reset clears the page, never the reader's record. */
+  function reset(quiz) {
+    [].slice.call(quiz.querySelectorAll('input[type="radio"]:checked')).forEach(function (input) {
+      input.checked = false;
+    });
+    [].slice.call(quiz.querySelectorAll('[' + QUESTION + ']')).forEach(function (question) {
+      draw(question, null, undefined);
+    });
+    var status = part(quiz, 'status');
+    if (status) { status.textContent = ''; }
+    count(quiz);
+  }
+
   function wire(quiz) {
     var key = keyOf(quiz);
     var check = part(quiz, 'check');
+    var again = part(quiz, 'reset');
     var controls = part(quiz, 'controls');
     var offline = part(quiz, 'offline');
     if (!key || !check || !controls) { return; }
     if (offline) { offline.hidden = true; }
     controls.hidden = false;
+    count(quiz);
     var graded = false;
     /* ⭐ Re-graded as soon as a reader changes an answer, once they have asked
        once, so the sentence under a question can never describe an option that
        is no longer chosen. */
-    check.addEventListener('click', function () { graded = true; grade(quiz, key); });
-    quiz.addEventListener('change', function () { if (graded) { grade(quiz, key); } });
+    check.addEventListener('click', function () {
+      graded = true;
+      grade(quiz, key);
+      if (again) { again.hidden = false; }
+    });
+    quiz.addEventListener('change', function () {
+      count(quiz);
+      if (graded) { grade(quiz, key); }
+    });
+    if (again) {
+      again.addEventListener('click', function () {
+        graded = false;
+        again.hidden = true;
+        reset(quiz);
+        quiz.focus();
+      });
+    }
   }
 
   [].slice.call(document.querySelectorAll(QUIZ)).forEach(wire);
@@ -3588,7 +3747,7 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
    frame policy blocked the frame. ⛔ Neither is copied here.
 
    ⛔ **This file draws; it never talks to the API.** Everything it asks goes
-   through `window.studyforge.run` — `editor`, `code`, `codeTest`, `stop` —
+   through `window.studyforge.run` — `editor`, `code`, `codeTest`, `codeRun`, `stop` —
    which the SERVING PROCESS adds to the page it answers, so a built text names
    no API, no origin and no client file (R8).
 
@@ -3669,7 +3828,11 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
     entry.built = {};
     frames.reloadWhenBlocked(where.main.url);
     show(part(entry, 'editor'), true);
-    show(part(entry, 'controls'), !!where.runs && runs);
+    show(part(entry, 'controls'), (!!where.runs || !!where.program) && runs);
+    /* ⭐ Run starts the source's own program, where a lesson's example names how it runs; Run
+       tests stays the test's. Each button shows only when the server named its file. */
+    show(entry.details.querySelector('[' + ACT + '="program"]'), !!where.program && !!run.codeRun);
+    show(entry.details.querySelector('[' + ACT + '="test"]'), !!where.runs);
     select(entry, 'main');
     setTimeout(function () { remember(null); }, 5000);
   }
@@ -3727,29 +3890,49 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
       });
     });
     var act = entry.details.querySelector('[' + ACT + '="test"]');
+    var program = entry.details.querySelector('[' + ACT + '="program"]');
     var stop = entry.details.querySelector('[' + ACT + '="stop"]');
-    act.addEventListener('click', function () {
-      var where = entry.where;
-      if (!where || !where.runs || !runs) { return; }
+    /* One run at a time, streamed into the entry's one output: `start` names the server's call. */
+    function launch(running, start, told) {
       var status = part(entry, 'status');
       var output = part(entry, 'output');
       act.disabled = true;
+      if (program) { program.disabled = true; }
       show(stop, true);
       output.textContent = '';
       show(output, true);
-      status.textContent = 'Running the test…';
-      run.codeTest(entry.corpus, where.runs, function (line) {
+      status.textContent = running;
+      start(function (line) {
         output.textContent += line + '\n';
       }).then(function (verdict) {
-        status.textContent = verdict === 0 ? 'Passed.' : verdict === 'stopped' ? 'Stopped.'
-          : verdict === 'timeout' ? 'Timed out.' : 'Failed.';
+        status.textContent = verdict === 'stopped' ? 'Stopped.'
+          : verdict === 'timeout' ? 'Timed out.' : told(verdict);
       }, function () {
-        status.textContent = 'The test could not be run.';
+        status.textContent = 'It could not be run.';
       }).then(function () {
         act.disabled = false;
+        if (program) { program.disabled = false; }
         show(stop, false);
       });
+    }
+    act.addEventListener('click', function () {
+      var where = entry.where;
+      if (!where || !where.runs || !runs) { return; }
+      launch('Running the test…', function (onLine) {
+        return run.codeTest(entry.corpus, where.runs, onLine);
+      }, function (verdict) { return verdict === 0 ? 'Passed.' : 'Failed.'; });
     });
+    if (program) {
+      program.addEventListener('click', function () {
+        var where = entry.where;
+        if (!where || !where.program || !runs || !run.codeRun) { return; }
+        launch('Running the program…', function (onLine) {
+          return run.codeRun(entry.corpus, where.program, onLine);
+        }, function (verdict) {
+          return verdict === 0 ? 'Finished.' : 'The program exited with an error.';
+        });
+      });
+    }
     stop.addEventListener('click', function () { run.stop(); });
     entry.details.addEventListener('toggle', function () {
       if (entry.details.open) { load(entry); } else if (live === entry) { unload(entry); }
@@ -4129,12 +4312,39 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
 
   /* ⛔ Shown from the STORE's answer, never from what was just pressed: a
      write the browser refused must not leave the page claiming it happened. */
-  function show(marked) {
+  function shown(marked) {
     control.setAttribute(MARKED, marked ? 'true' : 'false');
     button.setAttribute('aria-pressed', marked ? 'true' : 'false');
     labels.forEach(function (label) {
       label.hidden = label.getAttribute(STATE) !== (marked ? READ : UNREAD);
     });
+  }
+
+  /* ⭐ THE NEXT UNIT MARKS THIS ONE READ AND CONTINUES (the 2026-11 redesign).
+     Each next link carries two labels (`link-next.html`): *Up next*, shown, and
+     *Mark read & continue*, hidden. While this unit is unmarked the second is
+     the one shown, and following the link marks the unit before the browser
+     leaves. ⛔ The link is still a plain link: with no script it navigates and
+     marks nothing. Every next link of a chain is relabelled, because a reading
+     mode may show another one; and, as everywhere here, no word is typed. */
+  var NEXT = 'nav[aria-label="Between units"] a[rel="next"], nav[aria-label="Between units"] a[data-pager="next"]';
+  var CONTINUE = 'data-continue';
+  var nexts = [].slice.call(document.querySelectorAll(NEXT));
+
+  function relabel(marked) {
+    nexts.forEach(function (link) {
+      var going = link.querySelector('span[' + CONTINUE + ']');
+      var plain = link.querySelector('span:not([' + CONTINUE + '])');
+      if (going && plain) {
+        going.hidden = marked;
+        plain.hidden = !marked;
+      }
+    });
+  }
+
+  function show(marked) {
+    shown(marked);
+    relabel(marked);
   }
 
   show(store.marked(key));
@@ -4143,5 +4353,11 @@ Prism.languages.sql={comment:{pattern:/(^|[^\\])(?:\/\*[\s\S]*?\*\/|(?:--|\/\/|#
   button.addEventListener('click', function () {
     if (store.marked(key)) { store.unmark(key); } else { store.mark(key); }
     show(store.marked(key));
+  });
+
+  nexts.forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (!store.marked(key)) { store.mark(key); }
+    });
   });
 }());

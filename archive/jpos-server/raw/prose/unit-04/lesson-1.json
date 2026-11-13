@@ -8,7 +8,7 @@
   "unit": 4,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "Transaction Processing",
   "blocks": [
     {
@@ -188,6 +188,11 @@
     {
       "type": "para",
       "text": "The plain monitor placed at the top of the chain, ahead of `ReserveDailyLimit`, also counted all three: it was prepared before anyone aborted, and it joined. A participant sees every outcome if it comes before every participant that can abort, or if it implements `AbortParticipant`."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "flowchart TD\n    P[\"prepare: the next participant, in order\"] --> V{\"its vote\"}\n    V -->|PREPARED| M{\"more participants?\"}\n    M -->|yes| P\n    M -->|no| C[\"commit: each participant that joined\"]\n    V -->|\"ABORTED, or prepare threw\"| R[\"the rest of the chain: prepareForAbort, AbortParticipants only\"]\n    R --> A[\"abort: each participant that joined\"]\n    J[\"joined: voted without NO_JOIN\"] -.- C\n    J -.- A"
     },
     {
       "type": "para",
@@ -385,6 +390,11 @@
         "**(3): the callback finds its transaction through `handBack`.** One `QueryIssuer` serves every session (unit s1), and dozens of transactions may be paused in it at once. A field holding \"the current Context\" would hold whichever transaction paused last.",
         "**(4): every callback resumes, the empty one too.** When the timeout passes, QMUX calls the listener's `expired`, which by default calls `responseReceived(null, ...)`."
       ]
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "sequenceDiagram\n    participant S as TM session\n    participant Q as QueryIssuer\n    participant M as QMUX issuer-mux\n    participant T as queue txnmgr\n    participant S2 as next free session\n    participant A as AnswerFromIssuer\n    S->>Q: prepare\n    Q->>M: request(clone, timeout, this, ctx)\n    M-->>Q: returns at once\n    Q-->>S: PREPARED PAUSE READONLY NO_JOIN\n    Note over S: the session takes other Contexts\n    M->>Q: responseReceived(answer, or null after the timeout)\n    Q->>T: ctx.resume(), Context back at the head\n    T->>S2: takes the Context\n    S2->>A: prepare, the participant after QueryIssuer\n    A-->>S2: vote, with the issuer's 39 or 91"
     },
     {
       "type": "para",
@@ -658,7 +668,7 @@
   "counts": {
     "headings": 12,
     "paras": 58,
-    "code": 33,
+    "code": 35,
     "tables": 3,
     "lists": 3,
     "images": 0,
@@ -668,5 +678,5 @@
     "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "8d1da9a5b3c5d53101976b2710506da889f1a0f1d98ec4349cd016f9ba996df1"
+  "content_sha256": "b2ee483275544303a4ac4ce64b3ab604927fdb928e13d5047a50830f6fa2c7f2"
 }

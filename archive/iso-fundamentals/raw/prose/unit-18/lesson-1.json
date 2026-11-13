@@ -8,7 +8,7 @@
   "unit": 18,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "EMV and DE 55 in Depth",
   "blocks": [
     {
@@ -45,6 +45,11 @@
     {
       "type": "para",
       "text": "After the issuer answers an ARQC, the terminal gives the card the response's chip data and asks a second time. At this second GENERATE AC the card returns a TC to complete the purchase or an AAC to decline it. After an issuer decline the card must decline too, but after an approval it can still decline. Section 18.6 shows what that costs."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "sequenceDiagram\n    participant C as Card\n    participant T as Terminal\n    participant I as Issuer\n    T->>C: first GENERATE AC, names the cryptogram it wants\n    C-->>T: cryptogram in 9F26, its kind in 9F27\n    Note over C,T: a TC approves offline, an AAC declines, no request goes out\n    T->>I: ARQC, an authorization request with DE 55\n    I-->>T: response with chip data\n    T->>C: second GENERATE AC with the response's chip data\n    C-->>T: TC completes the purchase, or AAC declines it"
     },
     {
       "type": "para",
@@ -308,6 +313,11 @@
     {
       "type": "para",
       "text": "The issuer has approved 80.00 and holds it against the cardholder's balance. Only the acquirer knows the purchase failed, so it must undo the approval with a **reversal** for the authorization (unit 4; unit c12 builds one), as for any approval the merchant could not complete. Many networks want the card's final cryptogram and TVR in the DE 55 of that reversal, or of an advice, so the issuer can see why. Sending the authorization again doesn't help: the card's decline is final, and a new request would be a second purchase while the first approval still holds the money. Without the reversal, the hold stays until it expires, and the cardholder calls the bank."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "sequenceDiagram\n    participant C as Card\n    participant T as Terminal\n    participant G as Acquirer gateway\n    participant I as Issuer\n    G->>I: authorization 80.00, ARQC in DE 55\n    Note over I: approve, hold 80.00\n    I-->>G: 39=08, tag 91 with ARPC for ARC 08\n    Note over G: translate 08 to 00, rewrite the ARC in tag 91\n    G-->>T: 39=00, tag 91 with ARC 00\n    T->>C: second GENERATE AC with tag 91\n    Note over C: ARPC invalid, issuer authentication failed\n    C-->>T: AAC\n    Note over T: prints DECLINED\n    G->>I: reversal of the authorization\n    Note over I: approval undone, hold released"
     },
     {
       "type": "para",
@@ -666,7 +676,7 @@
   "counts": {
     "headings": 11,
     "paras": 43,
-    "code": 14,
+    "code": 16,
     "tables": 6,
     "lists": 5,
     "images": 0,
@@ -676,5 +686,5 @@
     "html": 3,
     "disclosures": 0
   },
-  "content_sha256": "c8946eacc0e8610b6446bb01d73258ccce26d7046fef321a3d389de89f31a076"
+  "content_sha256": "a907ae8b3ee22ede2d969080616a8f1ad55eb584f7465468d869e36b590f0567"
 }

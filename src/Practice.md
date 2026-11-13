@@ -22,7 +22,7 @@ over. The heading below names the container exactly as `README.md` names its
 own, and the number of an entry is **the unit of that container the practice
 joins**.
 
-# ISO-8583 for Visa and Mastercard Transactions: A Comprehensive Developer's Guide
+# ISO-8583 Fundamentals
 
 2. [Building the primary bitmap](src/p2.md)
 3. [Unpacking data elements](src/p3.md)

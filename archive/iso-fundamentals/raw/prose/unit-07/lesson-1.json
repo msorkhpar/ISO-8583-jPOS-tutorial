@@ -8,7 +8,7 @@
   "unit": 7,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "Transaction Flow",
   "blocks": [
     {
@@ -108,6 +108,11 @@
       "text": "In the **single-message flow** the `0200` carries everything needed to authorize and to post, and the issuer posts at once. There is no clearing record per transaction. ATM withdrawals and PIN debit purchases usually work this way."
     },
     {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "sequenceDiagram\n    participant A as Acquirer\n    participant N as Network\n    participant I as Issuer\n    Note over A,I: Dual-message flow\n    A->>N: 0100 hotel 300.00\n    N->>I: 0100\n    Note over I: hold 300.00, no money moves\n    I-->>N: 0110 39=00 38=A00001\n    N-->>A: 0110\n    Note over A,I: days later\n    A->>N: clearing record 260.00 38=A00001, in a batch file\n    N->>I: clearing record\n    Note over I: post 260.00, release the hold\n    Note over A,I: Single-message flow\n    A->>N: 0200 ATM 50.00\n    N->>I: 0200\n    Note over I: post 50.00 at once\n    I-->>N: 0210 39=00\n    N-->>A: 0210"
+    },
+    {
       "type": "para",
       "text": "When an approval is taken for a payment:"
     },
@@ -153,6 +158,11 @@
     {
       "type": "para",
       "text": "Two parties may approve a purchase without asking the issuer. When the issuer doesn't answer in time, the network may **stand in**: it decides within limits the issuer agreed beforehand, then reports each decision with an authorization advice, `0120`. And a terminal may approve a small purchase offline, below its floor limit; that one reaches the issuer as a clearing record, or as a `0220` advice on links that use them. Unit 4 showed that an advice is acknowledged, never declined."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "sequenceDiagram\n    participant A as Acquirer\n    participant N as Network\n    participant I as Issuer\n    A->>N: 0100 grocer 150.00\n    N->>I: 0100\n    Note over N,I: issuer down, no answer in time\n    Note over N: stands in, within limits the issuer agreed\n    N-->>A: 0110 approved\n    Note over N,I: when the issuer is back\n    N->>I: 0120 authorization advice\n    Note over I: must apply it\n    I-->>N: 0130 acknowledged, never declined"
     },
     {
       "type": "heading",
@@ -406,7 +416,7 @@
   "counts": {
     "headings": 11,
     "paras": 27,
-    "code": 7,
+    "code": 9,
     "tables": 4,
     "lists": 3,
     "images": 0,
@@ -416,5 +426,5 @@
     "html": 2,
     "disclosures": 0
   },
-  "content_sha256": "86fd1f08ca70dd650a3f94a40aa5b304bde89688427482d4e2c1d490ac68f54e"
+  "content_sha256": "7456cf7795e2b83294018eda772f2cfbb59b80cebab699d3380ef80096564368"
 }

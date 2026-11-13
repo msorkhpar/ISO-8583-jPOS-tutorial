@@ -8,7 +8,7 @@
   "unit": 12,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "Correlation, Timeouts and Reversals",
   "blocks": [
     {
@@ -332,6 +332,11 @@
       ]
     },
     {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "flowchart TD\n    N[\"mux.request returns null\"] --> U[\"outcome unknown: never arrived, declined, or approved and the answer lost\"]\n    U --> X[\"never resend the same message\"]\n    U --> Q{\"what did the message do?\"}\n    Q -->|\"0100, 0200: permission, money or a hold\"| R[\"reverse it: 0420 pointing at it in field 90 (12.6)\"]\n    Q -->|\"advice 0120, 0220, 0420\"| A[\"repeat as 0121, 0221, 0421 until acknowledged\"]\n    Q -->|\"0800 network message\"| E[\"just send a new one\"]\n    R --> S[\"store-and-forward queue (12.7)\"]"
+    },
+    {
       "type": "para",
       "text": "Once the purchase is reversed, the late approval from 12.2.1 needs nothing more."
     },
@@ -457,6 +462,11 @@
     {
       "type": "para",
       "text": "**(5) Push, not out.** The repeat goes back to the front of the queue. With `out` it would go to the back, and the reversal for 000127 would overtake it. During a long outage the oldest reversal, the one a cardholder has been waiting for the longest, would keep being pushed back."
+    },
+    {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "flowchart TD\n    H[\"rdp: read the oldest reversal, leave it queued\"] --> C{\"head present and mux connected?\"}\n    C -->|no| N[\"false: nothing sent, still a first attempt\"]\n    C -->|yes| Q[\"mux.request(head, timeout)\"]\n    Q -->|any answer| T[\"inp: take it off the queue, true\"]\n    Q -->|null| R{\"already a repeat?\"}\n    R -->|\"no, an 0420\"| P[\"clone as 0421, push it back at the front\"]\n    R -->|\"yes, an 0421\"| F[\"false: stays at the front\"]\n    P --> F"
     },
     {
       "type": "para",
@@ -666,7 +676,7 @@
   "counts": {
     "headings": 15,
     "paras": 61,
-    "code": 23,
+    "code": 25,
     "tables": 2,
     "lists": 8,
     "images": 0,
@@ -676,5 +686,5 @@
     "html": 5,
     "disclosures": 0
   },
-  "content_sha256": "7d073ff75e1eeb5ffdeee12da34767d8915732a65a077cc2c3f08e4fdae8eb25"
+  "content_sha256": "90f4112f4ebad0876b4aad200229db03f944aa33123cf4f365a2ae53f3b8fcaa"
 }

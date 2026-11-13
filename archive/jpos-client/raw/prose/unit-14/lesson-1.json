@@ -8,7 +8,7 @@
   "unit": 14,
   "kind": "lesson",
   "ordinal": 1,
-  "ingested": "2026-11-05",
+  "ingested": "2026-11-13",
   "title": "MUXPool and High Availability",
   "blocks": [
     {
@@ -289,6 +289,11 @@
       "text": "**(3) The route is remembered under the original's identity**, the way a reversal states it: field 41, and the STAN and transmission time from field 90 (positions 5-10 and 11-20, unit c12). The reversal's own STAN and time are new and match nothing. The routes live in a Space with a TTL longer than the network's reversal window, so they don't grow for ever; a persistent space keeps them across a restart. A reversal whose route is unknown (it expired, or the original went out before a restart with a transient space) goes round-robin here. If your hosts can't take that, return `null` for it instead, and decide what alerts on reversals that never leave the queue."
     },
     {
+      "type": "code",
+      "lang": "mermaid",
+      "text": "flowchart TD\n    M{\"04xx with field 90?\"} -->|yes| K{\"route known for the original?\"}\n    K -->|yes| L{\"original's link connected?\"}\n    L -->|yes| O[\"send on the original's link\"]\n    L -->|no| W[\"null, nothing sent, the reversal waits in its queue\"]\n    K -->|\"no, expired or lost\"| RR\n    M -->|no| RR{\"round-robin from the counter, floorMod: a connected member?\"}\n    RR -->|none| N[\"null, nothing sent\"]\n    RR -->|\"yes, a new request\"| REM[\"remember route: 41, STAN, field 7\"]\n    RR -->|\"yes, a reversal\"| S[\"send on that member\"]\n    REM --> S"
+    },
+    {
       "type": "para",
       "text": "Usability here is `isConnected()`. To keep unsigned links out as well, test the enabled mark the way `check-enabled` does (14.3), in the adaptors' space, before choosing a member."
     },
@@ -471,7 +476,7 @@
   "counts": {
     "headings": 12,
     "paras": 49,
-    "code": 12,
+    "code": 13,
     "tables": 3,
     "lists": 3,
     "images": 0,
@@ -481,5 +486,5 @@
     "html": 4,
     "disclosures": 0
   },
-  "content_sha256": "87a6813aaa7aadbef6b9a20c024e7349ac941e1d86590479f65c91c0932d4d6a"
+  "content_sha256": "5949e10210400a9be47e24ad23e744d8843c840bf7dd343d5a99aabc1662bb1d"
 }
