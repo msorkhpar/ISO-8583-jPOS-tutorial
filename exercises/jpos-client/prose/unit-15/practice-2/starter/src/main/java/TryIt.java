@@ -11,9 +11,14 @@ public class TryIt {
     public static void main(String[] args) throws Exception {
         // Turn the logger up, so the log lines of your code show under the printed lines.
         System.setProperty("java.util.logging.SimpleFormatter.format", "%4$s %5$s%n");
+        // Only this handler prints, and it leaves out the JDK's own detail.
+        Logger root = Logger.getLogger("");
+        for (java.util.logging.Handler before : root.getHandlers()) {
+            root.removeHandler(before);
+        }
         ConsoleHandler handler = new ConsoleHandler();
         handler.setLevel(Level.ALL);
-        Logger root = Logger.getLogger("");
+        handler.setFilter(entry -> !String.valueOf(entry.getLoggerName()).matches("(java|javax|jdk|sun|com\\.sun)\\..*"));
         root.setLevel(Level.ALL);
         root.addHandler(handler);
         JDK_EXIT.setLevel(Level.OFF);
