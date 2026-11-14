@@ -347,6 +347,73 @@ public class AnswerFailures implements AbortParticipant {
         return &quot;00&quot;.equals(rc) || &quot;10&quot;.equals(rc);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.AnswerFailures;
+import org.jpos.iso.ISOMsg;
+import org.jpos.rc.CMF;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            System.out.println(&quot;PIN tries exceeded: &quot; + abort(CMF.MAX_PIN_TRIES_EXCEEDED, null));
+            System.out.println(&quot;missing field: &quot; + abort(CMF.MISSING_FIELD, null));
+            System.out.println(&quot;restricted card (not in the table): &quot; + abort(CMF.RESTRICTED_CARD, null));
+            System.out.println(&quot;nothing reported: &quot; + abort(null, null));
+            System.out.println(&quot;approval built, then journal failed: &quot; + abort(null, &quot;00&quot;));
+            System.out.println(&quot;partial approval built, then journal failed: &quot; + abort(null, &quot;10&quot;));
+            System.out.println(&quot;over the limit, 61 built: &quot; + abort(null, &quot;61&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One aborting withdrawal, with a reported cause and an answer already built, if any. */
+    private static String abort(CMF cause, String builtRc) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4012888888881881&quot;);
+        m.set(3, &quot;010000&quot;);
+        m.set(4, &quot;000000008000&quot;);
+        m.set(7, &quot;1114130000&quot;);
+        m.set(11, &quot;004502&quot;);
+        m.set(41, &quot;ATM00117&quot;);
+        m.set(49, &quot;978&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        if (cause != null)
+            ctx.getResult().fail(cause, &quot;TryIt&quot;, &quot;reported by a participant&quot;);
+        if (builtRc != null) {
+            ISOMsg built = (ISOMsg) m.clone();
+            built.setResponseMTI();
+            built.set(39, builtRc);
+            ctx.put(ContextConstants.RESPONSE.toString(), built);
+        }
+        new AnswerFailures().prepareForAbort(1L, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return &quot;field 39=&quot; + r.getString(39);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -418,10 +485,78 @@ public class AnswerFailures implements AbortParticipant {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.AnswerFailures;
+import org.jpos.iso.ISOMsg;
+import org.jpos.rc.CMF;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            System.out.println(&quot;PIN tries exceeded: &quot; + abort(CMF.MAX_PIN_TRIES_EXCEEDED, null));
+            System.out.println(&quot;missing field: &quot; + abort(CMF.MISSING_FIELD, null));
+            System.out.println(&quot;restricted card (not in the table): &quot; + abort(CMF.RESTRICTED_CARD, null));
+            System.out.println(&quot;nothing reported: &quot; + abort(null, null));
+            System.out.println(&quot;approval built, then journal failed: &quot; + abort(null, &quot;00&quot;));
+            System.out.println(&quot;partial approval built, then journal failed: &quot; + abort(null, &quot;10&quot;));
+            System.out.println(&quot;over the limit, 61 built: &quot; + abort(null, &quot;61&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One aborting withdrawal, with a reported cause and an answer already built, if any. */
+    private static String abort(CMF cause, String builtRc) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4012888888881881&quot;);
+        m.set(3, &quot;010000&quot;);
+        m.set(4, &quot;000000008000&quot;);
+        m.set(7, &quot;1114130000&quot;);
+        m.set(11, &quot;004502&quot;);
+        m.set(41, &quot;ATM00117&quot;);
+        m.set(49, &quot;978&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        if (cause != null)
+            ctx.getResult().fail(cause, &quot;TryIt&quot;, &quot;reported by a participant&quot;);
+        if (builtRc != null) {
+            ISOMsg built = (ISOMsg) m.clone();
+            built.setResponseMTI();
+            built.set(39, builtRc);
+            ctx.put(ContextConstants.RESPONSE.toString(), built);
+        }
+        new AnswerFailures().prepareForAbort(1L, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return &quot;field 39=&quot; + r.getString(39);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-10/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-10/practice-1/src/main/java/com/example/practice/AnswerFailures.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-10/practice-1/src/main/java/com/example/practice/AnswerFailures.java</code> and <code>practice/jpos-server/prose/unit-10/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-10/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -698,6 +833,75 @@ public class ReleaseHold implements TransactionParticipant, Configurable {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ReleaseHold;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ReleaseHold.HoldTable holds = new ReleaseHold.HoldTable();
+            NameRegistrar.register(&quot;tryit.holds&quot;, holds);
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;holds&quot;, &quot;tryit.holds&quot;);
+            ReleaseHold release = new ReleaseHold();
+            release.setConfiguration(cfg);
+            holds.open(&quot;ACC-7310&quot;, 60000);
+            holds.place(&quot;HTL00215&quot;, &quot;008841&quot;, &quot;1113194500&quot;, &quot;ACC-7310&quot;, 32000);
+            System.out.println(&quot;available with the hold: &quot; + holds.available(&quot;ACC-7310&quot;));
+            System.out.println(&quot;0400 from another hotel: &quot; + send(release, &quot;0400&quot;, &quot;HTL00299&quot;, &quot;008841&quot;));
+            System.out.println(&quot;available: &quot; + holds.available(&quot;ACC-7310&quot;));
+            System.out.println(&quot;0400 from the hotel: &quot; + send(release, &quot;0400&quot;, &quot;HTL00215&quot;, &quot;008841&quot;));
+            System.out.println(&quot;0401 repeat: &quot; + send(release, &quot;0401&quot;, &quot;HTL00215&quot;, &quot;008841&quot;));
+            System.out.println(&quot;available: &quot; + holds.available(&quot;ACC-7310&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit.holds&quot;);
+        }
+    }
+
+    private static String send(ReleaseHold release, String mti, String terminal, String originalStan) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(2, &quot;5425233430109903&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000032000&quot;);
+        m.set(7, &quot;1114081000&quot;);
+        m.set(11, &quot;008850&quot;);
+        m.set(41, terminal);
+        m.set(49, &quot;978&quot;);
+        m.set(90, &quot;0100&quot; + originalStan + &quot;1113194500&quot; + &quot;00000000000&quot; + &quot;00000000000&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        release.prepare(1L, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return r.getMTI() + &quot; field 39=&quot; + r.getString(39);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -809,10 +1013,80 @@ public class ReleaseHold implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ReleaseHold;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ReleaseHold.HoldTable holds = new ReleaseHold.HoldTable();
+            NameRegistrar.register(&quot;tryit.holds&quot;, holds);
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;holds&quot;, &quot;tryit.holds&quot;);
+            ReleaseHold release = new ReleaseHold();
+            release.setConfiguration(cfg);
+            holds.open(&quot;ACC-7310&quot;, 60000);
+            holds.place(&quot;HTL00215&quot;, &quot;008841&quot;, &quot;1113194500&quot;, &quot;ACC-7310&quot;, 32000);
+            System.out.println(&quot;available with the hold: &quot; + holds.available(&quot;ACC-7310&quot;));
+            System.out.println(&quot;0400 from another hotel: &quot; + send(release, &quot;0400&quot;, &quot;HTL00299&quot;, &quot;008841&quot;));
+            System.out.println(&quot;available: &quot; + holds.available(&quot;ACC-7310&quot;));
+            System.out.println(&quot;0400 from the hotel: &quot; + send(release, &quot;0400&quot;, &quot;HTL00215&quot;, &quot;008841&quot;));
+            System.out.println(&quot;0401 repeat: &quot; + send(release, &quot;0401&quot;, &quot;HTL00215&quot;, &quot;008841&quot;));
+            System.out.println(&quot;available: &quot; + holds.available(&quot;ACC-7310&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit.holds&quot;);
+        }
+    }
+
+    private static String send(ReleaseHold release, String mti, String terminal, String originalStan) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(2, &quot;5425233430109903&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000032000&quot;);
+        m.set(7, &quot;1114081000&quot;);
+        m.set(11, &quot;008850&quot;);
+        m.set(41, terminal);
+        m.set(49, &quot;978&quot;);
+        m.set(90, &quot;0100&quot; + originalStan + &quot;1113194500&quot; + &quot;00000000000&quot; + &quot;00000000000&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        release.prepare(1L, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return r.getMTI() + &quot; field 39=&quot; + r.getString(39);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-10/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-10/practice-2/src/main/java/com/example/practice/ReleaseHold.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-10/practice-2/src/main/java/com/example/practice/ReleaseHold.java</code> and <code>practice/jpos-server/prose/unit-10/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-10/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

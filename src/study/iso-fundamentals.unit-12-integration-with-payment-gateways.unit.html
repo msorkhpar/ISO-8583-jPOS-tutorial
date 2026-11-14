@@ -197,6 +197,66 @@ public final class ChargeMapper {
                 terminalZone);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ChargeMapper;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ChargeMapper mapper = new ChargeMapper();
+            ZoneId zurich = ZoneId.of(&quot;Europe/Zurich&quot;);
+            ZoneId kuwait = ZoneId.of(&quot;Asia/Kuwait&quot;);
+            System.out.println(&quot;Zurich sale: &quot; + mapper.toCharge(request(&quot;000000&quot;, &quot;000000012850&quot;, &quot;756&quot;, &quot;0815&quot;, &quot;193000&quot;),
+                    Instant.parse(&quot;2031-08-15T17:30:20Z&quot;), zurich));
+            System.out.println(&quot;Kuwait refund: &quot; + mapper.toCharge(request(&quot;200000&quot;, &quot;000000004125&quot;, &quot;414&quot;, &quot;0420&quot;, &quot;091500&quot;),
+                    Instant.parse(&quot;2031-04-20T06:15:10Z&quot;), kuwait));
+            System.out.println(&quot;last year's sale: &quot; + mapper.toCharge(request(&quot;000000&quot;, &quot;000000000990&quot;, &quot;978&quot;, &quot;1231&quot;, &quot;221000&quot;),
+                    Instant.parse(&quot;2032-01-02T09:00:00Z&quot;), zurich).localTime());
+            try {
+                mapper.toCharge(request(&quot;010000&quot;, &quot;000000005000&quot;, &quot;978&quot;, &quot;0815&quot;, &quot;120000&quot;), Instant.parse(&quot;2031-08-15T10:00:30Z&quot;), zurich);
+            } catch (ISOException refused) {
+                System.out.println(&quot;cash withdrawal refused: &quot; + refused.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg request(String de3, String de4, String de49, String de13, String de12) throws ISOException {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(3, de3);
+        m.set(4, de4);
+        m.set(11, &quot;120501&quot;);
+        m.set(12, de12);
+        m.set(13, de13);
+        m.set(41, &quot;TERM1201&quot;);
+        m.set(49, de49);
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -256,10 +316,71 @@ public final class ChargeMapper {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ChargeMapper;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOException;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ChargeMapper mapper = new ChargeMapper();
+            ZoneId zurich = ZoneId.of(&quot;Europe/Zurich&quot;);
+            ZoneId kuwait = ZoneId.of(&quot;Asia/Kuwait&quot;);
+            System.out.println(&quot;Zurich sale: &quot; + mapper.toCharge(request(&quot;000000&quot;, &quot;000000012850&quot;, &quot;756&quot;, &quot;0815&quot;, &quot;193000&quot;),
+                    Instant.parse(&quot;2031-08-15T17:30:20Z&quot;), zurich));
+            System.out.println(&quot;Kuwait refund: &quot; + mapper.toCharge(request(&quot;200000&quot;, &quot;000000004125&quot;, &quot;414&quot;, &quot;0420&quot;, &quot;091500&quot;),
+                    Instant.parse(&quot;2031-04-20T06:15:10Z&quot;), kuwait));
+            System.out.println(&quot;last year's sale: &quot; + mapper.toCharge(request(&quot;000000&quot;, &quot;000000000990&quot;, &quot;978&quot;, &quot;1231&quot;, &quot;221000&quot;),
+                    Instant.parse(&quot;2032-01-02T09:00:00Z&quot;), zurich).localTime());
+            try {
+                mapper.toCharge(request(&quot;010000&quot;, &quot;000000005000&quot;, &quot;978&quot;, &quot;0815&quot;, &quot;120000&quot;), Instant.parse(&quot;2031-08-15T10:00:30Z&quot;), zurich);
+            } catch (ISOException refused) {
+                System.out.println(&quot;cash withdrawal refused: &quot; + refused.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg request(String de3, String de4, String de49, String de13, String de12) throws ISOException {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(3, de3);
+        m.set(4, de4);
+        m.set(11, &quot;120501&quot;);
+        m.set(12, de12);
+        m.set(13, de13);
+        m.set(41, &quot;TERM1201&quot;);
+        m.set(49, de49);
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-12/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-12/practice-1/src/main/java/com/example/practice/ChargeMapper.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-12/practice-1/src/main/java/com/example/practice/ChargeMapper.java</code> and <code>practice/iso-fundamentals/prose/unit-12/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-12/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -476,6 +597,61 @@ public final class PaymentsEndpoint {
                 : new Result(&quot;DECLINED&quot;, null);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentsEndpoint;
+import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            AtomicInteger sent = new AtomicInteger();
+            PaymentsEndpoint.Host host = m -&gt; {
+                sent.incrementAndGet();
+                if (m.getString(4).equals(&quot;000000009900&quot;))
+                    return null;
+                ISOMsg r = (ISOMsg) m.clone();
+                r.setResponseMTI();
+                r.set(39, &quot;00&quot;);
+                r.set(38, &quot;A&quot; + m.getString(11).substring(1));
+                return r;
+            };
+            PaymentsEndpoint endpoint = new PaymentsEndpoint(host, new PaymentsEndpoint.KeyTable());
+            System.out.println(&quot;first call: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;6.25&quot;)));
+            System.out.println(&quot;retry, same key: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;6.25&quot;)));
+            System.out.println(&quot;same key, other amount: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;7.00&quot;)));
+            System.out.println(&quot;no answer: &quot; + endpoint.pay(&quot;cafe-18&quot;, payment(&quot;99.00&quot;)));
+            System.out.println(&quot;retry after no answer: &quot; + endpoint.pay(&quot;cafe-18&quot;, payment(&quot;99.00&quot;)));
+            System.out.println(&quot;0200s sent to the host: &quot; + sent.get() + &quot;, reversals queued: &quot; + endpoint.reversals().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static PaymentsEndpoint.Payment payment(String amount) {
+        return new PaymentsEndpoint.Payment(&quot;4000000000000077&quot;, new BigDecimal(amount), &quot;TERM1202&quot;);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -605,10 +781,66 @@ public final class PaymentsEndpoint {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentsEndpoint;
+import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            AtomicInteger sent = new AtomicInteger();
+            PaymentsEndpoint.Host host = m -&gt; {
+                sent.incrementAndGet();
+                if (m.getString(4).equals(&quot;000000009900&quot;))
+                    return null;
+                ISOMsg r = (ISOMsg) m.clone();
+                r.setResponseMTI();
+                r.set(39, &quot;00&quot;);
+                r.set(38, &quot;A&quot; + m.getString(11).substring(1));
+                return r;
+            };
+            PaymentsEndpoint endpoint = new PaymentsEndpoint(host, new PaymentsEndpoint.KeyTable());
+            System.out.println(&quot;first call: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;6.25&quot;)));
+            System.out.println(&quot;retry, same key: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;6.25&quot;)));
+            System.out.println(&quot;same key, other amount: &quot; + endpoint.pay(&quot;cafe-17&quot;, payment(&quot;7.00&quot;)));
+            System.out.println(&quot;no answer: &quot; + endpoint.pay(&quot;cafe-18&quot;, payment(&quot;99.00&quot;)));
+            System.out.println(&quot;retry after no answer: &quot; + endpoint.pay(&quot;cafe-18&quot;, payment(&quot;99.00&quot;)));
+            System.out.println(&quot;0200s sent to the host: &quot; + sent.get() + &quot;, reversals queued: &quot; + endpoint.reversals().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static PaymentsEndpoint.Payment payment(String amount) {
+        return new PaymentsEndpoint.Payment(&quot;4000000000000077&quot;, new BigDecimal(amount), &quot;TERM1202&quot;);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-12/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-12/practice-2/src/main/java/com/example/practice/PaymentsEndpoint.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-12/practice-2/src/main/java/com/example/practice/PaymentsEndpoint.java</code> and <code>practice/iso-fundamentals/prose/unit-12/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-12/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

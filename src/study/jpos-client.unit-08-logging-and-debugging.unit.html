@@ -251,6 +251,64 @@ public class EchoResponder implements ISORequestListener, LogSource {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EchoResponder;
+import java.io.IOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOSource;
+import org.jpos.util.SimpleLogListener;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            org.jpos.util.Logger node = new org.jpos.util.Logger();
+            node.addListener(new SimpleLogListener(System.out));
+            EchoResponder responder = new EchoResponder();
+            responder.setLogger(node, &quot;echo-responder&quot;);
+            ISOMsg echo = new ISOMsg(&quot;0800&quot;);
+            echo.set(7, &quot;1114103000&quot;);
+            echo.set(11, &quot;120044&quot;);
+            echo.set(70, &quot;301&quot;);
+            System.out.println(&quot;handled echo: &quot; + responder.process(new Link(false), echo));
+            echo.set(11, &quot;120045&quot;);
+            System.out.println(&quot;handled echo on a broken link: &quot; + responder.process(new Link(true), echo));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** The host's side of the link: prints each reply, or fails to send. */
+    private record Link(boolean broken) implements ISOSource {
+        @Override public void send(ISOMsg m) throws IOException {
+            if (broken) {
+                IOException reset = new IOException(&quot;broken pipe&quot;);
+                reset.setStackTrace(new StackTraceElement[0]);
+                throw reset;
+            }
+            System.out.println(&quot;reply sent: &quot; + m.getString(0) + &quot; STAN &quot; + m.getString(11) + &quot; rc &quot; + m.getString(39));
+        }
+        @Override public boolean isConnected() { return true; }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -330,10 +388,69 @@ public class EchoResponder implements ISORequestListener, LogSource {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EchoResponder;
+import java.io.IOException;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOSource;
+import org.jpos.util.SimpleLogListener;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            org.jpos.util.Logger node = new org.jpos.util.Logger();
+            node.addListener(new SimpleLogListener(System.out));
+            EchoResponder responder = new EchoResponder();
+            responder.setLogger(node, &quot;echo-responder&quot;);
+            ISOMsg echo = new ISOMsg(&quot;0800&quot;);
+            echo.set(7, &quot;1114103000&quot;);
+            echo.set(11, &quot;120044&quot;);
+            echo.set(70, &quot;301&quot;);
+            System.out.println(&quot;handled echo: &quot; + responder.process(new Link(false), echo));
+            echo.set(11, &quot;120045&quot;);
+            System.out.println(&quot;handled echo on a broken link: &quot; + responder.process(new Link(true), echo));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** The host's side of the link: prints each reply, or fails to send. */
+    private record Link(boolean broken) implements ISOSource {
+        @Override public void send(ISOMsg m) throws IOException {
+            if (broken) {
+                IOException reset = new IOException(&quot;broken pipe&quot;);
+                reset.setStackTrace(new StackTraceElement[0]);
+                throw reset;
+            }
+            System.out.println(&quot;reply sent: &quot; + m.getString(0) + &quot; STAN &quot; + m.getString(11) + &quot; rc &quot; + m.getString(39));
+        }
+        @Override public boolean isConnected() { return true; }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-08/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/EchoResponder.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/EchoResponder.java</code> and <code>practice/jpos-client/prose/unit-08/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-08/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -552,6 +669,66 @@ public class DeclineReport {
         return copy.pack();
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DeclineReport;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.packager.GenericPackager;
+import org.jpos.util.ProtectedLogListener;
+import org.jpos.util.SimpleLogListener;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ProtectedLogListener protect = new ProtectedLogListener();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;protect&quot;, &quot;2 35 45&quot;);
+            cfg.put(&quot;wipe&quot;, &quot;52 55&quot;);
+            protect.setConfiguration(cfg);
+            org.jpos.util.Logger node = new org.jpos.util.Logger();
+            node.addListener(protect);
+            node.addListener(new SimpleLogListener(System.out));
+            ISOMsg request = new ISOMsg(&quot;0200&quot;);
+            request.set(2, &quot;4000002760003184&quot;);
+            request.set(3, &quot;000000&quot;);
+            request.set(4, &quot;000000004410&quot;);
+            request.set(11, &quot;088120&quot;);
+            request.set(35, &quot;4000002760003184=31052011000000000000&quot;);
+            request.set(41, &quot;50030007&quot;);
+            request.set(52, ISOUtil.hex2byte(&quot;1A2B3C4D5E6F7081&quot;));
+            ISOMsg rejection = (ISOMsg) request.clone();
+            rejection.setResponseMTI();
+            rejection.set(39, &quot;30&quot;);
+            String dump = new DeclineReport(node, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;)).report(request, rejection);
+            System.out.println(&quot;dump for the support desk:&quot;);
+            System.out.println(dump);
+            System.out.println(&quot;request still has PAN: &quot; + request.getString(2));
+            System.out.println(&quot;request still has PIN block: &quot; + ISOUtil.hexString(request.getBytes(52)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -602,10 +779,71 @@ public class DeclineReport {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DeclineReport;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.iso.packager.GenericPackager;
+import org.jpos.util.ProtectedLogListener;
+import org.jpos.util.SimpleLogListener;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ProtectedLogListener protect = new ProtectedLogListener();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;protect&quot;, &quot;2 35 45&quot;);
+            cfg.put(&quot;wipe&quot;, &quot;52 55&quot;);
+            protect.setConfiguration(cfg);
+            org.jpos.util.Logger node = new org.jpos.util.Logger();
+            node.addListener(protect);
+            node.addListener(new SimpleLogListener(System.out));
+            ISOMsg request = new ISOMsg(&quot;0200&quot;);
+            request.set(2, &quot;4000002760003184&quot;);
+            request.set(3, &quot;000000&quot;);
+            request.set(4, &quot;000000004410&quot;);
+            request.set(11, &quot;088120&quot;);
+            request.set(35, &quot;4000002760003184=31052011000000000000&quot;);
+            request.set(41, &quot;50030007&quot;);
+            request.set(52, ISOUtil.hex2byte(&quot;1A2B3C4D5E6F7081&quot;));
+            ISOMsg rejection = (ISOMsg) request.clone();
+            rejection.setResponseMTI();
+            rejection.set(39, &quot;30&quot;);
+            String dump = new DeclineReport(node, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;)).report(request, rejection);
+            System.out.println(&quot;dump for the support desk:&quot;);
+            System.out.println(dump);
+            System.out.println(&quot;request still has PAN: &quot; + request.getString(2));
+            System.out.println(&quot;request still has PIN block: &quot; + ISOUtil.hexString(request.getBytes(52)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-08/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-08/practice-2/src/main/java/com/example/practice/DeclineReport.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-08/practice-2/src/main/java/com/example/practice/DeclineReport.java</code> and <code>practice/jpos-client/prose/unit-08/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-08/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

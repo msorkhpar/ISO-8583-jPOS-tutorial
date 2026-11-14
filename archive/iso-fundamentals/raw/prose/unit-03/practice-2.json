@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        String chars = switch (type) {\n            case \"n\" -> \"[0-9]*\";\n            case \"a\" -> \"[A-Za-z]*\";\n            case \"an\" -> \"[A-Za-z0-9]*\";\n            default -> \"[\\\\x20-\\\\x7E]*\";\n        };\n        return value.matches(chars);\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        if (value.length() > f.length())\n            throw new IllegalArgumentException(\"longer than \" + f.length() + \": \" + value);\n        String fill = (f.type().equals(\"n\") ? \"0\" : \" \").repeat(f.length() - value.length());\n        return f.type().equals(\"n\") ? fill + value : value + fill;\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        if (value.length() > f.length())\n            throw new IllegalArgumentException(\"longer than \" + f.length() + \": \" + value);\n        String len = String.valueOf(value.length());\n        return \"0\".repeat(f.prefixDigits() - len.length()) + len + value;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.FieldWriter;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            System.out.println(\"n6 [\" + FieldWriter.write(\"n6\", \"1234\") + \"]\");\n            System.out.println(\"ans10 [\" + FieldWriter.write(\"ans10\", \"SHOP 7\") + \"]\");\n            System.out.println(\"n..19 [\" + FieldWriter.write(\"n..19\", \"4000123412341234\") + \"]\");\n            System.out.println(\"ans...999 [\" + FieldWriter.write(\"ans...999\", \"NOTE=HELLO\") + \"]\");\n            System.out.println(\"a3 [\" + FieldWriter.write(\"a3\", \"USD\") + \"]\");\n            try {\n                System.out.println(\"n4 [\" + FieldWriter.write(\"n4\", \"12345\") + \"]\");\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"n4 refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        // TODO: the receiver rejects a field holding a character its type doesn't allow.\n        //       Say whether this value is one it accepts.\n        throw new IllegalStateException(\"TODO: allowed\");\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        // TODO: the receiver takes exactly f.length() characters here and must read back the\n        //       value that was meant.\n        throw new IllegalStateException(\"TODO: fixed\");\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        // TODO: the receiver reads a length of f.prefixDigits() digits, then that many characters.\n        throw new IllegalStateException(\"TODO: variable\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.FieldWriter;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            System.out.println(\"n6 [\" + FieldWriter.write(\"n6\", \"1234\") + \"]\");\n            System.out.println(\"ans10 [\" + FieldWriter.write(\"ans10\", \"SHOP 7\") + \"]\");\n            System.out.println(\"n..19 [\" + FieldWriter.write(\"n..19\", \"4000123412341234\") + \"]\");\n            System.out.println(\"ans...999 [\" + FieldWriter.write(\"ans...999\", \"NOTE=HELLO\") + \"]\");\n            System.out.println(\"a3 [\" + FieldWriter.write(\"a3\", \"USD\") + \"]\");\n            try {\n                System.out.println(\"n4 [\" + FieldWriter.write(\"n4\", \"12345\") + \"]\");\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"n4 refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "51022a79551685fed52ac8e80e25703de875d04df04ac5110484a135f2232f14",
+  "content_sha256": "27a126cf8be15871d636c31faa7731c482f5dee16a1b6852489797a021a8d364",
   "starting_code": "package com.example.practice;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/**\n * Writes one data element as an ASCII receiver expects it, for a test tool that builds raw\n * ISO 8583 messages without a packager. Formats are written the way specifications write them:\n * {@code n6}, {@code an12}, {@code n..19}, {@code ans...999}. Types are {@code n}, {@code a},\n * {@code an} and {@code ans}.\n */\npublic final class FieldWriter {\n\n    /** A parsed format: its type, its prefix width (0 for a fixed field) and its length or maximum. */\n    record Format(String type, int prefixDigits, int length) { }\n\n    private static final Pattern FORMAT = Pattern.compile(\"(ans|an|a|n)(\\\\.{2,3})?(\\\\d+)\");\n\n    private FieldWriter() {\n    }\n\n    /** The field exactly as it goes on the wire; refuses with IllegalArgumentException what the receiver would reject. */\n    public static String write(String format, String value) {\n        Format f = parse(format);\n        if (!allowed(f.type(), value))\n            throw new IllegalArgumentException(\"a character outside \" + f.type() + \": \" + value);\n        return f.prefixDigits() == 0 ? fixed(f, value) : variable(f, value);\n    }\n\n    static Format parse(String format) {\n        Matcher m = FORMAT.matcher(format);\n        if (!m.matches())\n            throw new IllegalArgumentException(\"not a field format: \" + format);\n        int prefix = m.group(2) == null ? 0 : m.group(2).length();\n        return new Format(m.group(1), prefix, Integer.parseInt(m.group(3)));\n    }\n\n    /** Whether every character of the value belongs to the type. */\n    static boolean allowed(String type, String value) {\n        // TODO: the receiver rejects a field holding a character its type doesn't allow.\n        //       Say whether this value is one it accepts.\n        throw new IllegalStateException(\"TODO: allowed\");\n    }\n\n    /** A fixed field: always f.length() characters. */\n    static String fixed(Format f, String value) {\n        // TODO: the receiver takes exactly f.length() characters here and must read back the\n        //       value that was meant.\n        throw new IllegalStateException(\"TODO: fixed\");\n    }\n\n    /** A variable field: its length, then the value. */\n    static String variable(Format f, String value) {\n        // TODO: the receiver reads a length of f.prefixDigits() digits, then that many characters.\n        throw new IllegalStateException(\"TODO: variable\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/com/example/practice/FieldWriter.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-03/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -147,6 +166,10 @@
     "concepts": [
       "Nothing in the bytes marks where a field ends: a fixed field takes its width and a variable one its length prefix, two digits for LLVAR and three for LLLVAR.",
       "A short fixed value is padded (numbers with zeros on the left, text with spaces on the right) and a value that is too long is refused, never cut."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-03/practice-2/src/main/java/TryIt.java"
   }
 }

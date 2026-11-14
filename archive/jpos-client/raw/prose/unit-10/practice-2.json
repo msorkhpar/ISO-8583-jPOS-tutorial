@@ -46,6 +46,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        long deadline = System.currentTimeMillis() + timeoutMillis;\n        for (long left = timeoutMillis; left > 0; left = deadline - System.currentTimeMillis()) {\n            ISOMsg m = (ISOMsg) sp.in(queue, left);\n            if (m == null)\n                break;\n            if (mti.equals(m.getMTI()))\n                return m;\n        }\n        throw new TimeoutException(\"the host received no \" + mti + \" within \" + timeoutMillis + \" ms\");\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.HostLog;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\nimport org.jpos.space.TSpace;\nimport java.util.concurrent.TimeoutException;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Space<String, Object> sp = new TSpace<>();\n            HostLog log = new HostLog(sp, \"host.received\");\n            sp.out(\"host.received\", message(\"0800\", \"000501\"));\n            Thread host = new Thread(() -> {\n                try {\n                    Thread.sleep(200);\n                    sp.out(\"host.received\", message(\"0420\", \"000502\"));\n                } catch (Exception e) {\n                    throw new IllegalStateException(e);\n                }\n            });\n            host.start();\n            long t0 = System.currentTimeMillis();\n            ISOMsg got = log.awaitReceived(\"0420\", 3000);\n            System.out.println(\"got: \" + got.getMTI() + \" stan=\" + got.getString(11));\n            System.out.println(\"came before the 3 s timeout: \" + (System.currentTimeMillis() - t0 < 2000));\n            host.join();\n            try {\n                log.awaitReceived(\"0420\", 300);\n                System.out.println(\"second wait: returned\");\n            } catch (TimeoutException e) {\n                System.out.println(\"second wait: \" + e.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg message(String mti, String stan) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(41, \"31415926\");\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -58,6 +67,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        // TODO: today this is Thread.sleep(500) and one look at the log, and it fails on the build\n        //       server now and then. Wait for exactly what the test needs, for as long as it allows\n        //       and no longer, and fail loudly when it doesn't come.\n        throw new IllegalStateException(\"TODO: awaitReceived\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.HostLog;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\nimport org.jpos.space.TSpace;\nimport java.util.concurrent.TimeoutException;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Space<String, Object> sp = new TSpace<>();\n            HostLog log = new HostLog(sp, \"host.received\");\n            sp.out(\"host.received\", message(\"0800\", \"000501\"));\n            Thread host = new Thread(() -> {\n                try {\n                    Thread.sleep(200);\n                    sp.out(\"host.received\", message(\"0420\", \"000502\"));\n                } catch (Exception e) {\n                    throw new IllegalStateException(e);\n                }\n            });\n            host.start();\n            long t0 = System.currentTimeMillis();\n            ISOMsg got = log.awaitReceived(\"0420\", 3000);\n            System.out.println(\"got: \" + got.getMTI() + \" stan=\" + got.getString(11));\n            System.out.println(\"came before the 3 s timeout: \" + (System.currentTimeMillis() - t0 < 2000));\n            host.join();\n            try {\n                log.awaitReceived(\"0420\", 300);\n                System.out.println(\"second wait: returned\");\n            } catch (TimeoutException e) {\n                System.out.println(\"second wait: \" + e.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg message(String mti, String stan) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(41, \"31415926\");\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,8 +83,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -76,7 +94,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "d1ac231336b27bf1f1fec56ccc8ec409df2f2b201b275f88a532cd07314be28f",
+  "content_sha256": "9566695841d7565adc80689d45319d3ce97bd2690a335c255b9bc5aad3c02c24",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.space.Space;\n\nimport java.util.concurrent.TimeoutException;\n\n/**\n * What the test host received. The host puts every message it receives on one Space queue, in\n * the order they arrive; tests read them from here.\n */\npublic class HostLog {\n    private final Space<String, Object> sp;\n    private final String queue;\n\n    public HostLog(Space<String, Object> sp, String queue) {\n        this.sp = sp;\n        this.queue = queue;\n    }\n\n    /**\n     * The next message of the given type the host receives, taken from the log. Messages of other\n     * types that arrive meanwhile are dropped from the log.\n     */\n    public ISOMsg awaitReceived(String mti, long timeoutMillis)\n            throws TimeoutException, InterruptedException, ISOException {\n        // TODO: today this is Thread.sleep(500) and one look at the log, and it fails on the build\n        //       server now and then. Wait for exactly what the test needs, for as long as it allows\n        //       and no longer, and fail loudly when it doesn't come.\n        throw new IllegalStateException(\"TODO: awaitReceived\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-10/practice-2/src/main/java/com/example/practice/HostLog.java",
@@ -87,7 +105,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-10/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -131,6 +150,10 @@
     },
     "concepts": [
       "q2.ready means deployed, not connected; a test waits for the condition it needs with a blocking read bounded by a deadline, never for a guessed time, and fails loudly when the deadline passes."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-10/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-10/practice-2/src/main/java/TryIt.java"
   }
 }

@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        List<Range> table = ranges;\n        Range best = null;\n        for (Range r : table) {\n            if (holds(r, pan) && (best == null || width(r) < width(best)))\n                best = r;\n        }\n        return best == null ? null : best.destination();\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        ranges = List.copyOf(file);\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        String prefix = pan.substring(0, 8);\n        return prefix.compareTo(r.low()) >= 0 && prefix.compareTo(r.high()) <= 0;\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.RangeRouter;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            RangeRouter router = new RangeRouter();\n            router.reload(List.of(\n                    new RangeRouter.Range(\"34000000\", \"37999999\", \"network-a\"),\n                    new RangeRouter.Range(\"37144900\", \"37144963\", \"own-bank\"),\n                    new RangeRouter.Range(\"60110000\", \"60119999\", \"network-d\")));\n            for (String pan : List.of(\"371449635398431\", \"378282246310005\", \"6011000990139424\", \"3714490012345678\", \"5105105105105100\")) {\n                System.out.println(pan.substring(0, 8) + \"... goes to \" + router.destinationFor(pan));\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        // TODO: The bank's own cards have a range of their own inside the network's range. Every\n        //       card must reach the destination of the range it was issued under.\n        throw new IllegalStateException(\"TODO: destinationFor\");\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        // TODO: The file comes from a parser that reuses its list for the next file. A lookup\n        //       must always see one whole version of the file.\n        throw new IllegalStateException(\"TODO: reload\");\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        // TODO: Decide whether the card is in the range, as the file defines its rows.\n        throw new IllegalStateException(\"TODO: holds\");\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.RangeRouter;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            RangeRouter router = new RangeRouter();\n            router.reload(List.of(\n                    new RangeRouter.Range(\"34000000\", \"37999999\", \"network-a\"),\n                    new RangeRouter.Range(\"37144900\", \"37144963\", \"own-bank\"),\n                    new RangeRouter.Range(\"60110000\", \"60119999\", \"network-d\")));\n            for (String pan : List.of(\"371449635398431\", \"378282246310005\", \"6011000990139424\", \"3714490012345678\", \"5105105105105100\")) {\n                System.out.println(pan.substring(0, 8) + \"... goes to \" + router.destinationFor(pan));\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "b74274e3baf701e5beb08bff5f919082839edfa6eac94c805ab73c65272fe731",
+  "content_sha256": "4d66eaa66d16e1db54e01b3ceb3f63ebff7f1201da61a0f32eeb422fb673558f",
   "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * Routes each authorization by the processor's account-range file. Every row gives the first and\n * the last eight-digit card prefix of a range, both included, and the destination for its cards.\n * Ranges may lie inside other ranges. The file is reloaded while authorizations keep arriving.\n */\npublic class RangeRouter {\n    public record Range(String low, String high, String destination) { }\n\n    private volatile List<Range> ranges = List.of();\n\n    /** Destination for a card number, or null when no range holds it (the switch then answers 14). */\n    public String destinationFor(String pan) {\n        // TODO: The bank's own cards have a range of their own inside the network's range. Every\n        //       card must reach the destination of the range it was issued under.\n        throw new IllegalStateException(\"TODO: destinationFor\");\n    }\n\n    /** Puts a new version of the file into service. */\n    public void reload(List<Range> file) {\n        // TODO: The file comes from a parser that reuses its list for the next file. A lookup\n        //       must always see one whole version of the file.\n        throw new IllegalStateException(\"TODO: reload\");\n    }\n\n    /** Whether this card number belongs to the range. */\n    boolean holds(Range r, String pan) {\n        // TODO: Decide whether the card is in the range, as the file defines its rows.\n        throw new IllegalStateException(\"TODO: holds\");\n    }\n\n    /** How many eight-digit prefixes the range spans. */\n    static long width(Range r) {\n        return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/com/example/practice/RangeRouter.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-11/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -137,6 +156,10 @@
     "concepts": [
       "A card goes to the destination of the most specific entry that holds it, whatever the entry's length or its place in the table.",
       "Routing tables are kept in memory and replaced whole, so a lookup sees one version of the table."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/TryIt.java"
   }
 }

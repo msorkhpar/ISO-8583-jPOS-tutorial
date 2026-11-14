@@ -55,6 +55,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\nimport org.jpos.iso.ISOUtil;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private static final Pattern CANDIDATE =\n            Pattern.compile(\"(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])\");\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /** What a card number can look like in a ticket, written by a person or pasted from a log. */\n    static Pattern candidates() {\n        return CANDIDATE;\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. */\n    static boolean isCardNumber(String digits) {\n        int last = digits.length() - 1;\n        return digits.length() >= 13 && digits.length() <= 19\n                && ISOUtil.calcLUHN(digits.substring(0, last)) == digits.charAt(last);\n    }\n\n    /** The card number as the compliance report may show it. */\n    static String shown(String digits) {\n        return ISOUtil.protect(digits);\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.CardNumberFinder;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String ticket = \"Hi, my card 5105 1051 0510 5100 was charged twice, the other one is 3714-496353-98431.\"\n                    + \" Case ref 4012 8888 8888 1882, order 552019, phone +1 415 555 0132.\";\n            System.out.println(\"ticket: \" + ticket);\n            for (CardNumberFinder.Finding f : CardNumberFinder.find(ticket)) {\n                System.out.println(\"card at \" + f.offset() + \": \" + f.shown());\n            }\n            System.out.println(\"findings in a clean ticket: \" + CardNumberFinder.find(\"Parcel 7731 arrived on 2026-11-02.\"));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -67,6 +76,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /**\n     * What a card number can look like in a ticket, written by a person or pasted from a log.\n     * Every match is a candidate; isCardNumber decides. TODO\n     */\n    static Pattern candidates() {\n        throw new IllegalStateException(\"TODO: candidates\");\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. TODO */\n    static boolean isCardNumber(String digits) {\n        throw new IllegalStateException(\"TODO: isCardNumber\");\n    }\n\n    /** The card number as the compliance report may show it. TODO */\n    static String shown(String digits) {\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.CardNumberFinder;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String ticket = \"Hi, my card 5105 1051 0510 5100 was charged twice, the other one is 3714-496353-98431.\"\n                    + \" Case ref 4012 8888 8888 1882, order 552019, phone +1 415 555 0132.\";\n            System.out.println(\"ticket: \" + ticket);\n            for (CardNumberFinder.Finding f : CardNumberFinder.find(ticket)) {\n                System.out.println(\"card at \" + f.offset() + \": \" + f.shown());\n            }\n            System.out.println(\"findings in a clean ticket: \" + CardNumberFinder.find(\"Parcel 7731 arrived on 2026-11-02.\"));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -74,8 +92,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -85,7 +103,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "b762e97df96a69a42f8bf44395d4d5b14f2997040ad4463684afeafc49c57b93",
+  "content_sha256": "91816abdd5bee4b6d559e5a30911d56ef5b40db2c96e009e41ed3bafd03b4cc3",
   "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\n/** Finds card numbers in support tickets, where people type them as they read them off a card. */\npublic final class CardNumberFinder {\n\n    /** One hit: where it starts in the ticket, and the number as the report may show it. */\n    public record Finding(int offset, String shown) { }\n\n    private CardNumberFinder() { }\n\n    public static List<Finding> find(String ticket) {\n        List<Finding> found = new ArrayList<>();\n        Matcher m = candidates().matcher(ticket);\n        while (m.find()) {\n            String digits = m.group().replaceAll(\"[^0-9]\", \"\");\n            if (isCardNumber(digits))\n                found.add(new Finding(m.start(), shown(digits)));\n        }\n        return found;\n    }\n\n    /**\n     * What a card number can look like in a ticket, written by a person or pasted from a log.\n     * Every match is a candidate; isCardNumber decides. TODO\n     */\n    static Pattern candidates() {\n        throw new IllegalStateException(\"TODO: candidates\");\n    }\n\n    /** Whether these digits, separators already removed, can be a card number. TODO */\n    static boolean isCardNumber(String digits) {\n        throw new IllegalStateException(\"TODO: isCardNumber\");\n    }\n\n    /** The card number as the compliance report may show it. TODO */\n    static String shown(String digits) {\n        throw new IllegalStateException(\"TODO: shown\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/com/example/practice/CardNumberFinder.java",
@@ -96,7 +114,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-13/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -155,6 +174,10 @@
     },
     "concepts": [
       "A card number is 13 to 19 digits that are not part of a longer run and end in a valid Luhn check digit; a scan's hits are places to look at, and its report is masked."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-13/practice-1/src/main/java/TryIt.java"
   }
 }

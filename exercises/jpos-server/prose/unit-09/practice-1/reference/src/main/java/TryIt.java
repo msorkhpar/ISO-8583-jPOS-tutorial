@@ -1,0 +1,104 @@
+import com.example.practice.GiftCards;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger("java.lang.Runtime");
+
+    static final Map<String, Long> BALANCES = new HashMap<>();
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty("java.util.logging.SimpleFormatter.format", "%4$s %5$s%n");
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger("");
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            String card = "6037990000004411";
+            BALANCES.put(card, 12000L);
+            System.out.println("redeem 45.00: " + redeem(card, "000000004500", "000321", false));
+            System.out.println("redeem 90.00: " + redeem(card, "000000009000", "000322", false));
+            System.out.println("redeem 30.00, fraud check declines: " + redeem(card, "000000003000", "000323", true));
+            System.out.println("redeem 75.00: " + redeem(card, "000000007500", "000324", false));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println("Run stopped: " + stopped);
+        }
+    }
+
+    /** Open's connection, Redeem, the fraud check's verdict, then Close on the path the chain takes. */
+    private static String redeem(String card, String amount, String stan, boolean fraud) throws Exception {
+        ISOMsg m = new ISOMsg("0200");
+        m.set(2, card);
+        m.set(3, "000000");
+        m.set(4, amount);
+        m.set(11, stan);
+        m.set(41, "60400117");
+        Context ctx = new Context();
+        Connection conn = connect();
+        conn.setAutoCommit(false);
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        ctx.put(ContextConstants.DB.toString(), conn);
+        ctx.put(ContextConstants.TX.toString(), conn);
+        boolean prepared = (new GiftCards.Redeem().prepare(1L, ctx) & TransactionConstants.PREPARED) != 0;
+        if (prepared && fraud) {
+            ISOMsg declined = (ISOMsg) m.clone();
+            declined.setResponseMTI();
+            declined.set(39, "59");
+            ctx.put(ContextConstants.RESPONSE.toString(), declined);
+        }
+        if (prepared && !fraud) new GiftCards.Close().commit(1L, ctx);
+        else new GiftCards.Close().abort(1L, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return "field 39=" + (r == null ? null : r.getString(39)) + ", balance now " + BALANCES.get(card);
+    }
+
+    /** A connection to a gift_cards table kept in BALANCES: updates stay private until commit. */
+    private static Connection connect() {
+        Map<String, Long> pending = new HashMap<>();
+        boolean[] auto = { true };
+        return (Connection) Proxy.newProxyInstance(TryIt.class.getClassLoader(), new Class<?>[] { Connection.class },
+            (p, m, a) -> switch (m.getName()) {
+                case "setAutoCommit" -> { auto[0] = (Boolean) a[0]; yield null; }
+                case "commit" -> { BALANCES.putAll(pending); pending.clear(); yield null; }
+                case "rollback", "close" -> { pending.clear(); yield null; }
+                case "prepareStatement" -> statement(pending, auto);
+                case "hashCode" -> System.identityHashCode(p);
+                case "equals" -> p == a[0];
+                case "isClosed", "getAutoCommit" -> false;
+                default -> "fake gift_cards connection";
+            });
+    }
+
+    private static PreparedStatement statement(Map<String, Long> pending, boolean[] auto) {
+        Map<Integer, Object> params = new HashMap<>();
+        return (PreparedStatement) Proxy.newProxyInstance(TryIt.class.getClassLoader(), new Class<?>[] { PreparedStatement.class },
+            (p, m, a) -> {
+                if (m.getName().startsWith("set")) params.put((Integer) a[0], a[1]);
+                if (!m.getName().equals("executeUpdate")) return null;
+                String card = (String) params.get(2);
+                long amount = (Long) params.get(1), now = pending.getOrDefault(card, BALANCES.getOrDefault(card, 0L));
+                if (now < amount) return 0;
+                (auto[0] ? BALANCES : pending).put(card, now - amount);
+                return 1;
+            });
+    }
+}

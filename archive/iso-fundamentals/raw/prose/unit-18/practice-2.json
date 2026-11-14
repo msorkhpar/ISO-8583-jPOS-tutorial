@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        return request.getString(2) + \"/\" + request.getString(23);\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        TLVList chip = new TLVList();\n        chip.unpack(request.getBytes(55));\n        byte[] v = chip.getValue(0x9F36);\n        return ((v[0] & 0xFF) << 8) | (v[1] & 0xFF);\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        if (!cryptogramVerified)\n            return Verdict.CRYPTOGRAM_FAILED;\n        Integer last = lastVerified.get(card);\n        if (last != null && atc <= last)\n            return Verdict.REPLAYED;\n        lastVerified.put(card, atc);\n        return Verdict.ACCEPTED;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.AtcGuard;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            AtcGuard guard = new AtcGuard();\n            String pan = \"4012888888881881\";\n            System.out.println(\"card 000, ATC 0x0019: \" + guard.check(request(pan, \"000\", \"0019\"), true));\n            System.out.println(\"card 000, ATC 0x001A: \" + guard.check(request(pan, \"000\", \"001A\"), true));\n            System.out.println(\"card 000, ATC 0x001A again: \" + guard.check(request(pan, \"000\", \"001A\"), true));\n            System.out.println(\"card 000, ATC 0x7000, bad cryptogram: \" + guard.check(request(pan, \"000\", \"7000\"), false));\n            System.out.println(\"card 000, ATC 0x001B: \" + guard.check(request(pan, \"000\", \"001B\"), true));\n            System.out.println(\"replacement card 001, ATC 0x0002: \" + guard.check(request(pan, \"001\", \"0002\"), true));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(String pan, String psn, String atcHex) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, pan);\n        m.set(4, \"000000001875\");\n        m.set(23, psn);\n        m.set(55, ISOUtil.hex2byte(\"9F2608A1B2C3D4E5F60718\" + \"9F270180\" + \"9F3602\" + atcHex));\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        // TODO: two cards can share a card number. Say which one this is.\n        throw new IllegalStateException(\"TODO: card\");\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        // TODO: read the counter the card sent.\n        throw new IllegalStateException(\"TODO: atc\");\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        // TODO: decide, and remember what later requests from this card must be compared with.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.AtcGuard;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            AtcGuard guard = new AtcGuard();\n            String pan = \"4012888888881881\";\n            System.out.println(\"card 000, ATC 0x0019: \" + guard.check(request(pan, \"000\", \"0019\"), true));\n            System.out.println(\"card 000, ATC 0x001A: \" + guard.check(request(pan, \"000\", \"001A\"), true));\n            System.out.println(\"card 000, ATC 0x001A again: \" + guard.check(request(pan, \"000\", \"001A\"), true));\n            System.out.println(\"card 000, ATC 0x7000, bad cryptogram: \" + guard.check(request(pan, \"000\", \"7000\"), false));\n            System.out.println(\"card 000, ATC 0x001B: \" + guard.check(request(pan, \"000\", \"001B\"), true));\n            System.out.println(\"replacement card 001, ATC 0x0002: \" + guard.check(request(pan, \"001\", \"0002\"), true));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(String pan, String psn, String atcHex) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, pan);\n        m.set(4, \"000000001875\");\n        m.set(23, psn);\n        m.set(55, ISOUtil.hex2byte(\"9F2608A1B2C3D4E5F60718\" + \"9F270180\" + \"9F3602\" + atcHex));\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "3ab06c75bdf4c3333747dc93109fefd51d86f3ca52775f413df422e60c8fab5b",
+  "content_sha256": "4d866b1a88afe83df1e1ba15112eca2a2b29547459116a23a774c0a24b0e3854",
   "starting_code": "package com.example.practice;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.tlv.TLVList;\n\n/**\n * The issuer's record of chip counters: for each card, the last application transaction counter\n * (tag 9F36) of an authorization whose cryptogram verified.\n */\npublic final class AtcGuard {\n\n    public enum Verdict {\n        /** The cryptogram verified and the counter is new for this card. */\n        ACCEPTED,\n        /** The cryptogram verified, but this card has already used this counter or a later one. */\n        REPLAYED,\n        /** The HSM did not verify the cryptogram. */\n        CRYPTOGRAM_FAILED\n    }\n\n    private final Map<String, Integer> lastVerified = new HashMap<>();\n\n    /** Called for each chip authorization request, once the HSM has said whether its ARQC verified. */\n    public synchronized Verdict check(ISOMsg request, boolean cryptogramVerified) {\n        return decide(card(request), atc(request), cryptogramVerified);\n    }\n\n    /** What identifies the card whose counter this is. */\n    static String card(ISOMsg request) {\n        // TODO: two cards can share a card number. Say which one this is.\n        throw new IllegalStateException(\"TODO: card\");\n    }\n\n    /** The application transaction counter in DE 55. */\n    static int atc(ISOMsg request) {\n        // TODO: read the counter the card sent.\n        throw new IllegalStateException(\"TODO: atc\");\n    }\n\n    /** The verdict for this counter on this card, keeping the record up to date. */\n    Verdict decide(String card, int atc, boolean cryptogramVerified) {\n        // TODO: decide, and remember what later requests from this card must be compared with.\n        throw new IllegalStateException(\"TODO: decide\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-18/practice-2/src/main/java/com/example/practice/AtcGuard.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-18/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -141,6 +160,10 @@
     },
     "concepts": [
       "A verified cryptogram proves the card but not freshness: only the last verified ATC per card catches a replay, recorded only after verification; the card key needs the PAN sequence number, and a failed cryptogram is a decline."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-18/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-18/practice-2/src/main/java/TryIt.java"
   }
 }

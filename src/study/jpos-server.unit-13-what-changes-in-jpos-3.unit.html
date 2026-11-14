@@ -222,6 +222,89 @@ public class AskIssuer implements TransactionParticipant, Configurable {
         return PREPARED | NO_JOIN | READONLY;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.AskIssuer;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOResponseListener;
+import org.jpos.iso.MUX;
+import org.jpos.rc.Result;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.Date;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            NameRegistrar.register(&quot;mux.tryit-issuer&quot;, new MUX() {
+                @Override
+                public ISOMsg request(ISOMsg m, long timeout) {
+                    System.out.println(&quot;  issuer asked about STAN &quot; + m.getString(11) + &quot; with &quot; + timeout / 1000 + &quot; s to answer&quot;);
+                    ISOMsg r = (ISOMsg) m.clone();
+                    r.set(0, &quot;0210&quot;);
+                    r.set(39, &quot;00&quot;);
+                    return r;
+                }
+                @Override public void request(ISOMsg m, long t, ISOResponseListener l, Object h) { }
+                @Override public void send(ISOMsg m) { }
+                @Override public boolean isConnected() { return true; }
+            });
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;mux&quot;, &quot;tryit-issuer&quot;);
+            cfg.put(&quot;terminal-wait&quot;, &quot;20000&quot;);
+            AskIssuer ask = new AskIssuer();
+            ask.setConfiguration(cfg);
+            System.out.println(&quot;arrived just now: &quot; + run(ask, &quot;007301&quot;, 0));
+            System.out.println(&quot;arrived 12 s ago: &quot; + run(ask, &quot;007302&quot;, 12_000));
+            System.out.println(&quot;arrived 25 s ago: &quot; + run(ask, &quot;007303&quot;, 25_000));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;mux.tryit-issuer&quot;);
+        }
+    }
+
+    private static String run(AskIssuer ask, String stan, long ageMs) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4012888888881881&quot;);
+        m.set(3, &quot;010000&quot;);
+        m.set(4, &quot;000000006000&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;ATM00562&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        ctx.put(ContextConstants.TIMESTAMP.toString(), new Date(System.currentTimeMillis() - ageMs));
+        int vote = ask.prepare(1L, ctx);
+        if ((vote &amp; TransactionConstants.PREPARED) != 0) {
+            ISOMsg answer = ctx.get(AskIssuer.ISSUER_RESPONSE);
+            return &quot;goes on, issuer answered &quot; + (answer == null ? null : answer.getString(39));
+        }
+        Result.Entry failure = ctx.getResult().failure();
+        return &quot;stops, cause &quot; + (failure == null ? &quot;none recorded&quot; : failure.getIrc());
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -287,10 +370,94 @@ public class AskIssuer implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.AskIssuer;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOResponseListener;
+import org.jpos.iso.MUX;
+import org.jpos.rc.Result;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.Date;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            NameRegistrar.register(&quot;mux.tryit-issuer&quot;, new MUX() {
+                @Override
+                public ISOMsg request(ISOMsg m, long timeout) {
+                    System.out.println(&quot;  issuer asked about STAN &quot; + m.getString(11) + &quot; with &quot; + timeout / 1000 + &quot; s to answer&quot;);
+                    ISOMsg r = (ISOMsg) m.clone();
+                    r.set(0, &quot;0210&quot;);
+                    r.set(39, &quot;00&quot;);
+                    return r;
+                }
+                @Override public void request(ISOMsg m, long t, ISOResponseListener l, Object h) { }
+                @Override public void send(ISOMsg m) { }
+                @Override public boolean isConnected() { return true; }
+            });
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;mux&quot;, &quot;tryit-issuer&quot;);
+            cfg.put(&quot;terminal-wait&quot;, &quot;20000&quot;);
+            AskIssuer ask = new AskIssuer();
+            ask.setConfiguration(cfg);
+            System.out.println(&quot;arrived just now: &quot; + run(ask, &quot;007301&quot;, 0));
+            System.out.println(&quot;arrived 12 s ago: &quot; + run(ask, &quot;007302&quot;, 12_000));
+            System.out.println(&quot;arrived 25 s ago: &quot; + run(ask, &quot;007303&quot;, 25_000));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;mux.tryit-issuer&quot;);
+        }
+    }
+
+    private static String run(AskIssuer ask, String stan, long ageMs) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4012888888881881&quot;);
+        m.set(3, &quot;010000&quot;);
+        m.set(4, &quot;000000006000&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;ATM00562&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        ctx.put(ContextConstants.TIMESTAMP.toString(), new Date(System.currentTimeMillis() - ageMs));
+        int vote = ask.prepare(1L, ctx);
+        if ((vote &amp; TransactionConstants.PREPARED) != 0) {
+            ISOMsg answer = ctx.get(AskIssuer.ISSUER_RESPONSE);
+            return &quot;goes on, issuer answered &quot; + (answer == null ? null : answer.getString(39));
+        }
+        Result.Entry failure = ctx.getResult().failure();
+        return &quot;stops, cause &quot; + (failure == null ? &quot;none recorded&quot; : failure.getIrc());
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-13/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-13/practice-1/src/main/java/com/example/practice/AskIssuer.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-13/practice-1/src/main/java/com/example/practice/AskIssuer.java</code> and <code>practice/jpos-server/prose/unit-13/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-13/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

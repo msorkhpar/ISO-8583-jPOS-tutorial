@@ -46,6 +46,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        workers.execute(() -> answer(source, m));\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        return Executors.newFixedThreadPool(16);\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.CardCheckListener;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport java.util.concurrent.BlockingQueue;\nimport java.util.concurrent.LinkedBlockingQueue;\nimport java.util.concurrent.TimeUnit;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            CardCheckListener listener = new CardCheckListener(pan -> {\n                if (pan.startsWith(\"4000\")) Thread.sleep(1500);\n                return pan.startsWith(\"6011\");\n            });\n            BlockingQueue<String> till = new LinkedBlockingQueue<>();\n            ISOSource connection = new ISOSource() {\n                @Override public void send(ISOMsg r) { till.add(r.getString(11) + \" 39=\" + r.getString(39)); }\n                @Override public boolean isConnected() { return true; }\n            };\n            long t0 = System.nanoTime();\n            System.out.println(\"slow lookup taken: \" + listener.process(connection, purchase(\"4000056655665556\", \"001301\")));\n            System.out.println(\"process returned at once: \" + ((System.nanoTime() - t0) / 1_000_000 < 500));\n            listener.process(connection, purchase(\"6011000990139424\", \"001302\"));\n            System.out.println(\"first answer: \" + till.poll(5, TimeUnit.SECONDS));\n            System.out.println(\"second answer: \" + till.poll(5, TimeUnit.SECONDS));\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.set(11, \"001303\");\n            System.out.println(\"0800 taken: \" + listener.process(connection, echo));\n            System.exit(0); // the listener keeps its lookup threads and offers no way to stop them\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String pan, String stan) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, \"000000002215\");\n        m.set(11, stan);\n        m.set(41, \"POS00916\");\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -58,6 +67,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        // TODO: This is what the listener does today, and on busy connections purchases time\n        //       out. Keep the answer the same, and stop making the connection wait for the\n        //       lookup. (two or three lines)\n        answer(source, m);\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        // TODO: One listener object serves every connection of the server, and lookups take\n        //       seconds. (one line)\n        throw new IllegalStateException(\"TODO: newWorkers\");\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.CardCheckListener;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport java.util.concurrent.BlockingQueue;\nimport java.util.concurrent.LinkedBlockingQueue;\nimport java.util.concurrent.TimeUnit;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            CardCheckListener listener = new CardCheckListener(pan -> {\n                if (pan.startsWith(\"4000\")) Thread.sleep(1500);\n                return pan.startsWith(\"6011\");\n            });\n            BlockingQueue<String> till = new LinkedBlockingQueue<>();\n            ISOSource connection = new ISOSource() {\n                @Override public void send(ISOMsg r) { till.add(r.getString(11) + \" 39=\" + r.getString(39)); }\n                @Override public boolean isConnected() { return true; }\n            };\n            long t0 = System.nanoTime();\n            System.out.println(\"slow lookup taken: \" + listener.process(connection, purchase(\"4000056655665556\", \"001301\")));\n            System.out.println(\"process returned at once: \" + ((System.nanoTime() - t0) / 1_000_000 < 500));\n            listener.process(connection, purchase(\"6011000990139424\", \"001302\"));\n            System.out.println(\"first answer: \" + till.poll(5, TimeUnit.SECONDS));\n            System.out.println(\"second answer: \" + till.poll(5, TimeUnit.SECONDS));\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.set(11, \"001303\");\n            System.out.println(\"0800 taken: \" + listener.process(connection, echo));\n            System.exit(0); // the listener keeps its lookup threads and offers no way to stop them\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String pan, String stan) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"000000\");\n        m.set(4, \"000000002215\");\n        m.set(11, stan);\n        m.set(41, \"POS00916\");\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,8 +83,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -76,7 +94,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "daa08b10c7c1b3fdef45c720ca3319078979370194aadf978832f1d9dae91855",
+  "content_sha256": "e6c66994ce150698f8e986e581f9e00b6f174e316b93627eebbff3d500adab4e",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\n\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\n/** Answers purchases itself after checking the card against the blocked-card table. */\npublic class CardCheckListener implements ISORequestListener {\n\n    /** The blocked-card table. Under load a lookup takes seconds. */\n    public interface CardTable {\n        boolean isBlocked(String pan) throws Exception;\n    }\n\n    private final CardTable cards;\n    private final ExecutorService workers;\n\n    public CardCheckListener(CardTable cards) {\n        this.cards = cards;\n        this.workers = newWorkers();\n    }\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!isPurchase(m))\n            return false;\n        // TODO: This is what the listener does today, and on busy connections purchases time\n        //       out. Keep the answer the same, and stop making the connection wait for the\n        //       lookup. (two or three lines)\n        answer(source, m);\n        return true;\n    }\n\n    /** The threads that run the lookups, created once for the listener. */\n    ExecutorService newWorkers() {\n        // TODO: One listener object serves every connection of the server, and lookups take\n        //       seconds. (one line)\n        throw new IllegalStateException(\"TODO: newWorkers\");\n    }\n\n    /** Looks the card up and answers the purchase through the connection given. */\n    void answer(ISOSource source, ISOMsg m) {\n        try {\n            ISOMsg r = (ISOMsg) m.clone();\n            r.setResponseMTI();\n            r.set(39, cards.isBlocked(m.getString(2)) ? \"62\" : \"00\");\n            source.send(r);\n        } catch (Exception e) {\n            // no answer can be built or sent; the terminal times out and reverses\n        }\n    }\n\n    static boolean isPurchase(ISOMsg m) {\n        try {\n            return \"0200\".equals(m.getMTI());\n        } catch (ISOException e) {\n            return false;\n        }\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-server/prose/unit-03/practice-2/src/main/java/com/example/practice/CardCheckListener.java",
@@ -87,7 +105,8 @@
       "-q",
       "-f",
       "practice/jpos-server/prose/unit-03/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -126,6 +145,10 @@
     },
     "concepts": [
       "A listener runs on its connection's only reader thread, so slow work in it delays every later message on that connection but not other connections; slow work is handed off."
-    ]
+    ],
+    "files": [
+      "practice/jpos-server/prose/unit-03/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-server/prose/unit-03/practice-2/src/main/java/TryIt.java"
   }
 }

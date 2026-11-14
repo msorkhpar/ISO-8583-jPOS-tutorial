@@ -300,6 +300,75 @@ public class VelocityLimit implements TransactionParticipant, Configurable {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.VelocityLimit;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            VelocityLimit.DailyCounts counts = new VelocityLimit.DailyCounts(3);
+            NameRegistrar.register(&quot;tryit-counts&quot;, counts);
+            VelocityLimit limit = new VelocityLimit();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;counts&quot;, &quot;tryit-counts&quot;);
+            limit.setConfiguration(cfg);
+            String card = &quot;4111111111111111&quot;;
+            System.out.println(&quot;purchase 1 declined by authorizer: &quot; + run(limit, card, &quot;000401&quot;, true));
+            for (int i = 2; i &lt;= 5; i++)
+                System.out.println(&quot;purchase &quot; + i + &quot;: &quot; + run(limit, card, &quot;00040&quot; + i, false));
+            System.out.println(&quot;count for the card: &quot; + counts.count(card));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit-counts&quot;);
+        }
+    }
+
+    private static String run(VelocityLimit limit, String card, String stan, boolean declined) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, card);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001275&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;60400017&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int result = limit.prepare(1L, ctx);
+        if ((result &amp; TransactionConstants.PREPARED) == 0)
+            return &quot;refused, field 39=&quot; + ((ISOMsg) ctx.get(ContextConstants.RESPONSE.toString())).getString(39);
+        if (declined) {
+            limit.abort(1L, ctx);
+            return &quot;prepared, then aborted&quot;;
+        }
+        return &quot;prepared, goes on to the authorizer&quot;;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -386,10 +455,80 @@ public class VelocityLimit implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.VelocityLimit;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            VelocityLimit.DailyCounts counts = new VelocityLimit.DailyCounts(3);
+            NameRegistrar.register(&quot;tryit-counts&quot;, counts);
+            VelocityLimit limit = new VelocityLimit();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;counts&quot;, &quot;tryit-counts&quot;);
+            limit.setConfiguration(cfg);
+            String card = &quot;4111111111111111&quot;;
+            System.out.println(&quot;purchase 1 declined by authorizer: &quot; + run(limit, card, &quot;000401&quot;, true));
+            for (int i = 2; i &lt;= 5; i++)
+                System.out.println(&quot;purchase &quot; + i + &quot;: &quot; + run(limit, card, &quot;00040&quot; + i, false));
+            System.out.println(&quot;count for the card: &quot; + counts.count(card));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit-counts&quot;);
+        }
+    }
+
+    private static String run(VelocityLimit limit, String card, String stan, boolean declined) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, card);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001275&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;60400017&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int result = limit.prepare(1L, ctx);
+        if ((result &amp; TransactionConstants.PREPARED) == 0)
+            return &quot;refused, field 39=&quot; + ((ISOMsg) ctx.get(ContextConstants.RESPONSE.toString())).getString(39);
+        if (declined) {
+            limit.abort(1L, ctx);
+            return &quot;prepared, then aborted&quot;;
+        }
+        return &quot;prepared, goes on to the authorizer&quot;;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-04/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-04/practice-1/src/main/java/com/example/practice/VelocityLimit.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-04/practice-1/src/main/java/com/example/practice/VelocityLimit.java</code> and <code>practice/jpos-server/prose/unit-04/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-04/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -735,6 +874,82 @@ public class ScoreFraud implements TransactionParticipant, Configurable {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ScoreFraud;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        try {
+            ScoreFraud.Scorer scorer = (request, listener, handBack) -&gt; service.submit(() -&gt; {
+                String stan = request.getString(11);
+                if (stan.endsWith(&quot;3&quot;)) listener.unavailable(handBack);
+                else listener.scored(stan.endsWith(&quot;1&quot;) ? 815 : 175, handBack);
+            });
+            NameRegistrar.register(&quot;tryit-scorer&quot;, scorer);
+            ScoreFraud score = new ScoreFraud();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;scorer&quot;, &quot;tryit-scorer&quot;);
+            score.setConfiguration(cfg);
+            Context[] contexts = new Context[3];
+            for (int i = 0; i &lt; 3; i++) {
+                contexts[i] = context(&quot;00072&quot; + (i + 1));
+                int result = score.prepare(i, contexts[i]);
+                System.out.println(&quot;purchase &quot; + (i + 1) + &quot; paused: &quot; + ((result &amp; TransactionConstants.PAUSE) != 0));
+            }
+            service.shutdown();
+            service.awaitTermination(5, TimeUnit.SECONDS);
+            for (int i = 0; i &lt; 3; i++)
+                System.out.println(&quot;purchase &quot; + (i + 1) + &quot; score: &quot; + contexts[i].get(&quot;SCORE&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            service.shutdownNow();
+            NameRegistrar.unregister(&quot;tryit-scorer&quot;);
+        }
+    }
+
+    private static Context context(String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;5454545454545454&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000004260&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;60400022&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        return ctx;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -807,10 +1022,87 @@ public class ScoreFraud implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ScoreFraud;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        try {
+            ScoreFraud.Scorer scorer = (request, listener, handBack) -&gt; service.submit(() -&gt; {
+                String stan = request.getString(11);
+                if (stan.endsWith(&quot;3&quot;)) listener.unavailable(handBack);
+                else listener.scored(stan.endsWith(&quot;1&quot;) ? 815 : 175, handBack);
+            });
+            NameRegistrar.register(&quot;tryit-scorer&quot;, scorer);
+            ScoreFraud score = new ScoreFraud();
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;scorer&quot;, &quot;tryit-scorer&quot;);
+            score.setConfiguration(cfg);
+            Context[] contexts = new Context[3];
+            for (int i = 0; i &lt; 3; i++) {
+                contexts[i] = context(&quot;00072&quot; + (i + 1));
+                int result = score.prepare(i, contexts[i]);
+                System.out.println(&quot;purchase &quot; + (i + 1) + &quot; paused: &quot; + ((result &amp; TransactionConstants.PAUSE) != 0));
+            }
+            service.shutdown();
+            service.awaitTermination(5, TimeUnit.SECONDS);
+            for (int i = 0; i &lt; 3; i++)
+                System.out.println(&quot;purchase &quot; + (i + 1) + &quot; score: &quot; + contexts[i].get(&quot;SCORE&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            service.shutdownNow();
+            NameRegistrar.unregister(&quot;tryit-scorer&quot;);
+        }
+    }
+
+    private static Context context(String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;5454545454545454&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000004260&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;60400022&quot;);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        return ctx;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-04/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-04/practice-2/src/main/java/com/example/practice/ScoreFraud.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-04/practice-2/src/main/java/com/example/practice/ScoreFraud.java</code> and <code>practice/jpos-server/prose/unit-04/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-04/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

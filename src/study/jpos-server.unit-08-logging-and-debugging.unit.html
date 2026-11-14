@@ -311,6 +311,79 @@ public class CardExpiry extends Log implements TransactionParticipant, Configura
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.CardExpiry;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.ProtectedLogListener;
+import org.jpos.util.SimpleLogListener;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ProtectedLogListener protect = new ProtectedLogListener();
+            SimpleConfiguration p = new SimpleConfiguration();
+            p.put(&quot;protect&quot;, &quot;2 35 45&quot;);
+            p.put(&quot;wipe&quot;, &quot;52 55&quot;);
+            protect.setConfiguration(p);
+            org.jpos.util.Logger q2 = new org.jpos.util.Logger();
+            q2.setName(&quot;tryit-q2&quot;);
+            q2.addListener(protect);
+            q2.addListener(new SimpleLogListener(System.out));
+            CardExpiry expiry = new CardExpiry();
+            expiry.setLogger(q2, &quot;card-expiry&quot;);
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;this-month&quot;, &quot;2027-02&quot;);
+            expiry.setConfiguration(cfg);
+            System.out.println(&quot;expiry 2701: &quot; + run(expiry, 4402L, &quot;000732&quot;, &quot;2701&quot;));
+            System.out.println(&quot;expiry 2713: &quot; + run(expiry, 4403L, &quot;000733&quot;, &quot;2713&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String run(CardExpiry expiry, long id, String stan, String field14) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4917610000000000&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000002210&quot;);
+        m.set(11, stan);
+        m.set(14, field14);
+        m.set(35, &quot;4917610000000000=27121010000000000000&quot;);
+        m.set(41, &quot;60400108&quot;);
+        m.set(52, ISOUtil.hex2byte(&quot;19A4C7720E5B3F80&quot;));
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int vote = expiry.prepare(id, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return ((vote &amp; TransactionConstants.PREPARED) != 0 ? &quot;prepared&quot; : &quot;aborted&quot;)
+                + (r == null ? &quot;&quot; : &quot;, field 39=&quot; + r.getString(39));
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -380,10 +453,84 @@ public class CardExpiry extends Log implements TransactionParticipant, Configura
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.CardExpiry;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.ProtectedLogListener;
+import org.jpos.util.SimpleLogListener;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ProtectedLogListener protect = new ProtectedLogListener();
+            SimpleConfiguration p = new SimpleConfiguration();
+            p.put(&quot;protect&quot;, &quot;2 35 45&quot;);
+            p.put(&quot;wipe&quot;, &quot;52 55&quot;);
+            protect.setConfiguration(p);
+            org.jpos.util.Logger q2 = new org.jpos.util.Logger();
+            q2.setName(&quot;tryit-q2&quot;);
+            q2.addListener(protect);
+            q2.addListener(new SimpleLogListener(System.out));
+            CardExpiry expiry = new CardExpiry();
+            expiry.setLogger(q2, &quot;card-expiry&quot;);
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;this-month&quot;, &quot;2027-02&quot;);
+            expiry.setConfiguration(cfg);
+            System.out.println(&quot;expiry 2701: &quot; + run(expiry, 4402L, &quot;000732&quot;, &quot;2701&quot;));
+            System.out.println(&quot;expiry 2713: &quot; + run(expiry, 4403L, &quot;000733&quot;, &quot;2713&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String run(CardExpiry expiry, long id, String stan, String field14) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4917610000000000&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000002210&quot;);
+        m.set(11, stan);
+        m.set(14, field14);
+        m.set(35, &quot;4917610000000000=27121010000000000000&quot;);
+        m.set(41, &quot;60400108&quot;);
+        m.set(52, ISOUtil.hex2byte(&quot;19A4C7720E5B3F80&quot;));
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int vote = expiry.prepare(id, ctx);
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return ((vote &amp; TransactionConstants.PREPARED) != 0 ? &quot;prepared&quot; : &quot;aborted&quot;)
+                + (r == null ? &quot;&quot; : &quot;, field 39=&quot; + r.getString(39));
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-08/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-08/practice-1/src/main/java/com/example/practice/CardExpiry.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-08/practice-1/src/main/java/com/example/practice/CardExpiry.java</code> and <code>practice/jpos-server/prose/unit-08/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-08/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -541,6 +688,46 @@ public class StuckWatch {
         return nowMillis - since &gt; limitMillis ? tail : -1;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.StuckWatch;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            StuckWatch night = new StuckWatch(20_000);
+            System.out.println(&quot;night, idle at 0 s: &quot; + night.poll(97, 97, 0));
+            System.out.println(&quot;night, idle at 60 s: &quot; + night.poll(97, 97, 60_000));
+            System.out.println(&quot;night, 97 running at 75 s: &quot; + night.poll(98, 97, 75_000));
+            System.out.println(&quot;night, 97 still running at 100 s: &quot; + night.poll(98, 97, 100_000));
+            StuckWatch lunch = new StuckWatch(20_000);
+            long[][] polls = { { 1520, 1511 }, { 1534, 1522 }, { 1549, 1530 }, { 1561, 1544 } };
+            for (int i = 0; i &lt; polls.length; i++)
+                System.out.println(&quot;lunch, poll at &quot; + i * 15 + &quot; s: &quot; + lunch.poll(polls[i][0], polls[i][1], i * 15_000L));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -566,10 +753,51 @@ public class StuckWatch {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.StuckWatch;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            StuckWatch night = new StuckWatch(20_000);
+            System.out.println(&quot;night, idle at 0 s: &quot; + night.poll(97, 97, 0));
+            System.out.println(&quot;night, idle at 60 s: &quot; + night.poll(97, 97, 60_000));
+            System.out.println(&quot;night, 97 running at 75 s: &quot; + night.poll(98, 97, 75_000));
+            System.out.println(&quot;night, 97 still running at 100 s: &quot; + night.poll(98, 97, 100_000));
+            StuckWatch lunch = new StuckWatch(20_000);
+            long[][] polls = { { 1520, 1511 }, { 1534, 1522 }, { 1549, 1530 }, { 1561, 1544 } };
+            for (int i = 0; i &lt; polls.length; i++)
+                System.out.println(&quot;lunch, poll at &quot; + i * 15 + &quot; s: &quot; + lunch.poll(polls[i][0], polls[i][1], i * 15_000L));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-08/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-08/practice-2/src/main/java/com/example/practice/StuckWatch.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-08/practice-2/src/main/java/com/example/practice/StuckWatch.java</code> and <code>practice/jpos-server/prose/unit-08/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-08/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

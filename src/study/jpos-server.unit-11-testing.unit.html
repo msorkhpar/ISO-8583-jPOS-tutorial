@@ -198,6 +198,82 @@ public class HoldFundsChecks {
             throw new AssertionError(what + &quot;: expected &quot; + expected + &quot; but was &quot; + actual);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.HoldFundsChecks;
+import org.jpos.iso.ISOMsg;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            for (String flaw : new String[] { &quot;none&quot;, &quot;keeps-declined&quot;, &quot;refund-on-refusal&quot;, &quot;silent-refusal&quot; }) {
+                try {
+                    HoldFundsChecks.checkAll(() -&gt; new Simulated(flaw));
+                    System.out.println(&quot;flaw &quot; + flaw + &quot;: all checks pass&quot;);
+                } catch (AssertionError caught) {
+                    System.out.println(&quot;flaw &quot; + flaw + &quot;: caught, &quot; + caught.getMessage());
+                }
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** A chain of HoldFunds, the issuer and SendResponse, simulated in memory, with one flaw or none. */
+    private static final class Simulated implements HoldFundsChecks.Chain {
+        private final Map&lt;String, Long&gt; balances = new HashMap&lt;&gt;();
+        private final String flaw;
+        private String issuer = &quot;00&quot;;
+
+        Simulated(String flaw) {
+            this.flaw = flaw;
+        }
+
+        @Override public void open(String card, long balance) { balances.put(card, balance); }
+        @Override public long balance(String card) { return balances.getOrDefault(card, 0L); }
+        @Override public void issuerAnswers(String responseCode) { issuer = responseCode; }
+
+        @Override
+        public ISOMsg send(ISOMsg request) throws Exception {
+            String card = request.getString(2);
+            long amount = Long.parseLong(request.getString(4));
+            String rc = issuer;
+            if (balance(card) &lt; amount) {
+                if (flaw.equals(&quot;refund-on-refusal&quot;)) balances.merge(card, amount, Long::sum);
+                if (flaw.equals(&quot;silent-refusal&quot;)) return null;
+                rc = &quot;51&quot;;
+            } else {
+                balances.merge(card, -amount, Long::sum);
+                if (!rc.equals(&quot;00&quot;) &amp;&amp; !flaw.equals(&quot;keeps-declined&quot;)) balances.merge(card, amount, Long::sum);
+            }
+            ISOMsg answer = (ISOMsg) request.clone();
+            answer.setResponseMTI();
+            answer.set(39, rc);
+            return answer;
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b5">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -284,10 +360,87 @@ public class HoldFundsChecks {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.HoldFundsChecks;
+import org.jpos.iso.ISOMsg;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            for (String flaw : new String[] { &quot;none&quot;, &quot;keeps-declined&quot;, &quot;refund-on-refusal&quot;, &quot;silent-refusal&quot; }) {
+                try {
+                    HoldFundsChecks.checkAll(() -&gt; new Simulated(flaw));
+                    System.out.println(&quot;flaw &quot; + flaw + &quot;: all checks pass&quot;);
+                } catch (AssertionError caught) {
+                    System.out.println(&quot;flaw &quot; + flaw + &quot;: caught, &quot; + caught.getMessage());
+                }
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** A chain of HoldFunds, the issuer and SendResponse, simulated in memory, with one flaw or none. */
+    private static final class Simulated implements HoldFundsChecks.Chain {
+        private final Map&lt;String, Long&gt; balances = new HashMap&lt;&gt;();
+        private final String flaw;
+        private String issuer = &quot;00&quot;;
+
+        Simulated(String flaw) {
+            this.flaw = flaw;
+        }
+
+        @Override public void open(String card, long balance) { balances.put(card, balance); }
+        @Override public long balance(String card) { return balances.getOrDefault(card, 0L); }
+        @Override public void issuerAnswers(String responseCode) { issuer = responseCode; }
+
+        @Override
+        public ISOMsg send(ISOMsg request) throws Exception {
+            String card = request.getString(2);
+            long amount = Long.parseLong(request.getString(4));
+            String rc = issuer;
+            if (balance(card) &lt; amount) {
+                if (flaw.equals(&quot;refund-on-refusal&quot;)) balances.merge(card, amount, Long::sum);
+                if (flaw.equals(&quot;silent-refusal&quot;)) return null;
+                rc = &quot;51&quot;;
+            } else {
+                balances.merge(card, -amount, Long::sum);
+                if (!rc.equals(&quot;00&quot;) &amp;&amp; !flaw.equals(&quot;keeps-declined&quot;)) balances.merge(card, amount, Long::sum);
+            }
+            ISOMsg answer = (ISOMsg) request.clone();
+            answer.setResponseMTI();
+            answer.set(39, rc);
+            return answer;
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-11/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-11/practice-1/src/main/java/com/example/practice/HoldFundsChecks.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-11/practice-1/src/main/java/com/example/practice/HoldFundsChecks.java</code> and <code>practice/jpos-server/prose/unit-11/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-11/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -511,6 +664,95 @@ public class InFlightChecks {
             throw new AssertionError(what + &quot;: expected &quot; + expected + &quot; but was &quot; + actual);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.InFlightChecks;
+import org.jpos.iso.ISOMsg;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            for (boolean shares : new boolean[] { false, true }) {
+                String name = shares ? &quot;CardStatus keeping the request in a field&quot; : &quot;CardStatus keeping it local&quot;;
+                try {
+                    InFlightChecks.checkAll(() -&gt; new Simulated(shares));
+                    System.out.println(name + &quot;: all checks pass&quot;);
+                } catch (AssertionError caught) {
+                    System.out.println(name + &quot;: caught, &quot; + caught.getMessage());
+                }
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** CardStatus and SendResponse simulated in memory, two transactions at a time. */
+    private static final class Simulated implements InFlightChecks.Chain {
+        private final boolean shares;
+        private final AtomicBoolean holdNext = new AtomicBoolean();
+        private volatile CountDownLatch held = new CountDownLatch(1), release = new CountDownLatch(1);
+        private volatile ISOMsg shared;
+
+        Simulated(boolean shares) {
+            this.shares = shares;
+        }
+
+        private ISOMsg process(ISOMsg request) throws Exception {
+            shared = request;
+            if (holdNext.getAndSet(false)) {
+                held.countDown();
+                release.await(5, TimeUnit.SECONDS);
+            }
+            ISOMsg answer = (ISOMsg) (shares ? shared : request).clone();
+            answer.setResponseMTI();
+            answer.set(39, &quot;00&quot;);
+            return answer;
+        }
+
+        @Override public ISOMsg send(ISOMsg request) throws Exception { return process(request); }
+
+        @Override
+        public InFlightChecks.Pending start(ISOMsg request) {
+            CompletableFuture&lt;ISOMsg&gt; f = CompletableFuture.supplyAsync(() -&gt; {
+                try { return process(request); } catch (Exception e) { throw new IllegalStateException(e); }
+            });
+            return () -&gt; f.get(10, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void holdNextLookup() {
+            held = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+            holdNext.set(true);
+        }
+
+        @Override public void awaitHeldLookup() throws Exception { held.await(5, TimeUnit.SECONDS); }
+        @Override public void releaseLookup() { release.countDown(); }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b5">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -598,10 +840,100 @@ public class InFlightChecks {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.InFlightChecks;
+import org.jpos.iso.ISOMsg;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            for (boolean shares : new boolean[] { false, true }) {
+                String name = shares ? &quot;CardStatus keeping the request in a field&quot; : &quot;CardStatus keeping it local&quot;;
+                try {
+                    InFlightChecks.checkAll(() -&gt; new Simulated(shares));
+                    System.out.println(name + &quot;: all checks pass&quot;);
+                } catch (AssertionError caught) {
+                    System.out.println(name + &quot;: caught, &quot; + caught.getMessage());
+                }
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** CardStatus and SendResponse simulated in memory, two transactions at a time. */
+    private static final class Simulated implements InFlightChecks.Chain {
+        private final boolean shares;
+        private final AtomicBoolean holdNext = new AtomicBoolean();
+        private volatile CountDownLatch held = new CountDownLatch(1), release = new CountDownLatch(1);
+        private volatile ISOMsg shared;
+
+        Simulated(boolean shares) {
+            this.shares = shares;
+        }
+
+        private ISOMsg process(ISOMsg request) throws Exception {
+            shared = request;
+            if (holdNext.getAndSet(false)) {
+                held.countDown();
+                release.await(5, TimeUnit.SECONDS);
+            }
+            ISOMsg answer = (ISOMsg) (shares ? shared : request).clone();
+            answer.setResponseMTI();
+            answer.set(39, &quot;00&quot;);
+            return answer;
+        }
+
+        @Override public ISOMsg send(ISOMsg request) throws Exception { return process(request); }
+
+        @Override
+        public InFlightChecks.Pending start(ISOMsg request) {
+            CompletableFuture&lt;ISOMsg&gt; f = CompletableFuture.supplyAsync(() -&gt; {
+                try { return process(request); } catch (Exception e) { throw new IllegalStateException(e); }
+            });
+            return () -&gt; f.get(10, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void holdNextLookup() {
+            held = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+            holdNext.set(true);
+        }
+
+        @Override public void awaitHeldLookup() throws Exception { held.await(5, TimeUnit.SECONDS); }
+        @Override public void releaseLookup() { release.countDown(); }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-11/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-11/practice-2/src/main/java/com/example/practice/InFlightChecks.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-11/practice-2/src/main/java/com/example/practice/InFlightChecks.java</code> and <code>practice/jpos-server/prose/unit-11/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-11/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

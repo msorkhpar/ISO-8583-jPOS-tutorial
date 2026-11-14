@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        if (!member.isConnected())\n            return false;\n        if (!checkEnabled)\n            return true;\n        Object ready = sp.rdp(member.getReadyIndicatorNames()[0]);\n        return sp.rdp(member.getName() + \".enabled\") == ready;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.PoolMonitor;\nimport org.jdom2.Element;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceFactory;\nimport java.util.Date;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            @SuppressWarnings(\"unchecked\")\n            LocalSpace<String, Object> sp = (LocalSpace<String, Object>) SpaceFactory.getSpace(\"tspace:tryit\");\n            QMUX north = mux(\"north-mux\", \"north-link\");\n            QMUX south = mux(\"south-mux\", \"south-link\");\n            try {\n                PoolMonitor monitor = new PoolMonitor(sp, true, north, south);\n                System.out.println(\"both down: \" + monitor.skipped());\n                Date n1 = new Date(1_763_200_000_000L);\n                Date s1 = new Date(1_763_200_003_000L);\n                sp.put(\"north-link.ready\", n1);\n                sp.put(\"south-link.ready\", s1);\n                System.out.println(\"connected, no sign-on: \" + monitor.skipped());\n                sp.put(\"north-mux.enabled\", n1);\n                sp.put(\"south-mux.enabled\", s1);\n                System.out.println(\"both signed on: \" + monitor.skipped());\n                sp.put(\"south-link.ready\", new Date(1_763_200_060_000L));\n                System.out.println(\"south reconnected: \" + monitor.skipped());\n                System.out.println(\"without check-enabled: \" + new PoolMonitor(sp, false, north, south).skipped());\n            } finally {\n                north.stop();\n                south.stop();\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static QMUX mux(String name, String link) throws Exception {\n        Element e = new Element(\"mux\");\n        e.addContent(new Element(\"space\").setText(\"tspace:tryit\"));\n        e.addContent(new Element(\"in\").setText(link + \"-receive\"));\n        e.addContent(new Element(\"out\").setText(link + \"-send\"));\n        e.addContent(new Element(\"ready\").setText(link + \".ready\"));\n        QMUX q = new QMUX();\n        q.setName(name);\n        q.setPersist(e);\n        q.setConfiguration(new SimpleConfiguration());\n        q.init();\n        q.start();\n        return q;\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        // TODO: Answer the way the pool decides, so that the alert and the pool never disagree.\n        //       The pool was deployed with the same space and the same check-enabled setting\n        //       as this monitor. member.getReadyIndicatorNames()[0] is the key its adaptor\n        //       writes when it connects.\n        throw new IllegalStateException(\"TODO: inUse\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.PoolMonitor;\nimport org.jdom2.Element;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceFactory;\nimport java.util.Date;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            @SuppressWarnings(\"unchecked\")\n            LocalSpace<String, Object> sp = (LocalSpace<String, Object>) SpaceFactory.getSpace(\"tspace:tryit\");\n            QMUX north = mux(\"north-mux\", \"north-link\");\n            QMUX south = mux(\"south-mux\", \"south-link\");\n            try {\n                PoolMonitor monitor = new PoolMonitor(sp, true, north, south);\n                System.out.println(\"both down: \" + monitor.skipped());\n                Date n1 = new Date(1_763_200_000_000L);\n                Date s1 = new Date(1_763_200_003_000L);\n                sp.put(\"north-link.ready\", n1);\n                sp.put(\"south-link.ready\", s1);\n                System.out.println(\"connected, no sign-on: \" + monitor.skipped());\n                sp.put(\"north-mux.enabled\", n1);\n                sp.put(\"south-mux.enabled\", s1);\n                System.out.println(\"both signed on: \" + monitor.skipped());\n                sp.put(\"south-link.ready\", new Date(1_763_200_060_000L));\n                System.out.println(\"south reconnected: \" + monitor.skipped());\n                System.out.println(\"without check-enabled: \" + new PoolMonitor(sp, false, north, south).skipped());\n            } finally {\n                north.stop();\n                south.stop();\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static QMUX mux(String name, String link) throws Exception {\n        Element e = new Element(\"mux\");\n        e.addContent(new Element(\"space\").setText(\"tspace:tryit\"));\n        e.addContent(new Element(\"in\").setText(link + \"-receive\"));\n        e.addContent(new Element(\"out\").setText(link + \"-send\"));\n        e.addContent(new Element(\"ready\").setText(link + \".ready\"));\n        QMUX q = new QMUX();\n        q.setName(name);\n        q.setPersist(e);\n        q.setConfiguration(new SimpleConfiguration());\n        q.init();\n        q.start();\n        return q;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "82bf6fecce9f0c59c8b970ad79d9d45e74280fec1d7b12f123e4b171fa61600f",
+  "content_sha256": "0f628c170a6133f58e398e3a778b67cc24cf49241ee0e769d3cfbe3d8453d9d6",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.Space;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The operations team's view of a MUXPool: which of its links the pool is not using right now.\n * Built with the same space and the same check-enabled setting as the pool it watches.\n */\npublic class PoolMonitor {\n    private final Space<String, Object> sp;\n    private final boolean checkEnabled;\n    private final QMUX[] members;\n\n    public PoolMonitor(Space<String, Object> sp, boolean checkEnabled, QMUX... members) {\n        this.sp = sp;\n        this.checkEnabled = checkEnabled;\n        this.members = members.clone();\n    }\n\n    /** The names of the members the pool would not send a request to now, in member order. */\n    public List<String> skipped() {\n        List<String> out = new ArrayList<>();\n        for (QMUX m : members)\n            if (!inUse(m))\n                out.add(m.getName());\n        return out;\n    }\n\n    /** Whether the pool would send a request to this member now. Each member has one ready key. */\n    boolean inUse(QMUX member) {\n        // TODO: Answer the way the pool decides, so that the alert and the pool never disagree.\n        //       The pool was deployed with the same space and the same check-enabled setting\n        //       as this monitor. member.getReadyIndicatorNames()[0] is the key its adaptor\n        //       writes when it connects.\n        throw new IllegalStateException(\"TODO: inUse\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-14/practice-1/src/main/java/com/example/practice/PoolMonitor.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-14/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -132,6 +151,10 @@
     },
     "concepts": [
       "With check-enabled a member is usable only while its enabled mark is the very ready object of its current connection; without it a connected member is usable."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-14/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-14/practice-1/src/main/java/TryIt.java"
   }
 }

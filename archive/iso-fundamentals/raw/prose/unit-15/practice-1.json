@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        return \"000000\".substring(ticket.stan().length()) + ticket.stan();\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        return DateTimeFormatter.ofPattern(\"MMddHHmmss\").withZone(ZoneOffset.UTC).format(ticket.sent());\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        return ticket.terminal().equals(m.getString(41))\n                && stan(ticket).equals(m.getString(11))\n                && sent(ticket).equals(m.getString(7));\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.TicketSearch;\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            List<ISOMsg> log = new ArrayList<>();\n            exchange(log, \"TERM1501\", \"000077\", \"0612143005\", \"00\");\n            exchange(log, \"TERM1502\", \"000077\", \"0612143005\", \"00\");\n            exchange(log, \"TERM1501\", \"000078\", \"0612143140\", \"51\");\n            exchange(log, \"TERM1501\", \"000077\", \"0613080012\", \"00\");\n            TicketSearch.Ticket ticket = new TicketSearch.Ticket(\"TERM1501\", \"77\", Instant.parse(\"2026-06-12T14:30:05Z\"));\n            List<ISOMsg> found = TicketSearch.find(log, ticket);\n            System.out.println(\"found for TERM1501, STAN 77, 14:30:05 UTC: \" + found.size());\n            for (ISOMsg m : found)\n                System.out.println(\"  \" + m.getMTI() + \" 7=\" + m.getString(7) + \" 11=\" + m.getString(11) + \" 39=\" + m.getString(39));\n            System.out.println(\"found for a message never logged: \"\n                    + TicketSearch.find(log, new TicketSearch.Ticket(\"TERM1501\", \"79\", Instant.parse(\"2026-06-12T14:33:00Z\"))).size());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static void exchange(List<ISOMsg> log, String terminal, String stan, String de7, String rc) throws Exception {\n        ISOMsg request = new ISOMsg(\"0200\");\n        request.set(4, \"000000002110\");\n        request.set(7, de7);\n        request.set(11, stan);\n        request.set(41, terminal);\n        ISOMsg answer = (ISOMsg) request.clone();\n        answer.setResponseMTI();\n        answer.set(39, rc);\n        log.add(request);\n        log.add(answer);\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        // TODO: Analysts type STANs the way people say them. Return the value a message's\n        //       field 11 holds for the STAN on the ticket.\n        throw new IllegalStateException(\"TODO: stan\");\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        // TODO: Return the value a message holds for the moment on the ticket, in the field\n        //       that records when the message was sent.\n        throw new IllegalStateException(\"TODO: sent\");\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        // TODO: True only for the message the analyst means and its answer, whatever else the\n        //       day's log holds from other terminals and other days.\n        throw new IllegalStateException(\"TODO: names\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.TicketSearch;\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            List<ISOMsg> log = new ArrayList<>();\n            exchange(log, \"TERM1501\", \"000077\", \"0612143005\", \"00\");\n            exchange(log, \"TERM1502\", \"000077\", \"0612143005\", \"00\");\n            exchange(log, \"TERM1501\", \"000078\", \"0612143140\", \"51\");\n            exchange(log, \"TERM1501\", \"000077\", \"0613080012\", \"00\");\n            TicketSearch.Ticket ticket = new TicketSearch.Ticket(\"TERM1501\", \"77\", Instant.parse(\"2026-06-12T14:30:05Z\"));\n            List<ISOMsg> found = TicketSearch.find(log, ticket);\n            System.out.println(\"found for TERM1501, STAN 77, 14:30:05 UTC: \" + found.size());\n            for (ISOMsg m : found)\n                System.out.println(\"  \" + m.getMTI() + \" 7=\" + m.getString(7) + \" 11=\" + m.getString(11) + \" 39=\" + m.getString(39));\n            System.out.println(\"found for a message never logged: \"\n                    + TicketSearch.find(log, new TicketSearch.Ticket(\"TERM1501\", \"79\", Instant.parse(\"2026-06-12T14:33:00Z\"))).size());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static void exchange(List<ISOMsg> log, String terminal, String stan, String de7, String rc) throws Exception {\n        ISOMsg request = new ISOMsg(\"0200\");\n        request.set(4, \"000000002110\");\n        request.set(7, de7);\n        request.set(11, stan);\n        request.set(41, terminal);\n        ISOMsg answer = (ISOMsg) request.clone();\n        answer.setResponseMTI();\n        answer.set(39, rc);\n        log.add(request);\n        log.add(answer);\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "d1bc4f104420f51aab451233146a35de29d00994969cca1b51bb29880cfcf2a6",
+  "content_sha256": "036071139d3046afe1afd5e1eb97aba92705c88d138814167b82dd3a7f773880",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\n\nimport java.time.Instant;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** Finds the messages of a day's log that an acquirer's ticket is about. */\npublic final class TicketSearch {\n\n    /**\n     * What the ticket says: the terminal ID, the STAN as the analyst typed it, and the moment the\n     * acquirer's records say the message was sent.\n     */\n    public record Ticket(String terminal, String stan, Instant sent) { }\n\n    private TicketSearch() { }\n\n    /** Every logged message the ticket names, request and answer alike, in log order. */\n    public static List<ISOMsg> find(List<ISOMsg> log, Ticket ticket) {\n        List<ISOMsg> found = new ArrayList<>();\n        for (ISOMsg m : log)\n            if (names(ticket, m))\n                found.add(m);\n        return found;\n    }\n\n    /** The ticket's STAN as a message carries it. */\n    static String stan(Ticket ticket) {\n        // TODO: Analysts type STANs the way people say them. Return the value a message's\n        //       field 11 holds for the STAN on the ticket.\n        throw new IllegalStateException(\"TODO: stan\");\n    }\n\n    /** The ticket's moment as a message carries it. */\n    static String sent(Ticket ticket) {\n        // TODO: Return the value a message holds for the moment on the ticket, in the field\n        //       that records when the message was sent.\n        throw new IllegalStateException(\"TODO: sent\");\n    }\n\n    /** Whether {@code m} is one of the messages the ticket is about. */\n    static boolean names(Ticket ticket, ISOMsg m) {\n        // TODO: True only for the message the analyst means and its answer, whatever else the\n        //       day's log holds from other terminals and other days.\n        throw new IllegalStateException(\"TODO: names\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/TicketSearch.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-15/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -152,6 +171,10 @@
     "concepts": [
       "A logged message is found by its terminal, STAN and transmission time together, because STANs repeat across terminals and across days.",
       "Field 7 holds the transmission time in UTC, while a log and fields 12 and 13 are local, so a ticket's time is matched against field 7."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/TryIt.java"
   }
 }

@@ -326,6 +326,65 @@ public class RequiredFields implements TransactionParticipant, Configurable {
         return ABORTED;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RequiredFields;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            System.out.println(&quot;0200 with amount: &quot; + prepare(&quot;0200&quot;, &quot;000610&quot;, &quot;000000002480&quot;));
+            System.out.println(&quot;0200 without amount: &quot; + prepare(&quot;0200&quot;, &quot;000611&quot;, null));
+            System.out.println(&quot;0100 without amount: &quot; + prepare(&quot;0100&quot;, &quot;000612&quot;, null));
+            System.out.println(&quot;0800 echo: &quot; + prepare(&quot;0800&quot;, &quot;000613&quot;, null));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** Runs the participant's prepare on one request and says what it decided. */
+    private static String prepare(String mti, String stan, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        if (!mti.startsWith(&quot;08&quot;)) m.set(3, &quot;000000&quot;);
+        if (amount != null) m.set(4, amount);
+        if (mti.startsWith(&quot;08&quot;)) m.set(70, &quot;301&quot;);
+        m.set(7, &quot;1114113000&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;27180050&quot;);
+        RequiredFields participant = new RequiredFields();
+        participant.setConfiguration(new SimpleConfiguration());
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int result = participant.prepare(1L, ctx);
+        String verdict = (result &amp; TransactionConstants.PREPARED) != 0 ? &quot;PREPARED&quot; : &quot;ABORTED&quot;;
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return verdict + (r == null ? &quot;, no response&quot; : &quot;, response &quot; + r.getMTI() + &quot; 39=&quot; + r.getString(39)
+                + &quot; 11=&quot; + r.getString(11) + &quot; 41=&quot; + r.getString(41));
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -386,10 +445,70 @@ public class RequiredFields implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RequiredFields;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            System.out.println(&quot;0200 with amount: &quot; + prepare(&quot;0200&quot;, &quot;000610&quot;, &quot;000000002480&quot;));
+            System.out.println(&quot;0200 without amount: &quot; + prepare(&quot;0200&quot;, &quot;000611&quot;, null));
+            System.out.println(&quot;0100 without amount: &quot; + prepare(&quot;0100&quot;, &quot;000612&quot;, null));
+            System.out.println(&quot;0800 echo: &quot; + prepare(&quot;0800&quot;, &quot;000613&quot;, null));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** Runs the participant's prepare on one request and says what it decided. */
+    private static String prepare(String mti, String stan, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        if (!mti.startsWith(&quot;08&quot;)) m.set(3, &quot;000000&quot;);
+        if (amount != null) m.set(4, amount);
+        if (mti.startsWith(&quot;08&quot;)) m.set(70, &quot;301&quot;);
+        m.set(7, &quot;1114113000&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;27180050&quot;);
+        RequiredFields participant = new RequiredFields();
+        participant.setConfiguration(new SimpleConfiguration());
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        int result = participant.prepare(1L, ctx);
+        String verdict = (result &amp; TransactionConstants.PREPARED) != 0 ? &quot;PREPARED&quot; : &quot;ABORTED&quot;;
+        ISOMsg r = ctx.get(ContextConstants.RESPONSE.toString());
+        return verdict + (r == null ? &quot;, no response&quot; : &quot;, response &quot; + r.getMTI() + &quot; 39=&quot; + r.getString(39)
+                + &quot; 11=&quot; + r.getString(11) + &quot; 41=&quot; + r.getString(41));
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-01/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-01/practice-1/src/main/java/com/example/practice/RequiredFields.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-01/practice-1/src/main/java/com/example/practice/RequiredFields.java</code> and <code>practice/jpos-server/prose/unit-01/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-01/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -538,6 +657,79 @@ public class ApprovalJournal implements TransactionParticipant, Configurable {
         void write(String terminal, String stan, String amount);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ApprovalJournal;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;String&gt; lines = new ArrayList&lt;&gt;();
+            NameRegistrar.register(&quot;journal&quot;, (ApprovalJournal.Lines) (t, s, a) -&gt; lines.add(t + &quot; &quot; + s + &quot; &quot; + a));
+            try {
+                ApprovalJournal journal = new ApprovalJournal();
+                journal.setConfiguration(new SimpleConfiguration());
+                run(journal, &quot;0200&quot;, &quot;000701&quot;, &quot;00&quot;, false);
+                System.out.println(&quot;lines after approved purchase: &quot; + lines.size());
+                run(journal, &quot;0200&quot;, &quot;000702&quot;, &quot;51&quot;, false);
+                System.out.println(&quot;lines after declined purchase: &quot; + lines.size());
+                run(journal, &quot;0200&quot;, &quot;000703&quot;, &quot;00&quot;, true);
+                System.out.println(&quot;lines after approved, aborted later: &quot; + lines.size());
+                run(journal, &quot;0100&quot;, &quot;000704&quot;, &quot;00&quot;, false);
+                System.out.println(&quot;lines after approved authorization: &quot; + lines.size());
+                System.out.println(&quot;journal: &quot; + lines);
+            } finally {
+                NameRegistrar.unregister(&quot;journal&quot;);
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One transaction through the journal, ending in commit or, when a later participant fails, abort. */
+    private static void run(ApprovalJournal journal, String mti, String stan, String rc, boolean laterFails) throws Exception {
+        ISOMsg request = new ISOMsg(mti);
+        request.set(4, &quot;000000003675&quot;);
+        request.set(11, stan);
+        request.set(41, &quot;27180060&quot;);
+        ISOMsg response = (ISOMsg) request.clone();
+        response.setResponseMTI();
+        response.set(39, rc);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), request);
+        ctx.put(ContextConstants.RESPONSE.toString(), response);
+        int result = journal.prepare(1L, ctx);
+        if ((result &amp; TransactionConstants.NO_JOIN) != 0)
+            return;
+        if (laterFails) journal.abort(1L, ctx); else journal.commit(1L, ctx);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -591,10 +783,84 @@ public class ApprovalJournal implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.ApprovalJournal;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.transaction.TransactionConstants;
+import org.jpos.util.NameRegistrar;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;String&gt; lines = new ArrayList&lt;&gt;();
+            NameRegistrar.register(&quot;journal&quot;, (ApprovalJournal.Lines) (t, s, a) -&gt; lines.add(t + &quot; &quot; + s + &quot; &quot; + a));
+            try {
+                ApprovalJournal journal = new ApprovalJournal();
+                journal.setConfiguration(new SimpleConfiguration());
+                run(journal, &quot;0200&quot;, &quot;000701&quot;, &quot;00&quot;, false);
+                System.out.println(&quot;lines after approved purchase: &quot; + lines.size());
+                run(journal, &quot;0200&quot;, &quot;000702&quot;, &quot;51&quot;, false);
+                System.out.println(&quot;lines after declined purchase: &quot; + lines.size());
+                run(journal, &quot;0200&quot;, &quot;000703&quot;, &quot;00&quot;, true);
+                System.out.println(&quot;lines after approved, aborted later: &quot; + lines.size());
+                run(journal, &quot;0100&quot;, &quot;000704&quot;, &quot;00&quot;, false);
+                System.out.println(&quot;lines after approved authorization: &quot; + lines.size());
+                System.out.println(&quot;journal: &quot; + lines);
+            } finally {
+                NameRegistrar.unregister(&quot;journal&quot;);
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One transaction through the journal, ending in commit or, when a later participant fails, abort. */
+    private static void run(ApprovalJournal journal, String mti, String stan, String rc, boolean laterFails) throws Exception {
+        ISOMsg request = new ISOMsg(mti);
+        request.set(4, &quot;000000003675&quot;);
+        request.set(11, stan);
+        request.set(41, &quot;27180060&quot;);
+        ISOMsg response = (ISOMsg) request.clone();
+        response.setResponseMTI();
+        response.set(39, rc);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), request);
+        ctx.put(ContextConstants.RESPONSE.toString(), response);
+        int result = journal.prepare(1L, ctx);
+        if ((result &amp; TransactionConstants.NO_JOIN) != 0)
+            return;
+        if (laterFails) journal.abort(1L, ctx); else journal.commit(1L, ctx);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-01/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-01/practice-2/src/main/java/com/example/practice/ApprovalJournal.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-01/practice-2/src/main/java/com/example/practice/ApprovalJournal.java</code> and <code>practice/jpos-server/prose/unit-01/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-01/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

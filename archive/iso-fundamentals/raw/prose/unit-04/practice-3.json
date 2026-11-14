@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The issuer's record of the requests it has processed, as they arrived from the acquirers'\n * links, and what happens when a reversal arrives.\n */\npublic class Journal {\n    private final List<ISOMsg> processed = new ArrayList<>();\n    private final List<ISOMsg> reversed = new ArrayList<>();\n\n    /** Records a request the issuer has processed. */\n    public synchronized void record(ISOMsg request) {\n        processed.add(request);\n    }\n\n    /** Whether {@code request}, as recorded, has been reversed. */\n    public synchronized boolean isReversed(ISOMsg request) {\n        return reversed.contains(request);\n    }\n\n    /** Handles a reversal from an acquirer and returns the acknowledgement to send back. */\n    public synchronized ISOMsg onReversal(ISOMsg reversal) throws ISOException {\n        ISOMsg original = originalOf(reversal);\n        if (original != null && !reversed.contains(original))\n            reversed.add(original);                 // a real host gives the money back here\n        ISOMsg ack = (ISOMsg) reversal.clone();\n        ack.setResponseMTI();\n        ack.set(39, \"00\");\n        return ack;\n    }\n\n    /** The recorded request that {@code reversal} cancels, or null when the issuer never saw it. */\n    ISOMsg originalOf(ISOMsg reversal) throws ISOException {\n        String points = reversal.getString(90);\n        for (ISOMsg o : processed) {\n            String names = o.getMTI()\n                    + ISOUtil.zeropad(o.getString(11), 6)\n                    + ISOUtil.zeropad(o.getString(7), 10)\n                    + ISOUtil.zeropad(o.hasField(32) ? o.getString(32) : \"\", 11)\n                    + ISOUtil.zeropad(o.hasField(33) ? o.getString(33) : \"\", 11);\n            if (names.equals(points))\n                return o;\n        }\n        return null;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.Journal;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Journal journal = new Journal();\n            ISOMsg monday = request(\"000555\", \"1109083000\", \"4567890\");\n            ISOMsg tuesday = request(\"000555\", \"1110083000\", \"4567890\");\n            journal.record(monday);\n            journal.record(tuesday);\n\n            ISOMsg reversal = new ISOMsg(\"0420\");\n            reversal.set(11, \"000812\");\n            reversal.set(90, \"0200\" + \"000555\" + \"1110083000\" + \"00004567890\" + \"00000000000\");\n            ISOMsg ack = journal.onReversal(reversal);\n            System.out.println(\"ack: \" + ack.getMTI() + \" stan \" + ack.getString(11) + \" 39=\" + ack.getString(39));\n            System.out.println(\"tuesday reversed: \" + journal.isReversed(tuesday));\n            System.out.println(\"monday reversed: \" + journal.isReversed(monday));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(String stan, String when, String acquirer) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(4, \"000000001800\");\n        m.set(7, when);\n        m.set(11, stan);\n        m.set(32, acquirer);\n        m.set(41, \"TERM0300\");\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The issuer's record of the requests it has processed, as they arrived from the acquirers'\n * links, and what happens when a reversal arrives.\n */\npublic class Journal {\n    private final List<ISOMsg> processed = new ArrayList<>();\n    private final List<ISOMsg> reversed = new ArrayList<>();\n\n    /** Records a request the issuer has processed. */\n    public synchronized void record(ISOMsg request) {\n        processed.add(request);\n    }\n\n    /** Whether {@code request}, as recorded, has been reversed. */\n    public synchronized boolean isReversed(ISOMsg request) {\n        return reversed.contains(request);\n    }\n\n    /** Handles a reversal from an acquirer and returns the acknowledgement to send back. */\n    public synchronized ISOMsg onReversal(ISOMsg reversal) throws ISOException {\n        ISOMsg original = originalOf(reversal);\n        if (original != null && !reversed.contains(original))\n            reversed.add(original);                 // a real host gives the money back here\n        ISOMsg ack = (ISOMsg) reversal.clone();\n        ack.setResponseMTI();\n        ack.set(39, \"00\");\n        return ack;\n    }\n\n    /** The recorded request that {@code reversal} cancels, or null when the issuer never saw it. */\n    ISOMsg originalOf(ISOMsg reversal) throws ISOException {\n        // TODO: Find the one recorded request this reversal is about. Acquirers send reversals\n        //       for requests that never reached us, too: for those, return null.\n        //       ISOUtil.zeropad may help.\n        throw new IllegalStateException(\"TODO: originalOf\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.Journal;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Journal journal = new Journal();\n            ISOMsg monday = request(\"000555\", \"1109083000\", \"4567890\");\n            ISOMsg tuesday = request(\"000555\", \"1110083000\", \"4567890\");\n            journal.record(monday);\n            journal.record(tuesday);\n\n            ISOMsg reversal = new ISOMsg(\"0420\");\n            reversal.set(11, \"000812\");\n            reversal.set(90, \"0200\" + \"000555\" + \"1110083000\" + \"00004567890\" + \"00000000000\");\n            ISOMsg ack = journal.onReversal(reversal);\n            System.out.println(\"ack: \" + ack.getMTI() + \" stan \" + ack.getString(11) + \" 39=\" + ack.getString(39));\n            System.out.println(\"tuesday reversed: \" + journal.isReversed(tuesday));\n            System.out.println(\"monday reversed: \" + journal.isReversed(monday));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(String stan, String when, String acquirer) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(4, \"000000001800\");\n        m.set(7, when);\n        m.set(11, stan);\n        m.set(32, acquirer);\n        m.set(41, \"TERM0300\");\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "05419ae82d06ea3ddc2fd302f411e37a0af1dd9c708ae721964f2b1b76b880f3",
+  "content_sha256": "a49849cd22fa1e751bae4386424a1ec79f1c43e6d8d1c254c4002cf883d11474",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The issuer's record of the requests it has processed, as they arrived from the acquirers'\n * links, and what happens when a reversal arrives.\n */\npublic class Journal {\n    private final List<ISOMsg> processed = new ArrayList<>();\n    private final List<ISOMsg> reversed = new ArrayList<>();\n\n    /** Records a request the issuer has processed. */\n    public synchronized void record(ISOMsg request) {\n        processed.add(request);\n    }\n\n    /** Whether {@code request}, as recorded, has been reversed. */\n    public synchronized boolean isReversed(ISOMsg request) {\n        return reversed.contains(request);\n    }\n\n    /** Handles a reversal from an acquirer and returns the acknowledgement to send back. */\n    public synchronized ISOMsg onReversal(ISOMsg reversal) throws ISOException {\n        ISOMsg original = originalOf(reversal);\n        if (original != null && !reversed.contains(original))\n            reversed.add(original);                 // a real host gives the money back here\n        ISOMsg ack = (ISOMsg) reversal.clone();\n        ack.setResponseMTI();\n        ack.set(39, \"00\");\n        return ack;\n    }\n\n    /** The recorded request that {@code reversal} cancels, or null when the issuer never saw it. */\n    ISOMsg originalOf(ISOMsg reversal) throws ISOException {\n        // TODO: Find the one recorded request this reversal is about. Acquirers send reversals\n        //       for requests that never reached us, too: for those, return null.\n        //       ISOUtil.zeropad may help.\n        throw new IllegalStateException(\"TODO: originalOf\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/com/example/practice/Journal.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-04/practice-3/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -132,6 +151,10 @@
     },
     "concepts": [
       "A reversal is a new message with its own STAN that names the original in field 90: its MTI, STAN, field 7 and the institution IDs zero-filled to eleven digits."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/TryIt.java"
   }
 }

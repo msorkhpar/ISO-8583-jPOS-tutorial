@@ -138,6 +138,64 @@ public class FrameReader {
         return b;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.FrameReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ByteArrayOutputStream wire = new ByteArrayOutputStream();
+            frame(wire, new byte[0]);
+            frame(wire, &quot;0800 STAN 120501&quot;.getBytes(StandardCharsets.US_ASCII));
+            frame(wire, new byte[300]);
+            frame(wire, &quot;0810 STAN 120502&quot;.getBytes(StandardCharsets.US_ASCII));
+            byte[] bytes = wire.toByteArray();
+            FrameReader reader = new FrameReader(new ByteArrayInputStream(bytes));
+            System.out.println(&quot;first: &quot; + new String(reader.next(), StandardCharsets.US_ASCII));
+            System.out.println(&quot;second, length: &quot; + reader.next().length);
+            System.out.println(&quot;third: &quot; + new String(reader.next(), StandardCharsets.US_ASCII));
+            FrameReader cut = new FrameReader(new ByteArrayInputStream(Arrays.copyOf(bytes, 25)));
+            cut.next();
+            try {
+                cut.next();
+                System.out.println(&quot;cut stream: no error&quot;);
+            } catch (java.io.IOException e) {
+                System.out.println(&quot;cut stream: &quot; + e);
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void frame(ByteArrayOutputStream out, byte[] message) {
+        out.write(message.length &gt;&gt; 8);
+        out.write(message.length &amp; 0xFF);
+        out.write(message, 0, message.length);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -178,10 +236,69 @@ public class FrameReader {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.FrameReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ByteArrayOutputStream wire = new ByteArrayOutputStream();
+            frame(wire, new byte[0]);
+            frame(wire, &quot;0800 STAN 120501&quot;.getBytes(StandardCharsets.US_ASCII));
+            frame(wire, new byte[300]);
+            frame(wire, &quot;0810 STAN 120502&quot;.getBytes(StandardCharsets.US_ASCII));
+            byte[] bytes = wire.toByteArray();
+            FrameReader reader = new FrameReader(new ByteArrayInputStream(bytes));
+            System.out.println(&quot;first: &quot; + new String(reader.next(), StandardCharsets.US_ASCII));
+            System.out.println(&quot;second, length: &quot; + reader.next().length);
+            System.out.println(&quot;third: &quot; + new String(reader.next(), StandardCharsets.US_ASCII));
+            FrameReader cut = new FrameReader(new ByteArrayInputStream(Arrays.copyOf(bytes, 25)));
+            cut.next();
+            try {
+                cut.next();
+                System.out.println(&quot;cut stream: no error&quot;);
+            } catch (java.io.IOException e) {
+                System.out.println(&quot;cut stream: &quot; + e);
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void frame(ByteArrayOutputStream out, byte[] message) {
+        out.write(message.length &gt;&gt; 8);
+        out.write(message.length &amp; 0xFF);
+        out.write(message, 0, message.length);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-03/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-03/practice-1/src/main/java/com/example/practice/FrameReader.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-03/practice-1/src/main/java/com/example/practice/FrameReader.java</code> and <code>practice/jpos-client/prose/unit-03/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-03/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -343,6 +460,75 @@ public class EchoProbe {
         return m;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EchoProbe;
+import java.io.EOFException;
+import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.channel.ASCIIChannel;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Scripted up = new Scripted().frame(25, msg(&quot;0810&quot;, &quot;770101&quot;));
+            System.out.println(&quot;host answers: &quot; + new EchoProbe(up, up::now).check(&quot;770101&quot;, 4000));
+            Scripted other = new Scripted().frame(20, msg(&quot;0810&quot;, &quot;770099&quot;)).frame(-1, null);
+            System.out.println(&quot;only a stale answer: &quot; + new EchoProbe(other, other::now).check(&quot;770102&quot;, 4000));
+            Scripted gone = new Scripted().frame(10, &quot;hang-up&quot;);
+            System.out.println(&quot;host hangs up: &quot; + new EchoProbe(gone, gone::now).check(&quot;770103&quot;, 4000));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String stan) {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(11, stan);
+        m.set(70, &quot;301&quot;);
+        return m;
+    }
+
+    /** A channel with no socket: each receive plays the next step; a null step is a read timeout. */
+    private static final class Scripted extends ASCIIChannel {
+        private final Deque&lt;Object[]&gt; script = new ArrayDeque&lt;&gt;();
+        private long now = 50_000;
+
+        Scripted frame(long at, Object step) { script.add(new Object[] { at, step }); return this; }
+        long now() { return now; }
+        @Override public boolean isConnected() { return true; }
+        @Override public void send(ISOMsg m) { }
+
+        @Override public ISOMsg receive() throws IOException {
+            Object[] step = script.poll();
+            if (step == null || step[1] == null) { now += 3000; throw new SocketTimeoutException(&quot;Read timed out&quot;); }
+            now = 50_000 + (Long) step[0];
+            if (&quot;hang-up&quot;.equals(step[1])) throw new EOFException();
+            return (ISOMsg) step[1];
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -388,10 +574,80 @@ public class EchoProbe {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EchoProbe;
+import java.io.EOFException;
+import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.channel.ASCIIChannel;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Scripted up = new Scripted().frame(25, msg(&quot;0810&quot;, &quot;770101&quot;));
+            System.out.println(&quot;host answers: &quot; + new EchoProbe(up, up::now).check(&quot;770101&quot;, 4000));
+            Scripted other = new Scripted().frame(20, msg(&quot;0810&quot;, &quot;770099&quot;)).frame(-1, null);
+            System.out.println(&quot;only a stale answer: &quot; + new EchoProbe(other, other::now).check(&quot;770102&quot;, 4000));
+            Scripted gone = new Scripted().frame(10, &quot;hang-up&quot;);
+            System.out.println(&quot;host hangs up: &quot; + new EchoProbe(gone, gone::now).check(&quot;770103&quot;, 4000));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String stan) {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(11, stan);
+        m.set(70, &quot;301&quot;);
+        return m;
+    }
+
+    /** A channel with no socket: each receive plays the next step; a null step is a read timeout. */
+    private static final class Scripted extends ASCIIChannel {
+        private final Deque&lt;Object[]&gt; script = new ArrayDeque&lt;&gt;();
+        private long now = 50_000;
+
+        Scripted frame(long at, Object step) { script.add(new Object[] { at, step }); return this; }
+        long now() { return now; }
+        @Override public boolean isConnected() { return true; }
+        @Override public void send(ISOMsg m) { }
+
+        @Override public ISOMsg receive() throws IOException {
+            Object[] step = script.poll();
+            if (step == null || step[1] == null) { now += 3000; throw new SocketTimeoutException(&quot;Read timed out&quot;); }
+            now = 50_000 + (Long) step[0];
+            if (&quot;hang-up&quot;.equals(step[1])) throw new EOFException();
+            return (ISOMsg) step[1];
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-03/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-03/practice-2/src/main/java/com/example/practice/EchoProbe.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-03/practice-2/src/main/java/com/example/practice/EchoProbe.java</code> and <code>practice/jpos-client/prose/unit-03/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-03/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

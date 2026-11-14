@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\nimport java.util.Objects;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        String mti = incoming.getMTI();\n        if (mti == null || !sent.isRequest())\n            return false;\n        ISOMsg expected = (ISOMsg) sent.clone();\n        expected.setResponseMTI();\n        return expected.getMTI().equals(mti)\n                && Objects.equals(sent.getString(11), incoming.getString(11))\n                && Objects.equals(sent.getString(41), incoming.getString(41));\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.Inbox;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Inbox inbox = new Inbox();\n            inbox.expect(msg(\"0200\", \"120301\", \"TERM0101\"));\n            inbox.expect(msg(\"0200\", \"120301\", \"TERM0102\"));\n            inbox.expect(msg(\"0220\", \"120302\", \"TERM0101\"));\n            System.out.println(\"0210 for TERM0102 reaches: \" + who(inbox.deliver(msg(\"0210\", \"120301\", \"TERM0102\"))));\n            System.out.println(\"0230 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0230\", \"120302\", \"TERM0101\"))));\n            System.out.println(\"0110 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0110\", \"120301\", \"TERM0101\"))));\n            System.out.println(\"0210 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0210\", \"120301\", \"TERM0101\"))));\n            System.out.println(\"still waiting: \" + inbox.waiting());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String stan, String terminal) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(41, terminal);\n        return m;\n    }\n\n    private static String who(ISOMsg sent) {\n        return sent == null ? \"nobody\" : sent.getString(0) + \" stan \" + sent.getString(11) + \" terminal \" + sent.getString(41);\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        // TODO: Many terminals share this link, and the other side also sends messages of its own.\n        //       Return true only when `incoming` is the other side's answer to this very message.\n        //       Neither message may change.\n        throw new IllegalStateException(\"TODO: answers\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.Inbox;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Inbox inbox = new Inbox();\n            inbox.expect(msg(\"0200\", \"120301\", \"TERM0101\"));\n            inbox.expect(msg(\"0200\", \"120301\", \"TERM0102\"));\n            inbox.expect(msg(\"0220\", \"120302\", \"TERM0101\"));\n            System.out.println(\"0210 for TERM0102 reaches: \" + who(inbox.deliver(msg(\"0210\", \"120301\", \"TERM0102\"))));\n            System.out.println(\"0230 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0230\", \"120302\", \"TERM0101\"))));\n            System.out.println(\"0110 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0110\", \"120301\", \"TERM0101\"))));\n            System.out.println(\"0210 for TERM0101 reaches: \" + who(inbox.deliver(msg(\"0210\", \"120301\", \"TERM0101\"))));\n            System.out.println(\"still waiting: \" + inbox.waiting());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String stan, String terminal) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(41, terminal);\n        return m;\n    }\n\n    private static String who(ISOMsg sent) {\n        return sent == null ? \"nobody\" : sent.getString(0) + \" stan \" + sent.getString(11) + \" terminal \" + sent.getString(41);\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "28d627f8d1b4a178964c245ec0b6da4155f091efb781d12522049c40053360c1",
+  "content_sha256": "9072ca58f2c0195fadf4e11adaaf805be77d7c5fa915902a595bcc205ae27b66",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\n/**\n * The acquirer's side of one link. Every request sent on the link waits here until its answer\n * arrives; {@link #deliver} hands each incoming message to the request it answers.\n */\npublic class Inbox {\n    private final List<ISOMsg> waiting = new ArrayList<>();\n\n    /** Records a request (or an advice) that was just sent and now waits for its answer. */\n    public synchronized void expect(ISOMsg sent) {\n        waiting.add(sent);\n    }\n\n    /** How many sent messages are still waiting. */\n    public synchronized int waiting() {\n        return waiting.size();\n    }\n\n    /**\n     * The waiting message that {@code incoming} answers, which stops waiting; or null when\n     * {@code incoming} answers none of them (the caller logs it).\n     */\n    public synchronized ISOMsg deliver(ISOMsg incoming) throws ISOException {\n        for (Iterator<ISOMsg> it = waiting.iterator(); it.hasNext(); ) {\n            ISOMsg sent = it.next();\n            if (answers(sent, incoming)) {\n                it.remove();\n                return sent;\n            }\n        }\n        return null;\n    }\n\n    /** Whether {@code incoming} is the answer to {@code sent}. */\n    static boolean answers(ISOMsg sent, ISOMsg incoming) throws ISOException {\n        // TODO: Many terminals share this link, and the other side also sends messages of its own.\n        //       Return true only when `incoming` is the other side's answer to this very message.\n        //       Neither message may change.\n        throw new IllegalStateException(\"TODO: answers\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Inbox.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-04/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -138,6 +157,10 @@
     "concepts": [
       "The MTI pairs kinds of message, so a response belongs to a request only when it also carries the request's STAN and terminal ID.",
       "A message's answer keeps its class and raises the function digit by one, so a request is answered by a response and an advice by an advice response, and a repeat is answered like the message it repeats."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/TryIt.java"
   }
 }

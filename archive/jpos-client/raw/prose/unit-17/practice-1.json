@@ -54,6 +54,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        int start = 0;\n        while (start < text.length() && text.charAt(start) == ' ')\n            start++;\n        int end = start;\n        while (end < text.length() && Character.digit(text.charAt(end), 16) >= 0)\n            end++;\n        if (end - start != 4 && end - start != 8)\n            throw new IllegalArgumentException(\"no offset: \" + text);\n        int offset = Integer.parseInt(text.substring(start, end), 16);\n        ByteArrayOutputStream bytes = new ByteArrayOutputStream();\n        for (int i = 0; i < 16; i++) {\n            int col = end + 2 + 3 * i + (i >= 8 ? 1 : 0);\n            String pos = col + 2 <= text.length() ? text.substring(col, col + 2) : \"  \";\n            if (pos.isBlank())\n                break;\n            int hi = Character.digit(pos.charAt(0), 16), lo = Character.digit(pos.charAt(1), 16);\n            if (hi < 0 || lo < 0)\n                throw new IllegalArgumentException(\"not a byte at column \" + col + \": \" + text);\n            bytes.write(hi * 16 + lo);\n        }\n        return new Line(offset, bytes.toByteArray());\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        if (line.offset() != readSoFar)\n            throw new IllegalArgumentException(\"line at offset \" + Integer.toHexString(line.offset())\n                + \" after \" + readSoFar + \" bytes\");\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.HexDumpReader;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport java.util.Arrays;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            ISOMsg auth = new ISOMsg(\"0100\");\n            auth.setPackager(packager);\n            auth.set(3, \"000000\");\n            auth.set(4, \"000000007788\");\n            auth.set(11, \"005150\");\n            auth.set(41, \"27180020\");\n            byte[] bytes = auth.pack();\n            String dump = ISOUtil.hexdump(bytes);\n            System.out.print(dump);\n            byte[] back = HexDumpReader.read(dump);\n            System.out.println(\"read \" + back.length + \" of \" + bytes.length + \" bytes, same: \" + Arrays.equals(bytes, back));\n            ISOMsg m = new ISOMsg();\n            m.setPackager(packager);\n            m.unpack(back);\n            System.out.println(\"MTI \" + m.getMTI() + \", 11=\" + m.getString(11) + \", 41=\" + m.getString(41));\n            String lost = dump.lines().filter(l -> !l.startsWith(\"0010\")).reduce(\"\", (a, b) -> a + b + \"\\n\");\n            try {\n                System.out.println(\"line 0010 lost: read \" + HexDumpReader.read(lost).length + \" bytes\");\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"line 0010 lost: refused, \" + e.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -66,6 +75,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        // TODO: The dumps come from jPOS's hexdump, from `hexdump -C` and from logs and chats.\n        //       Return exactly the bytes this line shows, with the offset it states, or throw\n        //       IllegalArgumentException when the line can't be read with certainty.\n        throw new IllegalStateException(\"TODO: parse\");\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        // TODO: Throw IllegalArgumentException when this line can't be the next one.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.HexDumpReader;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport java.util.Arrays;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            GenericPackager packager = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            ISOMsg auth = new ISOMsg(\"0100\");\n            auth.setPackager(packager);\n            auth.set(3, \"000000\");\n            auth.set(4, \"000000007788\");\n            auth.set(11, \"005150\");\n            auth.set(41, \"27180020\");\n            byte[] bytes = auth.pack();\n            String dump = ISOUtil.hexdump(bytes);\n            System.out.print(dump);\n            byte[] back = HexDumpReader.read(dump);\n            System.out.println(\"read \" + back.length + \" of \" + bytes.length + \" bytes, same: \" + Arrays.equals(bytes, back));\n            ISOMsg m = new ISOMsg();\n            m.setPackager(packager);\n            m.unpack(back);\n            System.out.println(\"MTI \" + m.getMTI() + \", 11=\" + m.getString(11) + \", 41=\" + m.getString(41));\n            String lost = dump.lines().filter(l -> !l.startsWith(\"0010\")).reduce(\"\", (a, b) -> a + b + \"\\n\");\n            try {\n                System.out.println(\"line 0010 lost: read \" + HexDumpReader.read(lost).length + \" bytes\");\n            } catch (IllegalArgumentException e) {\n                System.out.println(\"line 0010 lost: refused, \" + e.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -73,8 +91,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -84,7 +102,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "19092cfd2c425aa39e7ee4d5ef6de7cc85381a50993392f0c35bb8b36a28aaf1",
+  "content_sha256": "4038954d0dbb5953bdbaeda0dce967c4593318f37fdf333dbf26d56b4f3daf8f",
   "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\n\n/**\n * Reads a hex dump pasted from a ticket, a log or a chat back into the bytes it shows, and refuses\n * a dump it cannot read with certainty.\n */\npublic final class HexDumpReader {\n    private HexDumpReader() { }\n\n    /** One line of a dump: the offset it states, and the bytes in its byte columns. */\n    record Line(int offset, byte[] bytes) { }\n\n    public static byte[] read(String dump) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (String text : dump.split(\"\\r?\\n\")) {\n            if (text.isBlank())\n                continue;\n            Line line = parse(text);\n            check(line, out.size());\n            out.writeBytes(line.bytes());\n        }\n        return out.toByteArray();\n    }\n\n    /** The offset and the bytes of one non-blank line. */\n    static Line parse(String text) {\n        // TODO: The dumps come from jPOS's hexdump, from `hexdump -C` and from logs and chats.\n        //       Return exactly the bytes this line shows, with the offset it states, or throw\n        //       IllegalArgumentException when the line can't be read with certainty.\n        throw new IllegalStateException(\"TODO: parse\");\n    }\n\n    /** Refuses a line that does not continue the bytes read so far. */\n    static void check(Line line, int readSoFar) {\n        // TODO: Throw IllegalArgumentException when this line can't be the next one.\n        throw new IllegalStateException(\"TODO: check\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-17/practice-1/src/main/java/com/example/practice/HexDumpReader.java",
@@ -95,7 +113,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-17/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -164,6 +183,10 @@
     },
     "concepts": [
       "A dump from outside is evidence only when it reads back to the bytes it shows: decodeHexDump reads one layout and checks nothing, so a reader checks each line's offset and reads bytes from their columns."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-17/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-17/practice-1/src/main/java/TryIt.java"
   }
 }

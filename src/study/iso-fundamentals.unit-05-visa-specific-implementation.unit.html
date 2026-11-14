@@ -310,6 +310,80 @@ public final class Base1Frames {
         return s.toString();
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Base1Frames;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.packager.Base1Packager;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            byte[] first = message(&quot;0110&quot;, &quot;300401&quot;);
+            byte[] second = message(&quot;0410&quot;, &quot;300402&quot;);
+            ByteArrayOutputStream link = new ByteArrayOutputStream();
+            link.writeBytes(frame(first));
+            link.writeBytes(new byte[4]);
+            link.writeBytes(frame(second));
+            ByteArrayOutputStream back = new ByteArrayOutputStream();
+            Base1Frames frames = new Base1Frames(new ByteArrayInputStream(link.toByteArray()), back);
+            for (Base1Frames.Frame f = frames.next(); f != null; f = frames.next()) {
+                ISOMsg m = new ISOMsg();
+                m.setPackager(new Base1Packager());
+                m.unpack(f.message());
+                System.out.println(&quot;frame: header &quot; + f.header().length + &quot; bytes, &quot; + m.getMTI() + &quot; stan &quot; + m.getString(11));
+            }
+            System.out.println(&quot;bytes sent back to the network: &quot; + back.size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static byte[] message(String mti, String stan) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.setPackager(new Base1Packager());
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000007300&quot;);
+        m.set(11, stan);
+        m.set(39, &quot;00&quot;);
+        m.set(41, &quot;TERM0500&quot;);
+        return m.pack();
+    }
+
+    private static byte[] frame(byte[] message) {
+        int len = 22 + message.length;
+        byte[] header = new byte[22];
+        header[0] = 22;
+        header[1] = 0x01;
+        header[3] = (byte) (len &gt;&gt; 8);
+        header[4] = (byte) len;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] { (byte) (len &gt;&gt; 8), (byte) len, 0, 0 });
+        out.writeBytes(header);
+        out.writeBytes(message);
+        return out.toByteArray();
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -411,10 +485,85 @@ public final class Base1Frames {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Base1Frames;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.packager.Base1Packager;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            byte[] first = message(&quot;0110&quot;, &quot;300401&quot;);
+            byte[] second = message(&quot;0410&quot;, &quot;300402&quot;);
+            ByteArrayOutputStream link = new ByteArrayOutputStream();
+            link.writeBytes(frame(first));
+            link.writeBytes(new byte[4]);
+            link.writeBytes(frame(second));
+            ByteArrayOutputStream back = new ByteArrayOutputStream();
+            Base1Frames frames = new Base1Frames(new ByteArrayInputStream(link.toByteArray()), back);
+            for (Base1Frames.Frame f = frames.next(); f != null; f = frames.next()) {
+                ISOMsg m = new ISOMsg();
+                m.setPackager(new Base1Packager());
+                m.unpack(f.message());
+                System.out.println(&quot;frame: header &quot; + f.header().length + &quot; bytes, &quot; + m.getMTI() + &quot; stan &quot; + m.getString(11));
+            }
+            System.out.println(&quot;bytes sent back to the network: &quot; + back.size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static byte[] message(String mti, String stan) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.setPackager(new Base1Packager());
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000007300&quot;);
+        m.set(11, stan);
+        m.set(39, &quot;00&quot;);
+        m.set(41, &quot;TERM0500&quot;);
+        return m.pack();
+    }
+
+    private static byte[] frame(byte[] message) {
+        int len = 22 + message.length;
+        byte[] header = new byte[22];
+        header[0] = 22;
+        header[1] = 0x01;
+        header[3] = (byte) (len &gt;&gt; 8);
+        header[4] = (byte) len;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] { (byte) (len &gt;&gt; 8), (byte) len, 0, 0 });
+        out.writeBytes(header);
+        out.writeBytes(message);
+        return out.toByteArray();
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-05/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/com/example/practice/Base1Frames.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/com/example/practice/Base1Frames.java</code> and <code>practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-05/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -530,6 +679,59 @@ public final class DailyReport {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DailyReport;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; day = List.of(
+                    msg(&quot;0200&quot;, &quot;000000&quot;, &quot;000000000480&quot;),
+                    msg(&quot;0200&quot;, &quot;003000&quot;, &quot;000000000220&quot;),
+                    msg(&quot;0200&quot;, &quot;010000&quot;, &quot;000000004000&quot;),
+                    msg(&quot;0200&quot;, &quot;200000&quot;, &quot;000000000150&quot;),
+                    msg(&quot;0420&quot;, &quot;000000&quot;, &quot;000000000480&quot;),
+                    msg(&quot;0800&quot;, null, null));
+            for (ISOMsg m : day) {
+                System.out.println(m.getMTI() + &quot; &quot; + m.getString(3) + &quot; is &quot; + DailyReport.kind(m));
+            }
+            System.out.println(&quot;totals: &quot; + DailyReport.totals(day));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String processingCode, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        if (processingCode != null)
+            m.set(3, processingCode);
+        if (amount != null)
+            m.set(4, amount);
+        m.set(41, &quot;TERM0600&quot;);
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -590,10 +792,64 @@ public final class DailyReport {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DailyReport;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; day = List.of(
+                    msg(&quot;0200&quot;, &quot;000000&quot;, &quot;000000000480&quot;),
+                    msg(&quot;0200&quot;, &quot;003000&quot;, &quot;000000000220&quot;),
+                    msg(&quot;0200&quot;, &quot;010000&quot;, &quot;000000004000&quot;),
+                    msg(&quot;0200&quot;, &quot;200000&quot;, &quot;000000000150&quot;),
+                    msg(&quot;0420&quot;, &quot;000000&quot;, &quot;000000000480&quot;),
+                    msg(&quot;0800&quot;, null, null));
+            for (ISOMsg m : day) {
+                System.out.println(m.getMTI() + &quot; &quot; + m.getString(3) + &quot; is &quot; + DailyReport.kind(m));
+            }
+            System.out.println(&quot;totals: &quot; + DailyReport.totals(day));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String processingCode, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        if (processingCode != null)
+            m.set(3, processingCode);
+        if (amount != null)
+            m.set(4, amount);
+        m.set(41, &quot;TERM0600&quot;);
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-05/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/com/example/practice/DailyReport.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/com/example/practice/DailyReport.java</code> and <code>practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

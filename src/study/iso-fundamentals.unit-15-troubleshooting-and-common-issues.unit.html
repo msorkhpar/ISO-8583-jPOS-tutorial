@@ -130,6 +130,65 @@ public final class TicketSearch {
                 &amp;&amp; sent(ticket).equals(m.getString(7));
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TicketSearch;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; log = new ArrayList&lt;&gt;();
+            exchange(log, &quot;TERM1501&quot;, &quot;000077&quot;, &quot;0612143005&quot;, &quot;00&quot;);
+            exchange(log, &quot;TERM1502&quot;, &quot;000077&quot;, &quot;0612143005&quot;, &quot;00&quot;);
+            exchange(log, &quot;TERM1501&quot;, &quot;000078&quot;, &quot;0612143140&quot;, &quot;51&quot;);
+            exchange(log, &quot;TERM1501&quot;, &quot;000077&quot;, &quot;0613080012&quot;, &quot;00&quot;);
+            TicketSearch.Ticket ticket = new TicketSearch.Ticket(&quot;TERM1501&quot;, &quot;77&quot;, Instant.parse(&quot;2026-06-12T14:30:05Z&quot;));
+            List&lt;ISOMsg&gt; found = TicketSearch.find(log, ticket);
+            System.out.println(&quot;found for TERM1501, STAN 77, 14:30:05 UTC: &quot; + found.size());
+            for (ISOMsg m : found)
+                System.out.println(&quot;  &quot; + m.getMTI() + &quot; 7=&quot; + m.getString(7) + &quot; 11=&quot; + m.getString(11) + &quot; 39=&quot; + m.getString(39));
+            System.out.println(&quot;found for a message never logged: &quot;
+                    + TicketSearch.find(log, new TicketSearch.Ticket(&quot;TERM1501&quot;, &quot;79&quot;, Instant.parse(&quot;2026-06-12T14:33:00Z&quot;))).size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void exchange(List&lt;ISOMsg&gt; log, String terminal, String stan, String de7, String rc) throws Exception {
+        ISOMsg request = new ISOMsg(&quot;0200&quot;);
+        request.set(4, &quot;000000002110&quot;);
+        request.set(7, de7);
+        request.set(11, stan);
+        request.set(41, terminal);
+        ISOMsg answer = (ISOMsg) request.clone();
+        answer.setResponseMTI();
+        answer.set(39, rc);
+        log.add(request);
+        log.add(answer);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -182,10 +241,70 @@ public final class TicketSearch {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TicketSearch;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; log = new ArrayList&lt;&gt;();
+            exchange(log, &quot;TERM1501&quot;, &quot;000077&quot;, &quot;0612143005&quot;, &quot;00&quot;);
+            exchange(log, &quot;TERM1502&quot;, &quot;000077&quot;, &quot;0612143005&quot;, &quot;00&quot;);
+            exchange(log, &quot;TERM1501&quot;, &quot;000078&quot;, &quot;0612143140&quot;, &quot;51&quot;);
+            exchange(log, &quot;TERM1501&quot;, &quot;000077&quot;, &quot;0613080012&quot;, &quot;00&quot;);
+            TicketSearch.Ticket ticket = new TicketSearch.Ticket(&quot;TERM1501&quot;, &quot;77&quot;, Instant.parse(&quot;2026-06-12T14:30:05Z&quot;));
+            List&lt;ISOMsg&gt; found = TicketSearch.find(log, ticket);
+            System.out.println(&quot;found for TERM1501, STAN 77, 14:30:05 UTC: &quot; + found.size());
+            for (ISOMsg m : found)
+                System.out.println(&quot;  &quot; + m.getMTI() + &quot; 7=&quot; + m.getString(7) + &quot; 11=&quot; + m.getString(11) + &quot; 39=&quot; + m.getString(39));
+            System.out.println(&quot;found for a message never logged: &quot;
+                    + TicketSearch.find(log, new TicketSearch.Ticket(&quot;TERM1501&quot;, &quot;79&quot;, Instant.parse(&quot;2026-06-12T14:33:00Z&quot;))).size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void exchange(List&lt;ISOMsg&gt; log, String terminal, String stan, String de7, String rc) throws Exception {
+        ISOMsg request = new ISOMsg(&quot;0200&quot;);
+        request.set(4, &quot;000000002110&quot;);
+        request.set(7, de7);
+        request.set(11, stan);
+        request.set(41, terminal);
+        ISOMsg answer = (ISOMsg) request.clone();
+        answer.setResponseMTI();
+        answer.set(39, rc);
+        log.add(request);
+        log.add(answer);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-15/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/TicketSearch.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/com/example/practice/TicketSearch.java</code> and <code>practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-15/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -314,6 +433,61 @@ public final class Shapes {
         return shapes;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Shapes;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; approved = List.of(
+                    purchase(&quot;4000000000000002&quot;, &quot;000000000875&quot;, &quot;001101&quot;),
+                    purchase(&quot;5105105105105100&quot;, &quot;000000012000&quot;, &quot;001102&quot;),
+                    purchase(&quot;4012888888881881&quot;, &quot;000000003310&quot;, &quot;001103&quot;));
+            ISOMsg sameShape = purchase(&quot;6011000990139424&quot;, &quot;000000000099&quot;, &quot;001104&quot;);
+            System.out.println(&quot;same shapes, other values: &quot; + Shapes.unseen(approved, sameShape));
+            ISOMsg rejected = purchase(&quot;4000000000000002&quot;, &quot;0000000O1500&quot;, &quot;001105&quot;);
+            rejected.set(52, ISOUtil.hex2byte(&quot;1A2B3C4D5E6F&quot;));
+            rejected.unset(49);
+            System.out.println(&quot;letter in the amount, short PIN block, no currency: &quot; + Shapes.unseen(approved, rejected));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String pan, String amount, String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, pan);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, stan);
+        m.set(41, &quot;TERM1502&quot;);
+        m.set(49, &quot;840&quot;);
+        m.set(52, ISOUtil.hex2byte(&quot;0011223344556677&quot;));
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -370,10 +544,66 @@ public final class Shapes {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Shapes;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.ISOUtil;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            List&lt;ISOMsg&gt; approved = List.of(
+                    purchase(&quot;4000000000000002&quot;, &quot;000000000875&quot;, &quot;001101&quot;),
+                    purchase(&quot;5105105105105100&quot;, &quot;000000012000&quot;, &quot;001102&quot;),
+                    purchase(&quot;4012888888881881&quot;, &quot;000000003310&quot;, &quot;001103&quot;));
+            ISOMsg sameShape = purchase(&quot;6011000990139424&quot;, &quot;000000000099&quot;, &quot;001104&quot;);
+            System.out.println(&quot;same shapes, other values: &quot; + Shapes.unseen(approved, sameShape));
+            ISOMsg rejected = purchase(&quot;4000000000000002&quot;, &quot;0000000O1500&quot;, &quot;001105&quot;);
+            rejected.set(52, ISOUtil.hex2byte(&quot;1A2B3C4D5E6F&quot;));
+            rejected.unset(49);
+            System.out.println(&quot;letter in the amount, short PIN block, no currency: &quot; + Shapes.unseen(approved, rejected));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String pan, String amount, String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, pan);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, stan);
+        m.set(41, &quot;TERM1502&quot;);
+        m.set(49, &quot;840&quot;);
+        m.set(52, ISOUtil.hex2byte(&quot;0011223344556677&quot;));
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-15/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/com/example/practice/Shapes.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/com/example/practice/Shapes.java</code> and <code>practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-15/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

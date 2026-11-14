@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        String entry = m.getString(22);\n        if (entry == null || entry.length() != 3)\n            return \"no entry mode\";\n        switch (entry.substring(0, 2)) {\n            case KEYED:\n                return m.hasField(14) && !m.hasField(35) && !m.hasField(55) ? null : \"keyed, but card fields disagree\";\n            case STRIPE:\n                return m.hasField(35) && !m.hasField(55) ? null : \"stripe read, but card fields disagree\";\n            case CHIP:\n            case CONTACTLESS_CHIP:\n                return m.hasField(35) && m.hasField(55) ? null : \"chip read, but card fields disagree\";\n            default:\n                return \"entry mode \" + entry + \" is not in the specification\";\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.EntryModeScreen;\nimport org.jpos.iso.ISOMsg;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            EntryModeScreen screen = new EntryModeScreen();\n            System.out.println(\"contactless with chip data: \" + verdict(screen.screen(purchase(\"071\", true, true))));\n            System.out.println(\"stripe, no PIN pad: \" + verdict(screen.screen(purchase(\"902\", true, false))));\n            System.out.println(\"chip code, track only: \" + verdict(screen.screen(purchase(\"051\", true, false))));\n            System.out.println(\"stripe code with chip data: \" + verdict(screen.screen(purchase(\"901\", true, true))));\n            System.out.println(\"entry mode 81: \" + verdict(screen.screen(purchase(\"811\", true, false))));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String verdict(ISOMsg answer) throws Exception {\n        return answer == null ? \"goes upstream\" : answer.getMTI() + \" response code \" + answer.getString(39);\n    }\n\n    private static ISOMsg purchase(String entryMode, boolean track2, boolean icc) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, \"4761739001010010\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000001275\");\n        m.set(11, \"009904\");\n        m.set(22, entryMode);\n        m.set(41, \"40220077\");\n        if (track2) m.set(35, \"4761739001010010=28122011143804400000\");\n        if (icc) m.set(55, new byte[] { (byte) 0x9F, 0x26, 0x02, 0x0A, 0x0B });\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        // TODO: Return null only when the card fields the request carries (14, 35, 55) are the\n        //       ones the read named in field 22 produces, and nothing else. Anything this\n        //       acquirer's specification doesn't list is a problem too. The text you return is\n        //       for the gateway's log; the tests only look at whether there is one.\n        throw new IllegalStateException(\"TODO: problem\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.EntryModeScreen;\nimport org.jpos.iso.ISOMsg;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            EntryModeScreen screen = new EntryModeScreen();\n            System.out.println(\"contactless with chip data: \" + verdict(screen.screen(purchase(\"071\", true, true))));\n            System.out.println(\"stripe, no PIN pad: \" + verdict(screen.screen(purchase(\"902\", true, false))));\n            System.out.println(\"chip code, track only: \" + verdict(screen.screen(purchase(\"051\", true, false))));\n            System.out.println(\"stripe code with chip data: \" + verdict(screen.screen(purchase(\"901\", true, true))));\n            System.out.println(\"entry mode 81: \" + verdict(screen.screen(purchase(\"811\", true, false))));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String verdict(ISOMsg answer) throws Exception {\n        return answer == null ? \"goes upstream\" : answer.getMTI() + \" response code \" + answer.getString(39);\n    }\n\n    private static ISOMsg purchase(String entryMode, boolean track2, boolean icc) throws Exception {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, \"4761739001010010\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000001275\");\n        m.set(11, \"009904\");\n        m.set(22, entryMode);\n        m.set(41, \"40220077\");\n        if (track2) m.set(35, \"4761739001010010=28122011143804400000\");\n        if (icc) m.set(55, new byte[] { (byte) 0x9F, 0x26, 0x02, 0x0A, 0x0B });\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "fb193f25751b7f4c8902506354a4f137d931f425b3f5b5dee2c4a18a001ac460",
+  "content_sha256": "8e1458b0b8bdfc59455828c364b0660452d6313792c5898d8a030d763dbf1f5c",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * The gateway's first look at a terminal's request. A request whose field 22 and card fields\n * contradict each other is answered here, with response code 30, and never goes upstream.\n */\npublic class EntryModeScreen {\n    /** The PAN-entry codes in the acquirer's specification: the first two digits of field 22. */\n    static final String KEYED = \"01\", STRIPE = \"90\", CHIP = \"05\", CONTACTLESS_CHIP = \"07\";\n\n    /** The answer for the terminal when the request can't go upstream, or null when it can. */\n    public ISOMsg screen(ISOMsg fromTerminal) throws ISOException {\n        String problem = problem(fromTerminal);\n        if (problem == null)\n            return null;\n        ISOMsg refusal = (ISOMsg) fromTerminal.clone(new int[] { 0, 3, 4, 11, 41, 42 });\n        refusal.setResponseMTI();\n        refusal.set(39, \"30\");\n        return refusal;\n    }\n\n    /** Why field 22 and the card fields disagree, or null when they tell the same story. */\n    String problem(ISOMsg m) {\n        // TODO: Return null only when the card fields the request carries (14, 35, 55) are the\n        //       ones the read named in field 22 produces, and nothing else. Anything this\n        //       acquirer's specification doesn't list is a problem too. The text you return is\n        //       for the gateway's log; the tests only look at whether there is one.\n        throw new IllegalStateException(\"TODO: problem\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-05/practice-2/src/main/java/com/example/practice/EntryModeScreen.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-05/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -142,6 +161,10 @@
     },
     "concepts": [
       "Field 22 and the card fields 14, 35 and 55 come from one value describing how the card was read, so a request never claims a read its data contradicts."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-05/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-05/practice-2/src/main/java/TryIt.java"
   }
 }

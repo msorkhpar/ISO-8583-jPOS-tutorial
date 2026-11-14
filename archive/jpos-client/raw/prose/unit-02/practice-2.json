@@ -38,6 +38,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        ISOMsg m = stamped(\"0800\");\n        m.set(70, \"001\");\n        return m;\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(7, transmissionTime());\n        m.set(11, nextStan());\n        return m;\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        return clock.instant().atZone(ZoneOffset.UTC).format(MMDDHHMMSS);\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        long n = counter.getAsLong();\n        return ISOUtil.zeropad((n - 1) % 999999 + 1, 6);\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.AtmRequests;\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\nimport java.util.concurrent.atomic.AtomicLong;\nimport org.jpos.iso.ISOMsg;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Clock lisbon = Clock.fixed(Instant.parse(\"2027-06-30T23:58:07Z\"), ZoneId.of(\"Europe/Lisbon\"));\n            AtomicLong counter = new AtomicLong(999_997);\n            AtmRequests atm = new AtmRequests(\"ATM09120\", lisbon, counter::incrementAndGet);\n            ISOMsg signOn = atm.signOn();\n            System.out.println(\"sign-on: \" + signOn.getMTI() + \" field 7=\" + signOn.getString(7) + \" STAN=\" + signOn.getString(11));\n            ISOMsg inquiry = atm.balanceInquiry(\"4012888888881881\");\n            System.out.println(\"inquiry: \" + inquiry.getMTI() + \" STAN=\" + inquiry.getString(11));\n            ISOMsg cash = atm.withdrawal(\"4012888888881881\", 8000, \"978\");\n            System.out.println(\"withdrawal: \" + cash.getMTI() + \" STAN=\" + cash.getString(11) + \" amount=\" + cash.getString(4));\n            System.out.println(\"withdrawal field 7: \" + cash.getString(7));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -50,6 +59,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        // TODO: Build the sign-on, MTI 0800 with field 70 = 001, ready for this link.\n        throw new IllegalStateException(\"TODO: signOn\");\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        // TODO: Every request above starts here. Give it what the host needs on every message.\n        throw new IllegalStateException(\"TODO: stamped\");\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        // TODO: The ATMs stand in many countries; the host reads this field the same way for all of them.\n        throw new IllegalStateException(\"TODO: transmissionTime\");\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        // TODO: Six digits. The ATM runs for years on the same counter.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.AtmRequests;\nimport java.time.Clock;\nimport java.time.Instant;\nimport java.time.ZoneId;\nimport java.util.concurrent.atomic.AtomicLong;\nimport org.jpos.iso.ISOMsg;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Clock lisbon = Clock.fixed(Instant.parse(\"2027-06-30T23:58:07Z\"), ZoneId.of(\"Europe/Lisbon\"));\n            AtomicLong counter = new AtomicLong(999_997);\n            AtmRequests atm = new AtmRequests(\"ATM09120\", lisbon, counter::incrementAndGet);\n            ISOMsg signOn = atm.signOn();\n            System.out.println(\"sign-on: \" + signOn.getMTI() + \" field 7=\" + signOn.getString(7) + \" STAN=\" + signOn.getString(11));\n            ISOMsg inquiry = atm.balanceInquiry(\"4012888888881881\");\n            System.out.println(\"inquiry: \" + inquiry.getMTI() + \" STAN=\" + inquiry.getString(11));\n            ISOMsg cash = atm.withdrawal(\"4012888888881881\", 8000, \"978\");\n            System.out.println(\"withdrawal: \" + cash.getMTI() + \" STAN=\" + cash.getString(11) + \" amount=\" + cash.getString(4));\n            System.out.println(\"withdrawal field 7: \" + cash.getString(7));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -57,8 +75,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 2,
-    "code": 1,
+    "paras": 3,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -68,7 +86,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "651326ef17968a33b6381450f492c5a76e86a6668471ed7e062b2b5e2fb884b0",
+  "content_sha256": "72d5d28b4a654b9fe7330c257bc22154863cc04ab13fde6f9a3e6e71e051ce4b",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.time.Clock;\nimport java.time.ZoneOffset;\nimport java.time.format.DateTimeFormatter;\nimport java.util.function.LongSupplier;\n\n/** Builds the requests one ATM sends to its acquirer on one link. */\npublic class AtmRequests {\n    private static final DateTimeFormatter MMDDHHMMSS = DateTimeFormatter.ofPattern(\"MMddHHmmss\");\n\n    private final String atmId;              // field 41\n    private final Clock clock;               // the ATM's clock, in the ATM's own time zone\n    private final LongSupplier counter;      // the link's counter: 1, 2, 3, ... shared by every caller\n\n    public AtmRequests(String atmId, Clock clock, LongSupplier counter) {\n        this.atmId = atmId;\n        this.clock = clock;\n        this.counter = counter;\n    }\n\n    public ISOMsg balanceInquiry(String pan) throws ISOException {\n        ISOMsg m = stamped(\"0100\");\n        m.set(2, pan);\n        m.set(3, \"310000\");\n        m.set(41, atmId);\n        return m;\n    }\n\n    public ISOMsg withdrawal(String pan, long amountMinor, String currency) throws ISOException {\n        ISOMsg m = stamped(\"0200\");\n        m.set(2, pan);\n        m.set(3, \"010000\");\n        m.set(4, ISOUtil.zeropad(amountMinor, 12));\n        m.set(41, atmId);\n        m.set(49, currency);\n        return m;\n    }\n\n    /** The 0800 the ATM sends when it comes into service (field 70 = 001). */\n    public ISOMsg signOn() throws ISOException {\n        // TODO: Build the sign-on, MTI 0800 with field 70 = 001, ready for this link.\n        throw new IllegalStateException(\"TODO: signOn\");\n    }\n\n    /** A new message with what every message on this link carries besides its own fields. */\n    ISOMsg stamped(String mti) throws ISOException {\n        // TODO: Every request above starts here. Give it what the host needs on every message.\n        throw new IllegalStateException(\"TODO: stamped\");\n    }\n\n    /** Field 7 for a message sent now. */\n    String transmissionTime() {\n        // TODO: The ATMs stand in many countries; the host reads this field the same way for all of them.\n        throw new IllegalStateException(\"TODO: transmissionTime\");\n    }\n\n    /** Field 11 for the next message on this link. */\n    String nextStan() {\n        // TODO: Six digits. The ATM runs for years on the same counter.\n        throw new IllegalStateException(\"TODO: nextStan\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-02/practice-2/src/main/java/com/example/practice/AtmRequests.java",
@@ -79,7 +97,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-02/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -130,6 +149,10 @@
       "Field 7 is the transmission time in GMT, whatever the zone of the server or of the clock.",
       "The fields every message on a link carries are set in one method of a factory with an injected clock and counter, so every message type gets them alike.",
       "The STAN is one counting sequence per link, shared by every message type, from 000001 to 999999 and around again; random and time-of-day STANs collide."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-02/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-02/practice-2/src/main/java/TryIt.java"
   }
 }

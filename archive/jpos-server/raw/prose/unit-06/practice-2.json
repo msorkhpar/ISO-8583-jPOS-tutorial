@@ -54,6 +54,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        if (field7 == null || field7.length() != 10 || !ISOUtil.isNumeric(field7, 10))\n            return null;\n        return ISODate.parseISODate(field7, clock.millis(), TimeZone.getTimeZone(\"GMT\")).toInstant();\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        return Duration.between(sent, clock.instant()).abs().compareTo(WINDOW) <= 0;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.TransmissionWindow;\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\n\nimport java.util.Date;\nimport java.util.TimeZone;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            TimeZone.setDefault(TimeZone.getTimeZone(\"America/Sao_Paulo\"));\n            TransmissionWindow window = new TransmissionWindow();\n            System.out.println(\"sent 2 minutes ago: \" + check(window, -2));\n            System.out.println(\"sent 4 minutes ahead: \" + check(window, 4));\n            System.out.println(\"sent 9 minutes ago: \" + check(window, -9));\n            System.out.println(\"sent 3 hours ago: \" + check(window, -180));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String check(TransmissionWindow window, int minutes) throws Exception {\n        String field7 = ISODate.getDateTime(new Date(System.currentTimeMillis() + minutes * 60_000L),\n                TimeZone.getTimeZone(\"GMT\"));\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000001990\");\n        m.set(7, field7);\n        m.set(11, \"002741\");\n        m.set(41, \"60400063\");\n        Context ctx = new Context();\n        ctx.put(ContextConstants.REQUEST.toString(), m);\n        window.prepare(1L, ctx);\n        ISOMsg response = ctx.get(ContextConstants.RESPONSE.toString());\n        return \"field 7=\" + field7 + \", SENT_AT=\" + ctx.get(\"SENT_AT\")\n                + (response == null ? \", passes\" : \", answered \" + response.getString(39));\n    }\n}\n"
         }
       ]
     },
@@ -66,6 +75,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        // TODO: The moment field 7 names, on any day of the year and on any server. null when the\n        //       field can't name one. Use the clock this participant was given.\n        throw new IllegalStateException(\"TODO: sentAt\");\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        // TODO: Sent no further than WINDOW from the clock.\n        throw new IllegalStateException(\"TODO: withinWindow\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.TransmissionWindow;\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\n\nimport java.util.Date;\nimport java.util.TimeZone;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            TimeZone.setDefault(TimeZone.getTimeZone(\"America/Sao_Paulo\"));\n            TransmissionWindow window = new TransmissionWindow();\n            System.out.println(\"sent 2 minutes ago: \" + check(window, -2));\n            System.out.println(\"sent 4 minutes ahead: \" + check(window, 4));\n            System.out.println(\"sent 9 minutes ago: \" + check(window, -9));\n            System.out.println(\"sent 3 hours ago: \" + check(window, -180));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String check(TransmissionWindow window, int minutes) throws Exception {\n        String field7 = ISODate.getDateTime(new Date(System.currentTimeMillis() + minutes * 60_000L),\n                TimeZone.getTimeZone(\"GMT\"));\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000001990\");\n        m.set(7, field7);\n        m.set(11, \"002741\");\n        m.set(41, \"60400063\");\n        Context ctx = new Context();\n        ctx.put(ContextConstants.REQUEST.toString(), m);\n        window.prepare(1L, ctx);\n        ISOMsg response = ctx.get(ContextConstants.RESPONSE.toString());\n        return \"field 7=\" + field7 + \", SENT_AT=\" + ctx.get(\"SENT_AT\")\n                + (response == null ? \", passes\" : \", answered \" + response.getString(39));\n    }\n}\n"
     }
   ],
   "video": null,
@@ -73,8 +91,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -84,7 +102,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "cacd6145e85e3e9bca5df63dd832f004baecb28cbc74f694329ddb216940c4cb",
+  "content_sha256": "bb3f323fd95e2e19a28d500a8c9b7e203c70cdafec451b1a36910b488a4434da",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISODate;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.transaction.Context;\nimport org.jpos.transaction.ContextConstants;\nimport org.jpos.transaction.TransactionParticipant;\n\nimport java.io.Serializable;\nimport java.time.Clock;\nimport java.time.Duration;\nimport java.time.Instant;\nimport java.util.TimeZone;\n\n/**\n * Lets a request through only when it was sent within WINDOW of the server's clock, and records\n * when it was sent for the participants after it.\n */\npublic class TransmissionWindow implements TransactionParticipant {\n    static final Duration WINDOW = Duration.ofMinutes(5);\n    static final String SENT_AT = \"SENT_AT\";\n    private static final int[] ECHOED = { 0, 2, 3, 4, 7, 11, 12, 13, 32, 37, 41, 42, 49, 70 };\n\n    private final Clock clock;\n\n    public TransmissionWindow() {\n        this(Clock.systemUTC());\n    }\n\n    TransmissionWindow(Clock clock) {\n        this.clock = clock;\n    }\n\n    @Override\n    public int prepare(long id, Serializable context) {\n        Context ctx = (Context) context;\n        ISOMsg request = ctx.get(ContextConstants.REQUEST.toString());\n        Instant sent = sentAt(request.getString(7));\n        if (sent != null && withinWindow(sent)) {\n            ctx.put(SENT_AT, sent);\n            return PREPARED | NO_JOIN;\n        }\n        try {\n            ISOMsg response = (ISOMsg) request.clone(ECHOED);\n            response.setResponseMTI();\n            response.set(39, \"30\");\n            ctx.put(ContextConstants.RESPONSE.toString(), response);\n        } catch (ISOException e) {\n            ctx.log(e);\n        }\n        return ABORTED;\n    }\n\n    /** When the request was sent, from field 7; null when field 7 doesn't say. */\n    Instant sentAt(String field7) {\n        // TODO: The moment field 7 names, on any day of the year and on any server. null when the\n        //       field can't name one. Use the clock this participant was given.\n        throw new IllegalStateException(\"TODO: sentAt\");\n    }\n\n    /** Whether a request sent at that moment may still be processed. */\n    boolean withinWindow(Instant sent) {\n        // TODO: Sent no further than WINDOW from the clock.\n        throw new IllegalStateException(\"TODO: withinWindow\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-server/prose/unit-06/practice-2/src/main/java/com/example/practice/TransmissionWindow.java",
@@ -95,7 +113,8 @@
       "-q",
       "-f",
       "practice/jpos-server/prose/unit-06/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -154,6 +173,10 @@
     },
     "concepts": [
       "Field 7 has no year and is in GMT: it takes the year closest to the clock and is read in GMT, whatever the JVM's default zone."
-    ]
+    ],
+    "files": [
+      "practice/jpos-server/prose/unit-06/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-server/prose/unit-06/practice-2/src/main/java/TryIt.java"
   }
 }

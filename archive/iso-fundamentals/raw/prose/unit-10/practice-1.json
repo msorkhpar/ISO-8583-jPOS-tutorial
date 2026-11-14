@@ -55,6 +55,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        if (request.hasField(2))\n            return request.getString(2);\n        if (request.hasField(35)) {\n            String track = request.getString(35);\n            int end = 0;\n            while (end < track.length() && Character.isDigit(track.charAt(end)))\n                end++;\n            return track.substring(0, end);\n        }\n        return null;\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        if (pan.length() < 2 || issuedRanges.stream().noneMatch(pan::startsWith))\n            return false;\n        String body = pan.substring(0, pan.length() - 1);\n        return ISOUtil.calcLUHN(body) == pan.charAt(pan.length() - 1);\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        return \"refused, not an issued test card: \" + ISOUtil.protect(pan);\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.TestCardGuard;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            TestCardGuard guard = new TestCardGuard(List.of(\"4111111111\", \"3714496353\"));\n            send(guard, request(2, \"4111111111111111\"));\n            send(guard, request(35, \"371449635398431=30121010000000000\"));\n            send(guard, request(2, \"4242424242424242\"));\n            send(guard, request(2, \"4111111111111112\"));\n            send(guard, request(35, \"5500005555555559D30121010000000000\"));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(int field, String card) throws Exception {\n        ISOMsg m = new ISOMsg(field == 2 ? \"0100\" : \"0200\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000002240\");\n        m.set(11, \"051001\");\n        m.set(field, card);\n        return m;\n    }\n\n    private static void send(TestCardGuard guard, ISOMsg request) {\n        try {\n            guard.check(request);\n            System.out.println(\"sent: \" + request.getString(0) + \" with field \" + (request.hasField(2) ? 2 : 35));\n        } catch (TestCardGuard.Refused refused) {\n            System.out.println(refused.getMessage());\n        }\n    }\n}\n"
         }
       ]
     },
@@ -67,6 +76,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        // TODO: Find the card number in the request, wherever this request carries it.\n        throw new IllegalStateException(\"TODO: panOf\");\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        // TODO: Decide whether this number is one the harness may send to the test host.\n        throw new IllegalStateException(\"TODO: isTestCard\");\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        // TODO: Tell the tester which card was stopped, in a form the build log may keep.\n        throw new IllegalStateException(\"TODO: refusal\");\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.TestCardGuard;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            TestCardGuard guard = new TestCardGuard(List.of(\"4111111111\", \"3714496353\"));\n            send(guard, request(2, \"4111111111111111\"));\n            send(guard, request(35, \"371449635398431=30121010000000000\"));\n            send(guard, request(2, \"4242424242424242\"));\n            send(guard, request(2, \"4111111111111112\"));\n            send(guard, request(35, \"5500005555555559D30121010000000000\"));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg request(int field, String card) throws Exception {\n        ISOMsg m = new ISOMsg(field == 2 ? \"0100\" : \"0200\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000002240\");\n        m.set(11, \"051001\");\n        m.set(field, card);\n        return m;\n    }\n\n    private static void send(TestCardGuard guard, ISOMsg request) {\n        try {\n            guard.check(request);\n            System.out.println(\"sent: \" + request.getString(0) + \" with field \" + (request.hasField(2) ? 2 : 35));\n        } catch (TestCardGuard.Refused refused) {\n            System.out.println(refused.getMessage());\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -74,8 +92,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -85,7 +103,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "fdb6963e96112d97f63d525b3a7117cb2f9e08d5dce1a3e9aeb5ec424057a1cb",
+  "content_sha256": "1072e986294f9dd733b28af62a6bf50f636fb1edc3a56ef22234b186afcd0335",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\nimport java.util.List;\n\n/**\n * Sits between the certification harness and the link: every request the harness builds goes\n * through {@link #check} before it is sent.\n */\npublic class TestCardGuard {\n    private final List<String> issuedRanges;\n\n    /**\n     * @param issuedRanges the test card ranges the network issued for this certification, each\n     *                     given as the leading digits that every card in the range shares\n     */\n    public TestCardGuard(List<String> issuedRanges) {\n        this.issuedRanges = List.copyOf(issuedRanges);\n    }\n\n    /** Returns the request unchanged when it may be sent, and throws {@link Refused} when not. */\n    public ISOMsg check(ISOMsg request) {\n        String pan = panOf(request);\n        if (pan != null && !isTestCard(pan))\n            throw new Refused(refusal(pan));\n        return request;\n    }\n\n    /** The card number this request carries, or null when it carries none (an echo, a sign-on). */\n    String panOf(ISOMsg request) {\n        // TODO: Find the card number in the request, wherever this request carries it.\n        throw new IllegalStateException(\"TODO: panOf\");\n    }\n\n    /** Whether this card number may go to the network's test host in this certification. */\n    boolean isTestCard(String pan) {\n        // TODO: Decide whether this number is one the harness may send to the test host.\n        throw new IllegalStateException(\"TODO: isTestCard\");\n    }\n\n    /** The text of the refusal. It goes to the build log, which the whole team reads. */\n    String refusal(String pan) {\n        // TODO: Tell the tester which card was stopped, in a form the build log may keep.\n        throw new IllegalStateException(\"TODO: refusal\");\n    }\n\n    /** Thrown when a request must not be sent. */\n    public static class Refused extends RuntimeException {\n        public Refused(String message) {\n            super(message);\n        }\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/com/example/practice/TestCardGuard.java",
@@ -96,7 +114,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-10/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -150,6 +169,10 @@
     },
     "concepts": [
       "Only cards issued for testing go to a test host; the Luhn check digit only catches typing errors, and a real card number in a log puts every copy under PCI DSS."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-10/practice-1/src/main/java/TryIt.java"
   }
 }

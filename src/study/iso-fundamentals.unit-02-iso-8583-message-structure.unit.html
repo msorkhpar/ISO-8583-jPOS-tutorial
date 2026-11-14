@@ -368,6 +368,59 @@ public final class DumpReader {
         return (digit &amp; (8 &gt;&gt; ((n - 1) % 4))) != 0;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DumpReader;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.packager.GenericPackager;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ISOMsg m = new ISOMsg(&quot;0200&quot;);
+            m.set(2, &quot;4111111111111111&quot;);
+            m.set(3, &quot;000000&quot;);
+            m.set(4, &quot;000000002550&quot;);
+            m.set(11, &quot;734120&quot;);
+            m.set(41, &quot;TERM0042&quot;);
+            m.set(49, &quot;840&quot;);
+            DumpReader single = new DumpReader(capture(m));
+            System.out.println(&quot;mti: &quot; + single.mti());
+            System.out.println(&quot;fields: &quot; + single.fields());
+            System.out.println(&quot;dataStart: &quot; + single.dataStart());
+
+            m.set(70, &quot;301&quot;);
+            DumpReader twoMaps = new DumpReader(capture(m));
+            System.out.println(&quot;fields with a second bitmap: &quot; + twoMaps.fields());
+            System.out.println(&quot;dataStart with a second bitmap: &quot; + twoMaps.dataStart());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String capture(ISOMsg m) throws Exception {
+        m.setPackager(new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;));
+        return new String(m.pack());
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -414,10 +467,64 @@ public final class DumpReader {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.DumpReader;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+import org.jpos.iso.packager.GenericPackager;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            ISOMsg m = new ISOMsg(&quot;0200&quot;);
+            m.set(2, &quot;4111111111111111&quot;);
+            m.set(3, &quot;000000&quot;);
+            m.set(4, &quot;000000002550&quot;);
+            m.set(11, &quot;734120&quot;);
+            m.set(41, &quot;TERM0042&quot;);
+            m.set(49, &quot;840&quot;);
+            DumpReader single = new DumpReader(capture(m));
+            System.out.println(&quot;mti: &quot; + single.mti());
+            System.out.println(&quot;fields: &quot; + single.fields());
+            System.out.println(&quot;dataStart: &quot; + single.dataStart());
+
+            m.set(70, &quot;301&quot;);
+            DumpReader twoMaps = new DumpReader(capture(m));
+            System.out.println(&quot;fields with a second bitmap: &quot; + twoMaps.fields());
+            System.out.println(&quot;dataStart with a second bitmap: &quot; + twoMaps.dataStart());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String capture(ISOMsg m) throws Exception {
+        m.setPackager(new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;));
+        return new String(m.pack());
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-02/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/DumpReader.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/DumpReader.java</code> and <code>practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

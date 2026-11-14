@@ -55,6 +55,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        List<Integer> found = new ArrayList<>();\n        for (int b = 2; b <= 64; b++) {\n            if (bit(4, b)) {\n                found.add(b);\n            }\n        }\n        if (bit(4, 1)) {\n            if (bit(20, 1)) {\n                throw new IllegalArgumentException(\"a third bitmap follows, and this tool reads two\");\n            }\n            for (int b = 2; b <= 64; b++) {\n                if (bit(20, b)) {\n                    found.add(64 + b);\n                }\n            }\n        }\n        return found;\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        return bit(4, 1) ? 36 : 20;\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        int digit = Character.digit(dump.charAt(from + (n - 1) / 4), 16);\n        return (digit & (8 >> ((n - 1) % 4))) != 0;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.DumpReader;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ISOMsg m = new ISOMsg(\"0200\");\n            m.set(2, \"4111111111111111\");\n            m.set(3, \"000000\");\n            m.set(4, \"000000002550\");\n            m.set(11, \"734120\");\n            m.set(41, \"TERM0042\");\n            m.set(49, \"840\");\n            DumpReader single = new DumpReader(capture(m));\n            System.out.println(\"mti: \" + single.mti());\n            System.out.println(\"fields: \" + single.fields());\n            System.out.println(\"dataStart: \" + single.dataStart());\n\n            m.set(70, \"301\");\n            DumpReader twoMaps = new DumpReader(capture(m));\n            System.out.println(\"fields with a second bitmap: \" + twoMaps.fields());\n            System.out.println(\"dataStart with a second bitmap: \" + twoMaps.dataStart());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String capture(ISOMsg m) throws Exception {\n        m.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        return new String(m.pack());\n    }\n}\n"
         }
       ]
     },
@@ -67,6 +76,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        // TODO: the list a support engineer checks against what the sender says it sent.\n        //       Refuse a capture this tool can't read completely (see the statement).\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        // TODO: where reading the fields would start.\n        throw new IllegalStateException(\"TODO: dataStart\");\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        // TODO: from is the index of the bitmap's first hexadecimal character in the capture.\n        throw new IllegalStateException(\"TODO: bit\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.DumpReader;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ISOMsg m = new ISOMsg(\"0200\");\n            m.set(2, \"4111111111111111\");\n            m.set(3, \"000000\");\n            m.set(4, \"000000002550\");\n            m.set(11, \"734120\");\n            m.set(41, \"TERM0042\");\n            m.set(49, \"840\");\n            DumpReader single = new DumpReader(capture(m));\n            System.out.println(\"mti: \" + single.mti());\n            System.out.println(\"fields: \" + single.fields());\n            System.out.println(\"dataStart: \" + single.dataStart());\n\n            m.set(70, \"301\");\n            DumpReader twoMaps = new DumpReader(capture(m));\n            System.out.println(\"fields with a second bitmap: \" + twoMaps.fields());\n            System.out.println(\"dataStart with a second bitmap: \" + twoMaps.dataStart());\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static String capture(ISOMsg m) throws Exception {\n        m.setPackager(new GenericPackager(\"jar:packager/iso87ascii.xml\"));\n        return new String(m.pack());\n    }\n}\n"
     }
   ],
   "video": null,
@@ -74,8 +92,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -85,7 +103,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "4f2e2a8a2264b9f2765867b7c36be7fe26b183c85dda38bb485ffcea0e6bf342",
+  "content_sha256": "be8e584325de2b428e1ffff19e09ecab2cbb6488d2bd789fa5a52cc7dae99545",
   "starting_code": "package com.example.practice;\n\nimport java.util.List;\n\n/**\n * The start of an ISO 8583 message captured on a hex-ASCII link, as support pastes it into a\n * ticket: the MTI, the bitmaps written as hexadecimal characters, then the fields.\n */\npublic final class DumpReader {\n\n    private final String dump;\n\n    public DumpReader(String dump) {\n        if (dump == null || dump.length() < 20) {\n            throw new IllegalArgumentException(\"too short to hold an MTI and a bitmap\");\n        }\n        this.dump = dump;\n    }\n\n    /** The message type indicator. */\n    public String mti() {\n        return dump.substring(0, 4);\n    }\n\n    /** Every field the capture's bitmaps say is present, in ascending order. */\n    public List<Integer> fields() {\n        // TODO: the list a support engineer checks against what the sender says it sent.\n        //       Refuse a capture this tool can't read completely (see the statement).\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n\n    /** The index in the capture where the characters of the first field begin. */\n    public int dataStart() {\n        // TODO: where reading the fields would start.\n        throw new IllegalStateException(\"TODO: dataStart\");\n    }\n\n    /** Whether bit {@code n}, numbered as the standard numbers it, is set in the bitmap at {@code from}. */\n    boolean bit(int from, int n) {\n        // TODO: from is the index of the bitmap's first hexadecimal character in the capture.\n        throw new IllegalStateException(\"TODO: bit\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/com/example/practice/DumpReader.java",
@@ -96,7 +114,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-02/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -142,6 +161,10 @@
       "Bit 65 announces a tertiary bitmap the way bit 1 announces the secondary one, so field 65 carries no data.",
       "Bit 1 announces a secondary bitmap for fields 65 to 128, which comes before the first field; bit 1 itself is not a field.",
       "Bit n of a bitmap says field n is present, counted from 1 at the most significant bit of the first byte."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-02/practice-2/src/main/java/TryIt.java"
   }
 }

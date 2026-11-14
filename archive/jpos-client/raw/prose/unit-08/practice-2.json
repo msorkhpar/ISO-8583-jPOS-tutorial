@@ -46,6 +46,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        LogEvent ev = log.createWarn();\n        ev.addMessage(request);\n        ev.addMessage(response);\n        Logger.log(ev);\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        ISOMsg copy = (ISOMsg) request.clone();\n        for (int f : new int[] { 2, 35, 45 })\n            if (copy.hasField(f))\n                copy.set(f, ISOUtil.protect(copy.getString(f)));\n        for (int f : new int[] { 52, 55 })\n            if (copy.hasField(f))\n                copy.set(f, new byte[copy.getBytes(f).length]);\n        copy.setPackager(packager);\n        return copy.pack();\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.DeclineReport;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.util.ProtectedLogListener;\nimport org.jpos.util.SimpleLogListener;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ProtectedLogListener protect = new ProtectedLogListener();\n            SimpleConfiguration cfg = new SimpleConfiguration();\n            cfg.put(\"protect\", \"2 35 45\");\n            cfg.put(\"wipe\", \"52 55\");\n            protect.setConfiguration(cfg);\n            org.jpos.util.Logger node = new org.jpos.util.Logger();\n            node.addListener(protect);\n            node.addListener(new SimpleLogListener(System.out));\n            ISOMsg request = new ISOMsg(\"0200\");\n            request.set(2, \"4000002760003184\");\n            request.set(3, \"000000\");\n            request.set(4, \"000000004410\");\n            request.set(11, \"088120\");\n            request.set(35, \"4000002760003184=31052011000000000000\");\n            request.set(41, \"50030007\");\n            request.set(52, ISOUtil.hex2byte(\"1A2B3C4D5E6F7081\"));\n            ISOMsg rejection = (ISOMsg) request.clone();\n            rejection.setResponseMTI();\n            rejection.set(39, \"30\");\n            String dump = new DeclineReport(node, new GenericPackager(\"jar:packager/iso87ascii.xml\")).report(request, rejection);\n            System.out.println(\"dump for the support desk:\");\n            System.out.println(dump);\n            System.out.println(\"request still has PAN: \" + request.getString(2));\n            System.out.println(\"request still has PIN block: \" + ISOUtil.hexString(request.getBytes(52)));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -58,6 +67,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        // TODO: One entry for the rejected exchange, with both messages field by field, so the\n        //       team can compare them with the host's trace. The log is shipped to a platform\n        //       that many people can search.\n        throw new IllegalStateException(\"TODO: logRejection\");\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        // TODO: The support desk works for another company and gets this by e-mail, so no card\n        //       data in it. They are looking for a format error, so it must still be the message\n        //       as their host received it. The request is the one the client keeps for its own\n        //       records (a reversal, say), and must come out of this as it went in.\n        throw new IllegalStateException(\"TODO: shareableImage\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.DeclineReport;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\nimport org.jpos.util.ProtectedLogListener;\nimport org.jpos.util.SimpleLogListener;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ProtectedLogListener protect = new ProtectedLogListener();\n            SimpleConfiguration cfg = new SimpleConfiguration();\n            cfg.put(\"protect\", \"2 35 45\");\n            cfg.put(\"wipe\", \"52 55\");\n            protect.setConfiguration(cfg);\n            org.jpos.util.Logger node = new org.jpos.util.Logger();\n            node.addListener(protect);\n            node.addListener(new SimpleLogListener(System.out));\n            ISOMsg request = new ISOMsg(\"0200\");\n            request.set(2, \"4000002760003184\");\n            request.set(3, \"000000\");\n            request.set(4, \"000000004410\");\n            request.set(11, \"088120\");\n            request.set(35, \"4000002760003184=31052011000000000000\");\n            request.set(41, \"50030007\");\n            request.set(52, ISOUtil.hex2byte(\"1A2B3C4D5E6F7081\"));\n            ISOMsg rejection = (ISOMsg) request.clone();\n            rejection.setResponseMTI();\n            rejection.set(39, \"30\");\n            String dump = new DeclineReport(node, new GenericPackager(\"jar:packager/iso87ascii.xml\")).report(request, rejection);\n            System.out.println(\"dump for the support desk:\");\n            System.out.println(dump);\n            System.out.println(\"request still has PAN: \" + request.getString(2));\n            System.out.println(\"request still has PIN block: \" + ISOUtil.hexString(request.getBytes(52)));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,8 +83,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -76,7 +94,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "e98ec82172b8b17dc73bd7017a8b6aa149a8e54b30cfb39ccc9ee2f9dc87bd4d",
+  "content_sha256": "62799be0ae9273fde2e1a893f2fc54ce5e3e5755983b5e0235186560da4686ef",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.Logger;\n\n/**\n * What the client hands over when the host rejects a message as unreadable (response code 30):\n * an entry in the node's log, and a hex dump for the host's support desk.\n */\npublic class DeclineReport {\n    private final Log log;\n    private final ISOPackager packager;\n\n    /** {@code logger} is the node's logger: ProtectedLogListener first, then the writers. */\n    public DeclineReport(Logger logger, ISOPackager packager) {\n        this.log = new Log(logger, \"client.declines\");\n        this.packager = packager;\n    }\n\n    /** Records a rejected exchange and returns the dump for the host's support desk. */\n    public String report(ISOMsg request, ISOMsg response) throws ISOException {\n        logRejection(request, response);\n        return ISOUtil.hexdump(shareableImage(request));\n    }\n\n    /** The entry in the node's log. */\n    void logRejection(ISOMsg request, ISOMsg response) {\n        // TODO: One entry for the rejected exchange, with both messages field by field, so the\n        //       team can compare them with the host's trace. The log is shipped to a platform\n        //       that many people can search.\n        throw new IllegalStateException(\"TODO: logRejection\");\n    }\n\n    /** The bytes the support desk gets. */\n    byte[] shareableImage(ISOMsg request) throws ISOException {\n        // TODO: The support desk works for another company and gets this by e-mail, so no card\n        //       data in it. They are looking for a format error, so it must still be the message\n        //       as their host received it. The request is the one the client keeps for its own\n        //       records (a reversal, say), and must come out of this as it went in.\n        throw new IllegalStateException(\"TODO: shareableImage\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-08/practice-2/src/main/java/com/example/practice/DeclineReport.java",
@@ -87,7 +105,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-08/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -147,6 +166,10 @@
     "concepts": [
       "Hex dumps and packager traces are text no filter touches; a dump to share is made from a masked copy, which keeps the lengths and bitmap the host saw.",
       "ProtectedLogListener masks a copy of each ISOMsg that is itself a message of the event; strings and wrappers that dump messages themselves pass through in clear."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-08/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-08/practice-2/src/main/java/TryIt.java"
   }
 }

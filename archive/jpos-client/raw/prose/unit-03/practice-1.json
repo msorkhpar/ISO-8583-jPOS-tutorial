@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.io.EOFException;\nimport java.io.IOException;\nimport java.io.InputStream;\n\n/**\n * Reads the messages of a host whose interface spec says: \"Every message is preceded by its\n * length in two bytes, binary, most significant byte first. The length does not include the two\n * length bytes. When the link is idle the host sends a message of length zero.\"\n */\npublic class FrameReader {\n    private final InputStream in;\n\n    public FrameReader(InputStream in) {\n        this.in = in;\n    }\n\n    /** The bytes of the host's next message, without its length. Blocks until it is complete. */\n    public byte[] next() throws IOException {\n        int length = readLength();\n        while (length == 0)\n            length = readLength();\n        return readExactly(length);\n    }\n\n    /** The length announced in front of a message. */\n    int readLength() throws IOException {\n        byte[] h = readExactly(2);\n        return (h[0] & 0xFF) << 8 | (h[1] & 0xFF);\n    }\n\n    /** The next n bytes of the stream. */\n    byte[] readExactly(int n) throws IOException {\n        byte[] b = new byte[n];\n        int got = 0;\n        while (got < n) {\n            int r = in.read(b, got, n - got);\n            if (r < 0)\n                throw new EOFException(\"stream ended after \" + got + \" of \" + n + \" bytes\");\n            got += r;\n        }\n        return b;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.FrameReader;\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Arrays;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ByteArrayOutputStream wire = new ByteArrayOutputStream();\n            frame(wire, new byte[0]);\n            frame(wire, \"0800 STAN 120501\".getBytes(StandardCharsets.US_ASCII));\n            frame(wire, new byte[300]);\n            frame(wire, \"0810 STAN 120502\".getBytes(StandardCharsets.US_ASCII));\n            byte[] bytes = wire.toByteArray();\n            FrameReader reader = new FrameReader(new ByteArrayInputStream(bytes));\n            System.out.println(\"first: \" + new String(reader.next(), StandardCharsets.US_ASCII));\n            System.out.println(\"second, length: \" + reader.next().length);\n            System.out.println(\"third: \" + new String(reader.next(), StandardCharsets.US_ASCII));\n            FrameReader cut = new FrameReader(new ByteArrayInputStream(Arrays.copyOf(bytes, 25)));\n            cut.next();\n            try {\n                cut.next();\n                System.out.println(\"cut stream: no error\");\n            } catch (java.io.IOException e) {\n                System.out.println(\"cut stream: \" + e);\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static void frame(ByteArrayOutputStream out, byte[] message) {\n        out.write(message.length >> 8);\n        out.write(message.length & 0xFF);\n        out.write(message, 0, message.length);\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.io.EOFException;\nimport java.io.IOException;\nimport java.io.InputStream;\n\n/**\n * Reads the messages of a host whose interface spec says: \"Every message is preceded by its\n * length in two bytes, binary, most significant byte first. The length does not include the two\n * length bytes. When the link is idle the host sends a message of length zero.\"\n */\npublic class FrameReader {\n    private final InputStream in;\n\n    public FrameReader(InputStream in) {\n        this.in = in;\n    }\n\n    /** The bytes of the host's next message, without its length. Blocks until it is complete. */\n    public byte[] next() throws IOException {\n        // TODO: return the next message the host meant for us, and leave everything after it in\n        //       the stream for the next call. (about 4 lines)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /** The length announced in front of a message. */\n    int readLength() throws IOException {\n        // TODO: the two length bytes, as the number the host meant. (about 2 lines)\n        throw new IllegalStateException(\"TODO: readLength\");\n    }\n\n    /** The next n bytes of the stream. */\n    byte[] readExactly(int n) throws IOException {\n        // TODO: all n of them, or an EOFException if the stream ends first. (about 8 lines)\n        throw new IllegalStateException(\"TODO: readExactly\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.FrameReader;\nimport java.io.ByteArrayInputStream;\nimport java.io.ByteArrayOutputStream;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Arrays;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            ByteArrayOutputStream wire = new ByteArrayOutputStream();\n            frame(wire, new byte[0]);\n            frame(wire, \"0800 STAN 120501\".getBytes(StandardCharsets.US_ASCII));\n            frame(wire, new byte[300]);\n            frame(wire, \"0810 STAN 120502\".getBytes(StandardCharsets.US_ASCII));\n            byte[] bytes = wire.toByteArray();\n            FrameReader reader = new FrameReader(new ByteArrayInputStream(bytes));\n            System.out.println(\"first: \" + new String(reader.next(), StandardCharsets.US_ASCII));\n            System.out.println(\"second, length: \" + reader.next().length);\n            System.out.println(\"third: \" + new String(reader.next(), StandardCharsets.US_ASCII));\n            FrameReader cut = new FrameReader(new ByteArrayInputStream(Arrays.copyOf(bytes, 25)));\n            cut.next();\n            try {\n                cut.next();\n                System.out.println(\"cut stream: no error\");\n            } catch (java.io.IOException e) {\n                System.out.println(\"cut stream: \" + e);\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static void frame(ByteArrayOutputStream out, byte[] message) {\n        out.write(message.length >> 8);\n        out.write(message.length & 0xFF);\n        out.write(message, 0, message.length);\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "5998913ae701da51a69cfaaa78d2262dda3d857bfa150b17ccedf0ad403fdd9c",
+  "content_sha256": "5e7ba0091f8205cb7b7f00c5716dcf987db78748cbc1fe42bab2ac57209fc9ca",
   "starting_code": "package com.example.practice;\n\nimport java.io.EOFException;\nimport java.io.IOException;\nimport java.io.InputStream;\n\n/**\n * Reads the messages of a host whose interface spec says: \"Every message is preceded by its\n * length in two bytes, binary, most significant byte first. The length does not include the two\n * length bytes. When the link is idle the host sends a message of length zero.\"\n */\npublic class FrameReader {\n    private final InputStream in;\n\n    public FrameReader(InputStream in) {\n        this.in = in;\n    }\n\n    /** The bytes of the host's next message, without its length. Blocks until it is complete. */\n    public byte[] next() throws IOException {\n        // TODO: return the next message the host meant for us, and leave everything after it in\n        //       the stream for the next call. (about 4 lines)\n        throw new IllegalStateException(\"TODO: next\");\n    }\n\n    /** The length announced in front of a message. */\n    int readLength() throws IOException {\n        // TODO: the two length bytes, as the number the host meant. (about 2 lines)\n        throw new IllegalStateException(\"TODO: readLength\");\n    }\n\n    /** The next n bytes of the stream. */\n    byte[] readExactly(int n) throws IOException {\n        // TODO: all n of them, or an EOFException if the stream ends first. (about 8 lines)\n        throw new IllegalStateException(\"TODO: readExactly\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-03/practice-1/src/main/java/com/example/practice/FrameReader.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-03/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -143,6 +162,10 @@
     "concepts": [
       "The channel decides where a message ends and the packager what is inside it; a 2-byte binary length is an unsigned number, high byte first, and a wrong frame shows up as silence.",
       "A receiver reads exactly the announced length, across as many reads as it takes and one frame per call, and a stream that ends early is an error."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-03/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-03/practice-1/src/main/java/TryIt.java"
   }
 }

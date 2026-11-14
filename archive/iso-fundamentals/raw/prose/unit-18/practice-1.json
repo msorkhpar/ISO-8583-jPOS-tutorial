@@ -50,6 +50,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        TLVList tlv = new TLVList();\n        tlv.unpack(de55);\n        byte[] value = tlv.getValue(tag);\n        return value == null ? null : ISOUtil.hexString(value);\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        switch (tag) {\n            case 0x9F02: return m.hasField(4) ? chip.equals(m.getString(4)) : null;\n            case 0x5F2A: return m.hasField(49) ? chip.equals(\"0\" + m.getString(49)) : null;\n            case 0x9C:   return m.hasField(3) ? chip.equals(m.getString(3).substring(0, 2)) : null;\n            case 0x9A:   return m.hasField(13) ? chip.substring(2).equals(m.getString(13)) : null;\n            default:     throw new IllegalArgumentException(\"not a mirrored tag\");\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.ChipConsistency;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String chip = \"9F2608A1A2A3A4A5A6A7A8\" + \"9F0206000000002599\" + \"5F2A020840\" + \"9C0100\" + \"9A03261114\";\n            ISOMsg agreeing = message(chip, \"000000002599\", \"840\", \"1114\");\n            System.out.println(\"agreeing message: \" + ChipConsistency.mismatches(agreeing));\n            ISOMsg wrongAmount = message(chip, \"000000002600\", \"840\", \"1114\");\n            System.out.println(\"amount off by a cent: \" + ChipConsistency.mismatches(wrongAmount));\n            ISOMsg wrongEverything = message(chip, \"000000002599\", \"978\", \"1411\");\n            wrongEverything.set(3, \"200000\");\n            System.out.println(\"other currency, refund, swapped date: \" + ChipConsistency.mismatches(wrongEverything));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg message(String de55, String amount, String currency, String date) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, \"4000000000000002\");\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, \"180101\");\n        m.set(13, date);\n        m.set(49, currency);\n        m.set(55, ISOUtil.hex2byte(de55));\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -62,6 +71,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        // TODO: find the tag in DE 55 and return the digits its value holds.\n        throw new IllegalStateException(\"TODO: chipDigits\");\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        // TODO: say whether the chip digits match the field this tag mirrors, or null when the\n        //       message doesn't carry that field.\n        throw new IllegalStateException(\"TODO: agrees\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.ChipConsistency;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String chip = \"9F2608A1A2A3A4A5A6A7A8\" + \"9F0206000000002599\" + \"5F2A020840\" + \"9C0100\" + \"9A03261114\";\n            ISOMsg agreeing = message(chip, \"000000002599\", \"840\", \"1114\");\n            System.out.println(\"agreeing message: \" + ChipConsistency.mismatches(agreeing));\n            ISOMsg wrongAmount = message(chip, \"000000002600\", \"840\", \"1114\");\n            System.out.println(\"amount off by a cent: \" + ChipConsistency.mismatches(wrongAmount));\n            ISOMsg wrongEverything = message(chip, \"000000002599\", \"978\", \"1411\");\n            wrongEverything.set(3, \"200000\");\n            System.out.println(\"other currency, refund, swapped date: \" + ChipConsistency.mismatches(wrongEverything));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg message(String de55, String amount, String currency, String date) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, \"4000000000000002\");\n        m.set(3, \"000000\");\n        m.set(4, amount);\n        m.set(11, \"180101\");\n        m.set(13, date);\n        m.set(49, currency);\n        m.set(55, ISOUtil.hex2byte(de55));\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -69,8 +87,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -80,7 +98,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "ad1629e7de589362043f4d48ebbbc9999efd5b61ef1bb6f64e1f1fa695985f0d",
+  "content_sha256": "c14c841dd7a0f5fc6ad56cea88cce63fd156421017079fd26d31aebec7597b43",
   "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.tlv.TLVList;\n\n/** Checks that the chip data in DE 55 agrees with the ISO fields of the same message. */\npublic final class ChipConsistency {\n\n    /** The chip tags that mirror an ISO field, in the order they are reported. */\n    static final int[] MIRRORED = { 0x9F02, 0x5F2A, 0x9C, 0x9A };\n\n    private ChipConsistency() {\n    }\n\n    /** The tags whose value disagrees with the ISO field it mirrors, as hex strings (\"9F02\"), in MIRRORED order. */\n    public static List<String> mismatches(ISOMsg message) {\n        List<String> out = new ArrayList<>();\n        byte[] de55 = message.getBytes(55);\n        if (de55 == null)\n            return out;\n        for (int tag : MIRRORED) {\n            String chip = chipDigits(de55, tag);\n            if (chip == null)\n                continue;\n            Boolean agree = agrees(tag, chip, message);\n            if (Boolean.FALSE.equals(agree))\n                out.add(Integer.toHexString(tag).toUpperCase());\n        }\n        return out;\n    }\n\n    /** The digits of a numeric chip value in DE 55, or null when the tag is not there. */\n    static String chipDigits(byte[] de55, int tag) {\n        // TODO: find the tag in DE 55 and return the digits its value holds.\n        throw new IllegalStateException(\"TODO: chipDigits\");\n    }\n\n    /**\n     * Whether the chip value's digits agree with the ISO field that tag mirrors, or null when the\n     * message lacks that field.\n     */\n    static Boolean agrees(int tag, String chip, ISOMsg m) {\n        // TODO: say whether the chip digits match the field this tag mirrors, or null when the\n        //       message doesn't carry that field.\n        throw new IllegalStateException(\"TODO: agrees\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-18/practice-1/src/main/java/com/example/practice/ChipConsistency.java",
@@ -91,7 +109,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-18/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -150,6 +169,10 @@
     },
     "concepts": [
       "9F02, 5F2A, 9C and 9A mirror DE 4, DE 49, DE 3 and DE 13; their values are BCD digits, found by parsing, compared only when both sides are present."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-18/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-18/practice-1/src/main/java/TryIt.java"
   }
 }

@@ -130,6 +130,61 @@ public class RefundAmounts {
         return ISOCurrency.parseFromISO87String(field4, currency).toPlainString();
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RefundAmounts;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            RefundAmounts portal = new RefundAmounts();
+            ISOMsg yen = purchase(&quot;000000004800&quot;, &quot;392&quot;);
+            ISOMsg dinar = purchase(&quot;000000015250&quot;, &quot;414&quot;);
+            ISOMsg euro = purchase(&quot;000000008990&quot;, &quot;978&quot;);
+            System.out.println(&quot;yen purchase shown: &quot; + portal.shown(yen));
+            System.out.println(&quot;Kuwaiti dinar purchase shown: &quot; + portal.shown(dinar));
+            System.out.println(&quot;yen refund of 1500, field 4: &quot; + portal.refund(yen, &quot;1500&quot;).getString(4));
+            System.out.println(&quot;dinar refund of 3.75, field 4: &quot; + portal.refund(dinar, &quot;3.75&quot;).getString(4));
+            System.out.println(&quot;euro refund of 12.5, field 4: &quot; + portal.refund(euro, &quot;12.5&quot;).getString(4));
+            try {
+                portal.refund(yen, &quot;99.9&quot;);
+            } catch (IllegalArgumentException refused) {
+                System.out.println(&quot;yen refund of 99.9 refused: &quot; + refused.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String amount, String currency) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000000000000002&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(41, &quot;TERM1100&quot;);
+        m.set(49, currency);
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -181,10 +236,66 @@ public class RefundAmounts {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RefundAmounts;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            RefundAmounts portal = new RefundAmounts();
+            ISOMsg yen = purchase(&quot;000000004800&quot;, &quot;392&quot;);
+            ISOMsg dinar = purchase(&quot;000000015250&quot;, &quot;414&quot;);
+            ISOMsg euro = purchase(&quot;000000008990&quot;, &quot;978&quot;);
+            System.out.println(&quot;yen purchase shown: &quot; + portal.shown(yen));
+            System.out.println(&quot;Kuwaiti dinar purchase shown: &quot; + portal.shown(dinar));
+            System.out.println(&quot;yen refund of 1500, field 4: &quot; + portal.refund(yen, &quot;1500&quot;).getString(4));
+            System.out.println(&quot;dinar refund of 3.75, field 4: &quot; + portal.refund(dinar, &quot;3.75&quot;).getString(4));
+            System.out.println(&quot;euro refund of 12.5, field 4: &quot; + portal.refund(euro, &quot;12.5&quot;).getString(4));
+            try {
+                portal.refund(yen, &quot;99.9&quot;);
+            } catch (IllegalArgumentException refused) {
+                System.out.println(&quot;yen refund of 99.9 refused: &quot; + refused.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String amount, String currency) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000000000000002&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(41, &quot;TERM1100&quot;);
+        m.set(49, currency);
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-11/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/com/example/practice/RefundAmounts.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/com/example/practice/RefundAmounts.java</code> and <code>practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-11/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -313,6 +424,45 @@ public class RangeRouter {
         return Long.parseLong(r.high()) - Long.parseLong(r.low()) + 1;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RangeRouter;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            RangeRouter router = new RangeRouter();
+            router.reload(List.of(
+                    new RangeRouter.Range(&quot;34000000&quot;, &quot;37999999&quot;, &quot;network-a&quot;),
+                    new RangeRouter.Range(&quot;37144900&quot;, &quot;37144963&quot;, &quot;own-bank&quot;),
+                    new RangeRouter.Range(&quot;60110000&quot;, &quot;60119999&quot;, &quot;network-d&quot;)));
+            for (String pan : List.of(&quot;371449635398431&quot;, &quot;378282246310005&quot;, &quot;6011000990139424&quot;, &quot;3714490012345678&quot;, &quot;5105105105105100&quot;)) {
+                System.out.println(pan.substring(0, 8) + &quot;... goes to &quot; + router.destinationFor(pan));
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -355,10 +505,50 @@ public class RangeRouter {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RangeRouter;
+import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            RangeRouter router = new RangeRouter();
+            router.reload(List.of(
+                    new RangeRouter.Range(&quot;34000000&quot;, &quot;37999999&quot;, &quot;network-a&quot;),
+                    new RangeRouter.Range(&quot;37144900&quot;, &quot;37144963&quot;, &quot;own-bank&quot;),
+                    new RangeRouter.Range(&quot;60110000&quot;, &quot;60119999&quot;, &quot;network-d&quot;)));
+            for (String pan : List.of(&quot;371449635398431&quot;, &quot;378282246310005&quot;, &quot;6011000990139424&quot;, &quot;3714490012345678&quot;, &quot;5105105105105100&quot;)) {
+                System.out.println(pan.substring(0, 8) + &quot;... goes to &quot; + router.destinationFor(pan));
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-11/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/com/example/practice/RangeRouter.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/com/example/practice/RangeRouter.java</code> and <code>practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-11/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -496,6 +686,65 @@ public class IssuerLimit {
         return answer;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.IssuerLimit;
+import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            IssuerLimit limit = new IssuerLimit(Map.of(&quot;bank-a&quot;, 1, &quot;bank-b&quot;, 1));
+            ISOMsg first = limit.forward(purchase(&quot;110001&quot;), &quot;bank-a&quot;, request -&gt; {
+                ISOMsg second = limit.forward(purchase(&quot;110002&quot;), &quot;bank-a&quot;, TryIt::approve);
+                System.out.println(&quot;bank-a full, stan 110002: &quot; + second.getMTI() + &quot; 39=&quot; + second.getString(39));
+                ISOMsg other = limit.forward(purchase(&quot;110003&quot;), &quot;bank-b&quot;, TryIt::approve);
+                System.out.println(&quot;bank-b meanwhile, stan 110003: &quot; + other.getMTI() + &quot; 39=&quot; + other.getString(39));
+                return approve(request);
+            });
+            System.out.println(&quot;bank-a, stan 110001: &quot; + first.getMTI() + &quot; 39=&quot; + first.getString(39));
+            ISOMsg later = limit.forward(purchase(&quot;110004&quot;), &quot;bank-a&quot;, TryIt::approve);
+            System.out.println(&quot;bank-a afterwards, stan 110004: &quot; + later.getMTI() + &quot; 39=&quot; + later.getString(39));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0100&quot;);
+        m.set(2, &quot;4000000000000010&quot;);
+        m.set(4, &quot;000000006200&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;TERM1130&quot;);
+        return m;
+    }
+
+    private static ISOMsg approve(ISOMsg request) throws Exception {
+        ISOMsg answer = (ISOMsg) request.clone();
+        answer.setResponseMTI();
+        answer.set(39, &quot;00&quot;);
+        return answer;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-3-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -556,10 +805,70 @@ public class IssuerLimit {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.IssuerLimit;
+import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            IssuerLimit limit = new IssuerLimit(Map.of(&quot;bank-a&quot;, 1, &quot;bank-b&quot;, 1));
+            ISOMsg first = limit.forward(purchase(&quot;110001&quot;), &quot;bank-a&quot;, request -&gt; {
+                ISOMsg second = limit.forward(purchase(&quot;110002&quot;), &quot;bank-a&quot;, TryIt::approve);
+                System.out.println(&quot;bank-a full, stan 110002: &quot; + second.getMTI() + &quot; 39=&quot; + second.getString(39));
+                ISOMsg other = limit.forward(purchase(&quot;110003&quot;), &quot;bank-b&quot;, TryIt::approve);
+                System.out.println(&quot;bank-b meanwhile, stan 110003: &quot; + other.getMTI() + &quot; 39=&quot; + other.getString(39));
+                return approve(request);
+            });
+            System.out.println(&quot;bank-a, stan 110001: &quot; + first.getMTI() + &quot; 39=&quot; + first.getString(39));
+            ISOMsg later = limit.forward(purchase(&quot;110004&quot;), &quot;bank-a&quot;, TryIt::approve);
+            System.out.println(&quot;bank-a afterwards, stan 110004: &quot; + later.getMTI() + &quot; 39=&quot; + later.getString(39));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0100&quot;);
+        m.set(2, &quot;4000000000000010&quot;);
+        m.set(4, &quot;000000006200&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;TERM1130&quot;);
+        return m;
+    }
+
+    private static ISOMsg approve(ISOMsg request) throws Exception {
+        ISOMsg answer = (ISOMsg) request.clone();
+        answer.setResponseMTI();
+        answer.set(39, &quot;00&quot;);
+        return answer;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-11/practice-prose-3" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/com/example/practice/IssuerLimit.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/com/example/practice/IssuerLimit.java</code> and <code>practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

@@ -55,6 +55,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Sits in the switch in front of every issuer link. Every authorization for an issuer passes\n * through {@link #forward}, from many threads at once.\n */\npublic class IssuerLimit {\n\n    /** One issuer link: returns the issuer's answer, or null when none came in time. May throw. */\n    public interface Issuer {\n        ISOMsg authorize(ISOMsg request) throws Exception;\n    }\n\n    private final Map<String, Integer> limits;\n    private final Map<String, Integer> inFlight = new HashMap<>();\n\n    /** @param limits for each issuer id, how many of its requests may be in flight at once */\n    public IssuerLimit(Map<String, Integer> limits) {\n        this.limits = Map.copyOf(limits);\n    }\n\n    /** The answer for the acquirer: the issuer's, or the switch's own when it doesn't ask the issuer. */\n    public ISOMsg forward(ISOMsg request, String issuerId, Issuer issuer) throws Exception {\n        if (!tryEnter(issuerId))\n            return refused(request);\n        try {\n            return issuer.authorize(request);\n        } finally {\n            leave(issuerId);\n        }\n    }\n\n    /** Takes a place for one more request to this issuer, if it has one free. */\n    synchronized boolean tryEnter(String issuerId) {\n        int now = inFlight.getOrDefault(issuerId, 0);\n        if (now >= limits.get(issuerId))\n            return false;\n        inFlight.put(issuerId, now + 1);\n        return true;\n    }\n\n    /** Gives back the place a request took. */\n    synchronized void leave(String issuerId) {\n        inFlight.merge(issuerId, -1, Integer::sum);\n    }\n\n    /** The switch's own answer to a request it does not send to the issuer. */\n    ISOMsg refused(ISOMsg request) throws ISOException {\n        ISOMsg answer = (ISOMsg) request.clone();\n        answer.setResponseMTI();\n        answer.set(39, \"91\");\n        return answer;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.IssuerLimit;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            IssuerLimit limit = new IssuerLimit(Map.of(\"bank-a\", 1, \"bank-b\", 1));\n            ISOMsg first = limit.forward(purchase(\"110001\"), \"bank-a\", request -> {\n                ISOMsg second = limit.forward(purchase(\"110002\"), \"bank-a\", TryIt::approve);\n                System.out.println(\"bank-a full, stan 110002: \" + second.getMTI() + \" 39=\" + second.getString(39));\n                ISOMsg other = limit.forward(purchase(\"110003\"), \"bank-b\", TryIt::approve);\n                System.out.println(\"bank-b meanwhile, stan 110003: \" + other.getMTI() + \" 39=\" + other.getString(39));\n                return approve(request);\n            });\n            System.out.println(\"bank-a, stan 110001: \" + first.getMTI() + \" 39=\" + first.getString(39));\n            ISOMsg later = limit.forward(purchase(\"110004\"), \"bank-a\", TryIt::approve);\n            System.out.println(\"bank-a afterwards, stan 110004: \" + later.getMTI() + \" 39=\" + later.getString(39));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String stan) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, \"4000000000000010\");\n        m.set(4, \"000000006200\");\n        m.set(11, stan);\n        m.set(41, \"TERM1130\");\n        return m;\n    }\n\n    private static ISOMsg approve(ISOMsg request) throws Exception {\n        ISOMsg answer = (ISOMsg) request.clone();\n        answer.setResponseMTI();\n        answer.set(39, \"00\");\n        return answer;\n    }\n}\n"
         }
       ]
     },
@@ -67,6 +76,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Sits in the switch in front of every issuer link. Every authorization for an issuer passes\n * through {@link #forward}, from many threads at once.\n */\npublic class IssuerLimit {\n\n    /** One issuer link: returns the issuer's answer, or null when none came in time. May throw. */\n    public interface Issuer {\n        ISOMsg authorize(ISOMsg request) throws Exception;\n    }\n\n    private final Map<String, Integer> limits;\n    private final Map<String, Integer> inFlight = new HashMap<>();\n\n    /** @param limits for each issuer id, how many of its requests may be in flight at once */\n    public IssuerLimit(Map<String, Integer> limits) {\n        this.limits = Map.copyOf(limits);\n    }\n\n    /** The answer for the acquirer: the issuer's, or the switch's own when it doesn't ask the issuer. */\n    public ISOMsg forward(ISOMsg request, String issuerId, Issuer issuer) throws Exception {\n        // TODO: Issuer links fail in every way: an answer, no answer, an exception. Whatever\n        //       happens, a request that took a place must give it back.\n        if (!tryEnter(issuerId))\n            return refused(request);\n        ISOMsg answer = issuer.authorize(request);\n        leave(issuerId);\n        return answer;\n    }\n\n    /** Takes a place for one more request to this issuer, if it has one free. */\n    synchronized boolean tryEnter(String issuerId) {\n        // TODO: One slow issuer must not take the places of the others.\n        throw new IllegalStateException(\"TODO: tryEnter\");\n    }\n\n    /** Gives back the place a request took. */\n    synchronized void leave(String issuerId) {\n        // TODO\n        throw new IllegalStateException(\"TODO: leave\");\n    }\n\n    /** The switch's own answer to a request it does not send to the issuer. */\n    ISOMsg refused(ISOMsg request) throws ISOException {\n        // TODO: The acquirer, the terminal and the cardholder must learn that the issuer was not\n        //       asked, and that the card was not refused.\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.IssuerLimit;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            IssuerLimit limit = new IssuerLimit(Map.of(\"bank-a\", 1, \"bank-b\", 1));\n            ISOMsg first = limit.forward(purchase(\"110001\"), \"bank-a\", request -> {\n                ISOMsg second = limit.forward(purchase(\"110002\"), \"bank-a\", TryIt::approve);\n                System.out.println(\"bank-a full, stan 110002: \" + second.getMTI() + \" 39=\" + second.getString(39));\n                ISOMsg other = limit.forward(purchase(\"110003\"), \"bank-b\", TryIt::approve);\n                System.out.println(\"bank-b meanwhile, stan 110003: \" + other.getMTI() + \" 39=\" + other.getString(39));\n                return approve(request);\n            });\n            System.out.println(\"bank-a, stan 110001: \" + first.getMTI() + \" 39=\" + first.getString(39));\n            ISOMsg later = limit.forward(purchase(\"110004\"), \"bank-a\", TryIt::approve);\n            System.out.println(\"bank-a afterwards, stan 110004: \" + later.getMTI() + \" 39=\" + later.getString(39));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String stan) throws Exception {\n        ISOMsg m = new ISOMsg(\"0100\");\n        m.set(2, \"4000000000000010\");\n        m.set(4, \"000000006200\");\n        m.set(11, stan);\n        m.set(41, \"TERM1130\");\n        return m;\n    }\n\n    private static ISOMsg approve(ISOMsg request) throws Exception {\n        ISOMsg answer = (ISOMsg) request.clone();\n        answer.setResponseMTI();\n        answer.set(39, \"00\");\n        return answer;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -74,8 +92,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -85,7 +103,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "2728d7beed2496d76fa88bac625e177b2bb7f16ffdd19bdef836b4b9d0cf4cce",
+  "content_sha256": "feef9c59fe1e6fb72f3a63f942214c230d698258881b6066c3a5673d326292ab",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * Sits in the switch in front of every issuer link. Every authorization for an issuer passes\n * through {@link #forward}, from many threads at once.\n */\npublic class IssuerLimit {\n\n    /** One issuer link: returns the issuer's answer, or null when none came in time. May throw. */\n    public interface Issuer {\n        ISOMsg authorize(ISOMsg request) throws Exception;\n    }\n\n    private final Map<String, Integer> limits;\n    private final Map<String, Integer> inFlight = new HashMap<>();\n\n    /** @param limits for each issuer id, how many of its requests may be in flight at once */\n    public IssuerLimit(Map<String, Integer> limits) {\n        this.limits = Map.copyOf(limits);\n    }\n\n    /** The answer for the acquirer: the issuer's, or the switch's own when it doesn't ask the issuer. */\n    public ISOMsg forward(ISOMsg request, String issuerId, Issuer issuer) throws Exception {\n        // TODO: Issuer links fail in every way: an answer, no answer, an exception. Whatever\n        //       happens, a request that took a place must give it back.\n        if (!tryEnter(issuerId))\n            return refused(request);\n        ISOMsg answer = issuer.authorize(request);\n        leave(issuerId);\n        return answer;\n    }\n\n    /** Takes a place for one more request to this issuer, if it has one free. */\n    synchronized boolean tryEnter(String issuerId) {\n        // TODO: One slow issuer must not take the places of the others.\n        throw new IllegalStateException(\"TODO: tryEnter\");\n    }\n\n    /** Gives back the place a request took. */\n    synchronized void leave(String issuerId) {\n        // TODO\n        throw new IllegalStateException(\"TODO: leave\");\n    }\n\n    /** The switch's own answer to a request it does not send to the issuer. */\n    ISOMsg refused(ISOMsg request) throws ISOException {\n        // TODO: The acquirer, the terminal and the cardholder must learn that the issuer was not\n        //       asked, and that the card was not refused.\n        throw new IllegalStateException(\"TODO: refused\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/com/example/practice/IssuerLimit.java",
@@ -96,7 +114,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-11/practice-3/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -146,6 +165,10 @@
     "concepts": [
       "Each destination gets its own limit of requests in flight, so a slow issuer cannot take the sessions of healthy ones.",
       "A request beyond the limit is answered at once with 91, an error, not a decline, and its place is given back however the request ends."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-11/practice-3/src/main/java/TryIt.java"
   }
 }

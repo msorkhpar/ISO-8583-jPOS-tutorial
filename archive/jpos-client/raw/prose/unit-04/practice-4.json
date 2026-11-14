@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        try {\n            return QMUX.getMUX(muxName);\n        } catch (NameRegistrar.NotFoundException e) {\n            return null;\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.PaymentService;\nimport java.util.concurrent.atomic.AtomicReference;\nimport org.jdom2.Element;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceFactory;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            LocalSpace<String, Object> sp = (LocalSpace<String, Object>) SpaceFactory.getSpace(\"tspace:tryit\");\n            host(sp, new AtomicReference<>(\"00\"));\n            sp.out(\"host.ready\", Boolean.TRUE);\n            PaymentService service = new PaymentService(\"issuer-mux\", 1000);\n            System.out.println(\"nothing deployed yet: \" + service.pay(purchase(\"008801\")));\n            QMUX first = mux(\"tspace:tryit\", \"issuer-mux\");\n            try {\n                System.out.println(\"after deploy: \" + service.pay(purchase(\"008802\")));\n            } finally {\n                first.stop();\n                first.destroy();\n            }\n            System.out.println(\"undeployed: \" + service.pay(purchase(\"008803\")));\n            QMUX second = mux(\"tspace:tryit\", \"issuer-mux\");\n            try {\n                System.out.println(\"after redeploy: \" + service.pay(purchase(\"008804\")));\n            } finally {\n                second.stop();\n                second.destroy();\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String stan) {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, \"4000001240000000\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000003310\");\n        m.set(11, stan);\n        m.set(41, \"30220044\");\n        return m;\n    }\n\n    private static QMUX mux(String space, String name) throws Exception {\n        Element e = new Element(\"mux\");\n        e.addContent(new Element(\"space\").setText(space));\n        e.addContent(new Element(\"in\").setText(\"host-receive\"));\n        e.addContent(new Element(\"out\").setText(\"host-send\"));\n        e.addContent(new Element(\"ready\").setText(\"host.ready\"));\n        QMUX q = new QMUX();\n        q.setName(name);\n        q.setPersist(e);\n        q.setConfiguration(new SimpleConfiguration());\n        q.init();\n        q.start();\n        return q;\n    }\n\n    private static void host(LocalSpace<String, Object> sp, AtomicReference<String> rc) {\n        sp.addListener(\"host-send\", (key, value) -> {\n            ISOMsg request = (ISOMsg) sp.inp(key);\n            if (request == null || rc.get() == null)\n                return;\n            try {\n                ISOMsg response = (ISOMsg) request.clone();\n                response.setResponseMTI();\n                response.set(39, rc.get());\n                sp.out(\"host-receive\", response);\n            } catch (Exception ex) {\n                throw new IllegalStateException(ex);\n            }\n        });\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        // TODO: The service is created when the application starts, and it runs for weeks while\n        //       operators deploy, redeploy and reorganise what sits under that name. (about five\n        //       lines)\n        throw new IllegalStateException(\"TODO: mux\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.PaymentService;\nimport java.util.concurrent.atomic.AtomicReference;\nimport org.jdom2.Element;\nimport org.jpos.core.SimpleConfiguration;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.space.LocalSpace;\nimport org.jpos.space.SpaceFactory;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            LocalSpace<String, Object> sp = (LocalSpace<String, Object>) SpaceFactory.getSpace(\"tspace:tryit\");\n            host(sp, new AtomicReference<>(\"00\"));\n            sp.out(\"host.ready\", Boolean.TRUE);\n            PaymentService service = new PaymentService(\"issuer-mux\", 1000);\n            System.out.println(\"nothing deployed yet: \" + service.pay(purchase(\"008801\")));\n            QMUX first = mux(\"tspace:tryit\", \"issuer-mux\");\n            try {\n                System.out.println(\"after deploy: \" + service.pay(purchase(\"008802\")));\n            } finally {\n                first.stop();\n                first.destroy();\n            }\n            System.out.println(\"undeployed: \" + service.pay(purchase(\"008803\")));\n            QMUX second = mux(\"tspace:tryit\", \"issuer-mux\");\n            try {\n                System.out.println(\"after redeploy: \" + service.pay(purchase(\"008804\")));\n            } finally {\n                second.stop();\n                second.destroy();\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg purchase(String stan) {\n        ISOMsg m = new ISOMsg(\"0200\");\n        m.set(2, \"4000001240000000\");\n        m.set(3, \"000000\");\n        m.set(4, \"000000003310\");\n        m.set(11, stan);\n        m.set(41, \"30220044\");\n        return m;\n    }\n\n    private static QMUX mux(String space, String name) throws Exception {\n        Element e = new Element(\"mux\");\n        e.addContent(new Element(\"space\").setText(space));\n        e.addContent(new Element(\"in\").setText(\"host-receive\"));\n        e.addContent(new Element(\"out\").setText(\"host-send\"));\n        e.addContent(new Element(\"ready\").setText(\"host.ready\"));\n        QMUX q = new QMUX();\n        q.setName(name);\n        q.setPersist(e);\n        q.setConfiguration(new SimpleConfiguration());\n        q.init();\n        q.start();\n        return q;\n    }\n\n    private static void host(LocalSpace<String, Object> sp, AtomicReference<String> rc) {\n        sp.addListener(\"host-send\", (key, value) -> {\n            ISOMsg request = (ISOMsg) sp.inp(key);\n            if (request == null || rc.get() == null)\n                return;\n            try {\n                ISOMsg response = (ISOMsg) request.clone();\n                response.setResponseMTI();\n                response.set(39, rc.get());\n                sp.out(\"host-receive\", response);\n            } catch (Exception ex) {\n                throw new IllegalStateException(ex);\n            }\n        });\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "ed27569a6cfc6b08680ea13ccc5719aa5d84a4f48b7fccfbca2cd79285bdc68d",
+  "content_sha256": "86db5d51d17b0bd692df4fa8b6a72a1782a2b832e2158bc8e9c8adc62b8cc849",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.MUX;\nimport org.jpos.q2.iso.QMUX;\nimport org.jpos.util.NameRegistrar;\n\n/** Sends purchases through whatever Q2 has deployed under one name. */\npublic class PaymentService {\n    public enum Result { APPROVED, DECLINED, NO_ANSWER, UNAVAILABLE }\n\n    private final String muxName;\n    private final long timeout;\n\n    public PaymentService(String muxName, long timeout) {\n        this.muxName = muxName;\n        this.timeout = timeout;\n    }\n\n    public Result pay(ISOMsg purchase) throws ISOException {\n        MUX mux = mux();\n        if (mux == null || !mux.isConnected())\n            return Result.UNAVAILABLE;\n        ISOMsg response = mux.request(purchase, timeout);\n        if (response == null)\n            return Result.NO_ANSWER;\n        return \"00\".equals(response.getString(39)) ? Result.APPROVED : Result.DECLINED;\n    }\n\n    /** What is deployed under muxName right now, or null when nothing is. */\n    MUX mux() {\n        // TODO: The service is created when the application starts, and it runs for weeks while\n        //       operators deploy, redeploy and reorganise what sits under that name. (about five\n        //       lines)\n        throw new IllegalStateException(\"TODO: mux\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-04/practice-4/src/main/java/com/example/practice/PaymentService.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-04/practice-4/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -127,6 +146,10 @@
     },
     "concepts": [
       "Code looks a MUX up by name when it uses it and depends only on the MUX interface, so it survives late deployment and redeploys, and a pool can take the name."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-04/practice-4/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-04/practice-4/src/main/java/TryIt.java"
   }
 }

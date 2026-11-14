@@ -50,6 +50,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        for (Element e : elements) {\n            int tag = e.tag();\n            if (tag > 0xFFFF)\n                out.write(tag >> 16);\n            if (tag > 0xFF)\n                out.write((tag >> 8) & 0xFF);\n            out.write(tag & 0xFF);\n            int len = e.value().length;\n            if (len > 0xFF) {\n                out.write(0x82);\n                out.write(len >> 8);\n            } else if (len > 0x7F) {\n                out.write(0x81);\n            }\n            out.write(len & 0xFF);\n            out.writeBytes(e.value());\n        }\n        return out.toByteArray();\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        if (id < 0x01 || id > 0x70)\n            throw new IllegalArgumentException(\"not a TLV dataset identifier: \" + id);\n        if (content.length > 0xFFFF)\n            throw new IllegalArgumentException(\"dataset content over 65535 bytes\");\n        ByteArrayOutputStream out = new ByteArrayOutputStream();\n        out.write(id);\n        out.write(content.length >> 8);\n        out.write(content.length & 0xFF);\n        out.writeBytes(content);\n        return out.toByteArray();\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.CompositeWriter;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            byte[] small = CompositeWriter.write(List.of(\n                    new CompositeWriter.Dataset(0x05, List.of(\n                            new CompositeWriter.Element(0x9F1A, ISOUtil.hex2byte(\"0840\")),\n                            new CompositeWriter.Element(0xDF8101, ISOUtil.hex2byte(\"01\")))),\n                    new CompositeWriter.Dataset(0x0F, List.of())));\n            System.out.println(\"two datasets: \" + ISOUtil.hexString(small));\n            byte[] payload = new byte[200];\n            byte[] big = CompositeWriter.write(List.of(new CompositeWriter.Dataset(0x11,\n                    List.of(new CompositeWriter.Element(0xDF30, payload)))));\n            System.out.println(\"200-byte value, header: \" + ISOUtil.hexString(big).substring(0, 14) + \"..., \" + big.length + \" bytes\");\n            try {\n                CompositeWriter.write(List.of(new CompositeWriter.Dataset(0x80, List.of())));\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"dataset 0x80 refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -62,6 +71,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        // TODO: Encode each element so that a receiver can find its tag, its value and where the\n        //       next element starts. Values can be anything from empty to tens of kilobytes.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        // TODO: Put the dataset into its envelope, so that a receiver walking the field finds it\n        //       and steps over it. Refuse what a receiver could not read back as this TLV dataset.\n        throw new IllegalStateException(\"TODO: envelope\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.CompositeWriter;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            byte[] small = CompositeWriter.write(List.of(\n                    new CompositeWriter.Dataset(0x05, List.of(\n                            new CompositeWriter.Element(0x9F1A, ISOUtil.hex2byte(\"0840\")),\n                            new CompositeWriter.Element(0xDF8101, ISOUtil.hex2byte(\"01\")))),\n                    new CompositeWriter.Dataset(0x0F, List.of())));\n            System.out.println(\"two datasets: \" + ISOUtil.hexString(small));\n            byte[] payload = new byte[200];\n            byte[] big = CompositeWriter.write(List.of(new CompositeWriter.Dataset(0x11,\n                    List.of(new CompositeWriter.Element(0xDF30, payload)))));\n            System.out.println(\"200-byte value, header: \" + ISOUtil.hexString(big).substring(0, 14) + \"..., \" + big.length + \" bytes\");\n            try {\n                CompositeWriter.write(List.of(new CompositeWriter.Dataset(0x80, List.of())));\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"dataset 0x80 refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -69,8 +87,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -80,7 +98,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "e809e79f49916b243e869d818908109950cad1cb736e99d50074a280426d24e4",
+  "content_sha256": "019f8dbb710054af76a23ea4faf8577a430efdd59af91e2c3a19bb9015844459",
   "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayOutputStream;\nimport java.util.List;\n\n/** Writes TLV datasets into the bytes of an ISO 8583:2023 composite field. */\npublic final class CompositeWriter {\n\n    /** One BER-TLV element: a tag such as 0xDF8115 and its value. */\n    public record Element(int tag, byte[] value) {\n    }\n\n    /** One TLV dataset: its identifier and its elements, in the order to write them. */\n    public record Dataset(int id, List<Element> elements) {\n    }\n\n    private CompositeWriter() {\n    }\n\n    /** The composite field: every dataset, in the order given. */\n    public static byte[] write(List<Dataset> datasets) {\n        ByteArrayOutputStream field = new ByteArrayOutputStream();\n        for (Dataset ds : datasets)\n            field.writeBytes(envelope(ds.id(), content(ds.elements())));\n        return field.toByteArray();\n    }\n\n    /** The content of a TLV dataset: its elements, in the order given. */\n    static byte[] content(List<Element> elements) {\n        // TODO: Encode each element so that a receiver can find its tag, its value and where the\n        //       next element starts. Values can be anything from empty to tens of kilobytes.\n        throw new IllegalStateException(\"TODO: content\");\n    }\n\n    /** One TLV dataset as it goes into the field. */\n    static byte[] envelope(int id, byte[] content) {\n        // TODO: Put the dataset into its envelope, so that a receiver walking the field finds it\n        //       and steps over it. Refuse what a receiver could not read back as this TLV dataset.\n        throw new IllegalStateException(\"TODO: envelope\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-17/practice-2/src/main/java/com/example/practice/CompositeWriter.java",
@@ -91,7 +109,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-17/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -151,6 +170,10 @@
     "concepts": [
       "A composite field is a row of datasets, each a one-byte identifier, a two-byte big-endian length counting its content, and the content; the field prefix, dataset lengths and TLV lengths must agree.",
       "The writer encodes every length itself: BER long forms from 128 bytes, a two-byte dataset length up to 65535, and no TLVList.pack() with its 516-byte buffer."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-17/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-17/practice-2/src/main/java/TryIt.java"
   }
 }

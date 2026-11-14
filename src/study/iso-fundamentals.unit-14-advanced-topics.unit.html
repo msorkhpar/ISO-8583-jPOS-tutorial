@@ -222,6 +222,49 @@ public final class TokenVault {
         return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TokenVault;
+import java.util.Random;
+import java.util.Set;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            TokenVault vault = new TokenVault(&quot;9123450&quot;, new Random(2026), new TokenVault.Sealer() {
+                public String seal(String pan) { return &quot;sealed:&quot; + new StringBuilder(pan).reverse(); }
+                public String open(String sealed) { return new StringBuilder(sealed.substring(7)).reverse().toString(); }
+                public String lookup(String pan) { return &quot;lookup:&quot; + Integer.toHexString((&quot;k7&quot; + pan).hashCode()); }
+            });
+            String bakery = vault.tokenize(&quot;bakery-4&quot;, &quot;4012888888881881&quot;);
+            System.out.println(&quot;bakery's token: &quot; + bakery);
+            System.out.println(&quot;bakery again, same card: &quot; + vault.tokenize(&quot;bakery-4&quot;, &quot;4012888888881881&quot;));
+            System.out.println(&quot;taxi's token, same card: &quot; + vault.tokenize(&quot;taxi-9&quot;, &quot;4012888888881881&quot;));
+            System.out.println(&quot;bakery's token, other card: &quot; + vault.tokenize(&quot;bakery-4&quot;, &quot;5105105105105100&quot;));
+            System.out.println(&quot;bakery's token leads to: &quot; + vault.detokenize(Set.of(&quot;DETOKENIZE&quot;), &quot;bakery-4&quot;, bakery));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -294,10 +337,54 @@ public final class TokenVault {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TokenVault;
+import java.util.Random;
+import java.util.Set;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            TokenVault vault = new TokenVault(&quot;9123450&quot;, new Random(2026), new TokenVault.Sealer() {
+                public String seal(String pan) { return &quot;sealed:&quot; + new StringBuilder(pan).reverse(); }
+                public String open(String sealed) { return new StringBuilder(sealed.substring(7)).reverse().toString(); }
+                public String lookup(String pan) { return &quot;lookup:&quot; + Integer.toHexString((&quot;k7&quot; + pan).hashCode()); }
+            });
+            String bakery = vault.tokenize(&quot;bakery-4&quot;, &quot;4012888888881881&quot;);
+            System.out.println(&quot;bakery's token: &quot; + bakery);
+            System.out.println(&quot;bakery again, same card: &quot; + vault.tokenize(&quot;bakery-4&quot;, &quot;4012888888881881&quot;));
+            System.out.println(&quot;taxi's token, same card: &quot; + vault.tokenize(&quot;taxi-9&quot;, &quot;4012888888881881&quot;));
+            System.out.println(&quot;bakery's token, other card: &quot; + vault.tokenize(&quot;bakery-4&quot;, &quot;5105105105105100&quot;));
+            System.out.println(&quot;bakery's token leads to: &quot; + vault.detokenize(Set.of(&quot;DETOKENIZE&quot;), &quot;bakery-4&quot;, bakery));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-14/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/com/example/practice/TokenVault.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/com/example/practice/TokenVault.java</code> and <code>practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-14/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -443,6 +530,61 @@ public final class TokenVault {
         return sb.append(ISOUtil.calcLUHN(sb.toString())).toString();
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TokenVault;
+import java.util.Random;
+import java.util.Set;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOException;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            TokenVault vault = new TokenVault(&quot;9123450&quot;, new Random(77), new TokenVault.Sealer() {
+                public String seal(String pan) { return &quot;sealed:&quot; + new StringBuilder(pan).reverse(); }
+                public String open(String sealed) { return new StringBuilder(sealed.substring(7)).reverse().toString(); }
+                public String lookup(String pan) { return &quot;lookup:&quot; + Integer.toHexString((&quot;k7&quot; + pan).hashCode()); }
+            });
+            Set&lt;String&gt; station = Set.of(&quot;DETOKENIZE&quot;);
+            String gym = vault.tokenize(&quot;gym-2&quot;, &quot;4012888888881881&quot;);
+            System.out.println(&quot;station for gym-2: &quot; + ask(vault, station, &quot;gym-2&quot;, gym));
+            System.out.println(&quot;gym app's own credentials: &quot; + ask(vault, Set.of(&quot;TOKENIZE&quot;), &quot;gym-2&quot;, gym));
+            System.out.println(&quot;station for florist-5: &quot; + ask(vault, station, &quot;florist-5&quot;, gym));
+            System.out.println(&quot;made-up token: &quot; + ask(vault, station, &quot;gym-2&quot;, &quot;9123450000000004&quot;));
+            vault.revoke(gym);
+            System.out.println(&quot;after revoke: &quot; + ask(vault, station, &quot;gym-2&quot;, gym));
+            System.out.println(&quot;new token for the same card: &quot; + !gym.equals(vault.tokenize(&quot;gym-2&quot;, &quot;4012888888881881&quot;)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String ask(TokenVault vault, Set&lt;String&gt; permissions, String requestor, String token) {
+        try {
+            return vault.detokenize(permissions, requestor, token);
+        } catch (SecurityException | ISOException refused) {
+            return &quot;refused (&quot; + refused.getClass().getSimpleName() + &quot;: &quot; + refused.getMessage() + &quot;)&quot;;
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -527,10 +669,66 @@ public final class TokenVault {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.TokenVault;
+import java.util.Random;
+import java.util.Set;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOException;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            TokenVault vault = new TokenVault(&quot;9123450&quot;, new Random(77), new TokenVault.Sealer() {
+                public String seal(String pan) { return &quot;sealed:&quot; + new StringBuilder(pan).reverse(); }
+                public String open(String sealed) { return new StringBuilder(sealed.substring(7)).reverse().toString(); }
+                public String lookup(String pan) { return &quot;lookup:&quot; + Integer.toHexString((&quot;k7&quot; + pan).hashCode()); }
+            });
+            Set&lt;String&gt; station = Set.of(&quot;DETOKENIZE&quot;);
+            String gym = vault.tokenize(&quot;gym-2&quot;, &quot;4012888888881881&quot;);
+            System.out.println(&quot;station for gym-2: &quot; + ask(vault, station, &quot;gym-2&quot;, gym));
+            System.out.println(&quot;gym app's own credentials: &quot; + ask(vault, Set.of(&quot;TOKENIZE&quot;), &quot;gym-2&quot;, gym));
+            System.out.println(&quot;station for florist-5: &quot; + ask(vault, station, &quot;florist-5&quot;, gym));
+            System.out.println(&quot;made-up token: &quot; + ask(vault, station, &quot;gym-2&quot;, &quot;9123450000000004&quot;));
+            vault.revoke(gym);
+            System.out.println(&quot;after revoke: &quot; + ask(vault, station, &quot;gym-2&quot;, gym));
+            System.out.println(&quot;new token for the same card: &quot; + !gym.equals(vault.tokenize(&quot;gym-2&quot;, &quot;4012888888881881&quot;)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String ask(TokenVault vault, Set&lt;String&gt; permissions, String requestor, String token) {
+        try {
+            return vault.detokenize(permissions, requestor, token);
+        } catch (SecurityException | ISOException refused) {
+            return &quot;refused (&quot; + refused.getClass().getSimpleName() + &quot;: &quot; + refused.getMessage() + &quot;)&quot;;
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-14/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/com/example/practice/TokenVault.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/com/example/practice/TokenVault.java</code> and <code>practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-14/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

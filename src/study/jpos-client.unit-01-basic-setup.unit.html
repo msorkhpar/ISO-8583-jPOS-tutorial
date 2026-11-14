@@ -189,6 +189,82 @@ public class LinkDescriptors {
         return new Element(&quot;property&quot;).setAttribute(&quot;name&quot;, name).setAttribute(&quot;value&quot;, value);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LinkDescriptors;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Element adaptor = LinkDescriptors.channelAdaptor(&quot;amex-primary&quot;, &quot;to-amex&quot;, &quot;from-amex&quot;, &quot;127.0.0.1&quot;, 9300);
+            Element mux = LinkDescriptors.muxFor(adaptor, &quot;amex-mux&quot;);
+            System.out.println(&quot;mux class: &quot; + mux.getAttributeValue(&quot;class&quot;));
+            System.out.println(&quot;in/out: &quot; + mux.getChildText(&quot;in&quot;) + &quot; / &quot; + mux.getChildText(&quot;out&quot;));
+            System.out.println(&quot;ready: &quot; + mux.getChildText(&quot;ready&quot;) + &quot;, unhandled: &quot; + mux.getChildText(&quot;unhandled&quot;));
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            Element e = mux.clone();
+            e.addContent(new Element(&quot;space&quot;).setText(&quot;tspace:tryit&quot;));
+            QMUX q = new QMUX();
+            q.setName(&quot;amex-mux&quot;);
+            q.setPersist(e);
+            q.setConfiguration(new SimpleConfiguration());
+            try {
+                q.init();
+                q.start();
+                System.out.println(&quot;connected before the link is up: &quot; + q.isConnected());
+                sp.addListener(&quot;to-amex&quot;, (key, value) -&gt; answer(sp, &quot;from-amex&quot;, (ISOMsg) sp.inp(key)));
+                sp.out(&quot;amex-primary.ready&quot;, new java.util.Date());
+                ISOMsg echo = new ISOMsg(&quot;0800&quot;);
+                echo.set(11, &quot;000321&quot;);
+                echo.set(70, &quot;301&quot;);
+                ISOMsg r = q.request(echo, 3000);
+                System.out.println(&quot;echo answer: &quot; + (r == null ? &quot;none&quot; : r.getMTI() + &quot; STAN &quot; + r.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void answer(LocalSpace&lt;String, Object&gt; sp, String out, ISOMsg request) {
+        if (request == null)
+            return;
+        try {
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);
+            sp.out(out, response);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -236,10 +312,87 @@ public class LinkDescriptors {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LinkDescriptors;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Element adaptor = LinkDescriptors.channelAdaptor(&quot;amex-primary&quot;, &quot;to-amex&quot;, &quot;from-amex&quot;, &quot;127.0.0.1&quot;, 9300);
+            Element mux = LinkDescriptors.muxFor(adaptor, &quot;amex-mux&quot;);
+            System.out.println(&quot;mux class: &quot; + mux.getAttributeValue(&quot;class&quot;));
+            System.out.println(&quot;in/out: &quot; + mux.getChildText(&quot;in&quot;) + &quot; / &quot; + mux.getChildText(&quot;out&quot;));
+            System.out.println(&quot;ready: &quot; + mux.getChildText(&quot;ready&quot;) + &quot;, unhandled: &quot; + mux.getChildText(&quot;unhandled&quot;));
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            Element e = mux.clone();
+            e.addContent(new Element(&quot;space&quot;).setText(&quot;tspace:tryit&quot;));
+            QMUX q = new QMUX();
+            q.setName(&quot;amex-mux&quot;);
+            q.setPersist(e);
+            q.setConfiguration(new SimpleConfiguration());
+            try {
+                q.init();
+                q.start();
+                System.out.println(&quot;connected before the link is up: &quot; + q.isConnected());
+                sp.addListener(&quot;to-amex&quot;, (key, value) -&gt; answer(sp, &quot;from-amex&quot;, (ISOMsg) sp.inp(key)));
+                sp.out(&quot;amex-primary.ready&quot;, new java.util.Date());
+                ISOMsg echo = new ISOMsg(&quot;0800&quot;);
+                echo.set(11, &quot;000321&quot;);
+                echo.set(70, &quot;301&quot;);
+                ISOMsg r = q.request(echo, 3000);
+                System.out.println(&quot;echo answer: &quot; + (r == null ? &quot;none&quot; : r.getMTI() + &quot; STAN &quot; + r.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void answer(LocalSpace&lt;String, Object&gt; sp, String out, ISOMsg request) {
+        if (request == null)
+            return;
+        try {
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);
+            sp.out(out, response);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-01/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-01/practice-1/src/main/java/com/example/practice/LinkDescriptors.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-01/practice-1/src/main/java/com/example/practice/LinkDescriptors.java</code> and <code>practice/jpos-client/prose/unit-01/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-01/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -548,6 +701,84 @@ public class LinkStatus {
         return m;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LinkStatus;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            LinkStatus status = new LinkStatus(&quot;discover-mux&quot;, 400);
+            System.out.println(&quot;before deploy: &quot; + status.check());
+            Element e = new Element(&quot;mux&quot;);
+            e.addContent(new Element(&quot;space&quot;).setText(&quot;tspace:tryit&quot;));
+            e.addContent(new Element(&quot;in&quot;).setText(&quot;discover-receive&quot;));
+            e.addContent(new Element(&quot;out&quot;).setText(&quot;discover-send&quot;));
+            e.addContent(new Element(&quot;ready&quot;).setText(&quot;discover-channel.ready&quot;));
+            QMUX q = new QMUX();
+            q.setName(&quot;discover-mux&quot;);
+            q.setPersist(e);
+            q.setConfiguration(new SimpleConfiguration());
+            AtomicBoolean silent = new AtomicBoolean();
+            try {
+                q.init();
+                q.start();
+                System.out.println(&quot;deployed, link down: &quot; + status.check());
+                sp.addListener(&quot;discover-send&quot;, (key, value) -&gt; {
+                    ISOMsg request = (ISOMsg) sp.inp(key);
+                    if (request != null &amp;&amp; !silent.get())
+                        sp.out(&quot;discover-receive&quot;, answer(request));
+                });
+                sp.out(&quot;discover-channel.ready&quot;, new java.util.Date());
+                System.out.println(&quot;link up, host answers: &quot; + status.check());
+                silent.set(true);
+                System.out.println(&quot;link up, host silent: &quot; + status.check());
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg answer(ISOMsg request) {
+        try {
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);
+            return response;
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -608,10 +839,89 @@ public class LinkStatus {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LinkStatus;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            LinkStatus status = new LinkStatus(&quot;discover-mux&quot;, 400);
+            System.out.println(&quot;before deploy: &quot; + status.check());
+            Element e = new Element(&quot;mux&quot;);
+            e.addContent(new Element(&quot;space&quot;).setText(&quot;tspace:tryit&quot;));
+            e.addContent(new Element(&quot;in&quot;).setText(&quot;discover-receive&quot;));
+            e.addContent(new Element(&quot;out&quot;).setText(&quot;discover-send&quot;));
+            e.addContent(new Element(&quot;ready&quot;).setText(&quot;discover-channel.ready&quot;));
+            QMUX q = new QMUX();
+            q.setName(&quot;discover-mux&quot;);
+            q.setPersist(e);
+            q.setConfiguration(new SimpleConfiguration());
+            AtomicBoolean silent = new AtomicBoolean();
+            try {
+                q.init();
+                q.start();
+                System.out.println(&quot;deployed, link down: &quot; + status.check());
+                sp.addListener(&quot;discover-send&quot;, (key, value) -&gt; {
+                    ISOMsg request = (ISOMsg) sp.inp(key);
+                    if (request != null &amp;&amp; !silent.get())
+                        sp.out(&quot;discover-receive&quot;, answer(request));
+                });
+                sp.out(&quot;discover-channel.ready&quot;, new java.util.Date());
+                System.out.println(&quot;link up, host answers: &quot; + status.check());
+                silent.set(true);
+                System.out.println(&quot;link up, host silent: &quot; + status.check());
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg answer(ISOMsg request) {
+        try {
+            ISOMsg response = (ISOMsg) request.clone();
+            response.setResponseMTI();
+            response.set(39, &quot;00&quot;);
+            return response;
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-01/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-01/practice-2/src/main/java/com/example/practice/LinkStatus.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-01/practice-2/src/main/java/com/example/practice/LinkStatus.java</code> and <code>practice/jpos-client/prose/unit-01/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-01/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

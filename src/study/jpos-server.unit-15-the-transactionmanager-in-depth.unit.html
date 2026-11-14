@@ -380,6 +380,101 @@ public class RedeemPoints implements TransactionParticipant, Configurable {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RedeemPoints;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            AtomicInteger ids = new AtomicInteger(500);
+            NameRegistrar.register(&quot;tryit-points&quot;, new RedeemPoints.PointsService() {
+                @Override public String redeem(String account, long points) {
+                    String id = &quot;RDM-&quot; + ids.incrementAndGet();
+                    System.out.println(&quot;  service: redeem &quot; + points + &quot; from &quot; + account + &quot; -&gt; &quot; + id);
+                    return id;
+                }
+                @Override public void confirm(String id) { System.out.println(&quot;  service: confirm &quot; + id); }
+                @Override public void cancel(String id) { System.out.println(&quot;  service: cancel &quot; + id); }
+            });
+            System.out.println(&quot;approved, 1200 points:&quot;);
+            redeemPoints().commit(1L, prepared(&quot;LOY-8810&quot;, &quot;1200&quot;));
+            System.out.println(&quot;declined later, 300 points:&quot;);
+            redeemPoints().abort(2L, prepared(&quot;LOY-8811&quot;, &quot;300&quot;));
+            System.out.println(&quot;crash after redeeming 800 points, then restart:&quot;);
+            redeemPoints().abort(3L, recovered(prepared(&quot;LOY-8812&quot;, &quot;800&quot;)));
+            System.out.println(&quot;crash during a purchase without points, then restart:&quot;);
+            redeemPoints().abort(4L, recovered(prepared(&quot;LOY-8813&quot;, null)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit-points&quot;);
+        }
+    }
+
+    private static RedeemPoints redeemPoints() {
+        RedeemPoints participant = new RedeemPoints();
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;service&quot;, &quot;tryit-points&quot;);
+        participant.setConfiguration(cfg);
+        return participant;
+    }
+
+    private static Context prepared(String account, String points) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4024007103939509&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000005400&quot;);
+        m.set(11, &quot;009102&quot;);
+        m.set(41, &quot;60400140&quot;);
+        if (points != null) m.set(48, points);
+        m.set(102, account);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        redeemPoints().prepare(1L, ctx);
+        return ctx;
+    }
+
+    /** What a restarted TransactionManager reads back from its journal. */
+    private static Context recovered(Context ctx) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+            out.writeObject(ctx);
+        }
+        try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+            return (Context) in.readObject();
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b9">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -470,10 +565,106 @@ public class RedeemPoints implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.RedeemPoints;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            AtomicInteger ids = new AtomicInteger(500);
+            NameRegistrar.register(&quot;tryit-points&quot;, new RedeemPoints.PointsService() {
+                @Override public String redeem(String account, long points) {
+                    String id = &quot;RDM-&quot; + ids.incrementAndGet();
+                    System.out.println(&quot;  service: redeem &quot; + points + &quot; from &quot; + account + &quot; -&gt; &quot; + id);
+                    return id;
+                }
+                @Override public void confirm(String id) { System.out.println(&quot;  service: confirm &quot; + id); }
+                @Override public void cancel(String id) { System.out.println(&quot;  service: cancel &quot; + id); }
+            });
+            System.out.println(&quot;approved, 1200 points:&quot;);
+            redeemPoints().commit(1L, prepared(&quot;LOY-8810&quot;, &quot;1200&quot;));
+            System.out.println(&quot;declined later, 300 points:&quot;);
+            redeemPoints().abort(2L, prepared(&quot;LOY-8811&quot;, &quot;300&quot;));
+            System.out.println(&quot;crash after redeeming 800 points, then restart:&quot;);
+            redeemPoints().abort(3L, recovered(prepared(&quot;LOY-8812&quot;, &quot;800&quot;)));
+            System.out.println(&quot;crash during a purchase without points, then restart:&quot;);
+            redeemPoints().abort(4L, recovered(prepared(&quot;LOY-8813&quot;, null)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            NameRegistrar.unregister(&quot;tryit-points&quot;);
+        }
+    }
+
+    private static RedeemPoints redeemPoints() {
+        RedeemPoints participant = new RedeemPoints();
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;service&quot;, &quot;tryit-points&quot;);
+        participant.setConfiguration(cfg);
+        return participant;
+    }
+
+    private static Context prepared(String account, String points) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4024007103939509&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000005400&quot;);
+        m.set(11, &quot;009102&quot;);
+        m.set(41, &quot;60400140&quot;);
+        if (points != null) m.set(48, points);
+        m.set(102, account);
+        Context ctx = new Context();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        redeemPoints().prepare(1L, ctx);
+        return ctx;
+    }
+
+    /** What a restarted TransactionManager reads back from its journal. */
+    private static Context recovered(Context ctx) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+            out.writeObject(ctx);
+        }
+        try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+            return (Context) in.readObject();
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-15/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-15/practice-1/src/main/java/com/example/practice/RedeemPoints.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-15/practice-1/src/main/java/com/example/practice/RedeemPoints.java</code> and <code>practice/jpos-server/prose/unit-15/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-15/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -680,6 +871,99 @@ public class QuoteRate implements TransactionParticipant, Configurable {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.QuoteRate;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        ScheduledExecutorService service = Executors.newSingleThreadScheduledExecutor();
+        try {
+            NameRegistrar.register(&quot;tryit-fx&quot;, (QuoteRate.FxService) (currency, amount, listener) -&gt; {
+                if (amount == 2100) listener.quoted(1172300);
+                if (amount == 2300) {
+                    service.schedule(() -&gt; listener.failed(new IllegalStateException(&quot;rate feed down&quot;)), 50, TimeUnit.MILLISECONDS);
+                    service.schedule(() -&gt; listener.quoted(1169900), 500, TimeUnit.MILLISECONDS);
+                }
+            });
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;service&quot;, &quot;tryit-fx&quot;);
+            cfg.put(&quot;timeout&quot;, &quot;300&quot;);
+            QuoteRate quote = new QuoteRate();
+            quote.setConfiguration(cfg);
+            Watched instant = start(quote, &quot;000000002100&quot;);
+            Watched silent = start(quote, &quot;000000002200&quot;);
+            Watched failedThenLate = start(quote, &quot;000000002300&quot;);
+            Thread.sleep(700);
+            System.out.println(&quot;instant quote: &quot; + instant);
+            System.out.println(&quot;no answer: &quot; + silent);
+            System.out.println(&quot;failure, then a late quote: &quot; + failedThenLate);
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            service.shutdownNow();
+            NameRegistrar.unregister(&quot;tryit-fx&quot;);
+        }
+    }
+
+    /** A Context that counts how often the transaction was resumed. */
+    private static final class Watched extends Context {
+        final AtomicInteger resumes = new AtomicInteger();
+
+        @Override
+        public synchronized void resume() {
+            resumes.incrementAndGet();
+            super.resume();
+        }
+
+        @Override
+        public String toString() {
+            return &quot;resumed &quot; + resumes.get() + &quot; time(s), RATE=&quot; + get(QuoteRate.RATE);
+        }
+    }
+
+    private static Watched start(QuoteRate quote, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4761739001010119&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, &quot;003377&quot;);
+        m.set(41, &quot;60400155&quot;);
+        m.set(49, &quot;978&quot;);
+        Watched ctx = new Watched();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        quote.prepare(1L, ctx);
+        return ctx;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -777,10 +1061,104 @@ public class QuoteRate implements TransactionParticipant, Configurable {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.QuoteRate;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.transaction.Context;
+import org.jpos.transaction.ContextConstants;
+import org.jpos.util.NameRegistrar;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        ScheduledExecutorService service = Executors.newSingleThreadScheduledExecutor();
+        try {
+            NameRegistrar.register(&quot;tryit-fx&quot;, (QuoteRate.FxService) (currency, amount, listener) -&gt; {
+                if (amount == 2100) listener.quoted(1172300);
+                if (amount == 2300) {
+                    service.schedule(() -&gt; listener.failed(new IllegalStateException(&quot;rate feed down&quot;)), 50, TimeUnit.MILLISECONDS);
+                    service.schedule(() -&gt; listener.quoted(1169900), 500, TimeUnit.MILLISECONDS);
+                }
+            });
+            SimpleConfiguration cfg = new SimpleConfiguration();
+            cfg.put(&quot;service&quot;, &quot;tryit-fx&quot;);
+            cfg.put(&quot;timeout&quot;, &quot;300&quot;);
+            QuoteRate quote = new QuoteRate();
+            quote.setConfiguration(cfg);
+            Watched instant = start(quote, &quot;000000002100&quot;);
+            Watched silent = start(quote, &quot;000000002200&quot;);
+            Watched failedThenLate = start(quote, &quot;000000002300&quot;);
+            Thread.sleep(700);
+            System.out.println(&quot;instant quote: &quot; + instant);
+            System.out.println(&quot;no answer: &quot; + silent);
+            System.out.println(&quot;failure, then a late quote: &quot; + failedThenLate);
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            service.shutdownNow();
+            NameRegistrar.unregister(&quot;tryit-fx&quot;);
+        }
+    }
+
+    /** A Context that counts how often the transaction was resumed. */
+    private static final class Watched extends Context {
+        final AtomicInteger resumes = new AtomicInteger();
+
+        @Override
+        public synchronized void resume() {
+            resumes.incrementAndGet();
+            super.resume();
+        }
+
+        @Override
+        public String toString() {
+            return &quot;resumed &quot; + resumes.get() + &quot; time(s), RATE=&quot; + get(QuoteRate.RATE);
+        }
+    }
+
+    private static Watched start(QuoteRate quote, String amount) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4761739001010119&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, &quot;003377&quot;);
+        m.set(41, &quot;60400155&quot;);
+        m.set(49, &quot;978&quot;);
+        Watched ctx = new Watched();
+        ctx.put(ContextConstants.REQUEST.toString(), m);
+        quote.prepare(1L, ctx);
+        return ctx;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-15/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-15/practice-2/src/main/java/com/example/practice/QuoteRate.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-15/practice-2/src/main/java/com/example/practice/QuoteRate.java</code> and <code>practice/jpos-server/prose/unit-15/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-15/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

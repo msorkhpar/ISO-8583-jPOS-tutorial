@@ -198,6 +198,103 @@ public class PaymentClient {
         return Outcome.UNKNOWN;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentClient;
+import org.jpos.iso.packager.GenericPackager;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            AtomicReference&lt;String&gt; rc = new AtomicReference&lt;&gt;(&quot;00&quot;);
+            QMUX q = mux(&quot;tspace:tryit&quot;);
+            try {
+                host(sp, rc);
+                sp.out(&quot;host.ready&quot;, Boolean.TRUE);
+                PaymentClient client = new PaymentClient(q, sp, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;), 400);
+                System.out.println(&quot;good purchase: &quot; + client.pay(purchase(&quot;000901&quot;, &quot;000000004299&quot;, &quot;40110008&quot;)));
+                System.out.println(&quot;amount 42.99: &quot; + client.pay(purchase(&quot;000902&quot;, &quot;42.99&quot;, &quot;40110008&quot;)));
+                System.out.println(&quot;terminal 401100080: &quot; + client.pay(purchase(&quot;000903&quot;, &quot;000000004299&quot;, &quot;401100080&quot;)));
+                rc.set(null);
+                System.out.println(&quot;host silent: &quot; + client.pay(purchase(&quot;000904&quot;, &quot;000000004299&quot;, &quot;40110008&quot;)));
+                ISOMsg left = (ISOMsg) sp.rdp(&quot;saf.host&quot;);
+                System.out.println(&quot;left for reversal: &quot; + (left == null ? &quot;nothing&quot; : &quot;STAN &quot; + left.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan, String amount, String terminal) {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000002760003184&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, stan);
+        m.set(41, terminal);
+        return m;
+    }
+
+    private static QMUX mux(String space) throws Exception {
+        Element e = new Element(&quot;mux&quot;);
+        e.addContent(new Element(&quot;space&quot;).setText(space));
+        e.addContent(new Element(&quot;in&quot;).setText(&quot;host-receive&quot;));
+        e.addContent(new Element(&quot;out&quot;).setText(&quot;host-send&quot;));
+        e.addContent(new Element(&quot;ready&quot;).setText(&quot;host.ready&quot;));
+        QMUX q = new QMUX();
+        q.setName(&quot;tryit-mux&quot;);
+        q.setPersist(e);
+        q.setConfiguration(new SimpleConfiguration());
+        q.init();
+        q.start();
+        return q;
+    }
+
+    private static void host(LocalSpace&lt;String, Object&gt; sp, AtomicReference&lt;String&gt; rc) {
+        sp.addListener(&quot;host-send&quot;, (key, value) -&gt; {
+            ISOMsg request = (ISOMsg) sp.inp(key);
+            if (request == null || rc.get() == null)
+                return;
+            try {
+                ISOMsg response = (ISOMsg) request.clone();
+                response.setResponseMTI();
+                response.set(39, rc.get());
+                sp.out(&quot;host-receive&quot;, response);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -255,10 +352,108 @@ public class PaymentClient {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentClient;
+import org.jpos.iso.packager.GenericPackager;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            AtomicReference&lt;String&gt; rc = new AtomicReference&lt;&gt;(&quot;00&quot;);
+            QMUX q = mux(&quot;tspace:tryit&quot;);
+            try {
+                host(sp, rc);
+                sp.out(&quot;host.ready&quot;, Boolean.TRUE);
+                PaymentClient client = new PaymentClient(q, sp, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;), 400);
+                System.out.println(&quot;good purchase: &quot; + client.pay(purchase(&quot;000901&quot;, &quot;000000004299&quot;, &quot;40110008&quot;)));
+                System.out.println(&quot;amount 42.99: &quot; + client.pay(purchase(&quot;000902&quot;, &quot;42.99&quot;, &quot;40110008&quot;)));
+                System.out.println(&quot;terminal 401100080: &quot; + client.pay(purchase(&quot;000903&quot;, &quot;000000004299&quot;, &quot;401100080&quot;)));
+                rc.set(null);
+                System.out.println(&quot;host silent: &quot; + client.pay(purchase(&quot;000904&quot;, &quot;000000004299&quot;, &quot;40110008&quot;)));
+                ISOMsg left = (ISOMsg) sp.rdp(&quot;saf.host&quot;);
+                System.out.println(&quot;left for reversal: &quot; + (left == null ? &quot;nothing&quot; : &quot;STAN &quot; + left.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan, String amount, String terminal) {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000002760003184&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, amount);
+        m.set(11, stan);
+        m.set(41, terminal);
+        return m;
+    }
+
+    private static QMUX mux(String space) throws Exception {
+        Element e = new Element(&quot;mux&quot;);
+        e.addContent(new Element(&quot;space&quot;).setText(space));
+        e.addContent(new Element(&quot;in&quot;).setText(&quot;host-receive&quot;));
+        e.addContent(new Element(&quot;out&quot;).setText(&quot;host-send&quot;));
+        e.addContent(new Element(&quot;ready&quot;).setText(&quot;host.ready&quot;));
+        QMUX q = new QMUX();
+        q.setName(&quot;tryit-mux&quot;);
+        q.setPersist(e);
+        q.setConfiguration(new SimpleConfiguration());
+        q.init();
+        q.start();
+        return q;
+    }
+
+    private static void host(LocalSpace&lt;String, Object&gt; sp, AtomicReference&lt;String&gt; rc) {
+        sp.addListener(&quot;host-send&quot;, (key, value) -&gt; {
+            ISOMsg request = (ISOMsg) sp.inp(key);
+            if (request == null || rc.get() == null)
+                return;
+            try {
+                ISOMsg response = (ISOMsg) request.clone();
+                response.setResponseMTI();
+                response.set(39, rc.get());
+                sp.out(&quot;host-receive&quot;, response);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-09/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-09/practice-1/src/main/java/com/example/practice/PaymentClient.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-09/practice-1/src/main/java/com/example/practice/PaymentClient.java</code> and <code>practice/jpos-client/prose/unit-09/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-09/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -435,6 +630,109 @@ public class PaymentClient {
         return Outcome.UNKNOWN;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentClient;
+import com.example.practice.PaymentClient.Category;
+import java.util.Map;
+import org.jpos.iso.packager.GenericPackager;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            AtomicReference&lt;String&gt; rc = new AtomicReference&lt;&gt;(&quot;00&quot;);
+            QMUX q = mux(&quot;tspace:tryit&quot;);
+            try {
+                host(sp, rc);
+                sp.out(&quot;host.ready&quot;, Boolean.TRUE);
+                PaymentClient client = new PaymentClient(q, sp, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;), 400,
+                        Map.of(&quot;00&quot;, Category.APPROVAL, &quot;10&quot;, Category.APPROVAL, &quot;51&quot;, Category.DECLINE,
+                                &quot;91&quot;, Category.UNAVAILABLE, &quot;30&quot;, Category.FORMAT_ERROR));
+                String[] codes = { &quot;10&quot;, &quot;51&quot;, &quot;91&quot;, &quot;30&quot;, &quot;X7&quot; };
+                for (int i = 0; i &lt; codes.length; i++) {
+                    rc.set(codes[i]);
+                    System.out.println(&quot;rc &quot; + codes[i] + &quot;: &quot; + client.pay(purchase(&quot;00095&quot; + i)));
+                }
+                ISOMsg alert = (ISOMsg) sp.rdp(&quot;alerts&quot;);
+                System.out.println(&quot;alert: &quot; + (alert == null ? &quot;none&quot; : &quot;rc &quot; + alert.getString(39)));
+                ISOMsg left = (ISOMsg) sp.rdp(&quot;saf.host&quot;);
+                System.out.println(&quot;left for reversal: &quot; + (left == null ? &quot;nothing&quot; : &quot;STAN &quot; + left.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan) {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000002760003184&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001875&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;40110008&quot;);
+        return m;
+    }
+
+    private static QMUX mux(String space) throws Exception {
+        Element e = new Element(&quot;mux&quot;);
+        e.addContent(new Element(&quot;space&quot;).setText(space));
+        e.addContent(new Element(&quot;in&quot;).setText(&quot;host-receive&quot;));
+        e.addContent(new Element(&quot;out&quot;).setText(&quot;host-send&quot;));
+        e.addContent(new Element(&quot;ready&quot;).setText(&quot;host.ready&quot;));
+        QMUX q = new QMUX();
+        q.setName(&quot;tryit-mux&quot;);
+        q.setPersist(e);
+        q.setConfiguration(new SimpleConfiguration());
+        q.init();
+        q.start();
+        return q;
+    }
+
+    private static void host(LocalSpace&lt;String, Object&gt; sp, AtomicReference&lt;String&gt; rc) {
+        sp.addListener(&quot;host-send&quot;, (key, value) -&gt; {
+            ISOMsg request = (ISOMsg) sp.inp(key);
+            if (request == null || rc.get() == null)
+                return;
+            try {
+                ISOMsg response = (ISOMsg) request.clone();
+                response.setResponseMTI();
+                response.set(39, rc.get());
+                sp.out(&quot;host-receive&quot;, response);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -515,10 +813,114 @@ public class PaymentClient {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PaymentClient;
+import com.example.practice.PaymentClient.Category;
+import java.util.Map;
+import org.jpos.iso.packager.GenericPackager;
+import java.util.concurrent.atomic.AtomicReference;
+import org.jdom2.Element;
+import org.jpos.core.SimpleConfiguration;
+import org.jpos.iso.ISOMsg;
+import org.jpos.q2.iso.QMUX;
+import org.jpos.space.LocalSpace;
+import org.jpos.space.SpaceFactory;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LocalSpace&lt;String, Object&gt; sp = (LocalSpace&lt;String, Object&gt;) SpaceFactory.getSpace(&quot;tspace:tryit&quot;);
+            AtomicReference&lt;String&gt; rc = new AtomicReference&lt;&gt;(&quot;00&quot;);
+            QMUX q = mux(&quot;tspace:tryit&quot;);
+            try {
+                host(sp, rc);
+                sp.out(&quot;host.ready&quot;, Boolean.TRUE);
+                PaymentClient client = new PaymentClient(q, sp, new GenericPackager(&quot;jar:packager/iso87ascii.xml&quot;), 400,
+                        Map.of(&quot;00&quot;, Category.APPROVAL, &quot;10&quot;, Category.APPROVAL, &quot;51&quot;, Category.DECLINE,
+                                &quot;91&quot;, Category.UNAVAILABLE, &quot;30&quot;, Category.FORMAT_ERROR));
+                String[] codes = { &quot;10&quot;, &quot;51&quot;, &quot;91&quot;, &quot;30&quot;, &quot;X7&quot; };
+                for (int i = 0; i &lt; codes.length; i++) {
+                    rc.set(codes[i]);
+                    System.out.println(&quot;rc &quot; + codes[i] + &quot;: &quot; + client.pay(purchase(&quot;00095&quot; + i)));
+                }
+                ISOMsg alert = (ISOMsg) sp.rdp(&quot;alerts&quot;);
+                System.out.println(&quot;alert: &quot; + (alert == null ? &quot;none&quot; : &quot;rc &quot; + alert.getString(39)));
+                ISOMsg left = (ISOMsg) sp.rdp(&quot;saf.host&quot;);
+                System.out.println(&quot;left for reversal: &quot; + (left == null ? &quot;nothing&quot; : &quot;STAN &quot; + left.getString(11)));
+            } finally {
+                q.stop();
+                q.destroy();
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg purchase(String stan) {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4000002760003184&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001875&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;40110008&quot;);
+        return m;
+    }
+
+    private static QMUX mux(String space) throws Exception {
+        Element e = new Element(&quot;mux&quot;);
+        e.addContent(new Element(&quot;space&quot;).setText(space));
+        e.addContent(new Element(&quot;in&quot;).setText(&quot;host-receive&quot;));
+        e.addContent(new Element(&quot;out&quot;).setText(&quot;host-send&quot;));
+        e.addContent(new Element(&quot;ready&quot;).setText(&quot;host.ready&quot;));
+        QMUX q = new QMUX();
+        q.setName(&quot;tryit-mux&quot;);
+        q.setPersist(e);
+        q.setConfiguration(new SimpleConfiguration());
+        q.init();
+        q.start();
+        return q;
+    }
+
+    private static void host(LocalSpace&lt;String, Object&gt; sp, AtomicReference&lt;String&gt; rc) {
+        sp.addListener(&quot;host-send&quot;, (key, value) -&gt; {
+            ISOMsg request = (ISOMsg) sp.inp(key);
+            if (request == null || rc.get() == null)
+                return;
+            try {
+                ISOMsg response = (ISOMsg) request.clone();
+                response.setResponseMTI();
+                response.set(39, rc.get());
+                sp.out(&quot;host-receive&quot;, response);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-09/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-09/practice-2/src/main/java/com/example/practice/PaymentClient.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-09/practice-2/src/main/java/com/example/practice/PaymentClient.java</code> and <code>practice/jpos-client/prose/unit-09/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-09/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -666,6 +1068,57 @@ public class LateAnswers implements ISORequestListener {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LateAnswers;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LateAnswers listener = new LateAnswers(r -&gt; System.out.println(&quot;ledger: late approval STAN &quot; + r.getString(11)));
+            System.out.println(&quot;late 0210, rc 00 taken: &quot; + listener.process(null, message(&quot;0210&quot;, &quot;000611&quot;, &quot;00&quot;)));
+            System.out.println(&quot;late 0110, rc 05 taken: &quot; + listener.process(null, message(&quot;0110&quot;, &quot;000612&quot;, &quot;05&quot;)));
+            System.out.println(&quot;late 0810 taken: &quot; + listener.process(null, message(&quot;0810&quot;, &quot;000613&quot;, &quot;00&quot;)));
+            System.out.println(&quot;host's own 0800 taken: &quot; + listener.process(null, message(&quot;0800&quot;, &quot;500614&quot;, null)));
+            LateAnswers locked = new LateAnswers(r -&gt; {
+                throw new IllegalStateException(&quot;ledger table is locked&quot;);
+            });
+            System.out.println(&quot;late 0210, ledger locked, taken: &quot; + locked.process(null, message(&quot;0210&quot;, &quot;000615&quot;, &quot;00&quot;)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg message(String mti, String stan, String rc) {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000006600&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;40110019&quot;);
+        if (rc != null)
+            m.set(39, rc);
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-3-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -701,10 +1154,62 @@ public class LateAnswers implements ISORequestListener {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.LateAnswers;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            LateAnswers listener = new LateAnswers(r -&gt; System.out.println(&quot;ledger: late approval STAN &quot; + r.getString(11)));
+            System.out.println(&quot;late 0210, rc 00 taken: &quot; + listener.process(null, message(&quot;0210&quot;, &quot;000611&quot;, &quot;00&quot;)));
+            System.out.println(&quot;late 0110, rc 05 taken: &quot; + listener.process(null, message(&quot;0110&quot;, &quot;000612&quot;, &quot;05&quot;)));
+            System.out.println(&quot;late 0810 taken: &quot; + listener.process(null, message(&quot;0810&quot;, &quot;000613&quot;, &quot;00&quot;)));
+            System.out.println(&quot;host's own 0800 taken: &quot; + listener.process(null, message(&quot;0800&quot;, &quot;500614&quot;, null)));
+            LateAnswers locked = new LateAnswers(r -&gt; {
+                throw new IllegalStateException(&quot;ledger table is locked&quot;);
+            });
+            System.out.println(&quot;late 0210, ledger locked, taken: &quot; + locked.process(null, message(&quot;0210&quot;, &quot;000615&quot;, &quot;00&quot;)));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg message(String mti, String stan, String rc) {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000006600&quot;);
+        m.set(11, stan);
+        m.set(41, &quot;40110019&quot;);
+        if (rc != null)
+            m.set(39, rc);
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-09/practice-prose-3" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-09/practice-3/src/main/java/com/example/practice/LateAnswers.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-09/practice-3/src/main/java/com/example/practice/LateAnswers.java</code> and <code>practice/jpos-client/prose/unit-09/practice-3/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-09/practice-3/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

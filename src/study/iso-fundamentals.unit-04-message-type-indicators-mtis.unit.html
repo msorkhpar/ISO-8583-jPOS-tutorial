@@ -408,6 +408,57 @@ public class Inbox {
                 &amp;&amp; Objects.equals(sent.getString(41), incoming.getString(41));
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Inbox;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Inbox inbox = new Inbox();
+            inbox.expect(msg(&quot;0200&quot;, &quot;120301&quot;, &quot;TERM0101&quot;));
+            inbox.expect(msg(&quot;0200&quot;, &quot;120301&quot;, &quot;TERM0102&quot;));
+            inbox.expect(msg(&quot;0220&quot;, &quot;120302&quot;, &quot;TERM0101&quot;));
+            System.out.println(&quot;0210 for TERM0102 reaches: &quot; + who(inbox.deliver(msg(&quot;0210&quot;, &quot;120301&quot;, &quot;TERM0102&quot;))));
+            System.out.println(&quot;0230 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0230&quot;, &quot;120302&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;0110 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0110&quot;, &quot;120301&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;0210 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0210&quot;, &quot;120301&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;still waiting: &quot; + inbox.waiting());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String stan, String terminal) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(11, stan);
+        m.set(41, terminal);
+        return m;
+    }
+
+    private static String who(ISOMsg sent) {
+        return sent == null ? &quot;nobody&quot; : sent.getString(0) + &quot; stan &quot; + sent.getString(11) + &quot; terminal &quot; + sent.getString(41);
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -460,10 +511,62 @@ public class Inbox {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Inbox;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Inbox inbox = new Inbox();
+            inbox.expect(msg(&quot;0200&quot;, &quot;120301&quot;, &quot;TERM0101&quot;));
+            inbox.expect(msg(&quot;0200&quot;, &quot;120301&quot;, &quot;TERM0102&quot;));
+            inbox.expect(msg(&quot;0220&quot;, &quot;120302&quot;, &quot;TERM0101&quot;));
+            System.out.println(&quot;0210 for TERM0102 reaches: &quot; + who(inbox.deliver(msg(&quot;0210&quot;, &quot;120301&quot;, &quot;TERM0102&quot;))));
+            System.out.println(&quot;0230 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0230&quot;, &quot;120302&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;0110 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0110&quot;, &quot;120301&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;0210 for TERM0101 reaches: &quot; + who(inbox.deliver(msg(&quot;0210&quot;, &quot;120301&quot;, &quot;TERM0101&quot;))));
+            System.out.println(&quot;still waiting: &quot; + inbox.waiting());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg msg(String mti, String stan, String terminal) throws Exception {
+        ISOMsg m = new ISOMsg(mti);
+        m.set(11, stan);
+        m.set(41, terminal);
+        return m;
+    }
+
+    private static String who(ISOMsg sent) {
+        return sent == null ? &quot;nobody&quot; : sent.getString(0) + &quot; stan &quot; + sent.getString(11) + &quot; terminal &quot; + sent.getString(41);
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-04/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Inbox.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/com/example/practice/Inbox.java</code> and <code>practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-04/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -564,6 +667,60 @@ public class Journal {
         return null;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Journal;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Journal journal = new Journal();
+            ISOMsg monday = request(&quot;000555&quot;, &quot;1109083000&quot;, &quot;4567890&quot;);
+            ISOMsg tuesday = request(&quot;000555&quot;, &quot;1110083000&quot;, &quot;4567890&quot;);
+            journal.record(monday);
+            journal.record(tuesday);
+
+            ISOMsg reversal = new ISOMsg(&quot;0420&quot;);
+            reversal.set(11, &quot;000812&quot;);
+            reversal.set(90, &quot;0200&quot; + &quot;000555&quot; + &quot;1110083000&quot; + &quot;00004567890&quot; + &quot;00000000000&quot;);
+            ISOMsg ack = journal.onReversal(reversal);
+            System.out.println(&quot;ack: &quot; + ack.getMTI() + &quot; stan &quot; + ack.getString(11) + &quot; 39=&quot; + ack.getString(39));
+            System.out.println(&quot;tuesday reversed: &quot; + journal.isReversed(tuesday));
+            System.out.println(&quot;monday reversed: &quot; + journal.isReversed(monday));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg request(String stan, String when, String acquirer) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(4, &quot;000000001800&quot;);
+        m.set(7, when);
+        m.set(11, stan);
+        m.set(32, acquirer);
+        m.set(41, &quot;TERM0300&quot;);
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-3-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -613,10 +770,65 @@ public class Journal {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Journal;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.jpos.iso.ISOMsg;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Journal journal = new Journal();
+            ISOMsg monday = request(&quot;000555&quot;, &quot;1109083000&quot;, &quot;4567890&quot;);
+            ISOMsg tuesday = request(&quot;000555&quot;, &quot;1110083000&quot;, &quot;4567890&quot;);
+            journal.record(monday);
+            journal.record(tuesday);
+
+            ISOMsg reversal = new ISOMsg(&quot;0420&quot;);
+            reversal.set(11, &quot;000812&quot;);
+            reversal.set(90, &quot;0200&quot; + &quot;000555&quot; + &quot;1110083000&quot; + &quot;00004567890&quot; + &quot;00000000000&quot;);
+            ISOMsg ack = journal.onReversal(reversal);
+            System.out.println(&quot;ack: &quot; + ack.getMTI() + &quot; stan &quot; + ack.getString(11) + &quot; 39=&quot; + ack.getString(39));
+            System.out.println(&quot;tuesday reversed: &quot; + journal.isReversed(tuesday));
+            System.out.println(&quot;monday reversed: &quot; + journal.isReversed(monday));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static ISOMsg request(String stan, String when, String acquirer) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(4, &quot;000000001800&quot;);
+        m.set(7, when);
+        m.set(11, stan);
+        m.set(32, acquirer);
+        m.set(41, &quot;TERM0300&quot;);
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="iso-fundamentals/unit-04/practice-prose-3" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/com/example/practice/Journal.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/com/example/practice/Journal.java</code> and <code>practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/iso-fundamentals/prose/unit-04/practice-3/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

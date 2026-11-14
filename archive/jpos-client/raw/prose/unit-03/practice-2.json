@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.net.SocketTimeoutException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        long deadline = clock.getAsLong() + budgetMillis;\n        try {\n            channel.send(echo(stan));\n            while (clock.getAsLong() < deadline) {\n                if (isAnswerTo(channel.receive(), stan))\n                    return Result.UP;\n            }\n            return Result.NO_ANSWER;\n        } catch (SocketTimeoutException e) {\n            return Result.NO_ANSWER;\n        } catch (IOException e) {\n            return Result.LINK_DOWN;\n        }\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        return \"0810\".equals(m.getMTI()) && stan.equals(m.getString(11));\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.EchoProbe;\nimport java.io.EOFException;\nimport java.io.IOException;\nimport java.net.SocketTimeoutException;\nimport java.util.ArrayDeque;\nimport java.util.Deque;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Scripted up = new Scripted().frame(25, msg(\"0810\", \"770101\"));\n            System.out.println(\"host answers: \" + new EchoProbe(up, up::now).check(\"770101\", 4000));\n            Scripted other = new Scripted().frame(20, msg(\"0810\", \"770099\")).frame(-1, null);\n            System.out.println(\"only a stale answer: \" + new EchoProbe(other, other::now).check(\"770102\", 4000));\n            Scripted gone = new Scripted().frame(10, \"hang-up\");\n            System.out.println(\"host hangs up: \" + new EchoProbe(gone, gone::now).check(\"770103\", 4000));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String stan) {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n\n    /** A channel with no socket: each receive plays the next step; a null step is a read timeout. */\n    private static final class Scripted extends ASCIIChannel {\n        private final Deque<Object[]> script = new ArrayDeque<>();\n        private long now = 50_000;\n\n        Scripted frame(long at, Object step) { script.add(new Object[] { at, step }); return this; }\n        long now() { return now; }\n        @Override public boolean isConnected() { return true; }\n        @Override public void send(ISOMsg m) { }\n\n        @Override public ISOMsg receive() throws IOException {\n            Object[] step = script.poll();\n            if (step == null || step[1] == null) { now += 3000; throw new SocketTimeoutException(\"Read timed out\"); }\n            now = 50_000 + (Long) step[0];\n            if (\"hang-up\".equals(step[1])) throw new EOFException();\n            return (ISOMsg) step[1];\n        }\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        // TODO: send echo(stan) on the channel and decide which Result it ends with. The operator\n        //       runs this against a live link, and must get an answer within budgetMillis\n        //       (as measured by clock), whatever the host does meanwhile. (about 12 lines)\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        // TODO: one line\n        throw new IllegalStateException(\"TODO: isAnswerTo\");\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.EchoProbe;\nimport java.io.EOFException;\nimport java.io.IOException;\nimport java.net.SocketTimeoutException;\nimport java.util.ArrayDeque;\nimport java.util.Deque;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.channel.ASCIIChannel;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            Scripted up = new Scripted().frame(25, msg(\"0810\", \"770101\"));\n            System.out.println(\"host answers: \" + new EchoProbe(up, up::now).check(\"770101\", 4000));\n            Scripted other = new Scripted().frame(20, msg(\"0810\", \"770099\")).frame(-1, null);\n            System.out.println(\"only a stale answer: \" + new EchoProbe(other, other::now).check(\"770102\", 4000));\n            Scripted gone = new Scripted().frame(10, \"hang-up\");\n            System.out.println(\"host hangs up: \" + new EchoProbe(gone, gone::now).check(\"770103\", 4000));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String stan) {\n        ISOMsg m = new ISOMsg(mti);\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n\n    /** A channel with no socket: each receive plays the next step; a null step is a read timeout. */\n    private static final class Scripted extends ASCIIChannel {\n        private final Deque<Object[]> script = new ArrayDeque<>();\n        private long now = 50_000;\n\n        Scripted frame(long at, Object step) { script.add(new Object[] { at, step }); return this; }\n        long now() { return now; }\n        @Override public boolean isConnected() { return true; }\n        @Override public void send(ISOMsg m) { }\n\n        @Override public ISOMsg receive() throws IOException {\n            Object[] step = script.poll();\n            if (step == null || step[1] == null) { now += 3000; throw new SocketTimeoutException(\"Read timed out\"); }\n            now = 50_000 + (Long) step[0];\n            if (\"hang-up\".equals(step[1])) throw new EOFException();\n            return (ISOMsg) step[1];\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "72283875f38c29ab141a1c1f302a9eb20333d9c05686f0cdd678ea8ca7a55077",
+  "content_sha256": "6f059cb8b2270111d57e065eb9027d284e3d25a6e3cce978f367d58beedc3902",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.ISOChannel;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\nimport java.io.IOException;\nimport java.util.function.LongSupplier;\n\n/** A diagnostic tool: sends one echo over a connected channel and says what became of it. */\npublic class EchoProbe {\n    public enum Result { UP, NO_ANSWER, LINK_DOWN }\n\n    private final ISOChannel channel;\n    private final LongSupplier clock;                  // milliseconds; System::currentTimeMillis in production\n\n    public EchoProbe(ISOChannel channel, LongSupplier clock) {\n        this.channel = channel;\n        this.clock = clock;\n    }\n\n    /** Sends an echo with this STAN and reports within budgetMillis whether the host answered it. */\n    public Result check(String stan, long budgetMillis) throws IOException, ISOException {\n        // TODO: send echo(stan) on the channel and decide which Result it ends with. The operator\n        //       runs this against a live link, and must get an answer within budgetMillis\n        //       (as measured by clock), whatever the host does meanwhile. (about 12 lines)\n        throw new IllegalStateException(\"TODO: check\");\n    }\n\n    /** True when m is the host's answer to our echo with this STAN. */\n    boolean isAnswerTo(ISOMsg m, String stan) throws ISOException {\n        // TODO: one line\n        throw new IllegalStateException(\"TODO: isAnswerTo\");\n    }\n\n    static ISOMsg echo(String stan) throws ISOException {\n        ISOMsg m = new ISOMsg(\"0800\");\n        m.set(11, stan);\n        m.set(70, \"301\");\n        return m;\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-03/practice-2/src/main/java/com/example/practice/EchoProbe.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-03/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -146,6 +165,10 @@
     },
     "concepts": [
       "receive() returns the next frame, not your answer, never returns null, and its read timeout measures silence; silence and a closed connection are different exceptions."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-03/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-03/practice-2/src/main/java/TryIt.java"
   }
 }

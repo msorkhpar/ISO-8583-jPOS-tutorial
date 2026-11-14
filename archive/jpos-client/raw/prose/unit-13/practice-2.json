@@ -42,6 +42,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.Map;\nimport java.util.TreeMap;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOPackager;\n\n/** Checks a layout against one of the sample messages in a host's specification. */\npublic final class LayoutCheck {\n    private LayoutCheck() {\n    }\n\n    /**\n     * The row of the layout to fix first: the number of the field to look at, or 0 when the\n     * packager reads the sample exactly as the specification documents it.\n     *\n     * @param packager   the layout under test\n     * @param sample     the sample message's bytes, from the specification\n     * @param documented every field of the sample with the value the specification gives for it\n     */\n    public static int firstWrongField(ISOPackager packager, byte[] sample, Map<Integer, String> documented) {\n        ISOMsg read = new ISOMsg();\n        read.setPackager(packager);\n        try {\n            read.unpack(sample);\n        } catch (ISOException e) {\n            // keep what was read before the packager stopped\n        }\n        for (Map.Entry<Integer, String> field : new TreeMap<>(documented).entrySet()) {\n            if (!field.getValue().equals(read.getString(field.getKey())))\n                return field.getKey();\n        }\n        return 0;\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.LayoutCheck;\nimport org.jpos.iso.IFA_NUMERIC;\nimport org.jpos.iso.packager.GenericPackager;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            byte[] sample = (\"0200\" + \"7020000000800000\" + \"16\" + \"4000056655665556\"\n                    + \"000000\" + \"000000001450\" + \"000613\" + \"POS00071\").getBytes(StandardCharsets.US_ASCII);\n            Map<Integer, String> documented = Map.of(\n                    2, \"4000056655665556\", 3, \"000000\", 4, \"000000001450\", 11, \"000613\", 41, \"POS00071\");\n            GenericPackager good = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            System.out.println(\"host layout: \" + LayoutCheck.firstWrongField(good, sample.clone(), documented));\n            GenericPackager stanTooLong = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            stanTooLong.setFieldPackager(11, new IFA_NUMERIC(7, \"SYSTEM TRACE AUDIT NUMBER\"));\n            System.out.println(\"field 11 one digit too long: \" + LayoutCheck.firstWrongField(stanTooLong, sample.clone(), documented));\n            GenericPackager noAmount = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            noAmount.setFieldPackager(4, null);\n            System.out.println(\"no row for field 4: \" + LayoutCheck.firstWrongField(noAmount, sample.clone(), documented));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -54,6 +63,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.Map;\n\nimport org.jpos.iso.ISOPackager;\n\n/** Checks a layout against one of the sample messages in a host's specification. */\npublic final class LayoutCheck {\n    private LayoutCheck() {\n    }\n\n    /**\n     * The row of the layout to fix first: the number of the field to look at, or 0 when the\n     * packager reads the sample exactly as the specification documents it.\n     *\n     * @param packager   the layout under test\n     * @param sample     the sample message's bytes, from the specification\n     * @param documented every field of the sample with the value the specification gives for it\n     */\n    public static int firstWrongField(ISOPackager packager, byte[] sample, Map<Integer, String> documented) {\n        // TODO: Certification asks one thing of this method: which row of the layout to correct\n        //       first. Use the sample's bytes, and every value the specification documents.\n        throw new IllegalStateException(\"TODO: firstWrongField\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.LayoutCheck;\nimport org.jpos.iso.IFA_NUMERIC;\nimport org.jpos.iso.packager.GenericPackager;\nimport java.nio.charset.StandardCharsets;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            byte[] sample = (\"0200\" + \"7020000000800000\" + \"16\" + \"4000056655665556\"\n                    + \"000000\" + \"000000001450\" + \"000613\" + \"POS00071\").getBytes(StandardCharsets.US_ASCII);\n            Map<Integer, String> documented = Map.of(\n                    2, \"4000056655665556\", 3, \"000000\", 4, \"000000001450\", 11, \"000613\", 41, \"POS00071\");\n            GenericPackager good = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            System.out.println(\"host layout: \" + LayoutCheck.firstWrongField(good, sample.clone(), documented));\n            GenericPackager stanTooLong = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            stanTooLong.setFieldPackager(11, new IFA_NUMERIC(7, \"SYSTEM TRACE AUDIT NUMBER\"));\n            System.out.println(\"field 11 one digit too long: \" + LayoutCheck.firstWrongField(stanTooLong, sample.clone(), documented));\n            GenericPackager noAmount = new GenericPackager(\"jar:packager/iso87ascii.xml\");\n            noAmount.setFieldPackager(4, null);\n            System.out.println(\"no row for field 4: \" + LayoutCheck.firstWrongField(noAmount, sample.clone(), documented));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -61,8 +79,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -72,7 +90,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "a45e69e9bdfd2c42a729be5f5d497281bba333c7e0570c0d3c5b01c6983501a8",
+  "content_sha256": "4f25b5bb1c2891e38e61bd230b2c8be2b3e8c1f867835028975b1f08b16ddb54",
   "starting_code": "package com.example.practice;\n\nimport java.util.Map;\n\nimport org.jpos.iso.ISOPackager;\n\n/** Checks a layout against one of the sample messages in a host's specification. */\npublic final class LayoutCheck {\n    private LayoutCheck() {\n    }\n\n    /**\n     * The row of the layout to fix first: the number of the field to look at, or 0 when the\n     * packager reads the sample exactly as the specification documents it.\n     *\n     * @param packager   the layout under test\n     * @param sample     the sample message's bytes, from the specification\n     * @param documented every field of the sample with the value the specification gives for it\n     */\n    public static int firstWrongField(ISOPackager packager, byte[] sample, Map<Integer, String> documented) {\n        // TODO: Certification asks one thing of this method: which row of the layout to correct\n        //       first. Use the sample's bytes, and every value the specification documents.\n        throw new IllegalStateException(\"TODO: firstWrongField\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-13/practice-2/src/main/java/com/example/practice/LayoutCheck.java",
@@ -83,7 +101,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-13/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -128,6 +147,10 @@
     "concepts": [
       "An unpack error names a field after the wrong one, and an unpack can succeed with shifted values; the first field whose value is wrong is the row to fix.",
       "The bytes carry no field boundaries, so a receiver whose layout differs in one field reads every later field from the wrong place."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-13/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-13/practice-2/src/main/java/TryIt.java"
   }
 }

@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        int at = start;\n        if ((byteAt(data, at++) & 0x1F) != 0x1F)\n            return at;\n        while ((byteAt(data, at++) & 0x80) != 0) {\n            // a following byte with its top bit set says one more byte follows\n        }\n        return at;\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        int first = byteAt(data, at) & 0xFF;\n        if (first < 0x80)\n            return new Length(first, at + 1);\n        if (first == 0x81)\n            return new Length(byteAt(data, at + 1) & 0xFF, at + 2);\n        if (first == 0x82)\n            return new Length((byteAt(data, at + 1) & 0xFF) << 8 | (byteAt(data, at + 2) & 0xFF), at + 3);\n        throw new IllegalArgumentException(\"unsupported length byte \" + Integer.toHexString(first));\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        if (from + length > data.length)\n            throw new IllegalArgumentException(length + \" bytes announced, \" + (data.length - from) + \" left\");\n        byte[] v = new byte[length];\n        System.arraycopy(data, from, v, 0, length);\n        return v;\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.TlvReader;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String dump = \"9F0206000000012345\" + \"5F2A020840\" + \"9A03261114\" + \"9C0109\" + \"DF81020101\";\n            for (TlvReader.Tlv tlv : TlvReader.read(ISOUtil.hex2byte(dump))) {\n                System.out.println(\"tag \" + tlv.tag() + \" value \" + tlv.value());\n            }\n            try {\n                TlvReader.read(ISOUtil.hex2byte(\"9F02060000\"));\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"damaged dump refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        // TODO: find where the tag that starts here ends. Use byteAt to read the data.\n        throw new IllegalStateException(\"TODO: tagEnd\");\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        // TODO: read the value's length, for values of any size up to 65535 bytes, and say where\n        //       the value starts. Refuse a length you can't read.\n        throw new IllegalStateException(\"TODO: lengthAt\");\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        // TODO: the value's bytes, as the data holds them.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.TlvReader;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOUtil;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            String dump = \"9F0206000000012345\" + \"5F2A020840\" + \"9A03261114\" + \"9C0109\" + \"DF81020101\";\n            for (TlvReader.Tlv tlv : TlvReader.read(ISOUtil.hex2byte(dump))) {\n                System.out.println(\"tag \" + tlv.tag() + \" value \" + tlv.value());\n            }\n            try {\n                TlvReader.read(ISOUtil.hex2byte(\"9F02060000\"));\n            } catch (IllegalArgumentException refused) {\n                System.out.println(\"damaged dump refused: \" + refused.getMessage());\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "e5ddb59d985f75bac58c4244fce2cde4b993631c83a305e10e2a73779304ebc3",
+  "content_sha256": "1f42c3bf6b1495ec213f8ce8636d2044367a6ab2743084f33d7721ebc714ac4f",
   "starting_code": "package com.example.practice;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport org.jpos.iso.ISOUtil;\n\n/**\n * Prints chip data (DE 55) from a hex dump for the support desk: splits the bytes into their\n * BER-TLV objects, and refuses data it can't split rather than guess.\n */\npublic final class TlvReader {\n\n    /** One BER-TLV object: its tag and its value, both as upper-case hexadecimal. */\n    public record Tlv(String tag, String value) { }\n\n    /** A length read from the data, and where the value starts. */\n    record Length(int value, int next) { }\n\n    private TlvReader() {\n    }\n\n    /** Every TLV object in {@code data}, in the order they appear. */\n    public static List<Tlv> read(byte[] data) {\n        List<Tlv> found = new ArrayList<>();\n        int at = 0;\n        while (at < data.length) {\n            int end = tagEnd(data, at);\n            String tag = ISOUtil.hexString(data, at, end - at);\n            Length length = lengthAt(data, end);\n            byte[] value = value(data, length.next(), length.value());\n            found.add(new Tlv(tag, ISOUtil.hexString(value)));\n            at = length.next() + length.value();\n        }\n        return found;\n    }\n\n    /** The index just after the tag that starts at {@code start}. */\n    static int tagEnd(byte[] data, int start) {\n        // TODO: find where the tag that starts here ends. Use byteAt to read the data.\n        throw new IllegalStateException(\"TODO: tagEnd\");\n    }\n\n    /** The length that starts at {@code at}, and the index where the value begins. */\n    static Length lengthAt(byte[] data, int at) {\n        // TODO: read the value's length, for values of any size up to 65535 bytes, and say where\n        //       the value starts. Refuse a length you can't read.\n        throw new IllegalStateException(\"TODO: lengthAt\");\n    }\n\n    /** The {@code length} bytes of a value that starts at {@code from}. */\n    static byte[] value(byte[] data, int from, int length) {\n        // TODO: the value's bytes, as the data holds them.\n        throw new IllegalStateException(\"TODO: value\");\n    }\n\n    /** One byte of the data; refuses to read past its end. */\n    static byte byteAt(byte[] data, int index) {\n        if (index >= data.length)\n            throw new IllegalArgumentException(\"the data ends inside a tag or a length\");\n        return data[index];\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-03/practice-3/src/main/java/com/example/practice/TlvReader.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-03/practice-3/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -141,6 +160,10 @@
     },
     "concepts": [
       "DE 55 is a list of BER-TLV objects: a tag that continues while its bytes say so, a length in one byte or after 81 or 82, and exactly that many value bytes."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-03/practice-3/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-03/practice-3/src/main/java/TryIt.java"
   }
 }

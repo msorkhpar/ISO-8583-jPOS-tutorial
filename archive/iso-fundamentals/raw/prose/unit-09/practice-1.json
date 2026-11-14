@@ -46,6 +46,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.Map;\n\n/**\n * The gateway between 1987 terminals and a processor that answers with four-digit action codes.\n * It tells each terminal what the processor decided, in the terminal's own field 39.\n */\npublic final class CodeTranslator {\n    private final Map<String, String> table;         // action code -> 1987 code, from both specs\n\n    public CodeTranslator(Map<String, String> table) {\n        this.table = Map.copyOf(table);\n    }\n\n    /**\n     * The answer for the terminal. When there is none, the terminal gets 96 and the purchase is\n     * reversed upstream.\n     */\n    public String answerFor(String actionCode) {\n        String rc = toTerminal(actionCode);\n        return rc != null ? rc : \"96\";\n    }\n\n    /** Whether the purchase must be reversed upstream because the terminal can't be told. */\n    public boolean mustReverse(String actionCode) {\n        return toTerminal(actionCode) == null;\n    }\n\n    /** The 1987 field 39 for an upstream action code, or null when no 1987 code says it. */\n    String toTerminal(String actionCode) {\n        if (actionCode == null || actionCode.length() != 4)\n            return null;\n        String rc = table.get(actionCode);\n        if (rc != null)\n            return rc;\n        switch (actionCode.charAt(0)) {\n            case '1':\n                return \"05\";\n            case '9':\n                return \"96\";\n            default:\n                return null;\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.CodeTranslator;\nimport java.util.Arrays;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            CodeTranslator gateway = new CodeTranslator(Map.of(\n                    \"0000\", \"00\", \"1002\", \"14\", \"1016\", \"51\", \"9108\", \"91\"));\n            for (String code : Arrays.asList(\"0000\", \"1016\", \"1042\", \"9120\", \"0007\", null)) {\n                System.out.println(code + \" -> terminal gets \" + gateway.answerFor(code)\n                        + \", reverse upstream: \" + gateway.mustReverse(code));\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -58,6 +67,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.Map;\n\n/**\n * The gateway between 1987 terminals and a processor that answers with four-digit action codes.\n * It tells each terminal what the processor decided, in the terminal's own field 39.\n */\npublic final class CodeTranslator {\n    private final Map<String, String> table;         // action code -> 1987 code, from both specs\n\n    public CodeTranslator(Map<String, String> table) {\n        this.table = Map.copyOf(table);\n    }\n\n    /**\n     * The answer for the terminal. When there is none, the terminal gets 96 and the purchase is\n     * reversed upstream.\n     */\n    public String answerFor(String actionCode) {\n        String rc = toTerminal(actionCode);\n        return rc != null ? rc : \"96\";\n    }\n\n    /** Whether the purchase must be reversed upstream because the terminal can't be told. */\n    public boolean mustReverse(String actionCode) {\n        return toTerminal(actionCode) == null;\n    }\n\n    /** The 1987 field 39 for an upstream action code, or null when no 1987 code says it. */\n    String toTerminal(String actionCode) {\n        // TODO: The processor's release notes add codes faster than the table is updated, and\n        //       now and then an answer arrives with no action code at all. Return the code that\n        //       tells the terminal what the processor decided, or null when no 1987 code can say\n        //       it (the caller then answers 96 and reverses the purchase upstream).\n        throw new IllegalStateException(\"TODO: toTerminal\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.CodeTranslator;\nimport java.util.Arrays;\nimport java.util.Map;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            CodeTranslator gateway = new CodeTranslator(Map.of(\n                    \"0000\", \"00\", \"1002\", \"14\", \"1016\", \"51\", \"9108\", \"91\"));\n            for (String code : Arrays.asList(\"0000\", \"1016\", \"1042\", \"9120\", \"0007\", null)) {\n                System.out.println(code + \" -> terminal gets \" + gateway.answerFor(code)\n                        + \", reverse upstream: \" + gateway.mustReverse(code));\n            }\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,8 +83,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -76,7 +94,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "57bb4be1a5a347aee9d11da1e337285d6d83d4c8e53a043ff604bc154e5d5b7f",
+  "content_sha256": "6578a1f8970877f18413d8ba7c6d35791288a68bdc356a3e2a7f3476e6844384",
   "starting_code": "package com.example.practice;\n\nimport java.util.Map;\n\n/**\n * The gateway between 1987 terminals and a processor that answers with four-digit action codes.\n * It tells each terminal what the processor decided, in the terminal's own field 39.\n */\npublic final class CodeTranslator {\n    private final Map<String, String> table;         // action code -> 1987 code, from both specs\n\n    public CodeTranslator(Map<String, String> table) {\n        this.table = Map.copyOf(table);\n    }\n\n    /**\n     * The answer for the terminal. When there is none, the terminal gets 96 and the purchase is\n     * reversed upstream.\n     */\n    public String answerFor(String actionCode) {\n        String rc = toTerminal(actionCode);\n        return rc != null ? rc : \"96\";\n    }\n\n    /** Whether the purchase must be reversed upstream because the terminal can't be told. */\n    public boolean mustReverse(String actionCode) {\n        return toTerminal(actionCode) == null;\n    }\n\n    /** The 1987 field 39 for an upstream action code, or null when no 1987 code says it. */\n    String toTerminal(String actionCode) {\n        // TODO: The processor's release notes add codes faster than the table is updated, and\n        //       now and then an answer arrives with no action code at all. Return the code that\n        //       tells the terminal what the processor decided, or null when no 1987 code can say\n        //       it (the caller then answers 96 and reverses the purchase upstream).\n        throw new IllegalStateException(\"TODO: toTerminal\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-09/practice-1/src/main/java/com/example/practice/CodeTranslator.java",
@@ -87,7 +105,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-09/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -141,6 +160,10 @@
     },
     "concepts": [
       "A gateway between editions translates code by code from a table; codes off the table fall back on their category as a denial or an error, and an approval it cannot read is answered 96 and reversed."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-09/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-09/practice-1/src/main/java/TryIt.java"
   }
 }

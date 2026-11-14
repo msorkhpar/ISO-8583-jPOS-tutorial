@@ -110,6 +110,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        return \"\"\"\n              <isofield id=\"0\" length=\"4\" name=\"MTI\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"1\" length=\"16\" name=\"BITMAP\" class=\"org.jpos.iso.IFB_BITMAP\"/>\n              <isofield id=\"2\" length=\"19\" name=\"PAN\" class=\"org.jpos.iso.IFE_LLNUM\"/>\n              <isofield id=\"3\" length=\"6\" name=\"PROCESSING CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"4\" length=\"12\" name=\"AMOUNT\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"11\" length=\"6\" name=\"STAN\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n              <isofield id=\"41\" length=\"8\" name=\"TERMINAL ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n              <isofield id=\"42\" length=\"15\" name=\"CARD ACCEPTOR ID\" class=\"org.jpos.iso.IFE_CHAR\"/>\n              <isofield id=\"49\" length=\"3\" name=\"CURRENCY CODE\" class=\"org.jpos.iso.IFE_NUMERIC\"/>\n            \"\"\";\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.MastercardLayout;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            GenericPackager packager = MastercardLayout.packager();\n            ISOMsg sent = new ISOMsg(\"0200\");\n            sent.set(2, \"5200828282828210\");\n            sent.set(3, \"000000\");\n            sent.set(4, \"000000004875\");\n            sent.set(11, \"026114\");\n            sent.set(41, \"KIOSK7\");\n            sent.set(49, \"840\");\n            sent.setPackager(packager);\n            String hex = ISOUtil.hexString(sent.pack());\n            System.out.println(\"mti and bitmap: \" + hex.substring(0, 24));\n            System.out.println(\"field 2 on the wire: \" + hex.substring(24, 60));\n            System.out.println(\"whole message: \" + hex);\n\n            ISOMsg received = new ISOMsg();\n            received.setPackager(packager);\n            received.unpack(ISOUtil.hex2byte(hex));\n            System.out.println(\"read back: \" + received.getMTI() + \" pan \" + received.getString(2) + \" terminal [\" + received.getString(41) + \"]\");\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -122,6 +131,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        // TODO: one <isofield .../> line per field of the specification's table, so that every\n        //       message this packager writes has exactly the bytes of the specification's samples.\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.MastercardLayout;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            GenericPackager packager = MastercardLayout.packager();\n            ISOMsg sent = new ISOMsg(\"0200\");\n            sent.set(2, \"5200828282828210\");\n            sent.set(3, \"000000\");\n            sent.set(4, \"000000004875\");\n            sent.set(11, \"026114\");\n            sent.set(41, \"KIOSK7\");\n            sent.set(49, \"840\");\n            sent.setPackager(packager);\n            String hex = ISOUtil.hexString(sent.pack());\n            System.out.println(\"mti and bitmap: \" + hex.substring(0, 24));\n            System.out.println(\"field 2 on the wire: \" + hex.substring(24, 60));\n            System.out.println(\"whole message: \" + hex);\n\n            ISOMsg received = new ISOMsg();\n            received.setPackager(packager);\n            received.unpack(ISOUtil.hex2byte(hex));\n            System.out.println(\"read back: \" + received.getMTI() + \" pan \" + received.getString(2) + \" terminal [\" + received.getString(41) + \"]\");\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -129,8 +147,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 5,
-    "code": 2,
+    "paras": 6,
+    "code": 3,
     "tables": 1,
     "lists": 0,
     "images": 0,
@@ -140,7 +158,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "1ad0a1d15fbcaa429a6b086570b9209ad5f9d0797f78e2f634cd2cfd09929ed1",
+  "content_sha256": "43209f8f2fa6619ae9c83e2551041a6767f379068f9ccdd14bdead067951929d",
   "starting_code": "package com.example.practice;\n\nimport java.io.ByteArrayInputStream;\nimport java.nio.charset.StandardCharsets;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.packager.GenericPackager;\n\n/** The packager for the new link, written from its specification's field table and samples. */\npublic final class MastercardLayout {\n\n    private static final String HEAD = \"\"\"\n        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <!DOCTYPE isopackager SYSTEM \"genericpackager.dtd\">\n        <isopackager>\n        \"\"\";\n    private static final String TAIL = \"</isopackager>\\n\";\n\n    private MastercardLayout() {\n    }\n\n    /** The packager the link uses, built from the field definitions below. */\n    public static GenericPackager packager() throws ISOException {\n        String xml = HEAD + fields() + TAIL;\n        return new GenericPackager(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));\n    }\n\n    /** One isofield element per field of the table in the statement: 0, 1, 2, 3, 4, 11, 41, 42 and 49. */\n    static String fields() {\n        // TODO: one <isofield .../> line per field of the specification's table, so that every\n        //       message this packager writes has exactly the bytes of the specification's samples.\n        throw new IllegalStateException(\"TODO: fields\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/com/example/practice/MastercardLayout.java",
@@ -151,7 +169,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-06/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -196,6 +215,10 @@
     "concepts": [
       "On a Mastercard-style link the MTI, numbers, length prefixes and text are one EBCDIC byte each and only the bitmap is binary, so a BCD packager's MTI can't be read.",
       "A wrong field class packs and unpacks its own bytes, so only a comparison with the specification's sample bytes catches it."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-06/practice-1/src/main/java/TryIt.java"
   }
 }

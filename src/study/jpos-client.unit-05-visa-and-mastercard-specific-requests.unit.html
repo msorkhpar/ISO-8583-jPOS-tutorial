@@ -281,6 +281,59 @@ public class Boarding {
         return ISOUtil.strpad(s.length() &gt; width ? s.substring(0, width) : s, width);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Boarding;
+import java.util.Properties;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Properties p = new Properties();
+            p.setProperty(&quot;terminal&quot;, &quot;40220031&quot;);
+            p.setProperty(&quot;merchant&quot;, &quot;000000001122334&quot;);
+            p.setProperty(&quot;mcc&quot;, &quot;5942&quot;);
+            p.setProperty(&quot;currency&quot;, &quot;840&quot;);
+            p.setProperty(&quot;name&quot;, &quot;LAKESHORE BOOKS AND MUSIC EMPORIUM&quot;);
+            p.setProperty(&quot;city&quot;, &quot;SAINT PETERSBURG&quot;);
+            p.setProperty(&quot;country&quot;, &quot;US&quot;);
+            p.setProperty(&quot;acquirer.visa&quot;, &quot;412300&quot;);
+            p.setProperty(&quot;acquirer.mastercard&quot;, &quot;519900&quot;);
+            Boarding b = new Boarding(p);
+            ISOMsg visa = b.purchase(&quot;Visa&quot;, &quot;4111111111111111&quot;, 2599);
+            System.out.println(&quot;visa field 32: &quot; + visa.getString(32));
+            System.out.println(&quot;mastercard field 32: &quot; + b.purchase(&quot;MASTERCARD&quot;, &quot;5555555555554444&quot;, 2599).getString(32));
+            System.out.println(&quot;field 43: [&quot; + visa.getString(43) + &quot;] length &quot; + visa.getString(43).length());
+            try {
+                b.purchase(&quot;discover&quot;, &quot;6011000990139424&quot;, 2599);
+                System.out.println(&quot;discover: built&quot;);
+            } catch (IllegalArgumentException e) {
+                System.out.println(&quot;discover: refused, &quot; + e.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -338,10 +391,64 @@ public class Boarding {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.Boarding;
+import java.util.Properties;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            Properties p = new Properties();
+            p.setProperty(&quot;terminal&quot;, &quot;40220031&quot;);
+            p.setProperty(&quot;merchant&quot;, &quot;000000001122334&quot;);
+            p.setProperty(&quot;mcc&quot;, &quot;5942&quot;);
+            p.setProperty(&quot;currency&quot;, &quot;840&quot;);
+            p.setProperty(&quot;name&quot;, &quot;LAKESHORE BOOKS AND MUSIC EMPORIUM&quot;);
+            p.setProperty(&quot;city&quot;, &quot;SAINT PETERSBURG&quot;);
+            p.setProperty(&quot;country&quot;, &quot;US&quot;);
+            p.setProperty(&quot;acquirer.visa&quot;, &quot;412300&quot;);
+            p.setProperty(&quot;acquirer.mastercard&quot;, &quot;519900&quot;);
+            Boarding b = new Boarding(p);
+            ISOMsg visa = b.purchase(&quot;Visa&quot;, &quot;4111111111111111&quot;, 2599);
+            System.out.println(&quot;visa field 32: &quot; + visa.getString(32));
+            System.out.println(&quot;mastercard field 32: &quot; + b.purchase(&quot;MASTERCARD&quot;, &quot;5555555555554444&quot;, 2599).getString(32));
+            System.out.println(&quot;field 43: [&quot; + visa.getString(43) + &quot;] length &quot; + visa.getString(43).length());
+            try {
+                b.purchase(&quot;discover&quot;, &quot;6011000990139424&quot;, 2599);
+                System.out.println(&quot;discover: built&quot;);
+            } catch (IllegalArgumentException e) {
+                System.out.println(&quot;discover: refused, &quot; + e.getMessage());
+            }
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-05/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-05/practice-1/src/main/java/com/example/practice/Boarding.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-05/practice-1/src/main/java/com/example/practice/Boarding.java</code> and <code>practice/jpos-client/prose/unit-05/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-05/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -500,6 +607,60 @@ public class EntryModeScreen {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EntryModeScreen;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            EntryModeScreen screen = new EntryModeScreen();
+            System.out.println(&quot;contactless with chip data: &quot; + verdict(screen.screen(purchase(&quot;071&quot;, true, true))));
+            System.out.println(&quot;stripe, no PIN pad: &quot; + verdict(screen.screen(purchase(&quot;902&quot;, true, false))));
+            System.out.println(&quot;chip code, track only: &quot; + verdict(screen.screen(purchase(&quot;051&quot;, true, false))));
+            System.out.println(&quot;stripe code with chip data: &quot; + verdict(screen.screen(purchase(&quot;901&quot;, true, true))));
+            System.out.println(&quot;entry mode 81: &quot; + verdict(screen.screen(purchase(&quot;811&quot;, true, false))));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String verdict(ISOMsg answer) throws Exception {
+        return answer == null ? &quot;goes upstream&quot; : answer.getMTI() + &quot; response code &quot; + answer.getString(39);
+    }
+
+    private static ISOMsg purchase(String entryMode, boolean track2, boolean icc) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4761739001010010&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001275&quot;);
+        m.set(11, &quot;009904&quot;);
+        m.set(22, entryMode);
+        m.set(41, &quot;40220077&quot;);
+        if (track2) m.set(35, &quot;4761739001010010=28122011143804400000&quot;);
+        if (icc) m.set(55, new byte[] { (byte) 0x9F, 0x26, 0x02, 0x0A, 0x0B });
+        return m;
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b6">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -536,10 +697,65 @@ public class EntryModeScreen {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.EntryModeScreen;
+import org.jpos.iso.ISOMsg;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            EntryModeScreen screen = new EntryModeScreen();
+            System.out.println(&quot;contactless with chip data: &quot; + verdict(screen.screen(purchase(&quot;071&quot;, true, true))));
+            System.out.println(&quot;stripe, no PIN pad: &quot; + verdict(screen.screen(purchase(&quot;902&quot;, true, false))));
+            System.out.println(&quot;chip code, track only: &quot; + verdict(screen.screen(purchase(&quot;051&quot;, true, false))));
+            System.out.println(&quot;stripe code with chip data: &quot; + verdict(screen.screen(purchase(&quot;901&quot;, true, true))));
+            System.out.println(&quot;entry mode 81: &quot; + verdict(screen.screen(purchase(&quot;811&quot;, true, false))));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static String verdict(ISOMsg answer) throws Exception {
+        return answer == null ? &quot;goes upstream&quot; : answer.getMTI() + &quot; response code &quot; + answer.getString(39);
+    }
+
+    private static ISOMsg purchase(String entryMode, boolean track2, boolean icc) throws Exception {
+        ISOMsg m = new ISOMsg(&quot;0200&quot;);
+        m.set(2, &quot;4761739001010010&quot;);
+        m.set(3, &quot;000000&quot;);
+        m.set(4, &quot;000000001275&quot;);
+        m.set(11, &quot;009904&quot;);
+        m.set(22, entryMode);
+        m.set(41, &quot;40220077&quot;);
+        if (track2) m.set(35, &quot;4761739001010010=28122011143804400000&quot;);
+        if (icc) m.set(55, new byte[] { (byte) 0x9F, 0x26, 0x02, 0x0A, 0x0B });
+        return m;
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-client/unit-05/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-client/prose/unit-05/practice-2/src/main/java/com/example/practice/EntryModeScreen.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-client/prose/unit-05/practice-2/src/main/java/com/example/practice/EntryModeScreen.java</code> and <code>practice/jpos-client/prose/unit-05/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-client/prose/unit-05/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

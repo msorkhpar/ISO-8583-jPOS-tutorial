@@ -72,6 +72,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BINARY;\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_LLNUM;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.IFE_CHAR;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        return new IFB_LLNUM(19, \"PRIMARY ACCOUNT NUMBER\", false);\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        return new IFE_CHAR(8, \"CARD ACCEPTOR TERMINAL ID\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        return new IFB_BINARY(8, \"PIN DATA\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        return new IFB_NUMERIC(3, \"NETWORK MANAGEMENT INFORMATION CODE\", false);\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.SwitchPackager;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            SwitchPackager packager = new SwitchPackager();\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.setPackager(packager);\n            echo.set(11, \"000777\");\n            echo.set(41, \"TERM0042\");\n            echo.set(70, \"301\");\n            byte[] bytes = echo.pack();\n            System.out.println(\"echo packed: \" + ISOUtil.hexString(bytes));\n            ISOMsg back = new ISOMsg();\n            back.setPackager(packager);\n            System.out.println(\"bytes read: \" + back.unpack(bytes) + \" of \" + bytes.length);\n            System.out.println(\"41: \" + back.getString(41) + \", 70: \" + back.getString(70));\n\n            ISOMsg purchase = new ISOMsg(\"0200\");\n            purchase.setPackager(packager);\n            purchase.set(2, \"4000056655665556\");\n            purchase.set(4, \"000000002075\");\n            purchase.set(11, \"000778\");\n            purchase.set(52, ISOUtil.hex2byte(\"0123456789ABCDEF\"));\n            System.out.println(\"purchase packed: \" + ISOUtil.hexString(purchase.pack()));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
         }
       ]
     },
@@ -84,6 +93,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pan\");\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: terminalId\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pinBlock\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: networkCode\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.SwitchPackager;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOUtil;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            SwitchPackager packager = new SwitchPackager();\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.setPackager(packager);\n            echo.set(11, \"000777\");\n            echo.set(41, \"TERM0042\");\n            echo.set(70, \"301\");\n            byte[] bytes = echo.pack();\n            System.out.println(\"echo packed: \" + ISOUtil.hexString(bytes));\n            ISOMsg back = new ISOMsg();\n            back.setPackager(packager);\n            System.out.println(\"bytes read: \" + back.unpack(bytes) + \" of \" + bytes.length);\n            System.out.println(\"41: \" + back.getString(41) + \", 70: \" + back.getString(70));\n\n            ISOMsg purchase = new ISOMsg(\"0200\");\n            purchase.setPackager(packager);\n            purchase.set(2, \"4000056655665556\");\n            purchase.set(4, \"000000002075\");\n            purchase.set(11, \"000778\");\n            purchase.set(52, ISOUtil.hex2byte(\"0123456789ABCDEF\"));\n            System.out.println(\"purchase packed: \" + ISOUtil.hexString(purchase.pack()));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -91,8 +109,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 2,
+    "paras": 4,
+    "code": 3,
     "tables": 1,
     "lists": 0,
     "images": 0,
@@ -102,7 +120,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "677899cdf33d26fb9efe5a9012beba9a30f9e79e4fae8584b90060df86a6ee0f",
+  "content_sha256": "3b8efce73a2d8be0ab186bf4df4d3effc9e804b09cac221877a444b3bf7f93d3",
   "starting_code": "package com.example.practice;\n\nimport org.jpos.iso.IFB_BITMAP;\nimport org.jpos.iso.IFB_NUMERIC;\nimport org.jpos.iso.ISOBasePackager;\nimport org.jpos.iso.ISOFieldPackager;\n\n/** The regional switch's layout, as its interface specification describes it. */\npublic class SwitchPackager extends ISOBasePackager {\n\n    public SwitchPackager() {\n        ISOFieldPackager[] f = new ISOFieldPackager[71];\n        f[0]  = new IFB_NUMERIC(4, \"MESSAGE TYPE INDICATOR\", true);\n        f[1]  = new IFB_BITMAP(16, \"BITMAP\");\n        f[2]  = pan();\n        f[3]  = new IFB_NUMERIC(6, \"PROCESSING CODE\", true);\n        f[4]  = new IFB_NUMERIC(12, \"AMOUNT, TRANSACTION\", true);\n        f[11] = new IFB_NUMERIC(6, \"SYSTEM TRACE AUDIT NUMBER\", true);\n        f[41] = terminalId();\n        f[52] = pinBlock();\n        f[70] = networkCode();\n        setFieldPackager(f);\n    }\n\n    /** Field 2, the PAN: n..19, LLVAR. Length and digits in BCD. */\n    ISOFieldPackager pan() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pan\");\n    }\n\n    /** Field 41, the terminal ID: ans 8. Text on this switch is EBCDIC. */\n    ISOFieldPackager terminalId() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: terminalId\");\n    }\n\n    /** Field 52, the PIN block: b 64. */\n    ISOFieldPackager pinBlock() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: pinBlock\");\n    }\n\n    /** Field 70, the network management code: n 3, BCD, left-justified (the filler nibble last). */\n    ISOFieldPackager networkCode() {\n        // TODO: return the field packager for this row of the switch's specification.\n        throw new IllegalStateException(\"TODO: networkCode\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-13/practice-1/src/main/java/com/example/practice/SwitchPackager.java",
@@ -113,7 +131,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-13/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -165,6 +184,10 @@
       "A field packager's class name gives the encoding, the length rule and the type of a specification row; B means BCD, and IFA_BINARY sends bytes as hex text.",
       "A BCD length prefix counts digits for numeric fields and bytes for text and binary fields, and the wrong choice can misread a message without an error.",
       "A round trip can't find a wrong layout because the packager reads back what it wrote; a test from the specification's sample bytes, checking values, bytes used and bytes repacked, can."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-13/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-13/practice-1/src/main/java/TryIt.java"
   }
 }

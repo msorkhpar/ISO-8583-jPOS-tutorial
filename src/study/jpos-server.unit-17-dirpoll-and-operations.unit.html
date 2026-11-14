@@ -289,6 +289,57 @@ public class PayoutProcessor implements DirPoll.Processor {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PayoutProcessor;
+import org.jpos.util.DirPoll;
+
+import java.nio.charset.StandardCharsets;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            PayoutProcessor.Ledger ledger = new PayoutProcessor.Ledger();
+            PayoutProcessor processor = new PayoutProcessor(ledger);
+            String m1 = &quot;000000004433001&quot;, m2 = &quot;000000004433002&quot;;
+            run(processor, &quot;run-1114.pay&quot;, &quot;H|ACQ318|1114\nP|&quot; + m1 + &quot;|000000012500\nP|&quot; + m2 + &quot;|000000000475\nT|2|12975\n&quot;);
+            run(processor, &quot;run-1115.pay&quot;, &quot;H|ACQ318|1115\nP|&quot; + m1 + &quot;|000000003000\n&quot;);
+            run(processor, &quot;run-1116.pay&quot;, &quot;&quot;);
+            run(processor, &quot;run-1117.pay&quot;, &quot;H|ACQ318|1117\nP|&quot; + m1 + &quot;|30,00\nT|1|3000\n&quot;);
+            run(processor, &quot;run-1118.pay&quot;, &quot;H|ACQ318|1118\nP|&quot; + m1 + &quot;|000000003000\nP|&quot; + m2 + &quot;|000000001000\nT|2|5000\n&quot;);
+            System.out.println(&quot;ledger payments: &quot; + ledger.payments().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void run(PayoutProcessor processor, String name, String content) {
+        try {
+            byte[] answer = processor.process(name, content.getBytes(StandardCharsets.US_ASCII));
+            System.out.print(name + &quot;: &quot; + new String(answer, StandardCharsets.US_ASCII));
+        } catch (DirPoll.DirPollException e) {
+            System.out.println(name + &quot;: &quot; + (e.isRetry() ? &quot;retry later, &quot; : &quot;to bad/, &quot;) + e.getMessage());
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -379,10 +430,62 @@ public class PayoutProcessor implements DirPoll.Processor {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PayoutProcessor;
+import org.jpos.util.DirPoll;
+
+import java.nio.charset.StandardCharsets;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            PayoutProcessor.Ledger ledger = new PayoutProcessor.Ledger();
+            PayoutProcessor processor = new PayoutProcessor(ledger);
+            String m1 = &quot;000000004433001&quot;, m2 = &quot;000000004433002&quot;;
+            run(processor, &quot;run-1114.pay&quot;, &quot;H|ACQ318|1114\nP|&quot; + m1 + &quot;|000000012500\nP|&quot; + m2 + &quot;|000000000475\nT|2|12975\n&quot;);
+            run(processor, &quot;run-1115.pay&quot;, &quot;H|ACQ318|1115\nP|&quot; + m1 + &quot;|000000003000\n&quot;);
+            run(processor, &quot;run-1116.pay&quot;, &quot;&quot;);
+            run(processor, &quot;run-1117.pay&quot;, &quot;H|ACQ318|1117\nP|&quot; + m1 + &quot;|30,00\nT|1|3000\n&quot;);
+            run(processor, &quot;run-1118.pay&quot;, &quot;H|ACQ318|1118\nP|&quot; + m1 + &quot;|000000003000\nP|&quot; + m2 + &quot;|000000001000\nT|2|5000\n&quot;);
+            System.out.println(&quot;ledger payments: &quot; + ledger.payments().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    private static void run(PayoutProcessor processor, String name, String content) {
+        try {
+            byte[] answer = processor.process(name, content.getBytes(StandardCharsets.US_ASCII));
+            System.out.print(name + &quot;: &quot; + new String(answer, StandardCharsets.US_ASCII));
+        } catch (DirPoll.DirPollException e) {
+            System.out.println(name + &quot;: &quot; + (e.isRetry() ? &quot;retry later, &quot; : &quot;to bad/, &quot;) + e.getMessage());
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-17/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-17/practice-1/src/main/java/com/example/practice/PayoutProcessor.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-17/practice-1/src/main/java/com/example/practice/PayoutProcessor.java</code> and <code>practice/jpos-server/prose/unit-17/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-17/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -579,6 +682,57 @@ public class PayoutProcessor implements DirPoll.Processor {
         }
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PayoutProcessor;
+import org.jpos.util.DirPoll;
+
+import java.nio.charset.StandardCharsets;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            PayoutProcessor.Ledger ledger = new PayoutProcessor.Ledger();
+            String run1114 = &quot;H|ACQ318|1114\nP|000000004433001|000000012500\nP|000000004433002|000000000475\nT|2|12975\n&quot;;
+            run(new PayoutProcessor(ledger), &quot;run-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;run-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;resent-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;acq555-1114.pay&quot;, &quot;H|ACQ555|1114\nP|000000009900001|000000000800\nT|1|800\n&quot;);
+            run(new PayoutProcessor(ledger), &quot;run-1114b.pay&quot;, &quot;H|ACQ318|1114\nP|000000004433001|000000099999\nT|1|99999\n&quot;);
+            System.out.println(&quot;ledger payments: &quot; + ledger.payments().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One file reaching a processor; a new processor each time stands for a restarted node. */
+    private static void run(PayoutProcessor processor, String name, String content) {
+        try {
+            byte[] answer = processor.process(name, content.getBytes(StandardCharsets.US_ASCII));
+            System.out.print(name + &quot;: &quot; + new String(answer, StandardCharsets.US_ASCII));
+        } catch (DirPoll.DirPollException e) {
+            System.out.println(name + &quot;: &quot; + (e.isRetry() ? &quot;retry later, &quot; : &quot;to bad/, &quot;) + e.getMessage());
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -701,10 +855,62 @@ public class PayoutProcessor implements DirPoll.Processor {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PayoutProcessor;
+import org.jpos.util.DirPoll;
+
+import java.nio.charset.StandardCharsets;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            PayoutProcessor.Ledger ledger = new PayoutProcessor.Ledger();
+            String run1114 = &quot;H|ACQ318|1114\nP|000000004433001|000000012500\nP|000000004433002|000000000475\nT|2|12975\n&quot;;
+            run(new PayoutProcessor(ledger), &quot;run-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;run-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;resent-1114.pay&quot;, run1114);
+            run(new PayoutProcessor(ledger), &quot;acq555-1114.pay&quot;, &quot;H|ACQ555|1114\nP|000000009900001|000000000800\nT|1|800\n&quot;);
+            run(new PayoutProcessor(ledger), &quot;run-1114b.pay&quot;, &quot;H|ACQ318|1114\nP|000000004433001|000000099999\nT|1|99999\n&quot;);
+            System.out.println(&quot;ledger payments: &quot; + ledger.payments().size());
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** One file reaching a processor; a new processor each time stands for a restarted node. */
+    private static void run(PayoutProcessor processor, String name, String content) {
+        try {
+            byte[] answer = processor.process(name, content.getBytes(StandardCharsets.US_ASCII));
+            System.out.print(name + &quot;: &quot; + new String(answer, StandardCharsets.US_ASCII));
+        } catch (DirPoll.DirPollException e) {
+            System.out.println(name + &quot;: &quot; + (e.isRetry() ? &quot;retry later, &quot; : &quot;to bad/, &quot;) + e.getMessage());
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-17/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-17/practice-2/src/main/java/com/example/practice/PayoutProcessor.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-17/practice-2/src/main/java/com/example/practice/PayoutProcessor.java</code> and <code>practice/jpos-server/prose/unit-17/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-17/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>

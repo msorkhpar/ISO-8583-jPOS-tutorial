@@ -51,6 +51,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        return mti.charAt(1) == '4';\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        return mti.charAt(1) == '1' || mti.charAt(1) == '2';\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        switch (processingCode.substring(0, 2)) {\n            case \"00\": return Kind.PURCHASE;\n            case \"01\": return Kind.CASH;\n            case \"20\": return Kind.REFUND;\n            default:   return Kind.OTHER;\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.DailyReport;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            List<ISOMsg> day = List.of(\n                    msg(\"0200\", \"000000\", \"000000000480\"),\n                    msg(\"0200\", \"003000\", \"000000000220\"),\n                    msg(\"0200\", \"010000\", \"000000004000\"),\n                    msg(\"0200\", \"200000\", \"000000000150\"),\n                    msg(\"0420\", \"000000\", \"000000000480\"),\n                    msg(\"0800\", null, null));\n            for (ISOMsg m : day) {\n                System.out.println(m.getMTI() + \" \" + m.getString(3) + \" is \" + DailyReport.kind(m));\n            }\n            System.out.println(\"totals: \" + DailyReport.totals(day));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String processingCode, String amount) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        if (processingCode != null)\n            m.set(3, processingCode);\n        if (amount != null)\n            m.set(4, amount);\n        m.set(41, \"TERM0600\");\n        return m;\n    }\n}\n"
         }
       ]
     },
@@ -63,6 +72,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        // TODO: whether this message cancels an earlier one.\n        throw new IllegalStateException(\"TODO: undoesAnother\");\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        // TODO: whether this message asks for, or reports, a transaction with a cardholder's money.\n        throw new IllegalStateException(\"TODO: asksAboutMoney\");\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        // TODO: purchase, cash or refund; anything else is OTHER.\n        throw new IllegalStateException(\"TODO: byProcessingCode\");\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.DailyReport;\nimport java.util.List;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\nimport org.jpos.iso.ISOMsg;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            List<ISOMsg> day = List.of(\n                    msg(\"0200\", \"000000\", \"000000000480\"),\n                    msg(\"0200\", \"003000\", \"000000000220\"),\n                    msg(\"0200\", \"010000\", \"000000004000\"),\n                    msg(\"0200\", \"200000\", \"000000000150\"),\n                    msg(\"0420\", \"000000\", \"000000000480\"),\n                    msg(\"0800\", null, null));\n            for (ISOMsg m : day) {\n                System.out.println(m.getMTI() + \" \" + m.getString(3) + \" is \" + DailyReport.kind(m));\n            }\n            System.out.println(\"totals: \" + DailyReport.totals(day));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    private static ISOMsg msg(String mti, String processingCode, String amount) throws Exception {\n        ISOMsg m = new ISOMsg(mti);\n        if (processingCode != null)\n            m.set(3, processingCode);\n        if (amount != null)\n            m.set(4, amount);\n        m.set(41, \"TERM0600\");\n        return m;\n    }\n}\n"
     }
   ],
   "video": null,
@@ -70,8 +88,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 3,
-    "code": 1,
+    "paras": 4,
+    "code": 2,
     "tables": 0,
     "lists": 1,
     "images": 0,
@@ -81,7 +99,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "e44cb087ca0bec5ded9239f98c53ac6395439e22b56e7550b2c643ed3f9d0cdc",
+  "content_sha256": "16a954b1d8f4c4b9283ad86e0d73ef0030226d09bd61152e9affab84e4bc74ba",
   "starting_code": "package com.example.practice;\n\nimport java.util.EnumMap;\nimport java.util.List;\nimport java.util.Map;\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\n\n/**\n * A merchant's end-of-day report: names each message the acquirer sent for the merchant and adds up\n * the amounts per kind, so the merchant can compare them with the till.\n */\npublic final class DailyReport {\n\n    public enum Kind { PURCHASE, CASH, REFUND, REVERSAL, OTHER }\n\n    private DailyReport() {\n    }\n\n    /** The amount, in minor units, of every message of each kind. */\n    public static Map<Kind, Long> totals(List<ISOMsg> sent) throws ISOException {\n        Map<Kind, Long> totals = new EnumMap<>(Kind.class);\n        for (ISOMsg m : sent) {\n            long amount = m.hasField(4) ? Long.parseLong(m.getString(4)) : 0;\n            totals.merge(kind(m), amount, Long::sum);\n        }\n        return totals;\n    }\n\n    /** What kind of transaction a message is. */\n    public static Kind kind(ISOMsg m) throws ISOException {\n        String mti = m.getMTI();\n        if (undoesAnother(mti))\n            return Kind.REVERSAL;\n        if (!asksAboutMoney(mti) || !m.hasField(3))\n            return Kind.OTHER;\n        return byProcessingCode(m.getString(3));\n    }\n\n    /** True for a message that cancels an earlier one. */\n    static boolean undoesAnother(String mti) {\n        // TODO: whether this message cancels an earlier one.\n        throw new IllegalStateException(\"TODO: undoesAnother\");\n    }\n\n    /** True for a message that asks for, or reports, a transaction with a cardholder's money. */\n    static boolean asksAboutMoney(String mti) {\n        // TODO: whether this message asks for, or reports, a transaction with a cardholder's money.\n        throw new IllegalStateException(\"TODO: asksAboutMoney\");\n    }\n\n    /** The kind of transaction field 3 names. */\n    static Kind byProcessingCode(String processingCode) {\n        // TODO: purchase, cash or refund; anything else is OTHER.\n        throw new IllegalStateException(\"TODO: byProcessingCode\");\n    }\n}\n",
   "exercise": {
     "main_path": "practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/com/example/practice/DailyReport.java",
@@ -92,7 +110,8 @@
       "-q",
       "-f",
       "practice/iso-fundamentals/prose/unit-05/practice-2/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -151,6 +170,10 @@
     },
     "concepts": [
       "The class digit says authorization, financial or reversal, the first two digits of field 3 say purchase, cash or refund, and the account digits change neither."
-    ]
+    ],
+    "files": [
+      "practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/iso-fundamentals/prose/unit-05/practice-2/src/main/java/TryIt.java"
   }
 }

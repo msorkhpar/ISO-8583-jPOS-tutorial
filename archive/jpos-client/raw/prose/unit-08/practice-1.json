@@ -46,6 +46,15 @@
           "type": "code",
           "lang": "java",
           "text": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        LogEvent ev = log.createInfo();\n        ev.addMessage(echo);\n        try {\n            ISOMsg reply = reply(echo);\n            source.send(reply);\n            ev.addMessage(reply);\n        } catch (IOException | ISOException e) {\n            ev.setTag(\"warn\");\n            ev.addMessage(e);\n        } finally {\n            Logger.log(ev);\n        }\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        log = new Log(logger, realm);\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n"
+        },
+        {
+          "type": "para",
+          "text": "File: src/main/java/TryIt.java"
+        },
+        {
+          "type": "code",
+          "lang": "java",
+          "text": "import com.example.practice.EchoResponder;\nimport java.io.IOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.SimpleLogListener;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            org.jpos.util.Logger node = new org.jpos.util.Logger();\n            node.addListener(new SimpleLogListener(System.out));\n            EchoResponder responder = new EchoResponder();\n            responder.setLogger(node, \"echo-responder\");\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.set(7, \"1114103000\");\n            echo.set(11, \"120044\");\n            echo.set(70, \"301\");\n            System.out.println(\"handled echo: \" + responder.process(new Link(false), echo));\n            echo.set(11, \"120045\");\n            System.out.println(\"handled echo on a broken link: \" + responder.process(new Link(true), echo));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    /** The host's side of the link: prints each reply, or fails to send. */\n    private record Link(boolean broken) implements ISOSource {\n        @Override public void send(ISOMsg m) throws IOException {\n            if (broken) {\n                IOException reset = new IOException(\"broken pipe\");\n                reset.setStackTrace(new StackTraceElement[0]);\n                throw reset;\n            }\n            System.out.println(\"reply sent: \" + m.getString(0) + \" STAN \" + m.getString(11) + \" rc \" + m.getString(39));\n        }\n        @Override public boolean isConnected() { return true; }\n    }\n}\n"
         }
       ]
     },
@@ -58,6 +67,15 @@
       "type": "code",
       "lang": "java",
       "text": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        // TODO: Send reply(echo) back through `source`, and record what happened. Operations\n        //       read one entry per echo in the node's log: what came in, and what went back or\n        //       why nothing did. Sending can fail when the link drops; that must not escape\n        //       process(), and it must not go unrecorded either.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        // TODO: Q2 calls this with the logger and realm of the <request-listener> element.\n        throw new IllegalStateException(\"TODO: setLogger\");\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n"
+    },
+    {
+      "type": "para",
+      "text": "File: src/main/java/TryIt.java"
+    },
+    {
+      "type": "code",
+      "lang": "java",
+      "text": "import com.example.practice.EchoResponder;\nimport java.io.IOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.SimpleLogListener;\nimport java.util.logging.ConsoleHandler;\nimport java.util.logging.Level;\nimport java.util.logging.Logger;\n\n/** Run executes this file. Change the calls in main and see what prints. Submit grades. */\npublic class TryIt {\n    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */\n    private static final Logger JDK_EXIT = Logger.getLogger(\"java.lang.Runtime\");\n\n    public static void main(String[] args) throws Exception {\n        // Turn the logger up, so the log lines of your code show under the printed lines.\n        System.setProperty(\"java.util.logging.SimpleFormatter.format\", \"%4$s %5$s%n\");\n        ConsoleHandler handler = new ConsoleHandler();\n        handler.setLevel(Level.ALL);\n        Logger root = Logger.getLogger(\"\");\n        root.setLevel(Level.ALL);\n        root.addHandler(handler);\n        JDK_EXIT.setLevel(Level.OFF);\n\n        // A stand-in for the collaborator, like the one the tests use for the first main case.\n        try {\n            org.jpos.util.Logger node = new org.jpos.util.Logger();\n            node.addListener(new SimpleLogListener(System.out));\n            EchoResponder responder = new EchoResponder();\n            responder.setLogger(node, \"echo-responder\");\n            ISOMsg echo = new ISOMsg(\"0800\");\n            echo.set(7, \"1114103000\");\n            echo.set(11, \"120044\");\n            echo.set(70, \"301\");\n            System.out.println(\"handled echo: \" + responder.process(new Link(false), echo));\n            echo.set(11, \"120045\");\n            System.out.println(\"handled echo on a broken link: \" + responder.process(new Link(true), echo));\n        } catch (RuntimeException stopped) {\n            // A method you have not finished, or a bug, stops here with its message, not a build error.\n            System.out.println(\"Run stopped: \" + stopped);\n        }\n    }\n\n    /** The host's side of the link: prints each reply, or fails to send. */\n    private record Link(boolean broken) implements ISOSource {\n        @Override public void send(ISOMsg m) throws IOException {\n            if (broken) {\n                IOException reset = new IOException(\"broken pipe\");\n                reset.setStackTrace(new StackTraceElement[0]);\n                throw reset;\n            }\n            System.out.println(\"reply sent: \" + m.getString(0) + \" STAN \" + m.getString(11) + \" rc \" + m.getString(39));\n        }\n        @Override public boolean isConnected() { return true; }\n    }\n}\n"
     }
   ],
   "video": null,
@@ -65,8 +83,8 @@
   "attachments": [],
   "counts": {
     "headings": 3,
-    "paras": 4,
-    "code": 1,
+    "paras": 5,
+    "code": 2,
     "tables": 0,
     "lists": 0,
     "images": 0,
@@ -76,7 +94,7 @@
     "html": 0,
     "disclosures": 1
   },
-  "content_sha256": "8e8197119e2be4ca3760dde147a2379e45948bb4fbeca5257d034db5e0c873c4",
+  "content_sha256": "c500d150760caa5352ce264bc55ac1d8b3637561b76f36d2cffd8d68ea09a52b",
   "starting_code": "package com.example.practice;\n\nimport java.io.IOException;\n\nimport org.jpos.iso.ISOException;\nimport org.jpos.iso.ISOMsg;\nimport org.jpos.iso.ISORequestListener;\nimport org.jpos.iso.ISOSource;\nimport org.jpos.util.Log;\nimport org.jpos.util.LogEvent;\nimport org.jpos.util.LogSource;\nimport org.jpos.util.Logger;\n\n/**\n * Answers the echoes (0800) that the host sends on its own. It runs as a request listener on the\n * client's QMUX:\n *\n * <pre>\n *   &lt;request-listener class=\"com.example.practice.EchoResponder\" logger=\"Q2\" realm=\"echo-responder\"/&gt;\n * </pre>\n *\n * Q2 creates one instance, calls {@link #setLogger} with the element's logger and realm, and hands\n * it every message from the host that no request was waiting for.\n */\npublic class EchoResponder implements ISORequestListener, LogSource {\n    private Log log = new Log();\n\n    @Override\n    public boolean process(ISOSource source, ISOMsg m) {\n        if (!\"0800\".equals(mtiOf(m)))\n            return false;                       // not ours: the next listener, or <unhandled>\n        answer(source, m);\n        return true;\n    }\n\n    /** Answers one echo from the host. */\n    void answer(ISOSource source, ISOMsg echo) {\n        // TODO: Send reply(echo) back through `source`, and record what happened. Operations\n        //       read one entry per echo in the node's log: what came in, and what went back or\n        //       why nothing did. Sending can fail when the link drops; that must not escape\n        //       process(), and it must not go unrecorded either.\n        throw new IllegalStateException(\"TODO: answer\");\n    }\n\n    @Override\n    public void setLogger(Logger logger, String realm) {\n        // TODO: Q2 calls this with the logger and realm of the <request-listener> element.\n        throw new IllegalStateException(\"TODO: setLogger\");\n    }\n\n    @Override\n    public String getRealm() {\n        return log.getRealm();\n    }\n\n    @Override\n    public Logger getLogger() {\n        return log.getLogger();\n    }\n\n    /** Given: the 0810 that answers an echo. */\n    static ISOMsg reply(ISOMsg echo) throws ISOException {\n        ISOMsg r = (ISOMsg) echo.clone();\n        r.setResponseMTI();\n        r.set(39, \"00\");\n        return r;\n    }\n\n    private static String mtiOf(ISOMsg m) {\n        try {\n            return m.getMTI();\n        } catch (ISOException e) {\n            return null;\n        }\n    }\n}\n",
   "exercise": {
     "main_path": "practice/jpos-client/prose/unit-08/practice-1/src/main/java/com/example/practice/EchoResponder.java",
@@ -87,7 +105,8 @@
       "-q",
       "-f",
       "practice/jpos-client/prose/unit-08/practice-1/pom.xml",
-      "compile"
+      "compile",
+      "exec:java"
     ],
     "test_command": [
       "mvn",
@@ -132,6 +151,10 @@
     "concepts": [
       "A log event holds one piece of work, is created when the work starts and is written once in finally, so it keeps request, answer, duration and outcome together even when the work fails.",
       "Logger.log delivers an event to its source's logger: an event without a source goes to Q2, and an event from a Log or channel that has no logger goes nowhere."
-    ]
+    ],
+    "files": [
+      "practice/jpos-client/prose/unit-08/practice-1/src/main/java/TryIt.java"
+    ],
+    "try_file": "practice/jpos-client/prose/unit-08/practice-1/src/main/java/TryIt.java"
   }
 }

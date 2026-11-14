@@ -287,6 +287,63 @@ public class StandInLimit extends QBeanSupport {
         return this.currency.equals(currency) &amp;&amp; amount &gt; 0 &amp;&amp; amount &lt;= maxAmount;
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.StandInLimit;
+import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            StandInLimit gbp = deploy(&quot;4000&quot;, &quot;826&quot;);
+            System.out.println(&quot;826 limit 4000, 40.00 GBP allowed: &quot; + (gbp != null &amp;&amp; gbp.allows(&quot;826&quot;, 4000)));
+            System.out.println(&quot;826 limit 4000, 40.01 GBP allowed: &quot; + (gbp != null &amp;&amp; gbp.allows(&quot;826&quot;, 4001)));
+            StandInLimit usd = deploy(&quot;1500&quot;, &quot;${STANDIN_CURRENCY}&quot;);
+            System.out.println(&quot;currency unset, 15.00 USD allowed: &quot; + (usd != null &amp;&amp; usd.allows(&quot;840&quot;, 1500)));
+            deploy(&quot;${STANDIN_MAX}&quot;, &quot;826&quot;);
+            deploy(&quot;40.00&quot;, &quot;826&quot;);
+            deploy(&quot; 4000x&quot;, &quot;826&quot;);
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** What Q2 does with the descriptor's properties; null when the QBean refuses them. */
+    private static StandInLimit deploy(String maxAmount, String currency) {
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;max-amount&quot;, maxAmount);
+        cfg.put(&quot;currency&quot;, currency);
+        StandInLimit limit = new StandInLimit();
+        try {
+            limit.setConfiguration(cfg);
+            System.out.println(&quot;max-amount '&quot; + maxAmount + &quot;': accepted&quot;);
+            return limit;
+        } catch (ConfigurationException e) {
+            System.out.println(&quot;max-amount '&quot; + maxAmount + &quot;': refused, &quot; + e.getMessage());
+            return null;
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-b8">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -342,10 +399,68 @@ public class StandInLimit extends QBeanSupport {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.StandInLimit;
+import org.jpos.core.ConfigurationException;
+import org.jpos.core.SimpleConfiguration;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        try {
+            StandInLimit gbp = deploy(&quot;4000&quot;, &quot;826&quot;);
+            System.out.println(&quot;826 limit 4000, 40.00 GBP allowed: &quot; + (gbp != null &amp;&amp; gbp.allows(&quot;826&quot;, 4000)));
+            System.out.println(&quot;826 limit 4000, 40.01 GBP allowed: &quot; + (gbp != null &amp;&amp; gbp.allows(&quot;826&quot;, 4001)));
+            StandInLimit usd = deploy(&quot;1500&quot;, &quot;${STANDIN_CURRENCY}&quot;);
+            System.out.println(&quot;currency unset, 15.00 USD allowed: &quot; + (usd != null &amp;&amp; usd.allows(&quot;840&quot;, 1500)));
+            deploy(&quot;${STANDIN_MAX}&quot;, &quot;826&quot;);
+            deploy(&quot;40.00&quot;, &quot;826&quot;);
+            deploy(&quot; 4000x&quot;, &quot;826&quot;);
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        }
+    }
+
+    /** What Q2 does with the descriptor's properties; null when the QBean refuses them. */
+    private static StandInLimit deploy(String maxAmount, String currency) {
+        SimpleConfiguration cfg = new SimpleConfiguration();
+        cfg.put(&quot;max-amount&quot;, maxAmount);
+        cfg.put(&quot;currency&quot;, currency);
+        StandInLimit limit = new StandInLimit();
+        try {
+            limit.setConfiguration(cfg);
+            System.out.println(&quot;max-amount '&quot; + maxAmount + &quot;': accepted&quot;);
+            return limit;
+        } catch (ConfigurationException e) {
+            System.out.println(&quot;max-amount '&quot; + maxAmount + &quot;': refused, &quot; + e.getMessage());
+            return null;
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-14/practice-prose" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-14/practice-1/src/main/java/com/example/practice/StandInLimit.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-14/practice-1/src/main/java/com/example/practice/StandInLimit.java</code> and <code>practice/jpos-server/prose/unit-14/practice-1/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-14/practice-1/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
@@ -557,6 +672,53 @@ public class PinService extends QBeanSupport {
         return hsm().translate(pinBlock);
     }
 }
+</code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PinService;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        PinService pins = new PinService();
+        try {
+            pins.setName(&quot;tryit-pins&quot;);
+            pins.init();
+            pins.start();
+            System.out.println(&quot;started with no HSM: &quot; + pins.getStateAsString());
+            NameRegistrar.register(&quot;hsm&quot;, (PinService.Hsm) block -&gt; &quot;driver-1:&quot; + block.toLowerCase());
+            pins.start();
+            System.out.println(&quot;started again with the HSM up: &quot; + pins.getStateAsString());
+            System.out.println(&quot;translated: &quot; + pins.translate(&quot;7A31C0E9B4D2F658&quot;));
+            NameRegistrar.unregister(&quot;hsm&quot;);
+            NameRegistrar.register(&quot;hsm&quot;, (PinService.Hsm) block -&gt; &quot;driver-2:&quot; + block.toLowerCase());
+            System.out.println(&quot;after the HSM redeploy: &quot; + pins.translate(&quot;7A31C0E9B4D2F658&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            pins.stop();
+            NameRegistrar.unregister(&quot;hsm&quot;);
+        }
+    }
+}
 </code></pre></figure></details>
 <h2 id="practice-prose-2-b7">Starting code</h2>
 <figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">package com.example.practice;
@@ -620,10 +782,58 @@ public class PinService extends QBeanSupport {
     }
 }
 </code></pre></figure>
+<p>File: src/main/java/TryIt.java</p>
+<figure class="code"><figcaption><span class="what">java</span></figcaption><pre><code class="language-java">import com.example.practice.PinService;
+import org.jpos.util.NameRegistrar;
+
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/** Run executes this file. Change the calls in main and see what prints. Submit grades. */
+public class TryIt {
+    /** Held here, so the JDK's own exit notice stays off: a logger nothing holds can be dropped. */
+    private static final Logger JDK_EXIT = Logger.getLogger(&quot;java.lang.Runtime&quot;);
+
+    public static void main(String[] args) throws Exception {
+        // Turn the logger up, so the log lines of your code show under the printed lines.
+        System.setProperty(&quot;java.util.logging.SimpleFormatter.format&quot;, &quot;%4$s %5$s%n&quot;);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setLevel(Level.ALL);
+        Logger root = Logger.getLogger(&quot;&quot;);
+        root.setLevel(Level.ALL);
+        root.addHandler(handler);
+        JDK_EXIT.setLevel(Level.OFF);
+
+        // A stand-in for the collaborator, like the one the tests use for the first main case.
+        PinService pins = new PinService();
+        try {
+            pins.setName(&quot;tryit-pins&quot;);
+            pins.init();
+            pins.start();
+            System.out.println(&quot;started with no HSM: &quot; + pins.getStateAsString());
+            NameRegistrar.register(&quot;hsm&quot;, (PinService.Hsm) block -&gt; &quot;driver-1:&quot; + block.toLowerCase());
+            pins.start();
+            System.out.println(&quot;started again with the HSM up: &quot; + pins.getStateAsString());
+            System.out.println(&quot;translated: &quot; + pins.translate(&quot;7A31C0E9B4D2F658&quot;));
+            NameRegistrar.unregister(&quot;hsm&quot;);
+            NameRegistrar.register(&quot;hsm&quot;, (PinService.Hsm) block -&gt; &quot;driver-2:&quot; + block.toLowerCase());
+            System.out.println(&quot;after the HSM redeploy: &quot; + pins.translate(&quot;7A31C0E9B4D2F658&quot;));
+        } catch (RuntimeException stopped) {
+            // A method you have not finished, or a bug, stops here with its message, not a build error.
+            System.out.println(&quot;Run stopped: &quot; + stopped);
+        } finally {
+            pins.stop();
+            NameRegistrar.unregister(&quot;hsm&quot;);
+        }
+    }
+}
+</code></pre></figure>
 </section>
 <section data-practice="jpos-server/unit-14/practice-prose-2" data-corpus="iso-8583-jpos-tutorial" aria-label="Practice" tabindex="-1">
 <p data-practice-part="grader">Written for this site. Its tests were proven against a worked solution before it shipped.</p>
-<p data-practice-part="file">Your file for this practice is <code>practice/jpos-server/prose/unit-14/practice-2/src/main/java/com/example/practice/PinService.java</code>.</p>
+<p data-practice-part="file">Your files for this practice are <code>practice/jpos-server/prose/unit-14/practice-2/src/main/java/com/example/practice/PinService.java</code> and <code>practice/jpos-server/prose/unit-14/practice-2/src/main/java/TryIt.java</code>.</p>
+<p data-practice-part="tryit">Run executes <code>practice/jpos-server/prose/unit-14/practice-2/src/main/java/TryIt.java</code>, your own calls, and shows what it printed and logged. It runs no tests and gives no grade; Submit grades.</p>
 <p data-practice-part="offline">Running and submitting need the local study server. If this page was opened as a file, work on the file above and run it yourself.</p>
 <div data-practice-part="editor" hidden>
 <p data-practice-part="no-editor">The editor is not running here, and this page does not start one for you: it is a full development environment with a shell. Start it, and the runner beside it, with the one command under "Bring it up" in this corpus's EXECUTION.md, run from the corpus's root, and reload this page; until then, open the file above in your own editor.</p>
